@@ -1,0 +1,21 @@
+012 Chess-Publisher v1.05.00 Stable - PAB History Constraint
+022 Oslo
+032 NOR
+042 2026/09/01
+052 2026/09/05
+062 7
+072 7
+092 Individual Swiss
+102 IA Hans Olav
+122 90+30
+142 5
+152 W
+162  W 1.0    D 0.5    L 0.0    Z 0.0    P 1.0
+182 Chess-Publisher v1.05.00 Stable
+001    1 m GM Carlsen, Magnus                   2832 NOR 1503014     1990/11/30  1.0    1    0004 w 1
+001    2 m GM Caruana, Fabiano                  2805 USA 24116068    1992/07/30  1.0    2    0005 b 1
+001    3 m GM Nakamura, Hikaru                  2802 USA 2020009     1987/12/09  1.0    3    0006 w 1
+001    4 m GM Anand, Viswanathan                2751 IND 5000017     1969/12/11  0.0    5    0001 b 0
+001    5 m GM Topalov, Veselin                  2727 BUL 2900084     1975/03/15  0.0    6    0002 w 0
+001    6 m GM Georgiev, Kiril                   2658 BUL 2900025     1965/11/28  0.0    7    0003 b 0
+001    7 m GM Stefanova, Antoaneta              2568 BUL 2900220     1979/04/19  1.0    4    0000 - U

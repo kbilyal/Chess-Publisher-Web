@@ -1,0 +1,7 @@
+{
+  "name": "Chess-Publisher FIDE Tournament Manager",
+  "description": "Professional FIDE tournament management software featuring Swiss Dutch pairings, Round Robin Berger tables, FIDE 2026 tie-break rules, TRF16/26 validation, and comprehensive test suite.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

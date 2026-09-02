@@ -1,0 +1,221 @@
+{
+  "id": "fixture-01-normal-swiss",
+  "name": "Chess-Publisher v1.05.00 Stable - Normal Swiss",
+  "status": "in_progress",
+  "currentRound": 1,
+  "settings": {
+    "city": "London",
+    "country": "ENG",
+    "startDate": "2026-09-01T10:00",
+    "endDate": "2026-09-05T10:00",
+    "chiefArbiter": "IA David Sedgwick",
+    "timeControl": "90+30",
+    "rounds": "5",
+    "tournamentFormat": "Individual Swiss",
+    "pairingSystem": "FIDE Dutch System"
+  },
+  "players": [
+    {
+      "id": 1,
+      "localKey": "p-1",
+      "pairingNumber": 1,
+      "name": "Carlsen, Magnus",
+      "rating": 2832,
+      "fed": "NOR",
+      "fideId": "1503014",
+      "birth": "1990-11-30",
+      "gender": "m",
+      "title": "GM",
+      "attendance": "present",
+      "joinedFromRound": 1
+    },
+    {
+      "id": 2,
+      "localKey": "p-2",
+      "pairingNumber": 2,
+      "name": "Caruana, Fabiano",
+      "rating": 2805,
+      "fed": "USA",
+      "fideId": "24116068",
+      "birth": "1992-07-30",
+      "gender": "m",
+      "title": "GM",
+      "attendance": "present",
+      "joinedFromRound": 1
+    },
+    {
+      "id": 3,
+      "localKey": "p-3",
+      "pairingNumber": 3,
+      "name": "Nakamura, Hikaru",
+      "rating": 2802,
+      "fed": "USA",
+      "fideId": "2020009",
+      "birth": "1987-12-09",
+      "gender": "m",
+      "title": "GM",
+      "attendance": "present",
+      "joinedFromRound": 1
+    },
+    {
+      "id": 4,
+      "localKey": "p-4",
+      "pairingNumber": 4,
+      "name": "Anand, Viswanathan",
+      "rating": 2751,
+      "fed": "IND",
+      "fideId": "5000017",
+      "birth": "1969-12-11",
+      "gender": "m",
+      "title": "GM",
+      "attendance": "present",
+      "joinedFromRound": 1
+    },
+    {
+      "id": 5,
+      "localKey": "p-5",
+      "pairingNumber": 5,
+      "name": "Topalov, Veselin",
+      "rating": 2727,
+      "fed": "BUL",
+      "fideId": "2900084",
+      "birth": "1975-03-15",
+      "gender": "m",
+      "title": "GM",
+      "attendance": "present",
+      "joinedFromRound": 1
+    },
+    {
+      "id": 6,
+      "localKey": "p-6",
+      "pairingNumber": 6,
+      "name": "Georgiev, Kiril",
+      "rating": 2658,
+      "fed": "BUL",
+      "fideId": "2900025",
+      "birth": "1965-11-28",
+      "gender": "m",
+      "title": "GM",
+      "attendance": "present",
+      "joinedFromRound": 1
+    },
+    {
+      "id": 7,
+      "localKey": "p-7",
+      "pairingNumber": 7,
+      "name": "Stefanova, Antoaneta",
+      "rating": 2568,
+      "fed": "BUL",
+      "fideId": "2900220",
+      "birth": "1979-04-19",
+      "gender": "m",
+      "title": "GM",
+      "attendance": "present",
+      "joinedFromRound": 1
+    },
+    {
+      "id": 8,
+      "localKey": "p-8",
+      "pairingNumber": 8,
+      "name": "Cheparinov, Ivan",
+      "rating": 2542,
+      "fed": "BUL",
+      "fideId": "2905540",
+      "birth": "1986-11-26",
+      "gender": "m",
+      "title": "GM",
+      "attendance": "present",
+      "joinedFromRound": 1
+    }
+  ],
+  "pairings": {
+    "server": "",
+    "round": "1",
+    "results": "0",
+    "showScheduleOnPrint": false,
+    "liveBoards": {
+      "1": [
+        {
+          "board": 1,
+          "whiteKey": "p-1",
+          "blackKey": "p-5",
+          "result": "-"
+        },
+        {
+          "board": 2,
+          "whiteKey": "p-6",
+          "blackKey": "p-2",
+          "result": "-"
+        },
+        {
+          "board": 3,
+          "whiteKey": "p-3",
+          "blackKey": "p-7",
+          "result": "-"
+        },
+        {
+          "board": 4,
+          "whiteKey": "p-8",
+          "blackKey": "p-4",
+          "result": "-"
+        }
+      ]
+    },
+    "finalStandingsPromptedRound": 0,
+    "rounds": [
+      {
+        "round": 1,
+        "boards": [
+          {
+            "board": 1,
+            "whiteKey": "p-1",
+            "blackKey": "p-5",
+            "result": "-"
+          },
+          {
+            "board": 2,
+            "whiteKey": "p-6",
+            "blackKey": "p-2",
+            "result": "-"
+          },
+          {
+            "board": 3,
+            "whiteKey": "p-3",
+            "blackKey": "p-7",
+            "result": "-"
+          },
+          {
+            "board": 4,
+            "whiteKey": "p-8",
+            "blackKey": "p-4",
+            "result": "-"
+          }
+        ],
+        "completed": false
+      }
+    ],
+    "engine": {
+      "mode": "dutch",
+      "initialTopColor": "w",
+      "excluded": [],
+      "manualByes": {},
+      "lastGeneratedRound": 1,
+      "lastEngineMessage": "Authoritative FIDE Dutch Round 1 accepted by Arbiter IA David Sedgwick",
+      "excludeRemaining": {},
+      "excludeRounds": {},
+      "fixedBoards": {},
+      "roundActivationConfirmed": {},
+      "playerStatusCollapsed": false,
+      "needsResort": false,
+      "registrationsDirty": false,
+      "syncedAbsent": {},
+      "registrationSyncedAt": "",
+      "registrationSyncedForRound": 0,
+      "registrationSyncedSignature": "",
+      "firstRoundRegistrationLocked": false,
+      "firstRoundRegistrationSyncedSignature": "",
+      "firstRoundRegistrationNeedsResort": false,
+      "firstRoundRegistrationSyncedAt": ""
+    }
+  }
+}
