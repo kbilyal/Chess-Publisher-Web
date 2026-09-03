@@ -1,0 +1,57 @@
+name: Cloud Workspace Integration Gate
+
+on:
+  push:
+    branches:
+      - integration/cloud-workspace-2026-09-03
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-typecheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: TypeScript check
+        run: npm run lint
+
+      - name: Production build
+        run: npm run build
+
+      - name: Verify Cloud Workspace integration markers
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f src/cloud/cloudWorkspaceApi.ts
+          test -f src/cloud/CloudWorkspaceBootstrap.tsx
+          test -f cloudrun.ts
+          grep -q "CloudWorkspaceBootstrap" src/main.tsx
+          grep -q "/api/v1/cloud/workspace" src/cloud/cloudWorkspaceApi.ts
+          grep -q "X-Expected-Revision" src/cloud/cloudWorkspaceApi.ts
+          grep -q "process.env.PORT" cloudrun.ts
+          if grep -R -n -E 'B2_APPLICATION_KEY|B2_KEY_ID|HUB_BETA_CREATE_KEY' src/cloud; then
+            echo 'Infrastructure secret identifier found in browser cloud integration.' >&2
+            exit 1
+          fi
+
+      - name: Archive build metadata
+        if: always()
+        run: |
+          git rev-parse HEAD
+          node --version
+          npm --version

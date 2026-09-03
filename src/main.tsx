@@ -1,10 +1,14 @@
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
+import './cloud/installStudioApiAuth';
 import App from './App.tsx';
+import {CloudWorkspaceBootstrap} from './cloud/CloudWorkspaceBootstrap';
 import './index.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <CloudWorkspaceBootstrap>
+      <App />
+    </CloudWorkspaceBootstrap>
   </StrictMode>,
 );
