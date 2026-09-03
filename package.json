@@ -1,7 +1,7 @@
 {
-  "name": "react-example",
+  "name": "chess-publisher-web",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0-beta.4",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
@@ -22,7 +22,6 @@
     "test:online-cloud": "tsx src/cloud/tests/runOnlineCloudBeta4Tests.ts"
   },
   "dependencies": {
-    "@google/genai": "^2.4.0",
     "@tailwindcss/vite": "^4.1.14",
     "@types/adm-zip": "^0.5.8",
     "@types/sql.js": "^1.4.11",
