@@ -82,7 +82,7 @@ export const ROUND_ROBIN_TIE_BREAKS: string[] = [
 ];
 
 export const TIME_CONTROLS = [
-  "", "90+30", "60+30", "45+15", "30+30", "25+10", "15+10", "15+5", "10+5", "10+0", "5+3", "3+2", "Custom"
+  "90+30", "90+30/40+30+30", "60+30", "45+15", "30+30", "25+10", "15+10", "15+5", "10+5", "10+0", "5+3", "3+2", "Custom"
 ];
 
 export const SAMPLE_FIDE_PLAYERS = [

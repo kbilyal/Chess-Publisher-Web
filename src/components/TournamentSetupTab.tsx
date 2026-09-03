@@ -41,21 +41,31 @@ export const TournamentSetupTab: React.FC<TournamentSetupTabProps> = ({
     }));
   };
 
-  // Helper for Time Control parsing & FIDE Classification
+  // Helper for Time Control parsing & FIDE Classification (based on 60 moves standard)
+  const calculateFideRatingType = (tcStr: string): RatingType => {
+    if (!tcStr || tcStr === 'Custom') return settings.tournamentRatingType || 'Standard';
+    // Match patterns like "90+30", "90+30/40+30+30", "15+10", "3+2", etc.
+    const m = tcStr.match(/^(\d+)\s*\+\s*(\d+)/);
+    if (m) {
+      const baseMins = parseInt(m[1], 10);
+      const incSecs = parseInt(m[2], 10);
+      const totalMinutes = baseMins + (incSecs * 60) / 60; // 60 moves calculation
+      if (totalMinutes <= 10) return 'Blitz';
+      if (totalMinutes < 60) return 'Rapid';
+      return 'Standard';
+    }
+    return 'Standard';
+  };
+
   const handleTimeControlChange = (tcValue: string) => {
-    let ratingType: RatingType = settings.tournamentRatingType;
     let customVal = settings.customTimeControl;
+    let ratingType: RatingType = settings.tournamentRatingType;
 
     if (tcValue !== 'Custom') {
       customVal = '';
-      // Automatic FIDE Classification: M mins + S secs inc (60 moves = S mins) => M + S total minutes
-      const m = tcValue.match(/^(\d+)\s*\+\s*(\d+)/);
-      if (m) {
-        const totalMinutes = parseInt(m[1]) + parseInt(m[2]);
-        if (totalMinutes <= 10) ratingType = 'Blitz';
-        else if (totalMinutes < 60) ratingType = 'Rapid';
-        else ratingType = 'Standard';
-      }
+      ratingType = calculateFideRatingType(tcValue);
+    } else if (customVal) {
+      ratingType = calculateFideRatingType(customVal);
     }
 
     onUpdateTournament(prev => ({
@@ -76,14 +86,7 @@ export const TournamentSetupTab: React.FC<TournamentSetupTabProps> = ({
   };
 
   const handleCustomTcInput = (val: string) => {
-    let ratingType: RatingType = settings.tournamentRatingType;
-    const m = val.match(/^(\d+)\s*\+\s*(\d+)/);
-    if (m) {
-      const totalMinutes = parseInt(m[1]) + parseInt(m[2]);
-      if (totalMinutes <= 10) ratingType = 'Blitz';
-      else if (totalMinutes < 60) ratingType = 'Rapid';
-      else ratingType = 'Standard';
-    }
+    const ratingType = calculateFideRatingType(val);
 
     onUpdateTournament(prev => ({
       ...prev,
@@ -433,9 +436,28 @@ export const TournamentSetupTab: React.FC<TournamentSetupTabProps> = ({
               onChange={e => handleTimeControlChange(e.target.value)}
               className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-semibold focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 focus:outline-none transition"
             >
-              {TIME_CONTROLS.filter(Boolean).map(tc => (
-                <option key={tc} value={tc}>{tc} {tc === '90+30' ? '(Classical Standard)' : tc === '15+10' ? '(FIDE Rapid)' : tc === '3+2' ? '(FIDE Blitz)' : ''}</option>
-              ))}
+              {TIME_CONTROLS.filter(Boolean).map(tc => {
+                let categoryLabel = '';
+                if (tc === '90+30') categoryLabel = ' (Classical Standard 90m+30s)';
+                else if (tc === '90+30/40+30+30') categoryLabel = ' (FIDE Standard 90m/40 + 30m + 30s)';
+                else if (tc === '60+30') categoryLabel = ' (Standard 60m+30s)';
+                else if (tc === '45+15') categoryLabel = ' (Standard 45m+15s)';
+                else if (tc === '30+30') categoryLabel = ' (Standard 30m+30s)';
+                else if (tc === '25+10') categoryLabel = ' (Rapid 25m+10s)';
+                else if (tc === '15+10') categoryLabel = ' (FIDE Rapid 15m+10s)';
+                else if (tc === '15+5') categoryLabel = ' (Rapid 15m+5s)';
+                else if (tc === '10+5') categoryLabel = ' (Rapid 10m+5s)';
+                else if (tc === '10+0') categoryLabel = ' (Rapid 10m)';
+                else if (tc === '5+3') categoryLabel = ' (Blitz 5m+3s)';
+                else if (tc === '3+2') categoryLabel = ' (FIDE Blitz 3m+2s)';
+                else if (tc === 'Custom') categoryLabel = ' (Custom Time Control)';
+
+                return (
+                  <option key={tc} value={tc}>
+                    {tc}{categoryLabel}
+                  </option>
+                );
+              })}
             </select>
           </div>
 

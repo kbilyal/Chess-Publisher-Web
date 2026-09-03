@@ -103,22 +103,25 @@ export const PlayersTab: React.FC<PlayersTabProps> = ({
       clearTimeout(searchTimeoutRef.current);
     }
 
+    if (!q) {
+      setFideResults([]);
+      setIsSearchingFide(false);
+      setFideSearchNotice(null);
+      return;
+    }
+
     setIsSearchingFide(true);
     setFideSearchNotice(null);
 
     searchTimeoutRef.current = setTimeout(async () => {
       try {
-        const queryParam = q ? `&q=${encodeURIComponent(q)}` : '';
+        const queryParam = `&q=${encodeURIComponent(q)}`;
         const res = await fetch(`/api/fide/search?limit=50&tournamentType=${encodeURIComponent(defaultRatingType)}&filterRating=${encodeURIComponent(fideRatingFilter)}${queryParam}`);
         if (res.ok) {
           const data = await res.json();
           setFideResults(data.players || []);
           if (data.players && data.players.length === 0) {
-            setFideSearchNotice(
-              q
-                ? 'Няма намерени FIDE състезатели по зададените критерии.'
-                : 'Няма налични състезатели в FIDE базата данни за избрания филтър.'
-            );
+            setFideSearchNotice('Няма намерени FIDE състезатели по зададените критерии.');
           }
         } else {
           setFideResults([]);
@@ -130,7 +133,7 @@ export const PlayersTab: React.FC<PlayersTabProps> = ({
       } finally {
         setIsSearchingFide(false);
       }
-    }, q.length > 0 ? 250 : 0);
+    }, 250);
 
     return () => {
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
@@ -780,8 +783,15 @@ export const PlayersTab: React.FC<PlayersTabProps> = ({
               </div>
             ) : fideResults.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center p-6 text-center text-slate-400">
-                <Users className="w-8 h-8 mb-2 opacity-40" />
-                <span>{fideSearchNotice || 'Въведете име на латиница/кирилица или FIDE ID (напр. "Топалов", "Carlsen", "2905540").'}</span>
+                <Search className="w-8 h-8 mb-2 opacity-40 text-slate-400" />
+                <span className="font-medium text-slate-600">
+                  {fideSearchNotice || 'Въведете име на латиница/кирилица или FIDE ID за търсене.'}
+                </span>
+                {!fideSearchNotice && (
+                  <span className="text-[11px] text-slate-400 mt-1">
+                    (напр. "Топалов", "Carlsen", "Kasparov", "2905540")
+                  </span>
+                )}
               </div>
             ) : (
               fideResults.map(p => {
