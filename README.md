@@ -2,8 +2,8 @@
 
 Web and cross-platform development branch of Chess-Publisher tournament management software.
 
-## Start here for development
-This repository is designed to be continued by Google AI Studio, Junie, Codex, Cursor, Claude or a human developer without prior chat history.
+## Development workflow
+The source of truth is this GitHub repository. Development is intended for a normal local workstation workflow, primarily Linux + VS Code + ChatGPT + GitHub. No Google AI Studio source sync or runtime dependency is required.
 
 Before changing code read:
 1. `AGENTS.md`
@@ -15,15 +15,14 @@ Before changing code read:
 7. `NEXT-TASK.md`
 
 ## Current status
-Authoritative Gacrux 1.9.57 + BBP 6.0.0 pairing/checking, transaction safety, FIDE rating database and Results Integrity lifecycle are integrated. Full 100% functional integration is still in progress.
+Authoritative Gacrux 1.9.57 + BBP 6.0.0 pairing/checking, transaction safety, FIDE rating database, Results Integrity lifecycle, and Online & Cloud beta.4 safe synchronization are integrated. Full production acceptance is still gated by live environment tests.
 
-Current next task: **Batch C — FIDE Player Synchronization**.
-
-`HANDOFF_READY = false` until every gate in `INTEGRATION-GATE.md` passes.
+`HANDOFF_READY = false` until every required gate in `INTEGRATION-GATE.md` passes.
 
 ## Core regression commands
 ```bash
 npm run lint
+npm run test:online-cloud
 npm run build
 npm run test:arch
 npm run test:parity
