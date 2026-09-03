@@ -1,5 +1,16 @@
-export const CLOUD_API_BASE = 'https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev';
-export const CLOUD_CLIENT_VERSION = 'studio-cloud-integration-0.1';
+const DIRECT_CLOUD_API_BASE = 'https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev';
+
+function isAiStudioPreview() {
+  if (typeof window === 'undefined') return false;
+  const host = String(window.location.hostname || '').toLowerCase();
+  return host === 'ai.studio' || host.endsWith('.scf.usercontent.goog');
+}
+
+// AI Studio Preview uses a randomized sandbox origin. Route only Preview
+// traffic through the same-origin Vite proxy; published Web keeps using the
+// Hub API directly.
+export const CLOUD_API_BASE = isAiStudioPreview() ? '/hub-api' : DIRECT_CLOUD_API_BASE;
+export const CLOUD_CLIENT_VERSION = 'studio-cloud-integration-0.2';
 
 export class CloudApiError extends Error {
   status: number;
@@ -48,7 +59,11 @@ async function request(path: string, options: {
   } catch (error: any) {
     throw new CloudApiError('Cloud Workspace is unavailable.', {
       code: 'network_error',
-      payload: { message: error?.message || String(error) }
+      payload: {
+        message: error?.message || String(error),
+        base: CLOUD_API_BASE,
+        origin: typeof window !== 'undefined' ? window.location.origin : ''
+      }
     });
   }
 
