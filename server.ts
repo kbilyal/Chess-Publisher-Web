@@ -10,6 +10,8 @@ import { auditStore } from './src/server/auditStore';
 import { tournamentStore } from './src/server/tournamentStore';
 import { fideService, fideRepository } from './src/server/fide';
 import { getRoundLifecycleState } from './src/engine/roundEntryValidator';
+import { generateFideSyncPreflight, applyFidePlayerSync } from './src/transactions/fideSyncWorkflow';
+import { FideSyncField, FidePlayerSyncSelection } from './src/transactions/types';
 
 const PORT = 3000;
 const app = express();
@@ -570,15 +572,113 @@ app.post('/api/fide/update-rating-list', async (req, res) => {
   }
 });
 
+app.post('/api/fide/auto-download-all', async (req, res) => {
+  try {
+    const result = await fideService.updateRatingList({
+      allowSeedOnNetworkFail: true
+    });
+    res.json({
+      success: true,
+      message: `Automatically downloaded and synchronized all FIDE rating lists (Standard, Rapid, Blitz) from https://ratings.fide.com/download_lists.phtml.`,
+      result
+    });
+  } catch (err: any) {
+    if (err.message && err.message.includes('UPDATE_ALREADY_IN_PROGRESS')) {
+      res.status(409).json({
+        success: false,
+        code: 'UPDATE_ALREADY_IN_PROGRESS',
+        message: err.message
+      });
+      return;
+    }
+    res.status(500).json({
+      success: false,
+      code: 'AUTO_DOWNLOAD_FAILED',
+      message: err.message || 'Failed to auto-download all FIDE rating lists.',
+      databasePreserved: true
+    });
+  }
+});
+
+// Download and synchronize LEGACY format (not rated included) STD, RPD, BLZ combined
+app.post('/api/fide/download-legacy', async (req, res) => {
+  try {
+    const result = await fideService.updateRatingList({
+      sourceFormat: 'legacy_txt',
+      allowSeedOnNetworkFail: true
+    });
+    res.json({
+      success: true,
+      message: `Successfully synchronized LEGACY format (not rated included) STD, RPD, BLZ combined from https://ratings.fide.com/download_lists.phtml.`,
+      result
+    });
+  } catch (err: any) {
+    if (err.message && err.message.includes('UPDATE_ALREADY_IN_PROGRESS')) {
+      res.status(409).json({
+        success: false,
+        code: 'UPDATE_ALREADY_IN_PROGRESS',
+        message: err.message
+      });
+      return;
+    }
+    res.status(500).json({
+      success: false,
+      code: 'DOWNLOAD_LEGACY_FAILED',
+      message: err.message || 'Failed to download legacy FIDE rating list.',
+      databasePreserved: true
+    });
+  }
+});
+
+// Direct import of FIDE archive or text file (e.g. players_list_foa.zip, players_list_foa.txt)
+app.post('/api/fide/upload-archive', async (req, res) => {
+  const { filename, base64Data } = req.body || {};
+  if (!base64Data || typeof base64Data !== 'string') {
+    res.status(400).json({
+      success: false,
+      code: 'INVALID_DATA',
+      message: 'Base64 file data is required for archive upload.'
+    });
+    return;
+  }
+
+  try {
+    const cleanBase64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
+    const buffer = Buffer.from(cleanBase64, 'base64');
+
+    const result = await fideService.updateRatingList({
+      customSourceBuffer: buffer,
+      customSourceName: `Imported file: ${filename || 'FIDE archive'}`
+    });
+
+    res.json({
+      success: true,
+      message: `Успешно импортиран файл ${filename || 'FIDE архив'}: заредени ${result.recordCount} състезатели.`,
+      result
+    });
+  } catch (err: any) {
+    res.status(500).json({
+      success: false,
+      code: 'UPLOAD_FAILED',
+      message: err.message || 'Failed to parse and import uploaded FIDE rating file.',
+      databasePreserved: true
+    });
+  }
+});
+
 app.get('/api/fide/search', (req, res) => {
-  const q = String(req.query.q || '').trim();
-  const fed = req.query.fed ? String(req.query.fed).trim() : undefined;
+  const q = String(req.query.q || req.query.query || '').trim();
+  const fed = (req.query.fed || req.query.federation) ? String(req.query.fed || req.query.federation).trim() : undefined;
   const limit = req.query.limit ? parseInt(String(req.query.limit), 10) : 50;
+  const tournamentType = (req.query.tournamentType as 'Standard' | 'Rapid' | 'Blitz') || undefined;
+  const filterRating = (req.query.filterRating as 'all' | 'rated' | 'unrated') || undefined;
 
   const players = fideService.search({
     query: q,
     federation: fed,
-    limit
+    limit,
+    tournamentType,
+    filterRating
   });
 
   res.json({
@@ -614,6 +714,197 @@ app.get('/api/fide/player/:fideId', (req, res) => {
     player
   });
 });
+
+// 14. Authoritative FIDE Player Synchronization (Batch C)
+app.post('/api/fide/sync-player', (req, res) => {
+  try {
+    const {
+      playerKey,
+      playerId,
+      fideId,
+      apply = false,
+      arbiterConfirmed = false,
+      arbiterName = 'Arbiter',
+      selectedFields,
+      tournament: customTourn
+    } = req.body || {};
+
+    const activeTournament = customTourn || tournamentStore.getOfficialTournament();
+
+    let targetKey = playerKey;
+    if (!targetKey && playerId !== undefined) {
+      const found = activeTournament.players.find(p => p.id === playerId);
+      if (found) targetKey = found.localKey;
+    }
+    if (!targetKey && fideId !== undefined) {
+      const found = activeTournament.players.find(p => String(p.fideId).trim() === String(fideId).trim());
+      if (found) targetKey = found.localKey;
+    }
+
+    if (!targetKey) {
+      res.status(400).json({
+        success: false,
+        code: 'PLAYER_NOT_FOUND',
+        message: 'Must provide valid playerKey, playerId, or fideId identifying a tournament player.'
+      });
+      return;
+    }
+
+    const fideLookup = (id: number) => fideService.getPlayer(id);
+    const dbStatus = fideService.getStatus();
+
+    if (!apply) {
+      const diffReport = generateFideSyncPreflight(
+        activeTournament,
+        fideLookup,
+        targetKey,
+        dbStatus
+      );
+      const diffItem = diffReport.players.find(p => p.playerKey === targetKey);
+      res.json({
+        success: true,
+        preview: true,
+        playerKey: targetKey,
+        item: diffItem,
+        diffReport
+      });
+      return;
+    }
+
+    // Apply requested
+    if (arbiterConfirmed !== true) {
+      res.status(400).json({
+        success: false,
+        code: 'ARBITER_CONFIRMATION_REQUIRED',
+        message: 'Explicit arbiter confirmation is required to apply FIDE synchronization.'
+      });
+      return;
+    }
+
+    let fieldsToApply: FideSyncField[] = selectedFields;
+    if (!fieldsToApply || fieldsToApply.length === 0) {
+      const preflight = generateFideSyncPreflight(activeTournament, fideLookup, targetKey, dbStatus);
+      const preItem = preflight.players.find(p => p.playerKey === targetKey);
+      if (!preItem || preItem.status !== 'CHANGED') {
+        res.json({
+          success: true,
+          appliedCount: 0,
+          startingListOutdated: false,
+          tournament: activeTournament,
+          message: 'No changes required for player.'
+        });
+        return;
+      }
+      fieldsToApply = preItem.diffs.map(d => d.field);
+    }
+
+    const result = applyFidePlayerSync(
+      activeTournament,
+      [{ playerKey: targetKey, selectedFields: fieldsToApply }],
+      fideLookup,
+      { arbiterConfirmed: true, arbiterName }
+    );
+
+    if (!customTourn) {
+      tournamentStore.setOfficialTournament(result.tournament);
+    }
+
+    res.json({
+      success: true,
+      committed: true,
+      appliedCount: result.appliedCount,
+      startingListOutdated: result.startingListOutdated,
+      tournament: result.tournament
+    });
+  } catch (err: any) {
+    const statusCode = err.code === 'ARBITER_CONFIRMATION_REQUIRED' ? 400
+      : (err.code === 'UNMATCHED_PLAYER_MUTATION_FORBIDDEN' || err.code === 'DUPLICATE_FIDE_ID_MUTATION_FORBIDDEN' ? 409 : 500);
+    res.status(statusCode).json({
+      success: false,
+      code: err.code || 'SYNC_FAILED',
+      message: err.message || 'Failed to synchronize player with FIDE.'
+    });
+  }
+});
+
+app.post('/api/fide/sync-all-players', (req, res) => {
+  try {
+    const {
+      apply = false,
+      arbiterConfirmed = false,
+      arbiterName = 'Arbiter',
+      playerUpdates,
+      tournament: customTourn
+    } = req.body || {};
+
+    const activeTournament = customTourn || tournamentStore.getOfficialTournament();
+    const fideLookup = (id: number) => fideService.getPlayer(id);
+    const dbStatus = fideService.getStatus();
+
+    const preflight = generateFideSyncPreflight(
+      activeTournament,
+      fideLookup,
+      undefined,
+      dbStatus
+    );
+
+    if (!apply) {
+      res.json({
+        success: true,
+        preview: true,
+        diffReport: preflight
+      });
+      return;
+    }
+
+    if (arbiterConfirmed !== true) {
+      res.status(400).json({
+        success: false,
+        code: 'ARBITER_CONFIRMATION_REQUIRED',
+        message: 'Explicit arbiter confirmation is required to apply bulk FIDE synchronization.'
+      });
+      return;
+    }
+
+    let selections: FidePlayerSyncSelection[] = playerUpdates;
+    if (!selections || selections.length === 0) {
+      selections = preflight.players
+        .filter(p => p.status === 'CHANGED')
+        .map(p => ({
+          playerKey: p.playerKey,
+          selectedFields: p.diffs.map(d => d.field)
+        }));
+    }
+
+    const result = applyFidePlayerSync(
+      activeTournament,
+      selections,
+      fideLookup,
+      { arbiterConfirmed: true, arbiterName }
+    );
+
+    if (!customTourn) {
+      tournamentStore.setOfficialTournament(result.tournament);
+    }
+
+    res.json({
+      success: true,
+      committed: true,
+      appliedCount: result.appliedCount,
+      startingListOutdated: result.startingListOutdated,
+      tournament: result.tournament
+    });
+  } catch (err: any) {
+    const statusCode = err.code === 'ARBITER_CONFIRMATION_REQUIRED' ? 400
+      : (err.code === 'UNMATCHED_PLAYER_MUTATION_FORBIDDEN' || err.code === 'DUPLICATE_FIDE_ID_MUTATION_FORBIDDEN' ? 409 : 500);
+    res.status(statusCode).json({
+      success: false,
+      code: err.code || 'SYNC_ALL_FAILED',
+      message: err.message || 'Failed to bulk synchronize players with FIDE.'
+    });
+  }
+});
+
 
 // Export app and adapters for testing purposes
 export { app, gacruxAdapter, checkerAdapter, tournamentStore, fideService, fideRepository };

@@ -8,6 +8,9 @@ export type TransactionType =
   | 'ACCEPT_PAIRINGS'
   | 'FINALIZE_ROUND'
   | 'UNLOCK_ROUND'
+  | 'FIDE_PLAYER_SYNC'
+  | 'PLAYER_BULK_OPERATION'
+  | 'PLAYER_MUTATION'
   | 'CUSTOM';
 
 export type TransactionStatus =
@@ -97,3 +100,88 @@ export interface TrfConflictReport {
     importedByesCount: number;
   };
 }
+
+export type FideSyncField =
+  | 'name'
+  | 'fideId'
+  | 'fed'
+  | 'title'
+  | 'ratingStandard'
+  | 'ratingRapid'
+  | 'ratingBlitz'
+  | 'birth';
+
+export interface FidePlayerFieldDiff {
+  field: FideSyncField;
+  label: string;
+  oldValue: string | number;
+  newValue: string | number;
+  selected: boolean;
+}
+
+export type FidePlayerSyncStatus = 'UNCHANGED' | 'CHANGED' | 'UNMATCHED' | 'DUPLICATE_FIDE_ID';
+
+export interface FideAuthoritativeSnapshot {
+  fideId: number;
+  name: string;
+  federation: string;
+  title?: string;
+  ratingStandard: number;
+  ratingRapid: number;
+  ratingBlitz: number;
+  birth?: string;
+}
+
+export interface FidePlayerDiffItem {
+  playerId: number;
+  playerKey: string;
+  currentName: string;
+  currentFideId: string;
+  fideMatchedId?: number;
+  status: FidePlayerSyncStatus;
+  warning?: string;
+  diffs: FidePlayerFieldDiff[];
+  selected: boolean;
+  authoritativeRecord?: FideAuthoritativeSnapshot;
+}
+
+export interface FideSyncDiffReport {
+  totalPlayers: number;
+  matchedCount: number;
+  unchangedCount: number;
+  changedCount: number;
+  unmatchedCount: number;
+  duplicateCount: number;
+  startingListOutdated: boolean;
+  tournamentRatingType: 'Standard' | 'Rapid' | 'Blitz' | 'Unrated';
+  players: FidePlayerDiffItem[];
+  databaseMetadata?: {
+    listVersion: string | null;
+    listDate: string | null;
+    recordCount: number;
+    databaseAvailable: boolean;
+  };
+}
+
+export interface FidePlayerSyncSelection {
+  playerKey: string;
+  selectedFields: FideSyncField[];
+}
+
+export interface PlayerBulkOperationReport {
+  operation: 'STATUS_CHANGE' | 'FEDERATION_CHANGE' | 'DELETE';
+  totalSelected: number;
+  affectedCount: number;
+  blockedCount: number;
+  blockedDetails?: { playerKey: string; playerName: string; reason: string }[];
+  snapshotHash?: string;
+}
+
+export interface PlayerHistoryCheckResult {
+  hasHistory: boolean;
+  playedGamesCount: number;
+  byesCount: number;
+  roundsWithPairings: number[];
+  reasons: string[];
+}
+

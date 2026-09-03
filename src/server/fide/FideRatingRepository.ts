@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import initSqlJs, { Database, SqlJsStatic } from 'sql.js';
 import { FideDatabaseMetadata, FidePlayerRecord, FideSearchParams } from './types';
+import { generateTransliterationVariants } from './transliteration';
 
 let SQL: SqlJsStatic | null = null;
 
@@ -112,6 +113,52 @@ export class FideRatingRepository {
     return null;
   }
 
+  public getRatingCounts(): {
+    standard: number;
+    rapid: number;
+    blitz: number;
+    unrated: number;
+    unratedStandard: number;
+    unratedRapid: number;
+    unratedBlitz: number;
+  } {
+    if (!this.db) return { standard: 0, rapid: 0, blitz: 0, unrated: 0, unratedStandard: 0, unratedRapid: 0, unratedBlitz: 0 };
+    try {
+      const stmt = this.db.prepare(
+        "SELECT " +
+        "SUM(CASE WHEN rating_standard > 0 THEN 1 ELSE 0 END) as std_count, " +
+        "SUM(CASE WHEN rating_rapid > 0 THEN 1 ELSE 0 END) as rap_count, " +
+        "SUM(CASE WHEN rating_blitz > 0 THEN 1 ELSE 0 END) as blz_count, " +
+        "SUM(CASE WHEN (rating_standard = 0 OR rating_standard IS NULL) AND (rating_rapid = 0 OR rating_rapid IS NULL) AND (rating_blitz = 0 OR rating_blitz IS NULL) THEN 1 ELSE 0 END) as unrated_count, " +
+        "SUM(CASE WHEN rating_standard = 0 OR rating_standard IS NULL THEN 1 ELSE 0 END) as unrated_std, " +
+        "SUM(CASE WHEN rating_rapid = 0 OR rating_rapid IS NULL THEN 1 ELSE 0 END) as unrated_rap, " +
+        "SUM(CASE WHEN rating_blitz = 0 OR rating_blitz IS NULL THEN 1 ELSE 0 END) as unrated_blz " +
+        "FROM fide_players;"
+      );
+      let standard = 0;
+      let rapid = 0;
+      let blitz = 0;
+      let unrated = 0;
+      let unratedStandard = 0;
+      let unratedRapid = 0;
+      let unratedBlitz = 0;
+      if (stmt.step()) {
+        const row = stmt.getAsObject();
+        standard = Number(row.std_count || 0);
+        rapid = Number(row.rap_count || 0);
+        blitz = Number(row.blz_count || 0);
+        unrated = Number(row.unrated_count || 0);
+        unratedStandard = Number(row.unrated_std || 0);
+        unratedRapid = Number(row.unrated_rap || 0);
+        unratedBlitz = Number(row.unrated_blz || 0);
+      }
+      stmt.free();
+      return { standard, rapid, blitz, unrated, unratedStandard, unratedRapid, unratedBlitz };
+    } catch {
+      return { standard: 0, rapid: 0, blitz: 0, unrated: 0, unratedStandard: 0, unratedRapid: 0, unratedBlitz: 0 };
+    }
+  }
+
   public searchPlayers(params: FideSearchParams): FidePlayerRecord[] {
     if (!this.db) return [];
 
@@ -119,7 +166,7 @@ export class FideRatingRepository {
     const q = params.query ? params.query.trim() : '';
     const fed = params.federation ? params.federation.trim().toUpperCase() : null;
 
-    if (!q && !fed) return [];
+    if (!q && !fed && !params.filterRating) return [];
 
     const results: FidePlayerRecord[] = [];
 
@@ -136,9 +183,30 @@ export class FideRatingRepository {
         bindParams[':exactId'] = parseInt(q, 10);
         bindParams[':likeId'] = `${q}%`;
       } else if (q.length > 0) {
-        // Case-insensitive name match or comma-separated search (e.g. "Carlsen, Magnus" or "Magnus")
-        conditions.push("name LIKE :nameQuery");
-        bindParams[':nameQuery'] = `%${q}%`;
+        // Multi-token order-independent search: matches both "First Last" and "Last, First"
+        const tokens = q.split(/[\s,]+/).map(t => t.trim()).filter(t => t.length > 0);
+        if (tokens.length === 1 && /^\d+$/.test(tokens[0])) {
+          conditions.push("(fide_id = :exactId OR fide_id LIKE :likeId)");
+          bindParams[':exactId'] = parseInt(tokens[0], 10);
+          bindParams[':likeId'] = `${tokens[0]}%`;
+        } else if (tokens.length > 0) {
+          const tokenConditions: string[] = [];
+          tokens.forEach((tok, idx) => {
+            const variants = generateTransliterationVariants(tok);
+            const variantSubConditions: string[] = [];
+            variants.forEach((variant, vIdx) => {
+              const paramKey = `:token_${idx}_${vIdx}`;
+              if (/^\d+$/.test(variant)) {
+                variantSubConditions.push(`(name LIKE ${paramKey} OR fide_id LIKE ${paramKey})`);
+              } else {
+                variantSubConditions.push(`name LIKE ${paramKey}`);
+              }
+              bindParams[paramKey] = `%${variant}%`;
+            });
+            tokenConditions.push(`(${variantSubConditions.join(' OR ')})`);
+          });
+          conditions.push(`(${tokenConditions.join(' AND ')})`);
+        }
       }
 
       if (fed) {
@@ -146,8 +214,35 @@ export class FideRatingRepository {
         bindParams[':fed'] = fed;
       }
 
+      // Rating filter support (All / Rated / Unrated)
+      if (params.filterRating === 'unrated') {
+        conditions.push("((rating_standard = 0 OR rating_standard IS NULL) AND (rating_rapid = 0 OR rating_rapid IS NULL) AND (rating_blitz = 0 OR rating_blitz IS NULL))");
+      } else if (params.filterRating === 'rated') {
+        if (params.tournamentType === 'Rapid') {
+          conditions.push("rating_rapid > 0");
+        } else if (params.tournamentType === 'Blitz') {
+          conditions.push("rating_blitz > 0");
+        } else if (params.tournamentType === 'Standard') {
+          conditions.push("rating_standard > 0");
+        } else {
+          conditions.push("(rating_standard > 0 OR rating_rapid > 0 OR rating_blitz > 0)");
+        }
+      }
+
+      if (conditions.length === 0) {
+        conditions.push("1 = 1");
+      }
+
       sql += conditions.join(' AND ');
-      sql += " ORDER BY rating_standard DESC, name ASC LIMIT :limit;";
+
+      // Order based on tournament type if provided, prioritizing highest rated in that format
+      if (params.tournamentType === 'Rapid') {
+        sql += " ORDER BY rating_rapid DESC, rating_standard DESC, name ASC LIMIT :limit;";
+      } else if (params.tournamentType === 'Blitz') {
+        sql += " ORDER BY rating_blitz DESC, rating_standard DESC, name ASC LIMIT :limit;";
+      } else {
+        sql += " ORDER BY rating_standard DESC, name ASC LIMIT :limit;";
+      }
       bindParams[':limit'] = limit;
 
       const stmt = this.db.prepare(sql);

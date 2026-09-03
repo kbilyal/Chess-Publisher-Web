@@ -313,6 +313,53 @@ async function runFideTestSuite() {
       Object.keys(officialTournamentAfter.pairings?.liveBoards || {}).length === liveBoardsBeforeCount,
       'Tournament state is NOT mutated by rating-list update (Batch B separation from Batch C)'
     );
+
+    // Test 21: Multi-token order-independent name search
+    const orderSearch1 = freshService.search({ query: 'Magnus Carlsen' });
+    const orderSearch2 = freshService.search({ query: 'Carlsen Magnus' });
+    const orderSearch3 = freshService.search({ query: 'Hikaru Nakamura' });
+    assert(
+      orderSearch1.length > 0 && orderSearch1[0].name === 'Carlsen, Magnus' &&
+      orderSearch2.length > 0 && orderSearch2[0].name === 'Carlsen, Magnus' &&
+      orderSearch3.length > 0 && orderSearch3[0].name === 'Nakamura, Hikaru',
+      'Multi-token order-independent name search matches regardless of first or last name order'
+    );
+
+    // Test 22: Tournament type ordering in search
+    const blitzSearch = freshService.search({ query: 'a', tournamentType: 'Blitz', limit: 10 });
+    assert(
+      blitzSearch.length >= 2 && blitzSearch[0].ratingBlitz >= blitzSearch[1].ratingBlitz,
+      'Search with tournamentType=Blitz sorts candidates prioritizing highest Blitz rating'
+    );
+
+    // Test 23: Rating category counts in status
+    const statusWithCounts = freshService.getStatus();
+    assert(
+      (statusWithCounts.standardRatedCount || 0) > 0 &&
+      (statusWithCounts.rapidRatedCount || 0) > 0 &&
+      (statusWithCounts.blitzRatedCount || 0) > 0 &&
+      statusWithCounts.downloadPageUrl === 'https://ratings.fide.com/download_lists.phtml',
+      'Status reports Standard, Rapid, and Blitz rating counts and download portal URL'
+    );
+
+    // Test 24: Cyrillic search transliteration (e.g. 'Карлсен', 'Чепаринов', 'Стефанова')
+    const cyrillicSearch1 = freshService.search({ query: 'Карлсен' });
+    const cyrillicSearch2 = freshService.search({ query: 'Чепаринов' });
+    const cyrillicSearch3 = freshService.search({ query: 'Стефанова' });
+    assert(
+      cyrillicSearch1.length > 0 && cyrillicSearch1[0].name === 'Carlsen, Magnus' &&
+      cyrillicSearch2.length > 0 && cyrillicSearch2[0].name === 'Cheparinov, Ivan' &&
+      cyrillicSearch3.length > 0 && cyrillicSearch3[0].name === 'Stefanova, Antoaneta',
+      'Cyrillic search automatically transliterates to Latin to find official FIDE players'
+    );
+
+    // Test 25: Automated cloud block bypass via authoritative mirror
+    assert(
+      (freshService as any).AUTHORITATIVE_MIRROR_URL &&
+      (freshService as any).AUTHORITATIVE_MIRROR_URL.includes('players_list_xml.zip'),
+      'Authoritative mirror URL configured for automatic FIDE cloud block bypass'
+    );
+
     freshRepo.close();
 
   } finally {

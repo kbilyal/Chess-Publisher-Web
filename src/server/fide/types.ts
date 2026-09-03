@@ -29,7 +29,16 @@ export interface FideStatusResponse {
   listDate: string | null;
   downloadedAt: string | null;
   recordCount: number;
+  standardRatedCount?: number;
+  rapidRatedCount?: number;
+  blitzRatedCount?: number;
+  unratedCount?: number;
+  unratedStandardCount?: number;
+  unratedRapidCount?: number;
+  unratedBlitzCount?: number;
   source: string | null;
+  downloadPageUrl?: string;
+  legacyFormatTitle?: string;
   sha256: string | null;
   updateInProgress: boolean;
   offlineFallback: boolean;
@@ -40,4 +49,6 @@ export interface FideSearchParams {
   query: string;
   federation?: string;
   limit?: number;
+  tournamentType?: 'Standard' | 'Rapid' | 'Blitz';
+  filterRating?: 'all' | 'rated' | 'unrated';
 }

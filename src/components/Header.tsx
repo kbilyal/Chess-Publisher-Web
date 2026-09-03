@@ -3,7 +3,7 @@ import { Tournament, TabType } from '../types';
 import { 
   Trophy, Plus, ShieldCheck, FlaskConical,
   RotateCcw, FileText, Calendar, Users, LayoutGrid, Award, Globe,
-  Download, Upload, Printer
+  Download, Upload, Printer, Sliders
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -42,7 +42,8 @@ export const Header: React.FC<HeaderProps> = ({
     { id: 'setup', label: 'Tournament Setup', icon: Trophy },
     { id: 'players', label: 'Players Roster', icon: Users, badge: playerCount },
     { id: 'pairings', label: 'Pairings & Results', icon: LayoutGrid, badge: currentRound > 0 ? `R${currentRound}` : undefined },
-    { id: 'standings', label: 'Standings & Tie-Breaks', icon: Award },
+    { id: 'standings', label: 'Standings', icon: Award },
+    { id: 'tiebreaks', label: 'Tie-Breaks', icon: Sliders, badge: tournament.regulations?.tieBreaks?.length },
     { id: 'schedule', label: 'Schedule', icon: Calendar },
     { id: 'chessresults', label: 'Chess-Results', icon: Globe },
     { id: 'export', label: 'Export & Print', icon: Printer }
@@ -60,8 +61,9 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
             <div className="flex flex-col">
               <div className="flex items-center gap-1.5 leading-none">
-                <span className="bg-gradient-to-r from-blue-700 via-indigo-600 to-amber-600 bg-clip-text text-transparent font-extrabold text-sm tracking-tight">
-                  Chess-Publisher
+                <span className="font-extrabold text-sm tracking-tight text-slate-900">
+                  <span className="text-blue-600">Chess</span>
+                  <span className="text-slate-800">-Publisher</span>
                 </span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-mono font-bold">
                   FIDE 2026
@@ -167,7 +169,7 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Primary Navigation Ribbon */}
-      <div className="px-4 flex items-center gap-1 overflow-x-auto no-scrollbar bg-slate-50/90 text-xs border-b border-slate-200">
+      <div className="px-4 flex items-center gap-1 overflow-x-auto no-scrollbar bg-slate-50 text-xs border-b border-slate-200">
         {navTabs.map(tab => {
           const isActive = activeTab === tab.id;
           const Icon = tab.icon;

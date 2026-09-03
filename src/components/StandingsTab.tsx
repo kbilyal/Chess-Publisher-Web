@@ -1,11 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Tournament, PlayerRoundState } from '../types';
 import { calculateTournamentStandings, calculateSpecialPrizes, getStandingTieBreakValue } from '../engine/tiebreaks';
+import { runTieBreakIntegrityCheck } from '../engine/tiebreakChecker';
 import { getFederationFlag } from '../data/initialData';
 import { 
   Trophy, Medal, Award, Search, CheckCircle2, 
-  ExternalLink, HelpCircle, User, Filter, Eye, ChevronRight, Printer
+  ExternalLink, HelpCircle, User, Filter, Eye, ChevronRight, Printer,
+  ShieldCheck, AlertTriangle, AlertOctagon, Sliders
 } from 'lucide-react';
+import { PlayerTieBreakDetailsModal } from './PlayerTieBreakDetailsModal';
+import { TieBreakCheckerModal } from './TieBreakCheckerModal';
 
 interface StandingsTabProps {
   tournament: Tournament;
@@ -25,6 +29,19 @@ export const StandingsTab: React.FC<StandingsTabProps> = ({
   const [selectedSpecialAges, setSelectedSpecialAges] = useState<string[]>(['U18', '50+', '65+']);
   const [femalePrize, setFemalePrize] = useState(true);
   const [showFideDiagnostics, setShowFideDiagnostics] = useState(false);
+  const [selectedPlayerForDetails, setSelectedPlayerForDetails] = useState<{ id: number; tb?: string } | null>(null);
+  const [showCheckerModal, setShowCheckerModal] = useState(false);
+
+  const integrityReport = useMemo(() => runTieBreakIntegrityCheck(tournament), [tournament]);
+  const playerIssuesMap = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const iss of integrityReport.issues) {
+      if (iss.playerId) {
+        map.set(iss.playerId, iss.issue);
+      }
+    }
+    return map;
+  }, [integrityReport]);
 
   const standingsResult = calculateTournamentStandings(tournament);
   const { players, tieList, completed } = standingsResult;
@@ -70,6 +87,19 @@ export const StandingsTab: React.FC<StandingsTabProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowCheckerModal(true)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border flex items-center gap-1.5 transition ${
+                integrityReport.status === 'PASS'
+                  ? 'bg-white hover:bg-slate-50 border-slate-300 text-slate-700'
+                  : 'bg-amber-50 border-amber-300 text-amber-900 shadow-sm'
+              }`}
+              title="Open FIDE Tie-Break Integrity Diagnostic Report"
+            >
+              <ShieldCheck className={`w-3.5 h-3.5 ${integrityReport.status === 'PASS' ? 'text-emerald-600' : 'text-amber-600'}`} />
+              <span>Integrity: {integrityReport.status === 'PASS' ? '✓ PASS' : `⚠ ${integrityReport.issues.length}`}</span>
+            </button>
+
             <button
               onClick={() => setShowFideDiagnostics(!showFideDiagnostics)}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold border flex items-center gap-1.5 transition ${
@@ -302,6 +332,18 @@ export const StandingsTab: React.FC<StandingsTabProps> = ({
                               {p.title}
                             </span>
                           )}
+                          {playerIssuesMap.has(p.id) && (
+                            <span
+                              className="text-amber-600 cursor-pointer inline-flex items-center ml-1"
+                              title={`Integrity issue: ${playerIssuesMap.get(p.id)}`}
+                              onClick={e => {
+                                e.stopPropagation();
+                                setSelectedPlayerForDetails({ id: p.id });
+                              }}
+                            >
+                              <AlertTriangle className="w-3.5 h-3.5" />
+                            </span>
+                          )}
                         </div>
                       </td>
 
@@ -325,7 +367,15 @@ export const StandingsTab: React.FC<StandingsTabProps> = ({
                         const val = getStandingTieBreakValue(p, tb);
                         const isDecimals2 = tb.includes('Sonneborn') || tb.includes('Average of Opponents');
                         return (
-                          <td key={tb} className="py-2.5 px-3 text-right font-mono text-slate-700">
+                          <td
+                            key={tb}
+                            onClick={e => {
+                              e.stopPropagation();
+                              setSelectedPlayerForDetails({ id: p.id, tb });
+                            }}
+                            className="py-2.5 px-3 text-right font-mono text-slate-700 hover:bg-blue-100/70 hover:text-blue-900 transition cursor-pointer"
+                            title={`Click to inspect ${p.name}'s ${tb} breakdown`}
+                          >
                             {isDecimals2 ? val.toFixed(2) : val.toFixed(1)}
                           </td>
                         );
@@ -338,6 +388,26 @@ export const StandingsTab: React.FC<StandingsTabProps> = ({
           </table>
         </div>
       </section>
+
+      {/* Modals */}
+      {selectedPlayerForDetails && (
+        <PlayerTieBreakDetailsModal
+          tournament={tournament}
+          playerId={selectedPlayerForDetails.id}
+          initialTieBreakName={selectedPlayerForDetails.tb}
+          isOpen={!!selectedPlayerForDetails}
+          onClose={() => setSelectedPlayerForDetails(null)}
+        />
+      )}
+
+      {showCheckerModal && (
+        <TieBreakCheckerModal
+          tournament={tournament}
+          isOpen={showCheckerModal}
+          onClose={() => setShowCheckerModal(false)}
+          onOpenPlayerDetails={(id, tb) => setSelectedPlayerForDetails({ id, tb })}
+        />
+      )}
     </div>
   );
 };

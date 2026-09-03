@@ -6,6 +6,7 @@ import { TournamentSetupTab } from './components/TournamentSetupTab';
 import { PlayersTab } from './components/PlayersTab';
 import { PairingsTab } from './components/PairingsTab';
 import { StandingsTab } from './components/StandingsTab';
+import { TieBreaksTab } from './components/TieBreaksTab';
 import { ScheduleTab } from './components/ScheduleTab';
 import { ChessResultsTab } from './components/ChessResultsTab';
 import { ExportTrfTab } from './components/ExportTrfTab';
@@ -172,6 +173,14 @@ export default function App() {
             onOpenPlayerHistory={id => setSelectedPlayerIdForHistory(id)}
             onOpenTieBreakSettings={name => setSelectedTieBreakForSettings(name)}
             onOpenPrintModal={docType => setSelectedPrintDoc({ docType })}
+          />
+        )}
+
+        {activeTab === 'tiebreaks' && (
+          <TieBreaksTab
+            tournament={tournament}
+            onUpdateTournament={setTournament}
+            onNavigateToStandings={() => setActiveTab('standings')}
           />
         )}
 

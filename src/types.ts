@@ -1,10 +1,10 @@
 export type FideTitle = 'GM' | 'IM' | 'WGM' | 'FM' | 'WIM' | 'CM' | 'WFM' | 'WCM' | '';
 export type Gender = 'm' | 'f' | '';
-export type Attendance = 'present' | 'absent';
+export type Attendance = 'present' | 'absent' | 'withdrawn';
 export type TournamentFormat = 'Individual Swiss' | 'Individual Round Robin';
 export type PairingSystem = 'FIDE Dutch System' | 'Round Robin - Berger Tables';
 export type RatingType = 'Standard' | 'Rapid' | 'Blitz' | 'Unrated';
-export type TabType = 'setup' | 'players' | 'pairings' | 'standings' | 'schedule' | 'chessresults' | 'export';
+export type TabType = 'setup' | 'players' | 'pairings' | 'standings' | 'tiebreaks' | 'schedule' | 'chessresults' | 'export';
 
 export type RoundEntryType = 
   | 'NORMAL_GAME'
@@ -57,6 +57,9 @@ export interface Player {
   group2?: string;
   type?: string;
   ratingSource?: string;
+  initialSortOrder?: number;
+  isStartingRankLocked?: boolean;
+  requestedByes?: Record<string, 'half' | 'zero'>;
 }
 
 export interface BoardPairing {
@@ -124,6 +127,7 @@ export interface PlayerRoundState {
   buchholzMedian2?: number;
   sonneborn?: number;
   sonnebornCut1?: number;
+  sonnebornCut2?: number;
   directEncounter?: number;
   progressive?: number;
   progressiveCut1?: number;
@@ -222,6 +226,11 @@ export interface TournamentSettings {
   generalNotes: string;
 }
 
+export enum TieBreakRuleSet {
+  Legacy = 'Legacy',
+  FIDE_2026_03 = 'FIDE_2026_03'
+}
+
 export interface TournamentRegulations {
   eligibility: string;
   format: string;
@@ -232,6 +241,8 @@ export interface TournamentRegulations {
   defaultTime: string;
   drawRules: string;
   pabPoints: string;
+  pointsForDraw?: number;
+  tieBreakRuleSet?: TieBreakRuleSet | 'Legacy' | 'FIDE_2026_03' | 'FIDE 2026' | 'Tournament-specific';
   tieBreaks: string[];
   tieBreak1?: string;
   tieBreak2?: string;
@@ -249,6 +260,14 @@ export interface TournamentRegulations {
   specialPrizes: string;
   categoryPrizes: string;
   additional: string;
+  arbiterOverrides?: {
+    timestamp: string;
+    reason: string;
+    previousTieBreaks: string[];
+    newTieBreaks: string[];
+    previousProfile?: string;
+    newProfile?: string;
+  }[];
   preserveTieBreakDuplicates?: boolean;
   tunxImportedTieBreakNames?: string[];
   tunxImportedTieBreakRawCodes?: number[];

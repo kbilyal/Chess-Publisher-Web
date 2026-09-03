@@ -17,25 +17,29 @@
     "desktopParity": "11/11 PASS reported",
     "transactions": "14/14 PASS reported",
     "roundFinalization": "30/30 PASS reported; source verified present",
-    "fideDatabase": "20/20 PASS reported"
+    "fideDatabase": "25/25 PASS reported",
+    "fideSync": "20/20 PASS reported",
+    "fideTieBreak2026": "40/40 PASS reported (Cases A-L + Art. 16)",
+    "tieBreakChecker": "13/13 PASS reported",
+    "playerParity": "12/12 PASS reported"
   },
   "gates": {
     "pairingCore": "PASS",
     "resultsIntegrity": "PASS",
     "transactionSafety": "PASS",
     "fideRatingDatabase": "PASS",
-    "fidePlayerSynchronization": "OPEN",
+    "fidePlayerSynchronization": "PASS",
     "trfFullParity": "OPEN",
-    "tieBreakAuthoritativeParity": "OPEN",
+    "tieBreakAuthoritativeParity": "PASS",
     "chessResultsProduction": "OPEN",
     "calendarScheduleParity": "OPEN",
-    "playerStartingListParity": "OPEN",
+    "playerStartingListParity": "PASS",
     "printExportHubParity": "OPEN",
     "dgtParity": "OPEN_OR_REQUIRES_APPROVED_WEB_EQUIVALENT",
     "productionPersistenceSecurity": "OPEN",
     "final104FeatureReaudit": "OPEN"
   },
-  "nextTask": "Batch C — FIDE Player Synchronization",
+  "nextTask": "TRF Full Parity (Export-through-round, TRF16/TRF26, starting list, administrative semantics)",
   "nextTaskFile": "NEXT-TASK.md",
   "integrationGateFile": "INTEGRATION-GATE.md"
 }

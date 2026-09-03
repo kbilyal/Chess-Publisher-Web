@@ -20,7 +20,11 @@ export function sortPlayersFideStandard(players: Player[]): Player[] {
     const tA = TITLE_ORDER[a.title || ''] || 99;
     const tB = TITLE_ORDER[b.title || ''] || 99;
     if (tA !== tB) return tA - tB;
-    // 3. Name A-Z
+    // 3. National Rating DESC
+    const natA = a.nationalRating || 0;
+    const natB = b.nationalRating || 0;
+    if (natB !== natA) return natB - natA;
+    // 4. Name A-Z
     return a.name.localeCompare(b.name);
   });
 }

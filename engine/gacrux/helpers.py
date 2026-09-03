@@ -9,7 +9,10 @@ import decimal
 import json
 import sys
 import decimal
-from enum import Enum, EnumType
+try:
+    from enum import Enum, EnumType
+except ImportError:
+    from enum import Enum, EnumMeta as EnumType
 import qdefs
 
 

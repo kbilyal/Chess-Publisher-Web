@@ -8,7 +8,9 @@
  * as certified for official FIDE reporting.
  */
 
-import { Player, Tournament, PlayerRoundState, SpecialPrizeConfig, SpecialPrizeGroupResult } from '../types';
+import { Player, Tournament, PlayerRoundState, SpecialPrizeConfig, SpecialPrizeGroupResult, TieBreakRuleSet } from '../types';
+
+export { TieBreakRuleSet };
 
 export interface FinalStandingsResult {
   players: PlayerRoundState[];
@@ -27,34 +29,75 @@ export function fidePointsFromRound(round: any): number {
   return 0;
 }
 
-function isRequestedByeRound(round: any): boolean {
-  return !!round && (round.kind === 'half-bye' || round.kind === 'zero-bye');
+/**
+ * FIDE Article 16.1.3:
+ * A VUR is a round in which a player had a requested bye (half-point bye or zero-point bye)
+ * or a forfeit loss (including any unplayed rounds after a player has withdrawn from the
+ * tournament, which are treated as zero-point byes).
+ */
+export function isRequestedByeRound(round: any): boolean {
+  if (!round) return false;
+  if (round.kind === 'half-bye' || round.kind === 'zero-bye') return true;
+  if (round.played === false) {
+    if (round.kind === 'pairing-bye' || round.kind === 'full-bye') return false;
+    if (round.kind === 'forfeit') return false;
+    if (round.result === 'U' || round.result === 'PAB' || round.result === 'F' || round.result === '+') return false;
+    if (round.kind === 'unplayed' || round.kind === 'withdrawn' || round.kind === 'absent') return true;
+    const code = String(round.result || '').trim().toUpperCase();
+    if (code === 'Z' || code === '0' || code === 'H' || code === '=' || code === '½' || code === '1/2') return true;
+  }
+  return false;
 }
 
-function isForfeitLossRound(round: any): boolean {
-  return !!round && round.kind === 'forfeit' && round.result === '-';
+export function isForfeitLossRound(round: any): boolean {
+  if (!round) return false;
+  const res = String(round.result || '').trim().toUpperCase();
+  return round.kind === 'forfeit' && (res === '-' || res === '0F' || res === '-:+');
 }
 
-function isForfeitWinRound(round: any): boolean {
-  return !!round && round.kind === 'forfeit' && round.result === '+';
+export function isForfeitWinRound(round: any): boolean {
+  if (!round) return false;
+  const res = String(round.result || '').trim().toUpperCase();
+  return round.kind === 'forfeit' && (res === '+' || res === '1F' || res === '+:-');
 }
 
-function isVURRound(round: any): boolean {
+export function isVURRound(round: any): boolean {
   // FIDE 16.1.2: Voluntary unplayed round = requested bye or forfeit loss
   return isRequestedByeRound(round) || isForfeitLossRound(round);
 }
 
-function classifyUnplayedRound2026(player: PlayerRoundState, roundIndex: number, totalRounds: number): number {
+/**
+ * Categorize unplayed rounds according to FIDE Play-Off and Tie-Break Regulations
+ * Effective 1 March 2026, Article 16.2:
+ * 16.2.1: Pairing-allocated bye or full-point bye
+ * 16.2.2: Forfeit win
+ * 16.2.3: Requested bye, followed by at least one round that is not a VUR
+ * 16.2.4: Forfeit loss
+ * 16.2.5: Requested bye in the last round OR followed only by VUR rounds
+ */
+export function getUnplayedRoundCategory2026(player: PlayerRoundState, roundIndex: number, totalRounds: number): number {
   const round = player.rounds[roundIndex];
   if (!round || round.played !== false) return 0;
 
-  if (round.kind === 'pairing-bye' || round.result === 'U' || round.result === 'PAB') return 1; // 16.2.1 Pairing Allocated Bye
-  if (isForfeitWinRound(round)) return 2; // 16.2.2 Forfeit win
-  if (isForfeitLossRound(round)) return 4; // 16.2.4 Forfeit loss
+  // 16.2.1 Pairing Allocated Bye or Full-Point Bye
+  if (
+    round.kind === 'pairing-bye' ||
+    round.kind === 'full-bye' ||
+    round.result === 'U' ||
+    round.result === 'PAB' ||
+    (round.result === 'F' && fidePointsFromRound(round) === 1)
+  ) {
+    return 1;
+  }
 
-  if (isRequestedByeRound(round)) {
-    // 16.2.3 if followed by at least one round that is not a VUR
-    // 16.2.5 if followed only by VURs or it is the final round
+  // 16.2.2 Forfeit win
+  if (isForfeitWinRound(round)) return 2;
+
+  // 16.2.4 Forfeit loss
+  if (isForfeitLossRound(round)) return 4;
+
+  // Requested bye (half-bye, zero-bye, unplayed after withdrawal)
+  if (isRequestedByeRound(round) || round.played === false) {
     let followedByNonVUR = false;
     for (let i = roundIndex + 1; i < totalRounds; i++) {
       const later = player.rounds[i];
@@ -69,33 +112,106 @@ function classifyUnplayedRound2026(player: PlayerRoundState, roundIndex: number,
   return 0;
 }
 
-export function calculateAdjustedScores2026(players: PlayerRoundState[], totalRounds: number): void {
-  // FIDE 2026 Article 16.3: Adjusted score is used for calculating opponents' tie-breaks
-  for (const p of players) {
-    let adjusted = Number(p.score) || 0;
+export function classifyUnplayedRound2026(player: PlayerRoundState, roundIndex: number, totalRounds: number): number {
+  return getUnplayedRoundCategory2026(player, roundIndex, totalRounds);
+}
 
-    for (let i = 0; i < totalRounds; i++) {
-      const r = p.rounds[i];
-      if (!r || r.played !== false) continue;
+/**
+ * FIDE Article 16.3:
+ * Adjusted score of player used for calculating opponents' tie-breaks.
+ * For categories 16.2.1, 16.2.2, 16.2.3, 16.2.4: evaluates as WIN/DRAW/LOSS corresponding to awarded points.
+ * For category 16.2.5: evaluates as DRAW regardless of awarded points.
+ */
+export function getAdjustedScoreForOpponents(
+  player: PlayerRoundState,
+  totalRounds: number,
+  drawPoints: number = 0.5
+): number {
+  let adjusted = Number(player.score) || 0;
 
-      const cat = classifyUnplayedRound2026(p, i, totalRounds);
-      if (cat === 5) {
-        const awarded = fidePointsFromRound(r);
-        adjusted += 0.5 - awarded; // Category 16.2.5 evaluates as draw
-      }
+  for (let i = 0; i < totalRounds; i++) {
+    const r = player.rounds[i];
+    if (!r || r.played !== false) continue;
+
+    const cat = getUnplayedRoundCategory2026(player, i, totalRounds);
+    if (cat === 5) {
+      const awarded = fidePointsFromRound(r);
+      adjusted += drawPoints - awarded; // Category 16.2.5 evaluates as draw
     }
-    p.adjustedScore2026 = adjusted;
   }
+
+  return adjusted;
+}
+
+export function calculateAdjustedScores2026(
+  players: PlayerRoundState[],
+  totalRounds: number,
+  drawPoints: number = 0.5
+): void {
+  for (const p of players) {
+    p.adjustedScore2026 = getAdjustedScoreForOpponents(p, totalRounds, drawPoints);
+  }
+}
+
+/**
+ * FIDE Article 16.4:
+ * Dummy opponent score calculation for participant's own tie-break.
+ * Article 16.4.1 Forfeits: min(participantFinalScore, scheduledOpponentAdjustedScore)
+ * Article 16.4.2 Byes: min(participantFinalScore, drawPoints * totalRounds)
+ */
+export function getDummyOpponentScore(
+  player: PlayerRoundState,
+  roundIndex: number,
+  totalRounds: number,
+  scheduledOpponentAdjustedScore?: number,
+  drawPoints: number = 0.5
+): number {
+  const cat = getUnplayedRoundCategory2026(player, roundIndex, totalRounds);
+  const participantFinalScore = Number(player.score) || 0;
+
+  if (cat === 2 || cat === 4) {
+    const cap = scheduledOpponentAdjustedScore !== undefined
+      ? scheduledOpponentAdjustedScore
+      : participantFinalScore;
+    return Math.min(participantFinalScore, cap);
+  }
+
+  const maxCap = drawPoints * totalRounds;
+  return Math.min(participantFinalScore, maxCap);
+}
+
+export function getBuchholzContribution(
+  player: PlayerRoundState,
+  roundIndex: number,
+  totalRounds: number,
+  scheduledOpponentAdjustedScore?: number,
+  drawPoints: number = 0.5
+): number {
+  return getDummyOpponentScore(player, roundIndex, totalRounds, scheduledOpponentAdjustedScore, drawPoints);
+}
+
+export function getSonnebornBergerContribution(
+  player: PlayerRoundState,
+  roundIndex: number,
+  totalRounds: number,
+  scheduledOpponentAdjustedScore?: number,
+  drawPoints: number = 0.5
+): number {
+  const dummy = getDummyOpponentScore(player, roundIndex, totalRounds, scheduledOpponentAdjustedScore, drawPoints);
+  const round = player.rounds[roundIndex];
+  const awarded = fidePointsFromRound(round);
+  return dummy * awarded;
 }
 
 export function makeOwnTieBreakElements2026(
   player: PlayerRoundState,
   byId: Map<number, PlayerRoundState>,
   totalRounds: number,
-  options: { forfeitsAsPlayed?: boolean } = {}
+  options: { forfeitsAsPlayed?: boolean; drawPoints?: number } = {}
 ): any[] {
   const elements: any[] = [];
   const forfeitsAsPlayed = !!options.forfeitsAsPlayed;
+  const drawPoints = options.drawPoints !== undefined ? options.drawPoints : 0.5;
 
   for (let i = 0; i < totalRounds; i++) {
     const r = player.rounds[i];
@@ -129,7 +245,7 @@ export function makeOwnTieBreakElements2026(
     );
 
     if (r.played === false || playedPabWithoutOpponent) {
-      const cat = playedPabWithoutOpponent ? 1 : classifyUnplayedRound2026(player, i, totalRounds);
+      const cat = playedPabWithoutOpponent ? 1 : getUnplayedRoundCategory2026(player, i, totalRounds);
       const points = fidePointsFromRound(r);
 
       if (forfeitsAsPlayed && (cat === 2 || cat === 4) && r.opp && byId.has(r.opp)) {
@@ -151,21 +267,21 @@ export function makeOwnTieBreakElements2026(
       }
 
       // FIDE 16.4 Dummy score calculations
-      let dummy = Number(player.score) || 0;
+      const scheduled = r.opp ? byId.get(r.opp) : null;
+      const scheduledAdj = scheduled ? Number(scheduled.adjustedScore2026) || 0 : undefined;
+      const dummy = getDummyOpponentScore(player, i, totalRounds, scheduledAdj, drawPoints);
 
-      if (cat === 2 || cat === 4) {
-        const scheduled = r.opp ? byId.get(r.opp) : null;
-        const cap = scheduled ? Number(scheduled.adjustedScore2026) || 0 : dummy;
-        dummy = Math.min(dummy, cap);
-      } else {
-        dummy = Math.min(dummy, 0.5 * totalRounds);
-      }
+      // VUR determination per Article 16.1.3:
+      // Category 1 (PAB, full bye) -> false
+      // Category 2 (forfeit win) -> false
+      // Category 3, 4, 5 (requested byes, forfeit losses, rounds after withdrawal) -> true
+      const isVur = (cat === 3 || cat === 4 || cat === 5);
 
       elements.push({
         round: i + 1,
         kind: r.kind || 'unplayed',
         category: cat,
-        vur: playedPabWithoutOpponent ? false : isVURRound(r),
+        vur: isVur,
         opponentId: r.opp || 0,
         opponentRating: 0,
         bh: dummy,
@@ -179,6 +295,14 @@ export function makeOwnTieBreakElements2026(
   return elements;
 }
 
+/**
+ * FIDE Article 16.5.1 Buchholz Cut-1 Exception:
+ * When a modifier requires cutting the least significant value and player has one or more VURs,
+ * cut the lowest contribution coming from a VUR, provided it is not lower than the normal least significant value.
+ * lowestVurContribution = min(contributions from VUR)
+ * normalLowest = min(all contributions)
+ * cutValue = max(lowestVurContribution, normalLowest)
+ */
 export function chooseBuchholzLowCutIndex2026(elements: any[]): number {
   if (!elements.length) return -1;
 
@@ -187,8 +311,6 @@ export function chooseBuchholzLowCutIndex2026(elements: any[]): number {
     if (elements[i].bh < elements[globalIndex].bh) globalIndex = i;
   }
 
-  // FIDE 16.5.1: If there is a VUR, cut the lowest contribution from a VUR
-  // as long as it is not lower than the least significant value.
   const vurIndexes = elements.map((e, i) => (e.vur ? i : -1)).filter(i => i >= 0);
   if (vurIndexes.length) {
     let vurIndex = vurIndexes[0];
@@ -203,6 +325,12 @@ export function chooseBuchholzLowCutIndex2026(elements: any[]): number {
   return globalIndex;
 }
 
+/**
+ * FIDE Article 16.5.1 Sonneborn-Berger Cut-1 Exception:
+ * A = lowest contribution coming from a VUR
+ * B = least significant SB value per Article 14.1 (lowest opponent score; tie-broken by lowest result)
+ * Cut: max(A, B)
+ */
 export function chooseSBLowCutIndex2026(elements: any[]): number {
   if (!elements.length) return -1;
 
@@ -220,7 +348,7 @@ export function chooseSBLowCutIndex2026(elements: any[]): number {
     for (const i of vurIndexes) {
       if (elements[i].sb < elements[vurIndex].sb) vurIndex = i;
     }
-    if (elements[vurIndex].sb > elements[globalIndex].sb) {
+    if (elements[vurIndex].sb >= elements[globalIndex].sb) {
       return vurIndex;
     }
   }
@@ -228,15 +356,21 @@ export function chooseSBLowCutIndex2026(elements: any[]): number {
   return globalIndex;
 }
 
-export function buchholzVariant2026(elements: any[], mode: 'BH' | 'C1' | 'C2' | 'M1' | 'M2'): number {
+/**
+ * FIDE Article 16.5 / 16.5.2 Apply FIDE Cut Modifiers
+ */
+export function applyFideCutModifier(
+  elements: any[],
+  mode: 'BH-C1' | 'BH-C2' | 'BH-M1' | 'BH-M2' | 'SB-C1' | 'SB-C2'
+): any[] {
   const arr = [...elements];
 
-  const cutLow = () => {
+  const cutLowBH = () => {
     const idx = chooseBuchholzLowCutIndex2026(arr);
     if (idx >= 0) arr.splice(idx, 1);
   };
 
-  const cutHigh = () => {
+  const cutHighBH = () => {
     if (!arr.length) return;
     let idx = 0;
     for (let i = 1; i < arr.length; i++) {
@@ -245,31 +379,50 @@ export function buchholzVariant2026(elements: any[], mode: 'BH' | 'C1' | 'C2' | 
     arr.splice(idx, 1);
   };
 
-  if (mode === 'C1') {
-    cutLow();
-  } else if (mode === 'C2') {
-    cutLow();
-    cutLow();
-  } else if (mode === 'M1') {
-    cutLow();
-    cutHigh();
-  } else if (mode === 'M2') {
-    cutLow();
-    cutLow();
-    cutHigh();
-    cutHigh();
-  }
-
-  return arr.reduce((sum, e) => sum + e.bh, 0);
-}
-
-export function sonnebornVariant2026(elements: any[], mode: 'SB' | 'C1'): number {
-  const arr = [...elements];
-  if (mode === 'C1') {
+  const cutLowSB = () => {
     const idx = chooseSBLowCutIndex2026(arr);
     if (idx >= 0) arr.splice(idx, 1);
+  };
+
+  if (mode === 'BH-C1') {
+    cutLowBH();
+  } else if (mode === 'BH-C2') {
+    cutLowBH();
+    cutLowBH();
+  } else if (mode === 'BH-M1') {
+    cutLowBH();
+    cutHighBH();
+  } else if (mode === 'BH-M2') {
+    cutLowBH();
+    cutLowBH();
+    cutHighBH();
+    cutHighBH();
+  } else if (mode === 'SB-C1') {
+    cutLowSB();
+  } else if (mode === 'SB-C2') {
+    cutLowSB();
+    cutLowSB();
   }
-  return arr.reduce((sum, e) => sum + e.sb, 0);
+
+  return arr;
+}
+
+export function buchholzVariant2026(elements: any[], mode: 'BH' | 'C1' | 'C2' | 'M1' | 'M2'): number {
+  if (mode === 'BH') {
+    return elements.reduce((sum, e) => sum + e.bh, 0);
+  }
+  const cutMode = `BH-${mode}` as 'BH-C1' | 'BH-C2' | 'BH-M1' | 'BH-M2';
+  const remaining = applyFideCutModifier(elements, cutMode);
+  return remaining.reduce((sum, e) => sum + e.bh, 0);
+}
+
+export function sonnebornVariant2026(elements: any[], mode: 'SB' | 'C1' | 'C2'): number {
+  if (mode === 'SB') {
+    return elements.reduce((sum, e) => sum + e.sb, 0);
+  }
+  const cutMode = `SB-${mode}` as 'SB-C1' | 'SB-C2';
+  const remaining = applyFideCutModifier(elements, cutMode);
+  return remaining.reduce((sum, e) => sum + e.sb, 0);
 }
 
 // FIDE Rating Regulations Table 8.1.1 (Percentage score -> Dp rating difference)
@@ -330,14 +483,15 @@ export function fidePerfectTournamentPerformance(games: { opponentRating: number
 export function calculateAllTieBreaks(
   players: PlayerRoundState[],
   totalRounds: number,
-  isRoundRobin: boolean = false
+  isRoundRobin: boolean = false,
+  drawPoints: number = 0.5
 ): void {
   const byId = new Map<number, PlayerRoundState>(players.map(p => [p.id, p]));
-  calculateAdjustedScores2026(players, totalRounds);
+  calculateAdjustedScores2026(players, totalRounds, drawPoints);
 
   for (const p of players) {
-    const stdElements = makeOwnTieBreakElements2026(p, byId, totalRounds, { forfeitsAsPlayed: false });
-    const forfeitElements = makeOwnTieBreakElements2026(p, byId, totalRounds, { forfeitsAsPlayed: true });
+    const stdElements = makeOwnTieBreakElements2026(p, byId, totalRounds, { forfeitsAsPlayed: false, drawPoints });
+    const forfeitElements = makeOwnTieBreakElements2026(p, byId, totalRounds, { forfeitsAsPlayed: true, drawPoints });
 
     p.fide2026Elements = stdElements;
     p.fide2026ElementsStandard = stdElements;
@@ -351,6 +505,7 @@ export function calculateAllTieBreaks(
 
     p.sonneborn = sonnebornVariant2026(stdElements, 'SB');
     p.sonnebornCut1 = sonnebornVariant2026(stdElements, 'C1');
+    p.sonnebornCut2 = sonnebornVariant2026(stdElements, 'C2');
 
     // Progressive score
     let progressive = 0;
@@ -702,7 +857,10 @@ export function calculateTournamentStandings(tournament: Tournament): FinalStand
   }
 
   // Calculate tiebreaks
-  calculateAllTieBreaks(states, announcedRounds, isRoundRobin);
+  const drawPoints = tournament.regulations?.pointsForDraw !== undefined
+    ? Number(tournament.regulations.pointsForDraw)
+    : 0.5;
+  calculateAllTieBreaks(states, announcedRounds, isRoundRobin, drawPoints);
 
   // Sort by regulations tiebreak list
   const tieList = tournament.regulations?.tieBreaks || [];

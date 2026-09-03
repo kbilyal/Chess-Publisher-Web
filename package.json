@@ -14,7 +14,11 @@
     "test:parity": "tsx src/server/tests/runParitySuite.ts",
     "test:transactions": "tsx src/server/tests/runTransactionTests.ts",
     "test:finalization": "tsx src/server/tests/runRoundFinalizationTests.ts",
-    "test:fide": "tsx src/server/tests/runFideRatingTests.ts"
+    "test:fide": "tsx src/server/tests/runFideRatingTests.ts",
+    "test:fide-sync": "tsx src/server/tests/runFideSyncTests.ts",
+    "test:tiebreak": "tsx src/server/tests/runTieBreakTests.ts",
+    "test:checker": "tsx src/server/tests/runTieBreakCheckerTests.ts",
+    "test:player-parity": "tsx src/server/tests/runPlayerParityTests.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
