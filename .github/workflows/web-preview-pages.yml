@@ -1,0 +1,75 @@
+name: Chess-Publisher Web Preview
+
+on:
+  push:
+    branches:
+      - preview/web-current-2026-09-03
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: chess-publisher-web-preview
+  cancel-in-progress: true
+
+jobs:
+  test-build-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout preview source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: TypeScript check
+        run: npm run lint
+
+      - name: Online & Cloud beta4 regression
+        run: npm run test:online-cloud
+
+      - name: Architecture regression
+        run: npm run test:arch
+
+      - name: Feature parity regression
+        run: npm run test:parity
+
+      - name: Transaction regression
+        run: npm run test:transactions
+
+      - name: Round finalization regression
+        run: npm run test:finalization
+
+      - name: FIDE regression
+        run: npm run test:fide
+
+      - name: Build browser preview
+        run: npx vite build --base=/Chess-Publisher-Web/
+
+      - name: Mark static output for GitHub Pages
+        run: touch dist/.nojekyll
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload preview artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+
+      - name: Deploy preview
+        id: deployment
+        uses: actions/deploy-pages@v4
