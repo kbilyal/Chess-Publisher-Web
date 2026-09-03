@@ -51,11 +51,10 @@ jobs:
       - name: FIDE regression
         run: npm run test:fide
 
-      # GitHub Pages serves this repository at /Chess-Publisher-Web/ until a
-      # custom domain is connected. This build is the actual browser program,
-      # not a documentation/landing page.
+      # Relative asset URLs keep the same production build valid both at the
+      # temporary repository Pages URL and at web.chess-publisher.org.
       - name: Build Chess-Publisher Web program
-        run: npx vite build --base=/Chess-Publisher-Web/
+        run: npx vite build --base=./
 
       - name: Disable Jekyll processing
         run: touch dist/.nojekyll
