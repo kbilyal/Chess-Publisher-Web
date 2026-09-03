@@ -10,7 +10,7 @@ function isAiStudioPreview() {
 // traffic through the same-origin Vite proxy; published Web keeps using the
 // Hub API directly.
 export const CLOUD_API_BASE = isAiStudioPreview() ? '/hub-api' : DIRECT_CLOUD_API_BASE;
-export const CLOUD_CLIENT_VERSION = 'studio-cloud-integration-0.2';
+export const CLOUD_CLIENT_VERSION = 'studio-online-cloud-beta4';
 
 export class CloudApiError extends Error {
   status: number;
@@ -97,6 +97,7 @@ export const cloudApi = {
     body: { baseRevision, snapshot, deviceId: device.id, deviceLabel: device.label }
   }),
   revisions: (token: string, id: string) => request(`/api/v1/cloud/tournaments/${enc(id)}/revisions`, { token }),
+  getRevisionSnapshot: (token: string, id: string, revision: number) => request(`/api/v1/cloud/tournaments/${enc(id)}/revisions/${Number(revision)}`, { token }),
   restore: (token: string, id: string, revision: number) => request(`/api/v1/cloud/tournaments/${enc(id)}/restore/${Number(revision)}`, { method: 'POST', token }),
   getSettings: (token: string) => request('/api/v1/cloud/settings', { token }),
   putSettings: (token: string, baseRevision: number, settings: any, device: { id: string; label: string }) => request('/api/v1/cloud/settings', {
