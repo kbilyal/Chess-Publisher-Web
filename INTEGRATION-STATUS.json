@@ -1,0 +1,41 @@
+{
+  "project": "Chess-Publisher-Web",
+  "updated": "2026-09-03",
+  "mainCommitVerified": "cae2f7ebb4ab8c7c2b525a84f302fc69ab5bc6bd",
+  "handoffReady": false,
+  "baselineFeatureAudit": {
+    "total": 104,
+    "initialPass": 49,
+    "initialPartial": 21,
+    "initialMissing": 22,
+    "initialDifferent": 7,
+    "initialNotApplicable": 5,
+    "requiresFinalReaudit": true
+  },
+  "regressionStatus": {
+    "architecture": "34/34 PASS reported",
+    "desktopParity": "11/11 PASS reported",
+    "transactions": "14/14 PASS reported",
+    "roundFinalization": "30/30 PASS reported; source verified present",
+    "fideDatabase": "20/20 PASS reported"
+  },
+  "gates": {
+    "pairingCore": "PASS",
+    "resultsIntegrity": "PASS",
+    "transactionSafety": "PASS",
+    "fideRatingDatabase": "PASS",
+    "fidePlayerSynchronization": "OPEN",
+    "trfFullParity": "OPEN",
+    "tieBreakAuthoritativeParity": "OPEN",
+    "chessResultsProduction": "OPEN",
+    "calendarScheduleParity": "OPEN",
+    "playerStartingListParity": "OPEN",
+    "printExportHubParity": "OPEN",
+    "dgtParity": "OPEN_OR_REQUIRES_APPROVED_WEB_EQUIVALENT",
+    "productionPersistenceSecurity": "OPEN",
+    "final104FeatureReaudit": "OPEN"
+  },
+  "nextTask": "Batch C — FIDE Player Synchronization",
+  "nextTaskFile": "NEXT-TASK.md",
+  "integrationGateFile": "INTEGRATION-GATE.md"
+}
