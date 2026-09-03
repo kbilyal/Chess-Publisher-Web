@@ -35,18 +35,24 @@ jobs:
       - name: TypeScript check
         run: npm run lint
 
+      - name: Online & Cloud beta4 regression
+        run: npm run test:online-cloud
+
       - name: Production build
         run: npm run build
 
-      - name: Verify Cloud Workspace integration markers
+      - name: Verify Online & Cloud integration markers
         shell: bash
         run: |
           set -euo pipefail
           test -f src/cloud/cloudWorkspaceApi.ts
-          test -f src/cloud/CloudWorkspaceBootstrap.tsx
+          test -f src/cloud/onlineCloudSync.ts
+          test -f src/cloud/OnlineCloudProvider.tsx
+          test -f src/components/OnlineCloudTab.tsx
           test -f cloudrun.ts
-          grep -q "CloudWorkspaceBootstrap" src/main.tsx
-          grep -q "/api/v1/cloud/workspace" src/cloud/cloudWorkspaceApi.ts
+          grep -q "OnlineCloudProvider" src/main.tsx
+          grep -q "Online & Cloud (Beta)" src/components/Header.tsx
+          grep -q "classifyThreeWay" src/cloud/onlineCloudSync.ts
           grep -q "X-Expected-Revision" src/cloud/cloudWorkspaceApi.ts
           grep -q "process.env.PORT" cloudrun.ts
           if grep -R -n -E 'B2_APPLICATION_KEY|B2_KEY_ID|HUB_BETA_CREATE_KEY' src/cloud; then
