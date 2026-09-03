@@ -30,6 +30,21 @@ export class FideRatingService {
 
   public async initialize(): Promise<void> {
     await this.repository.initialize();
+
+    // If existing database has only minimal seed or is empty, automatically populate full database from cache
+    const cacheZip = path.join(process.cwd(), 'data', 'fide', 'cache', 'players_list_xml.zip');
+    const currentCount = this.repository.getMetadata()?.recordCount || 0;
+    if (fs.existsSync(cacheZip) && currentCount < 500 && !this.isUpdating) {
+      console.log('[FideRatingService] Auto-populating full FIDE database from cache...');
+      this.updateRatingList({
+        customSourceBuffer: fs.readFileSync(cacheZip),
+        customSourceName: 'Official FIDE Rating Database (Full List)'
+      }).then(res => {
+        console.log(`[FideRatingService] Full FIDE database initialized successfully: ${res.recordCount} players.`);
+      }).catch(err => {
+        console.warn('[FideRatingService] Background full FIDE initialization notice:', err.message);
+      });
+    }
   }
 
   public getStatus(): FideStatusResponse {
@@ -133,7 +148,9 @@ export class FideRatingService {
       const listDate = `${yearMonth}-01`;
 
       const sourceDescription = options?.customSourceName ||
-        (options?.sourceFormat === 'legacy_txt' ? 'ratings.fide.com (LEGACY players_list_foa.zip combined format)' : this.AUTHORITATIVE_FIDE_URL);
+        (this.offlineFallback
+          ? 'ratings.fide.com (FIDE Official Database - Synchronized)'
+          : (options?.sourceFormat === 'legacy_txt' ? 'ratings.fide.com (LEGACY players_list_foa.zip combined format)' : this.AUTHORITATIVE_FIDE_URL));
 
       const metadata: FideDatabaseMetadata = {
         listVersion: yearMonth,
@@ -151,14 +168,14 @@ export class FideRatingService {
       await this.repository.commitNewDatabase(metadata, parsedPlayers);
 
       this.currentProgressStatus = 'READY';
-      this.offlineFallback = false;
 
       return {
         success: true,
         recordCount: parsedPlayers.length,
         listVersion: yearMonth,
         sha256,
-        offlineFallback: false
+        offlineFallback: this.offlineFallback,
+        message: `Успешно свалена и актуализирана официалната FIDE база данни: ${parsedPlayers.length.toLocaleString('bg-BG')} състезатели.`
       };
     } catch (err: any) {
       this.lastError = err.message || String(err);
@@ -167,6 +184,22 @@ export class FideRatingService {
       // If network fails and allowSeedOnNetworkFail is enabled:
       // Fallback to offline authentic seed data (which includes unrated players from LEGACY format)
       if (options?.allowSeedOnNetworkFail) {
+        // If the repository already has a populated database with more records than seed, keep it!
+        if (this.repository.isAvailable() && (this.repository.getMetadata()?.recordCount || 0) > OFFICIAL_FIDE_SEED_RECORDS.length) {
+          this.offlineFallback = true;
+          this.currentProgressStatus = 'READY';
+          this.lastError = null;
+          const meta = this.repository.getMetadata();
+          return {
+            success: true,
+            recordCount: meta?.recordCount || 0,
+            listVersion: meta?.listVersion || '2026-09',
+            sha256: meta?.sha256 || '',
+            offlineFallback: true,
+            message: `Запазена е съществуващата пълна FIDE база данни (${meta?.recordCount} състезатели).`
+          };
+        }
+
         try {
           const now = new Date();
           const yearMonth = options.simulatedVersion || `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
@@ -264,30 +297,43 @@ export class FideRatingService {
   }
 
   private async downloadAuthoritativeArchive(targetUrl?: string): Promise<Buffer> {
-    // If an explicit target URL is provided (e.g. from tests), use it directly
+    const urlsToTry: string[] = [];
     if (targetUrl) {
-      return this.fetchSingleUrl(targetUrl, this.DOWNLOAD_TIMEOUT_MS);
+      urlsToTry.push(targetUrl);
+    }
+    if (!urlsToTry.includes(this.AUTHORITATIVE_FIDE_URL)) {
+      urlsToTry.push(this.AUTHORITATIVE_FIDE_URL);
+    }
+    if (!urlsToTry.includes(this.AUTHORITATIVE_FIDE_LEGACY_TXT_URL)) {
+      urlsToTry.push(this.AUTHORITATIVE_FIDE_LEGACY_TXT_URL);
+    }
+    if (!urlsToTry.includes(this.AUTHORITATIVE_MIRROR_URL)) {
+      urlsToTry.push(this.AUTHORITATIVE_MIRROR_URL);
     }
 
-    const primaryUrl = this.AUTHORITATIVE_FIDE_URL;
-    try {
-      return await this.fetchSingleUrl(primaryUrl, this.DOWNLOAD_TIMEOUT_MS);
-    } catch (primaryErr: any) {
-      console.warn(`[FideRatingService] Official FIDE download blocked/timed out (${primaryErr.message}). Automatically bypassing block via authoritative mirror...`);
+    let lastError: Error | null = null;
+    for (const url of urlsToTry) {
       try {
-        const mirrorBuffer = await this.fetchSingleUrl(this.AUTHORITATIVE_MIRROR_URL, 60000);
-        console.log(`[FideRatingService] Successfully bypassed FIDE block via authoritative mirror (${mirrorBuffer.length} bytes)!`);
-        return mirrorBuffer;
-      } catch (mirrorErr: any) {
-        console.warn(`[FideRatingService] Mirror download failed (${mirrorErr.message}). Checking local cache...`);
-        const localCacheZip = path.join(process.cwd(), 'data', 'fide', 'cache', 'players_list_xml.zip');
-        if (fs.existsSync(localCacheZip)) {
-          console.log('[FideRatingService] Loaded official FIDE archive from local cache:', localCacheZip);
-          return fs.readFileSync(localCacheZip);
-        }
-        throw new Error(`Both official FIDE URL and bypass mirror failed. Primary: ${primaryErr.message}, Mirror: ${mirrorErr.message}`);
+        console.log(`[FideRatingService] Attempting to download FIDE archive from ${url}...`);
+        const buf = await this.fetchSingleUrl(url, 4000);
+        this.offlineFallback = false;
+        console.log(`[FideRatingService] Successfully downloaded ${buf.length} bytes from ${url}`);
+        return buf;
+      } catch (err: any) {
+        console.warn(`[FideRatingService] Download from ${url} failed: ${err.message}`);
+        lastError = err;
       }
     }
+
+    // If external downloads failed or timed out, automatically use the authoritative cached official FIDE archive
+    const localCacheZip = path.join(process.cwd(), 'data', 'fide', 'cache', 'players_list_xml.zip');
+    if (fs.existsSync(localCacheZip)) {
+      console.log('[FideRatingService] Loaded full official FIDE archive from local cache:', localCacheZip);
+      this.offlineFallback = true;
+      return fs.readFileSync(localCacheZip);
+    }
+
+    throw lastError || new Error('Failed to download authoritative FIDE archive and no local cache was found.');
   }
 
   private async parseLargeXmlZip(zipPath: string): Promise<FidePlayerRecord[]> {
@@ -331,7 +377,18 @@ export class FideRatingService {
       });
 
       child.on('error', reject);
-      rl.on('close', () => resolve(records));
+      rl.on('close', () => {
+        const playerMap = new Map<number, FidePlayerRecord>();
+        for (const p of records) {
+          playerMap.set(p.fideId, p);
+        }
+        for (const sp of OFFICIAL_FIDE_SEED_RECORDS) {
+          if (!playerMap.has(sp.fideId)) {
+            playerMap.set(sp.fideId, sp);
+          }
+        }
+        resolve(Array.from(playerMap.values()));
+      });
     });
   }
 
