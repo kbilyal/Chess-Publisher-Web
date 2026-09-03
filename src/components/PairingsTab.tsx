@@ -7,9 +7,19 @@ import { getFederationFlag } from '../data/initialData';
 import { PairingPreviewModal } from './PairingPreviewModal';
 import { RoundEngineMetadata } from '../engine/adapters/types';
 import { 
+  getRoundLifecycleState, 
+  getBoardDisplayInfo, 
+  isNormalGame, 
+  determineBoardEntryType,
+  sanitizeTournamentHardInvariants
+} from '../engine/roundEntryValidator';
+import { executeFinalizeRoundTransaction } from '../transactions/finalizeRoundWorkflow';
+import { executeUnlockRoundTransaction } from '../transactions/unlockRoundWorkflow';
+import { 
   Play, RefreshCw, RotateCcw, AlertTriangle, CheckCircle2, 
   Search, Sliders, ShieldCheck, ArrowLeftRight, Check, X,
-  UserX, PlusCircle, Trash2, HelpCircle, Printer, Shield, Cpu, ExternalLink
+  UserX, PlusCircle, Trash2, HelpCircle, Printer, Shield, Cpu, ExternalLink,
+  Lock, Unlock, FileCheck, History, AlertOctagon, CheckSquare
 } from 'lucide-react';
 
 interface PairingsTabProps {
@@ -32,6 +42,14 @@ export const PairingsTab: React.FC<PairingsTabProps> = ({
   const [showNextRoundManager, setShowNextRoundManager] = useState(false);
   const [nextRoundFilter, setNextRoundFilter] = useState<'all' | 'active' | 'changed' | 'excluded' | 'pab' | 'fixed'>('all');
   const [nextRoundSearch, setNextRoundSearch] = useState('');
+
+  // Round Finalization & Lifecycle UI state
+  const [isFinalizing, setIsFinalizing] = useState(false);
+  const [isUnlocking, setIsUnlocking] = useState(false);
+  const [showFinalizeModal, setShowFinalizeModal] = useState(false);
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [arbiterName, setArbiterName] = useState('Chief Arbiter');
+  const [finalizationError, setFinalizationError] = useState<string | null>(null);
 
   // Authoritative & Prototype Pairing Engine state
   const [isGeneratingAuthoritative, setIsGeneratingAuthoritative] = useState(false);
@@ -66,21 +84,54 @@ export const PairingsTab: React.FC<PairingsTabProps> = ({
   }, [latestRound]);
 
   const currentBoards = liveBoards[String(activeRound)] || [];
-  const isEditableRound = isRoundRobin ? currentBoards.length > 0 : (activeRound === latestRound && latestRound > 0);
   const announcedRounds = parseInt(tournament.settings.rounds) || 7;
+
+  // Calculate lifecycle for the active round
+  const activeLifecycle = getRoundLifecycleState(tournament, activeRound);
+  const latestLifecycle = latestRound > 0 ? getRoundLifecycleState(tournament, latestRound) : null;
 
   // Standings for player lookup
   const standings = calculateTournamentStandings(tournament);
   const playerByKey = new Map(standings.players.map(p => [p.key, p]));
 
-  // Handle Result Application with Auto-Advance
+  // Is active round editable?
+  // Editable ONLY if: not finalized AND is editable (for Swiss: activeRound === latestRound)
+  const isEditableRound = isRoundRobin 
+    ? (!activeLifecycle.isFinalized && currentBoards.length > 0)
+    : (activeRound === latestRound && latestRound > 0 && !activeLifecycle.isFinalized);
+
+  // Selected board info
+  const selectedBoard = currentBoards[selectedBoardIndex];
+  const selectedBoardInfo = selectedBoard ? getBoardDisplayInfo(selectedBoard, tournament, activeRound) : null;
+  const selectedWhite = selectedBoard ? playerByKey.get(selectedBoard.whiteKey) : null;
+  const selectedBlack = selectedBoard ? playerByKey.get(selectedBoard.blackKey) : null;
+
+  // Handle Result Application with Auto-Advance & Administrative Guard
   const handleSetResult = (result: GameResult, advance: boolean = true) => {
     if (!isEditableRound) {
-      alert(`Round ${activeRound} is a locked historical round.`);
+      if (activeLifecycle.isFinalized) {
+        alert(`Round ${activeRound} is finalized and locked. Click 'Unlock for Corrections' to modify results.`);
+      } else {
+        alert(`Round ${activeRound} is a locked historical round.`);
+      }
       return;
     }
 
     if (currentBoards.length === 0 || selectedBoardIndex >= currentBoards.length) return;
+    const targetBoard = currentBoards[selectedBoardIndex];
+    if (!targetBoard) return;
+
+    const boardInfo = getBoardDisplayInfo(targetBoard, tournament, activeRound);
+
+    // CRITICAL GUARD: Non-game entries CANNOT receive played chess results (1-0, 0-1, 1/2-1/2, 1F-0F, etc.)
+    if (!boardInfo.isNormal && result !== '-') {
+      alert(
+        `Cannot assign game result '${result}' to Board #${targetBoard.board}.\n\n` +
+        `This is an administrative entry (${boardInfo.entryType}) with no opposing player. ` +
+        `Points (${boardInfo.points.toFixed(1)} pt) are assigned automatically by tournament regulations.`
+      );
+      return;
+    }
 
     onUpdateTournament(prev => {
       const updatedLive = { ...prev.pairings.liveBoards };
@@ -113,19 +164,23 @@ export const PairingsTab: React.FC<PairingsTabProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't intercept if user is typing in an input
       if (['INPUT', 'SELECT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return;
+      if (!isEditableRound) return;
+
+      const currentBoard = currentBoards[selectedBoardIndex];
+      const isNormal = currentBoard ? isNormalGame(currentBoard) : false;
 
       if (e.key === '1') {
         e.preventDefault();
-        handleSetResult('1 - 0', true);
+        if (isNormal) handleSetResult('1 - 0', true);
       } else if (e.key === '2' || e.key === '5') {
         e.preventDefault();
-        handleSetResult('½ - ½', true);
+        if (isNormal) handleSetResult('½ - ½', true);
       } else if (e.key === '3' || e.key === '0') {
         e.preventDefault();
-        handleSetResult('0 - 1', true);
+        if (isNormal) handleSetResult('0 - 1', true);
       } else if (e.key === 'Backspace' || e.key === 'Delete') {
         e.preventDefault();
-        handleSetResult('-', false);
+        if (isNormal) handleSetResult('-', false);
       } else if (e.key === 'ArrowDown') {
         e.preventDefault();
         if (selectedBoardIndex < currentBoards.length - 1) {
@@ -141,12 +196,65 @@ export const PairingsTab: React.FC<PairingsTabProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedBoardIndex, activeRound, currentBoards.length, isEditableRound]);
+  }, [selectedBoardIndex, activeRound, currentBoards, isEditableRound]);
+
+  // Execute Round Finalization Transaction
+  const handleFinalizeRound = async () => {
+    setIsFinalizing(true);
+    setFinalizationError(null);
+
+    try {
+      // Execute transactional workflow
+      const result = await executeFinalizeRoundTransaction(tournament, activeRound, {
+        arbiterName: arbiterName || 'Arbiter'
+      });
+
+      // Update in-memory state with finalized tournament
+      onUpdateTournament(() => result.tournament);
+      setShowFinalizeModal(false);
+    } catch (err: any) {
+      setFinalizationError(err.message || 'Round finalization failed.');
+    } finally {
+      setIsFinalizing(false);
+    }
+  };
+
+  // Execute Round Unlock Transaction
+  const handleUnlockRound = async () => {
+    setIsUnlocking(true);
+    setFinalizationError(null);
+
+    try {
+      const result = await executeUnlockRoundTransaction(tournament, activeRound, {
+        arbiterConfirmed: true,
+        arbiterName: arbiterName || 'Arbiter'
+      });
+
+      if (result.blocked) {
+        setFinalizationError(result.message || 'Unlock blocked due to dependencies.');
+        return;
+      }
+
+      if (result.tournament) {
+        onUpdateTournament(() => result.tournament!);
+      }
+      setShowUnlockModal(false);
+    } catch (err: any) {
+      setFinalizationError(err.message || 'Unlock failed.');
+    } finally {
+      setIsUnlocking(false);
+    }
+  };
 
   // Authoritative Pairing Generation (Gacrux via backend API)
   const handleGenerateAuthoritative = async () => {
     if (tournament.players.length < 2) {
       alert("At least 2 players required to generate pairings.");
+      return;
+    }
+
+    if (latestRound > 0 && latestLifecycle && !latestLifecycle.isFinalized) {
+      alert(`Round ${latestRound} must be finalized and verified by the arbiter before generating Round ${latestRound + 1}.`);
       return;
     }
 
@@ -178,7 +286,6 @@ export const PairingsTab: React.FC<PairingsTabProps> = ({
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        // Do NOT silently fall back to prototype engine!
         setAuthoritativeError({
           code: data.code || 'AUTHORITATIVE_ENGINE_NOT_CONFIGURED',
           message: data.message || 'Gacrux pairing engine (v1.9.57) is not yet configured or installed on this system.'
@@ -239,6 +346,11 @@ export const PairingsTab: React.FC<PairingsTabProps> = ({
 
       setActiveRound(1);
       alert(`FIDE Berger Tables generated all ${berger.totalRounds} Round Robin rounds successfully!`);
+      return;
+    }
+
+    if (latestRound > 0 && latestLifecycle && !latestLifecycle.isFinalized) {
+      alert(`Round ${latestRound} must be finalized and verified by the arbiter before generating Round ${latestRound + 1}.`);
       return;
     }
 
@@ -336,7 +448,7 @@ export const PairingsTab: React.FC<PairingsTabProps> = ({
   const handleSwapColors = () => {
     if (!isEditableRound || !currentBoards[selectedBoardIndex]) return;
     const b = currentBoards[selectedBoardIndex];
-    if (!b.whiteKey || !b.blackKey) return;
+    if (!isNormalGame(b)) return;
 
     onUpdateTournament(prev => {
       const updatedLive = { ...prev.pairings.liveBoards };
@@ -364,8 +476,9 @@ export const PairingsTab: React.FC<PairingsTabProps> = ({
   };
 
   // Filter visible boards
-  const visibleBoards = currentBoards.filter((b, idx) => {
-    if (filterMissing && b.result !== '-') return false;
+  const visibleBoards = currentBoards.filter((b) => {
+    const isNormal = isNormalGame(b);
+    if (filterMissing && isNormal && b.result !== '-') return false;
     if (!playerSearchQuery.trim()) return true;
 
     const w = playerByKey.get(b.whiteKey);
@@ -378,13 +491,6 @@ export const PairingsTab: React.FC<PairingsTabProps> = ({
       String(b.board).includes(q)
     );
   });
-
-  const selectedBoard = currentBoards[selectedBoardIndex];
-  const selectedWhite = selectedBoard ? playerByKey.get(selectedBoard.whiteKey) : null;
-  const selectedBlack = selectedBoard ? playerByKey.get(selectedBoard.blackKey) : null;
-
-  const totalResultsEntered = currentBoards.filter(b => b.result !== '-').length;
-  const isRoundComplete = currentBoards.length > 0 && totalResultsEntered === currentBoards.length;
 
   return (
     <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6 animate-in fade-in duration-200 select-none text-slate-800">
@@ -402,8 +508,7 @@ export const PairingsTab: React.FC<PairingsTabProps> = ({
           ) : (
             generatedRounds.map(r => {
               const isSelected = activeRound === r;
-              const rBoards = liveBoards[String(r)] || [];
-              const rComplete = rBoards.length > 0 && rBoards.every(b => b.result !== '-');
+              const rLifecycle = getRoundLifecycleState(tournament, r);
               return (
                 <button
                   key={r}
@@ -418,8 +523,10 @@ export const PairingsTab: React.FC<PairingsTabProps> = ({
                   }`}
                 >
                   <span>Round {r}</span>
-                  {rComplete ? (
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                  {rLifecycle.isFinalized ? (
+                    <Lock className={`w-3 h-3 ${isSelected ? 'text-blue-100' : 'text-slate-500'}`} />
+                  ) : rLifecycle.isComplete ? (
+                    <CheckCircle2 className={`w-3.5 h-3.5 ${isSelected ? 'text-emerald-200' : 'text-emerald-600'}`} />
                   ) : (
                     <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
                   )}
@@ -446,9 +553,19 @@ export const PairingsTab: React.FC<PairingsTabProps> = ({
           {/* Authoritative Pairing Generation Button */}
           <button
             onClick={handleGenerateAuthoritative}
-            disabled={isGeneratingAuthoritative || (!isRoundRobin && (latestRound >= announcedRounds || (latestRound > 0 && !isRoundComplete)))}
+            disabled={
+              isGeneratingAuthoritative ||
+              (!isRoundRobin && (
+                latestRound >= announcedRounds ||
+                (latestRound > 0 && latestLifecycle && !latestLifecycle.isFinalized)
+              ))
+            }
             className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:opacity-40 text-white rounded-lg text-xs font-bold flex items-center gap-2 shadow-sm transition"
-            title={`Generate Round ${latestRound + 1} with authoritative Gacrux engine`}
+            title={
+              latestRound > 0 && latestLifecycle && !latestLifecycle.isFinalized
+                ? `Round ${latestRound} must be finalized and locked by arbiter before generating Round ${latestRound + 1}`
+                : `Generate Round ${latestRound + 1} with authoritative Gacrux engine`
+            }
           >
             <Shield className="w-3.5 h-3.5 text-blue-200" />
             <span>{isGeneratingAuthoritative ? 'Connecting Engine...' : `Generate (Authoritative)`}</span>
@@ -457,9 +574,18 @@ export const PairingsTab: React.FC<PairingsTabProps> = ({
           {/* Demo / Prototype Pairing Button */}
           <button
             onClick={handleGeneratePrototype}
-            disabled={!isRoundRobin && (latestRound >= announcedRounds || (latestRound > 0 && !isRoundComplete))}
-            className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 active:bg-amber-200 border border-amber-300 text-amber-900 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-2xs transition"
-            title="Generate pairing with prototype engine (Non-authoritative, for UI testing & demonstration only)"
+            disabled={
+              !isRoundRobin && (
+                latestRound >= announcedRounds ||
+                (latestRound > 0 && latestLifecycle && !latestLifecycle.isFinalized)
+              )
+            }
+            className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 active:bg-amber-200 border border-amber-300 text-amber-900 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-2xs transition disabled:opacity-40"
+            title={
+              latestRound > 0 && latestLifecycle && !latestLifecycle.isFinalized
+                ? `Round ${latestRound} must be finalized before generating Round ${latestRound + 1}`
+                : "Generate pairing with prototype engine (Non-authoritative, for UI testing & demonstration only)"
+            }
           >
             <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
             <span>DEMO / PROTOTYPE</span>
@@ -498,6 +624,92 @@ export const PairingsTab: React.FC<PairingsTabProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Round Lifecycle Notification & Action Banner */}
+      {currentBoards.length > 0 && (
+        <div className={`p-4 rounded-xl border flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 transition shadow-sm ${
+          activeLifecycle.isFinalized
+            ? 'bg-blue-50/70 border-blue-200 text-blue-900'
+            : activeLifecycle.status === 'ALL_RESULTS_ENTERED'
+            ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+            : 'bg-amber-50/60 border-amber-200 text-amber-900'
+        }`}>
+          <div className="flex items-center gap-3">
+            <div className={`p-2 rounded-lg ${
+              activeLifecycle.isFinalized
+                ? 'bg-blue-100 text-blue-700'
+                : activeLifecycle.status === 'ALL_RESULTS_ENTERED'
+                ? 'bg-emerald-100 text-emerald-700'
+                : 'bg-amber-100 text-amber-700'
+            }`}>
+              {activeLifecycle.isFinalized ? (
+                <Lock className="w-5 h-5" />
+              ) : activeLifecycle.status === 'ALL_RESULTS_ENTERED' ? (
+                <CheckSquare className="w-5 h-5" />
+              ) : (
+                <History className="w-5 h-5" />
+              )}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-sm">
+                  {activeLifecycle.isFinalized
+                    ? `Round ${activeRound} Finalized & Verified 🔒`
+                    : activeLifecycle.status === 'ALL_RESULTS_ENTERED'
+                    ? `All Results Entered for Round ${activeRound} — Ready to Finalize`
+                    : `Round ${activeRound} Active (${activeLifecycle.normalGamesCompleted}/${activeLifecycle.normalGames} Games Completed)`}
+                </span>
+                <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold uppercase tracking-wider ${
+                  activeLifecycle.isFinalized
+                    ? 'bg-blue-200/80 text-blue-900'
+                    : activeLifecycle.status === 'ALL_RESULTS_ENTERED'
+                    ? 'bg-emerald-200 text-emerald-900 animate-pulse'
+                    : 'bg-amber-200 text-amber-900'
+                }`}>
+                  {activeLifecycle.status}
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 mt-0.5">
+                {activeLifecycle.isFinalized
+                  ? `Results are locked. Standings and tie-breaks are computed from this round. Round ${activeRound + 1} pairings can now be generated.`
+                  : activeLifecycle.status === 'ALL_RESULTS_ENTERED'
+                  ? `Every board has a valid result. Arbiter must explicitly finalize this round to lock scores and enable next round pairings.`
+                  : `${activeLifecycle.normalGames - activeLifecycle.normalGamesCompleted} normal board(s) are awaiting game results before finalization.`}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Finalize Button */}
+            {activeLifecycle.canFinalize && (
+              <button
+                onClick={() => {
+                  setFinalizationError(null);
+                  setShowFinalizeModal(true);
+                }}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition"
+              >
+                <Lock className="w-3.5 h-3.5" />
+                <span>Finalize Round {activeRound}</span>
+              </button>
+            )}
+
+            {/* Unlock Button */}
+            {activeLifecycle.isFinalized && (
+              <button
+                onClick={() => {
+                  setFinalizationError(null);
+                  setShowUnlockModal(true);
+                }}
+                className="px-3.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-2xs transition"
+              >
+                <Unlock className="w-3.5 h-3.5 text-blue-600" />
+                <span>Unlock for Corrections</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 2. Next Round Player Status Manager Drawer */}
       {showNextRoundManager && (
@@ -598,9 +810,14 @@ export const PairingsTab: React.FC<PairingsTabProps> = ({
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                   <span>Round {activeRound} Board Pairings</span>
-                  {isEditableRound ? (
+                  {activeLifecycle.isFinalized ? (
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-100 border border-blue-300 text-blue-800 font-bold flex items-center gap-1">
+                      <Lock className="w-2.5 h-2.5" />
+                      FINALIZED
+                    </span>
+                  ) : isEditableRound ? (
                     <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-100 border border-emerald-300 text-emerald-800 font-bold">
-                      EDITABLE
+                      ACTIVE / EDITABLE
                     </span>
                   ) : (
                     <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-200 border border-slate-300 text-slate-700">
@@ -634,7 +851,8 @@ export const PairingsTab: React.FC<PairingsTabProps> = ({
                 })()}
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                {currentBoards.length} boards • {totalResultsEntered} / {currentBoards.length} results recorded
+                {currentBoards.length} boards • {activeLifecycle.normalGamesCompleted} / {activeLifecycle.normalGames} normal games completed
+                {activeLifecycle.adminEntries > 0 && ` • ${activeLifecycle.adminEntries} administrative ${activeLifecycle.adminEntries === 1 ? 'entry' : 'entries'}`}
               </p>
             </div>
 
@@ -678,8 +896,8 @@ export const PairingsTab: React.FC<PairingsTabProps> = ({
                 <tr className="bg-slate-100 text-slate-700 font-semibold font-mono border-b border-slate-200 sticky top-0 z-10">
                   <th className="py-2.5 px-3 w-12 text-center">Bo.</th>
                   <th className="py-2.5 px-3">White Player</th>
-                  <th className="py-2.5 px-3 w-28 text-center">Result</th>
-                  <th className="py-2.5 px-3">Black Player</th>
+                  <th className="py-2.5 px-3 w-32 text-center">Result</th>
+                  <th className="py-2.5 px-3">Black Player / Entry</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium">
@@ -694,6 +912,7 @@ export const PairingsTab: React.FC<PairingsTabProps> = ({
                 ) : (
                   visibleBoards.map((b, idx) => {
                     const isSelected = selectedBoardIndex === idx;
+                    const displayInfo = getBoardDisplayInfo(b, tournament, activeRound);
                     const w = playerByKey.get(b.whiteKey);
                     const bl = playerByKey.get(b.blackKey);
 
@@ -734,26 +953,39 @@ export const PairingsTab: React.FC<PairingsTabProps> = ({
                               </span>
                             </div>
                           ) : (
-                            <span className="text-slate-400 italic">Bye / Unpaired</span>
+                            <span className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-500 font-mono text-[11px] italic">
+                              {displayInfo.whiteOpponentLabel || 'No Player'}
+                            </span>
                           )}
                         </td>
 
                         {/* Result Cell */}
                         <td className="py-2.5 px-3 text-center">
-                          <span
-                            className={`inline-block px-3 py-1 rounded font-mono font-bold text-xs shadow-sm border ${
-                              b.result === '-'
-                                ? 'bg-slate-100 text-slate-400 border-slate-200'
-                                : b.result === '1 - 0' || b.result === '0 - 1' || b.result === '½ - ½'
-                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                                : 'bg-amber-50 text-amber-800 border-amber-300'
-                            }`}
-                          >
-                            {b.result === '-' ? '—' : b.result}
-                          </span>
+                          {displayInfo.isNormal ? (
+                            <span
+                              className={`inline-block px-3 py-1 rounded font-mono font-bold text-xs shadow-sm border ${
+                                b.result === '-'
+                                  ? 'bg-slate-100 text-slate-400 border-slate-200'
+                                  : b.result === '1 - 0' || b.result === '0 - 1' || b.result === '½ - ½'
+                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                  : 'bg-amber-50 text-amber-800 border-amber-300'
+                              }`}
+                            >
+                              {b.result === '-' ? '—' : b.result}
+                              {activeLifecycle.isFinalized && ' 🔒'}
+                            </span>
+                          ) : (
+                            <span
+                              className="inline-block px-2.5 py-1 rounded font-mono font-bold text-[11px] shadow-2xs border bg-slate-100 border-slate-300 text-slate-700"
+                              title={`Administrative Entry: ${displayInfo.entryType} (${displayInfo.points.toFixed(1)} pt)`}
+                            >
+                              {displayInfo.resultBadgeText}
+                              {activeLifecycle.isFinalized && ' 🔒'}
+                            </span>
+                          )}
                         </td>
 
-                        {/* Black Player */}
+                        {/* Black Player / Administrative Opponent */}
                         <td className="py-2.5 px-3">
                           {bl ? (
                             <div className="flex items-center justify-between gap-2">
@@ -775,7 +1007,9 @@ export const PairingsTab: React.FC<PairingsTabProps> = ({
                               </span>
                             </div>
                           ) : (
-                            <span className="text-slate-400 italic">Bye / Unpaired</span>
+                            <span className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600 font-mono text-[11px] font-semibold">
+                              {displayInfo.blackOpponentLabel || 'Bye / Unpaired'}
+                            </span>
                           )}
                         </td>
                       </tr>
@@ -796,12 +1030,22 @@ export const PairingsTab: React.FC<PairingsTabProps> = ({
         {/* Rapid Result Desk (Right 4 cols) */}
         <div className="lg:col-span-4 bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-5 sticky top-24">
           <div className="border-b border-slate-100 pb-3">
-            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              Rapid Result Palette
+            <h3 className="text-sm font-bold text-slate-900 flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                Rapid Result Palette
+              </span>
+              {activeLifecycle.isFinalized && (
+                <span className="text-[11px] font-mono text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 flex items-center gap-1 font-bold">
+                  <Lock className="w-3 h-3" />
+                  LOCKED
+                </span>
+              )}
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Click buttons or use numeric keypad hotkeys
+              {activeLifecycle.isFinalized
+                ? "Round is finalized. Results cannot be modified without unlocking."
+                : "Click buttons or use numeric keypad hotkeys to record scores"}
             </p>
           </div>
 
@@ -812,111 +1056,288 @@ export const PairingsTab: React.FC<PairingsTabProps> = ({
                 Board {selectedBoard ? selectedBoard.board : '—'} of {currentBoards.length}
               </span>
               <span className="font-mono font-bold text-blue-600">
-                {selectedBoard?.result || '—'}
+                {selectedBoardInfo ? selectedBoardInfo.resultBadgeText : '—'}
               </span>
             </div>
 
             <div className="text-[11px] text-slate-700 space-y-0.5">
-              <div className="truncate">⚪ <b>{selectedWhite?.name || '—'}</b></div>
-              <div className="truncate">⚫ <b>{selectedBlack?.name || '—'}</b></div>
+              <div className="truncate">⚪ <b>{selectedWhite?.name || selectedBoardInfo?.whiteOpponentLabel || '—'}</b></div>
+              <div className="truncate">⚫ <b>{selectedBlack?.name || selectedBoardInfo?.blackOpponentLabel || '—'}</b></div>
             </div>
           </div>
 
-          {/* Standard Results (1:0, 1/2:1/2, 0:1) */}
-          <div className="space-y-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              Game Results
-            </span>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                onClick={() => handleSetResult('1 - 0', true)}
-                className="py-3 bg-slate-50 hover:bg-emerald-600 hover:text-white active:bg-emerald-700 text-slate-800 rounded-lg text-sm font-bold border border-slate-300 shadow-sm flex flex-col items-center justify-center transition"
-                title="White wins [Hotkey: 1]"
-              >
-                <span>1 : 0</span>
-                <span className="text-[10px] text-slate-500 group-hover:text-emerald-100 font-mono font-normal">Key 1</span>
-              </button>
-
-              <button
-                onClick={() => handleSetResult('½ - ½', true)}
-                className="py-3 bg-slate-50 hover:bg-emerald-600 hover:text-white active:bg-emerald-700 text-slate-800 rounded-lg text-sm font-bold border border-slate-300 shadow-sm flex flex-col items-center justify-center transition"
-                title="Draw [Hotkey: 2]"
-              >
-                <span>½ : ½</span>
-                <span className="text-[10px] text-slate-500 group-hover:text-emerald-100 font-mono font-normal">Key 2</span>
-              </button>
-
-              <button
-                onClick={() => handleSetResult('0 - 1', true)}
-                className="py-3 bg-slate-50 hover:bg-emerald-600 hover:text-white active:bg-emerald-700 text-slate-800 rounded-lg text-sm font-bold border border-slate-300 shadow-sm flex flex-col items-center justify-center transition"
-                title="Black wins [Hotkey: 3]"
-              >
-                <span>0 : 1</span>
-                <span className="text-[10px] text-slate-500 group-hover:text-emerald-100 font-mono font-normal">Key 3</span>
-              </button>
+          {/* Palette Controls: Normal Games vs Administrative Entries */}
+          {selectedBoardInfo && !selectedBoardInfo.isNormal ? (
+            /* Non-game / Administrative Board Warning Panel */
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
+              <div className="flex items-center gap-2 text-slate-800 font-bold text-xs">
+                <ShieldCheck className="w-4 h-4 text-blue-600" />
+                <span>Administrative Entry ({selectedBoardInfo.entryType})</span>
+              </div>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                This entry has no opposing player. Regulation points (<b>{selectedBoardInfo.points.toFixed(1)} pt</b>) are awarded automatically.
+              </p>
+              <div className="p-2 rounded bg-white border border-slate-200 text-[11px] font-mono text-slate-700 text-center font-bold">
+                Assigned Value: {selectedBoardInfo.resultBadgeText}
+              </div>
+              <p className="text-[10px] text-slate-400 italic">
+                Normal game results (1-0, 0-1, ½-½) cannot be assigned to bye or unpaired entries.
+              </p>
             </div>
-          </div>
+          ) : (
+            /* Normal 2-Player Game Result Controls */
+            <>
+              {/* Standard Results (1:0, 1/2:1/2, 0:1) */}
+              <div className="space-y-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                  Game Results
+                </span>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    onClick={() => handleSetResult('1 - 0', true)}
+                    disabled={!isEditableRound}
+                    className="py-3 bg-slate-50 hover:bg-emerald-600 hover:text-white active:bg-emerald-700 disabled:opacity-40 disabled:hover:bg-slate-50 disabled:hover:text-slate-800 text-slate-800 rounded-lg text-sm font-bold border border-slate-300 shadow-sm flex flex-col items-center justify-center transition"
+                    title="White wins [Hotkey: 1]"
+                  >
+                    <span>1 : 0</span>
+                    <span className="text-[10px] text-slate-500 group-hover:text-emerald-100 font-mono font-normal">Key 1</span>
+                  </button>
 
-          {/* Administrative / Forfeits / Byes */}
-          <div className="space-y-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              Administrative & Byes
-            </span>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <button
-                onClick={() => handleSetResult('1F - 0F', true)}
-                className="py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-md font-semibold transition"
-                title="White forfeit win"
-              >
-                1F : 0F (Forfeit)
-              </button>
-              <button
-                onClick={() => handleSetResult('0F - 1F', true)}
-                className="py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-md font-semibold transition"
-                title="Black forfeit win"
-              >
-                0F : 1F (Forfeit)
-              </button>
-              <button
-                onClick={() => handleSetResult('PAB', true)}
-                className="py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-md font-semibold transition"
-                title="Pairing-allocated bye"
-              >
-                PAB (Pairing Bye)
-              </button>
-              <button
-                onClick={() => handleSetResult('½ BYE', true)}
-                className="py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-md font-semibold transition"
-                title="Half-point requested bye"
-              >
-                ½ BYE (Half)
-              </button>
-            </div>
-          </div>
+                  <button
+                    onClick={() => handleSetResult('½ - ½', true)}
+                    disabled={!isEditableRound}
+                    className="py-3 bg-slate-50 hover:bg-emerald-600 hover:text-white active:bg-emerald-700 disabled:opacity-40 disabled:hover:bg-slate-50 disabled:hover:text-slate-800 text-slate-800 rounded-lg text-sm font-bold border border-slate-300 shadow-sm flex flex-col items-center justify-center transition"
+                    title="Draw [Hotkey: 2]"
+                  >
+                    <span>½ : ½</span>
+                    <span className="text-[10px] text-slate-500 group-hover:text-emerald-100 font-mono font-normal">Key 2</span>
+                  </button>
 
-          {/* Color Swap & Clear Selected */}
-          <div className="pt-2 border-t border-slate-100 flex items-center gap-2">
-            <button
-              onClick={handleSwapColors}
-              className="flex-1 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition shadow-sm"
-              title="Swap White and Black player colors on this board"
-            >
-              <ArrowLeftRight className="w-3.5 h-3.5 text-blue-600" />
-              <span>Swap Colors</span>
-            </button>
+                  <button
+                    onClick={() => handleSetResult('0 - 1', true)}
+                    disabled={!isEditableRound}
+                    className="py-3 bg-slate-50 hover:bg-emerald-600 hover:text-white active:bg-emerald-700 disabled:opacity-40 disabled:hover:bg-slate-50 disabled:hover:text-slate-800 text-slate-800 rounded-lg text-sm font-bold border border-slate-300 shadow-sm flex flex-col items-center justify-center transition"
+                    title="Black wins [Hotkey: 3]"
+                  >
+                    <span>0 : 1</span>
+                    <span className="text-[10px] text-slate-500 group-hover:text-emerald-100 font-mono font-normal">Key 3</span>
+                  </button>
+                </div>
+              </div>
 
-            <button
-              onClick={() => handleSetResult('-', false)}
-              className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-semibold transition shadow-sm"
-              title="Clear selected result [Hotkey: Del]"
-            >
-              Clear
-            </button>
-          </div>
+              {/* Forfeits / Administrative Defaults */}
+              <div className="space-y-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                  Unplayed Game Defaults / Forfeits
+                </span>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <button
+                    onClick={() => handleSetResult('1F - 0F', true)}
+                    disabled={!isEditableRound}
+                    className="py-1.5 bg-slate-50 hover:bg-slate-100 disabled:opacity-40 text-slate-700 border border-slate-300 rounded-md font-semibold transition"
+                    title="White forfeit win (Black absent)"
+                  >
+                    1F : 0F (Forfeit)
+                  </button>
+                  <button
+                    onClick={() => handleSetResult('0F - 1F', true)}
+                    disabled={!isEditableRound}
+                    className="py-1.5 bg-slate-50 hover:bg-slate-100 disabled:opacity-40 text-slate-700 border border-slate-300 rounded-md font-semibold transition"
+                    title="Black forfeit win (White absent)"
+                  >
+                    0F : 1F (Forfeit)
+                  </button>
+                </div>
+              </div>
+
+              {/* Color Swap & Clear Selected */}
+              <div className="pt-2 border-t border-slate-100 flex items-center gap-2">
+                <button
+                  onClick={handleSwapColors}
+                  disabled={!isEditableRound}
+                  className="flex-1 py-1.5 bg-slate-50 hover:bg-slate-100 disabled:opacity-40 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition shadow-sm"
+                  title="Swap White and Black player colors on this board"
+                >
+                  <ArrowLeftRight className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Swap Colors</span>
+                </button>
+
+                <button
+                  onClick={() => handleSetResult('-', false)}
+                  disabled={!isEditableRound}
+                  className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 disabled:opacity-40 text-rose-700 border border-rose-200 rounded-lg text-xs font-semibold transition shadow-sm"
+                  title="Clear selected result [Hotkey: Del]"
+                >
+                  Clear
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
-      {/* 4. Pairing Preview & Arbiter Acceptance Modal */}
+      {/* 4. Finalize Round Modal */}
+      {showFinalizeModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150 text-slate-900">
+            <div className="p-5 border-b border-slate-200 bg-emerald-50/75 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-emerald-100 text-emerald-700">
+                  <Lock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Finalize & Lock Round {activeRound}</h3>
+                  <p className="text-[11px] text-slate-500">Authoritative Arbiter Verification & Standings Commitment</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowFinalizeModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs text-slate-600">
+              <p className="leading-relaxed">
+                You are about to finalize <strong className="text-slate-900">Round {activeRound}</strong>. This action validates all board outcomes, creates a SHA-256 state snapshot, recalculates authoritative standings and tie-breaks, and permanently locks result editing.
+              </p>
+
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <div className="font-bold text-slate-700 flex items-center justify-between">
+                  <span>Round Summary:</span>
+                  <span className="font-mono text-emerald-700 font-bold">{activeLifecycle.totalBoards} Total Boards</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600">
+                  <div>Normal Games: <b>{activeLifecycle.normalGames}</b> (100% entered)</div>
+                  <div>Admin Byes/Entries: <b>{activeLifecycle.adminEntries}</b></div>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-bold text-slate-700">Arbiter Name / Signature:</label>
+                <input
+                  type="text"
+                  value={arbiterName}
+                  onChange={e => setArbiterName(e.target.value)}
+                  placeholder="e.g. IA John Doe"
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-emerald-500 font-medium"
+                />
+              </div>
+
+              {finalizationError && (
+                <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-[11px] flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                  <span>{finalizationError}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2.5">
+              <button
+                onClick={() => setShowFinalizeModal(false)}
+                className="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 font-semibold hover:bg-slate-200 transition text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleFinalizeRound}
+                disabled={isFinalizing}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-lg font-bold flex items-center gap-1.5 transition text-xs shadow-sm disabled:opacity-50"
+              >
+                <Lock className="w-3.5 h-3.5" />
+                <span>{isFinalizing ? 'Finalizing...' : 'Confirm & Finalize Round'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5. Unlock Finalized Round Modal */}
+      {showUnlockModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150 text-slate-900">
+            <div className="p-5 border-b border-slate-200 bg-amber-50/75 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-amber-100 text-amber-700">
+                  <Unlock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Unlock Round {activeRound} for Corrections</h3>
+                  <p className="text-[11px] text-slate-500">Security & Integrity Warning</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowUnlockModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs text-slate-600">
+              {activeRound < latestRound ? (
+                /* Hard Block: Subsequent rounds exist */
+                <div className="space-y-3">
+                  <div className="p-3 bg-rose-50 rounded-xl border border-rose-200 text-rose-900 space-y-1">
+                    <div className="font-bold flex items-center gap-1.5">
+                      <AlertOctagon className="w-4 h-4 text-rose-600" />
+                      <span>Correction Blocked: Downstream Round Dependency</span>
+                    </div>
+                    <p className="text-[11px] leading-relaxed">
+                      Subsequent rounds (Round {activeRound + 1} to Round {latestRound}) already exist and were paired based on the results of Round {activeRound}.
+                    </p>
+                  </div>
+                  <p className="leading-relaxed text-slate-600">
+                    Modifying an earlier finalized round would invalidate existing pairings and standings. To modify earlier round results, subsequent rounds must be deleted in reverse order first.
+                  </p>
+                </div>
+              ) : (
+                /* Latest round: Permitted with explicit Arbiter confirmation */
+                <div className="space-y-3">
+                  <p className="leading-relaxed">
+                    This round is finalized. Unlocking allows you to correct misrecorded results. Note that changing a result may affect standings, tie-breaks, and future pairings.
+                  </p>
+                  <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 space-y-1 text-amber-900">
+                    <div className="font-bold">Arbiter Confirmation Required:</div>
+                    <p className="text-[11px] leading-relaxed">
+                      Once corrections are complete, you must re-finalize the round before generating Round {activeRound + 1}.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {finalizationError && (
+                <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-[11px] flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                  <span>{finalizationError}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2.5">
+              <button
+                onClick={() => setShowUnlockModal(false)}
+                className="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 font-semibold hover:bg-slate-200 transition text-xs"
+              >
+                Close
+              </button>
+              {activeRound === latestRound && (
+                <button
+                  onClick={handleUnlockRound}
+                  disabled={isUnlocking}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white rounded-lg font-bold flex items-center gap-1.5 transition text-xs shadow-sm disabled:opacity-50"
+                >
+                  <Unlock className="w-3.5 h-3.5" />
+                  <span>{isUnlocking ? 'Unlocking...' : 'Confirm & Unlock Results'}</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Pairing Preview & Arbiter Acceptance Modal */}
       {previewModalData && (
         <PairingPreviewModal
           round={previewModalData.round}
@@ -939,7 +1360,7 @@ export const PairingsTab: React.FC<PairingsTabProps> = ({
         />
       )}
 
-      {/* 5. Authoritative Engine Unavailable Modal */}
+      {/* 7. Authoritative Engine Unavailable Modal */}
       {authoritativeError && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150 text-slate-900">

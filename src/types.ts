@@ -5,6 +5,21 @@ export type TournamentFormat = 'Individual Swiss' | 'Individual Round Robin';
 export type PairingSystem = 'FIDE Dutch System' | 'Round Robin - Berger Tables';
 export type RatingType = 'Standard' | 'Rapid' | 'Blitz' | 'Unrated';
 export type TabType = 'setup' | 'players' | 'pairings' | 'standings' | 'schedule' | 'chessresults' | 'export';
+
+export type RoundEntryType = 
+  | 'NORMAL_GAME'
+  | 'PAB'
+  | 'REQUESTED_BYE'
+  | 'ZERO_POINT_BYE'
+  | 'UNPAIRED'
+  | 'ABSENT'
+  | 'WITHDRAWN';
+
+export type RoundLifecycleStatus = 
+  | 'ROUND_ACTIVE'
+  | 'ALL_RESULTS_ENTERED'
+  | 'RESULTS_FINALIZED';
+
 export type GameResult = 
   | '-'
   | '1 - 0' 
@@ -49,6 +64,9 @@ export interface BoardPairing {
   whiteKey: string;
   blackKey: string;
   result: GameResult;
+  entryType?: RoundEntryType;
+  pabPoints?: number;
+  byePoints?: number;
   fixedWhite?: boolean;
   fixedBlack?: boolean;
   fixedBoardNumber?: number;
@@ -310,6 +328,11 @@ export interface Tournament {
     standingsLots?: Record<string, number>;
     engine: PairingEngineConfig;
     trfImportMeta?: any;
+    finalizedRounds?: Record<string, boolean>;
+    roundStatus?: Record<string, RoundLifecycleStatus>;
+    finalizedAt?: Record<string, string>;
+    finalizedBy?: Record<string, string>;
+    finalizedSnapshots?: Record<string, string>;
   };
   schedule: {
     registrationOpens: string;

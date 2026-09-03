@@ -9,6 +9,7 @@ import { generateDutchPairings } from './src/engine/dutchEngine';
 import { auditStore } from './src/server/auditStore';
 import { tournamentStore } from './src/server/tournamentStore';
 import { fideService, fideRepository } from './src/server/fide';
+import { getRoundLifecycleState } from './src/engine/roundEntryValidator';
 
 const PORT = 3000;
 const app = express();
@@ -464,6 +465,66 @@ app.post('/api/tournament/reset', (req, res) => {
   const { tournament } = req.body;
   tournamentStore.resetTournament(tournament);
   res.json({ success: true, message: 'Tournament store reset.' });
+});
+
+// 12a. Round Lifecycle & Finalization endpoints
+app.get('/api/rounds/:round/status', (req, res) => {
+  const round = parseInt(req.params.round, 10);
+  if (isNaN(round) || round < 1) {
+    res.status(400).json({ success: false, message: 'Invalid round number.' });
+    return;
+  }
+  const status = getRoundLifecycleState(tournamentStore.getOfficialTournament(), round);
+  res.json({ success: true, round, lifecycle: status });
+});
+
+app.post('/api/rounds/finalize', (req, res) => {
+  const { round, arbiterName, notes } = req.body;
+  if (!round || typeof round !== 'number' || round < 1) {
+    res.status(400).json({ success: false, message: 'Valid round number required.' });
+    return;
+  }
+  try {
+    const result = tournamentStore.finalizeRound(round, { arbiterName, notes });
+    res.json({
+      success: true,
+      message: `Round ${round} successfully finalized and locked.`,
+      result
+    });
+  } catch (err: any) {
+    const isValidation = err.code === 'FINALIZATION_VALIDATION_FAILED';
+    res.status(isValidation ? 409 : 500).json({
+      success: false,
+      code: err.code || 'FINALIZATION_FAILED',
+      message: err.message || 'Round finalization failed.'
+    });
+  }
+});
+
+app.post('/api/rounds/unlock', (req, res) => {
+  const { round, arbiterConfirmed, arbiterName } = req.body;
+  if (!round || typeof round !== 'number' || round < 1) {
+    res.status(400).json({ success: false, message: 'Valid round number required.' });
+    return;
+  }
+  try {
+    const result = tournamentStore.unlockRound(round, {
+      arbiterConfirmed: Boolean(arbiterConfirmed),
+      arbiterName
+    });
+    res.json({
+      success: true,
+      message: `Round ${round} unlocked for corrections.`,
+      result
+    });
+  } catch (err: any) {
+    const isBlocked = err.code === 'EARLIER_ROUND_DEPENDENCY' || err.code === 'ARBITER_CONFIRMATION_REQUIRED';
+    res.status(isBlocked ? 409 : 500).json({
+      success: false,
+      code: err.code || 'UNLOCK_FAILED',
+      message: err.message || 'Failed to unlock round.'
+    });
+  }
 });
 
 // 13. FIDE Rating Database endpoints (Batch B)

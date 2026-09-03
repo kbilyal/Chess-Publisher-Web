@@ -6,6 +6,8 @@ export type TransactionType =
   | 'IMPORT_TRF'
   | 'TRF_IMPORT'
   | 'ACCEPT_PAIRINGS'
+  | 'FINALIZE_ROUND'
+  | 'UNLOCK_ROUND'
   | 'CUSTOM';
 
 export type TransactionStatus =

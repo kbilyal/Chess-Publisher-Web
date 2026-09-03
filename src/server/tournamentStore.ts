@@ -2,6 +2,13 @@ import fs from 'fs';
 import path from 'path';
 import { Tournament, BoardPairing } from '../types';
 import { createInitialEmptyTournament } from '../data/initialData';
+import { 
+  validateTournamentHardInvariants, 
+  sanitizeTournamentHardInvariants, 
+  determineBoardEntryType,
+  validateRoundForFinalization
+} from '../engine/roundEntryValidator';
+import { calculateTournamentStandings } from '../engine/tiebreaks';
 
 export interface PendingDraftPairing {
   round: number;
@@ -78,7 +85,12 @@ export class TournamentStore {
   }
 
   public setOfficialTournament(tourn: Tournament): void {
-    this.currentTournament = JSON.parse(JSON.stringify(tourn));
+    const invariantCheck = validateTournamentHardInvariants(tourn);
+    if (!invariantCheck.valid) {
+      throw new Error(`Cannot persist tournament with invalid board states: ${invariantCheck.violations.join('; ')}`);
+    }
+    const { tournament: sanitized } = sanitizeTournamentHardInvariants(tourn);
+    this.currentTournament = JSON.parse(JSON.stringify(sanitized));
     this.saveToDisk();
   }
 
@@ -93,6 +105,115 @@ export class TournamentStore {
 
   public clearPendingDraft(round: number): void {
     this.pendingDrafts.delete(round);
+  }
+
+  /**
+   * Finalizes round results authoritatively
+   */
+  public finalizeRound(
+    round: number,
+    options?: { arbiterName?: string; notes?: string }
+  ): { success: boolean; round: number; tournament: Tournament } {
+    const roundKey = String(round);
+    const validation = validateRoundForFinalization(this.currentTournament, round);
+    if (!validation.valid) {
+      throw {
+        code: 'FINALIZATION_VALIDATION_FAILED',
+        message: `Round ${round} cannot be finalized: ${validation.errors.join('; ')}`
+      };
+    }
+
+    const backupTournament = JSON.parse(JSON.stringify(this.currentTournament));
+
+    try {
+      if (!this.currentTournament.pairings.finalizedRounds) {
+        this.currentTournament.pairings.finalizedRounds = {};
+      }
+      if (!this.currentTournament.pairings.roundStatus) {
+        this.currentTournament.pairings.roundStatus = {};
+      }
+      if (!this.currentTournament.pairings.finalizedAt) {
+        this.currentTournament.pairings.finalizedAt = {};
+      }
+      if (!this.currentTournament.pairings.finalizedBy) {
+        this.currentTournament.pairings.finalizedBy = {};
+      }
+
+      this.currentTournament.pairings.finalizedRounds[roundKey] = true;
+      this.currentTournament.pairings.roundStatus[roundKey] = 'RESULTS_FINALIZED';
+      this.currentTournament.pairings.finalizedAt[roundKey] = new Date().toISOString();
+      this.currentTournament.pairings.finalizedBy[roundKey] = options?.arbiterName || 'Arbiter';
+
+      // Update completed flag in rounds array
+      const tournPairings = this.currentTournament.pairings as any;
+      if (Array.isArray(tournPairings.rounds)) {
+        const rnd = tournPairings.rounds.find((r: any) => r.round === round);
+        if (rnd) rnd.completed = true;
+      }
+
+      this.saveToDisk();
+
+      return {
+        success: true,
+        round,
+        tournament: this.getOfficialTournament()
+      };
+    } catch (err: any) {
+      this.currentTournament = backupTournament;
+      throw err;
+    }
+  }
+
+  /**
+   * Unlocks finalized round for result editing with dependency protection
+   */
+  public unlockRound(
+    round: number,
+    options?: { arbiterConfirmed: boolean; arbiterName?: string }
+  ): { success: boolean; round: number; tournament: Tournament } {
+    const roundKey = String(round);
+    const liveBoards = this.currentTournament.pairings?.liveBoards || {};
+    const generatedRounds = Object.keys(liveBoards).map(Number).filter(n => n > 0).sort((a, b) => a - b);
+    const laterRounds = generatedRounds.filter(r => r > round);
+
+    if (laterRounds.length > 0) {
+      throw {
+        code: 'EARLIER_ROUND_DEPENDENCY',
+        message: `Round ${round} is an earlier finalized round. Subsequent rounds (Round ${laterRounds.join(', ')}) already exist and depend on its results. Modifying earlier round results requires a dedicated recovery/rollback workflow.`
+      };
+    }
+
+    if (options?.arbiterConfirmed !== true) {
+      throw {
+        code: 'ARBITER_CONFIRMATION_REQUIRED',
+        message: 'Explicit arbiter confirmation is required to unlock a finalized round for result editing.'
+      };
+    }
+
+    const backupTournament = JSON.parse(JSON.stringify(this.currentTournament));
+
+    try {
+      if (!this.currentTournament.pairings.finalizedRounds) {
+        this.currentTournament.pairings.finalizedRounds = {};
+      }
+      if (!this.currentTournament.pairings.roundStatus) {
+        this.currentTournament.pairings.roundStatus = {};
+      }
+
+      this.currentTournament.pairings.finalizedRounds[roundKey] = false;
+      this.currentTournament.pairings.roundStatus[roundKey] = 'ROUND_ACTIVE';
+
+      this.saveToDisk();
+
+      return {
+        success: true,
+        round,
+        tournament: this.getOfficialTournament()
+      };
+    } catch (err: any) {
+      this.currentTournament = backupTournament;
+      throw err;
+    }
   }
 
   /**
@@ -185,14 +306,33 @@ export class TournamentStore {
         this.currentTournament.pairings.liveBoards = {};
       }
 
-      const committedBoards: BoardPairing[] = draft.boards.map(b => ({
-        board: b.board || (b as any).boardNumber || 1,
-        whiteKey: b.whiteKey,
-        blackKey: b.blackKey,
-        result: b.result || '-'
-      }));
+      const committedBoards: BoardPairing[] = draft.boards.map(b => {
+        const entryType = b.entryType || determineBoardEntryType(b, this.currentTournament, round);
+        let safeResult = b.result || '-';
+        if (entryType !== 'NORMAL_GAME' && (safeResult === '1 - 0' || safeResult === '0 - 1' || safeResult === '½ - ½' || safeResult === '1F - 0F' || safeResult === '0F - 1F' || safeResult === '0F - 0F')) {
+          safeResult = entryType === 'PAB' ? 'PAB' : (entryType === 'REQUESTED_BYE' ? '½ BYE' : (entryType === 'ZERO_POINT_BYE' ? '0 BYE' : '-'));
+        }
+        return {
+          board: b.board || (b as any).boardNumber || 1,
+          whiteKey: b.whiteKey,
+          blackKey: b.blackKey,
+          result: safeResult,
+          entryType,
+          pabPoints: b.pabPoints !== undefined ? b.pabPoints : (entryType === 'PAB' ? 1.0 : undefined),
+          byePoints: b.byePoints !== undefined ? b.byePoints : (entryType === 'REQUESTED_BYE' ? 0.5 : undefined)
+        };
+      });
 
       this.currentTournament.pairings.liveBoards[roundKey] = committedBoards;
+
+      if (!this.currentTournament.pairings.finalizedRounds) {
+        this.currentTournament.pairings.finalizedRounds = {};
+      }
+      if (!this.currentTournament.pairings.roundStatus) {
+        this.currentTournament.pairings.roundStatus = {};
+      }
+      this.currentTournament.pairings.finalizedRounds[roundKey] = false;
+      this.currentTournament.pairings.roundStatus[roundKey] = 'ROUND_ACTIVE';
 
       // Also maintain rounds array for clients/checkers expecting rounds
       const tournPairings = this.currentTournament.pairings as any;

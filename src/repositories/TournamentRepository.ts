@@ -24,6 +24,7 @@ export interface TournamentRepository {
 
 const STORAGE_KEY = 'fide_tournament_manager_v2';
 const BACKUP_PREFIX = 'fide_backup_';
+const memoryStore = new Map<string, string>();
 
 /**
  * LocalStorageTournamentRepository
@@ -31,9 +32,15 @@ const BACKUP_PREFIX = 'fide_backup_';
  * Production-compatible client-side persistence repository with rollback snapshots.
  */
 export class LocalStorageTournamentRepository implements TournamentRepository {
+  private hasLocalStorage(): boolean {
+    return typeof localStorage !== 'undefined';
+  }
+
   public async getTournament(id?: string): Promise<Tournament | null> {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = this.hasLocalStorage()
+        ? localStorage.getItem(STORAGE_KEY)
+        : (memoryStore.get(STORAGE_KEY) || null);
       if (!raw) return null;
       return JSON.parse(raw) as Tournament;
     } catch (err) {
@@ -44,12 +51,20 @@ export class LocalStorageTournamentRepository implements TournamentRepository {
 
   public async saveTournament(tournament: Tournament): Promise<boolean> {
     try {
-      // Store backup before write
-      const previousRaw = localStorage.getItem(STORAGE_KEY);
-      if (previousRaw) {
-        localStorage.setItem(`${BACKUP_PREFIX}last_good`, previousRaw);
+      const serialized = JSON.stringify(tournament);
+      if (this.hasLocalStorage()) {
+        const previousRaw = localStorage.getItem(STORAGE_KEY);
+        if (previousRaw) {
+          localStorage.setItem(`${BACKUP_PREFIX}last_good`, previousRaw);
+        }
+        localStorage.setItem(STORAGE_KEY, serialized);
+      } else {
+        const prev = memoryStore.get(STORAGE_KEY);
+        if (prev) {
+          memoryStore.set(`${BACKUP_PREFIX}last_good`, prev);
+        }
+        memoryStore.set(STORAGE_KEY, serialized);
       }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(tournament));
       return true;
     } catch (err) {
       console.error('[Repository] Failed to save tournament to localStorage:', err);

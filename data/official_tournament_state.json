@@ -139,25 +139,29 @@
           "board": 1,
           "whiteKey": "p-1",
           "blackKey": "p-5",
-          "result": "-"
+          "result": "-",
+          "entryType": "NORMAL_GAME"
         },
         {
           "board": 2,
           "whiteKey": "p-6",
           "blackKey": "p-2",
-          "result": "-"
+          "result": "-",
+          "entryType": "NORMAL_GAME"
         },
         {
           "board": 3,
           "whiteKey": "p-3",
           "blackKey": "p-7",
-          "result": "-"
+          "result": "-",
+          "entryType": "NORMAL_GAME"
         },
         {
           "board": 4,
           "whiteKey": "p-8",
           "blackKey": "p-4",
-          "result": "-"
+          "result": "-",
+          "entryType": "NORMAL_GAME"
         }
       ]
     },
@@ -170,25 +174,29 @@
             "board": 1,
             "whiteKey": "p-1",
             "blackKey": "p-5",
-            "result": "-"
+            "result": "-",
+            "entryType": "NORMAL_GAME"
           },
           {
             "board": 2,
             "whiteKey": "p-6",
             "blackKey": "p-2",
-            "result": "-"
+            "result": "-",
+            "entryType": "NORMAL_GAME"
           },
           {
             "board": 3,
             "whiteKey": "p-3",
             "blackKey": "p-7",
-            "result": "-"
+            "result": "-",
+            "entryType": "NORMAL_GAME"
           },
           {
             "board": 4,
             "whiteKey": "p-8",
             "blackKey": "p-4",
-            "result": "-"
+            "result": "-",
+            "entryType": "NORMAL_GAME"
           }
         ],
         "completed": false
@@ -216,6 +224,12 @@
       "firstRoundRegistrationSyncedSignature": "",
       "firstRoundRegistrationNeedsResort": false,
       "firstRoundRegistrationSyncedAt": ""
+    },
+    "finalizedRounds": {
+      "1": false
+    },
+    "roundStatus": {
+      "1": "ROUND_ACTIVE"
     }
   }
 }

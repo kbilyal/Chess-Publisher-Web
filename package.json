@@ -13,6 +13,7 @@
     "test:arch": "tsx src/server/tests/runArchitectureTests.ts",
     "test:parity": "tsx src/server/tests/runParitySuite.ts",
     "test:transactions": "tsx src/server/tests/runTransactionTests.ts",
+    "test:finalization": "tsx src/server/tests/runRoundFinalizationTests.ts",
     "test:fide": "tsx src/server/tests/runFideRatingTests.ts"
   },
   "dependencies": {

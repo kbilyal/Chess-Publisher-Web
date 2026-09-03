@@ -677,10 +677,21 @@ export function calculateTournamentStandings(tournament: Tournament): FinalStand
         let pts = 0;
         let kind = 'unplayed';
 
-        if (res === 'PAB') { code = 'U'; pts = parseFloat(tournament.regulations?.pabPoints || '1.0') || 1.0; kind = 'pairing-bye'; }
-        else if (res === '1 BYE' || res === 'FULL BYE') { code = 'F'; pts = 1.0; kind = 'full-bye'; }
-        else if (res === '½ BYE' || res === '1/2 BYE') { code = 'H'; pts = 0.5; kind = 'half-bye'; }
-        else if (res === '0 BYE') { code = 'Z'; pts = 0.0; kind = 'zero-bye'; }
+        if (b.entryType === 'PAB' || res === 'PAB') {
+          code = 'U';
+          pts = b.pabPoints !== undefined ? b.pabPoints : (parseFloat(tournament.regulations?.pabPoints || '1.0') || 1.0);
+          kind = 'pairing-bye';
+        } else if (b.entryType === 'REQUESTED_BYE' || res === '1 BYE' || res === 'FULL BYE' || res === '½ BYE' || res === '1/2 BYE') {
+          if (b.byePoints === 1.0 || res === '1 BYE' || res === 'FULL BYE') {
+            code = 'F'; pts = 1.0; kind = 'full-bye';
+          } else {
+            code = 'H'; pts = b.byePoints !== undefined ? b.byePoints : 0.5; kind = 'half-bye';
+          }
+        } else if (b.entryType === 'ZERO_POINT_BYE' || res === '0 BYE' || res === 'Z') {
+          code = 'Z'; pts = 0.0; kind = 'zero-bye';
+        } else if (b.entryType === 'UNPAIRED' || b.entryType === 'ABSENT' || b.entryType === 'WITHDRAWN') {
+          code = 'Z'; pts = 0.0; kind = 'unplayed';
+        }
 
         single.rounds[r - 1] = { opp: 0, color: '-', result: code, played: false, kind, points: pts };
         single.score += pts;
