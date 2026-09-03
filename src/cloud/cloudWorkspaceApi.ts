@@ -1,5 +1,5 @@
 export const CLOUD_API_BASE = 'https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev';
-export const CLOUD_CLIENT_VERSION = 'chess-publisher-web-online-cloud-beta4';
+export const CLOUD_CLIENT_VERSION = 'chess-publisher-web-online-cloud-beta5';
 
 export class CloudApiError extends Error {
   status: number;
