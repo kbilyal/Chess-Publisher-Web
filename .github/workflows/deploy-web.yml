@@ -12,11 +12,12 @@ permissions:
   id-token: write
 
 concurrency:
-  group: chess-publisher-web-production
+  group: github-pages
   cancel-in-progress: true
 
 jobs:
   build:
+    if: github.ref == 'refs/heads/main'
     name: Validate and build Web app
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -24,14 +25,37 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -f package-lock.json ]]; then
+            npm ci
+          else
+            npm install --no-audit --no-fund
+          fi
+          python -m pip install --disable-pip-version-check -r engine/gacrux/requirements.txt
+          chmod +x bin/bbpPairings
+
+      - name: Verify triggering commit checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
 
       - name: TypeScript check
         run: npm run lint
@@ -45,6 +69,34 @@ jobs:
       - name: Desktop-Web Cloud roundtrip regression
         run: npm run test:cloud-roundtrip
 
+      - name: Architecture regression
+        shell: bash
+        env:
+          GACRUX_PATH: ${{ github.workspace }}/engine/gacrux/pairingchecker.py
+          BBP_PATH: ${{ github.workspace }}/bin/bbpPairings
+        run: |
+          set -euo pipefail
+          npm run dev > "$RUNNER_TEMP/chess-publisher-test-server.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..30}; do
+            if curl --fail --silent http://localhost:3000/api/health >/dev/null; then
+              break
+            fi
+            if [[ "$attempt" -eq 30 ]]; then
+              cat "$RUNNER_TEMP/chess-publisher-test-server.log"
+              exit 1
+            fi
+            sleep 1
+          done
+          npm run test:arch
+
+      - name: Desktop-Web pairing parity regression
+        env:
+          GACRUX_PATH: ${{ github.workspace }}/engine/gacrux/pairingchecker.py
+          BBP_PATH: ${{ github.workspace }}/bin/bbpPairings
+        run: npm run test:parity
+
       - name: Transaction regression
         run: npm run test:transactions
 
@@ -54,13 +106,51 @@ jobs:
       - name: FIDE regression
         run: npm run test:fide
 
-      # Relative asset URLs keep the same production build valid both at the
-      # temporary repository Pages URL and at web.chess-publisher.org.
       - name: Build Chess-Publisher Web program
-        run: npx vite build --base=./
+        run: npm run build
+
+      - name: Write exact deployment identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from 'node:fs';
+
+          const buildInfo = {
+            product: 'Chess-Publisher Web',
+            repository: process.env.GITHUB_REPOSITORY,
+            branch: 'main',
+            commit: process.env.GITHUB_SHA,
+            workflowRun: process.env.GITHUB_RUN_ID,
+            builtAt: new Date().toISOString()
+          };
+
+          writeFileSync('dist/build-info.json', `${JSON.stringify(buildInfo, null, 2)}\n`);
+          NODE
 
       - name: Disable Jekyll processing
         run: touch dist/.nojekyll
+
+      - name: Verify production artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f dist/index.html
+          test -f dist/build-info.json
+          test -f dist/CNAME
+          test "$(cat dist/CNAME)" = "web.chess-publisher.org"
+          find dist/assets -maxdepth 1 -type f -name '*.js' -print -quit | grep -q .
+          find dist/assets -maxdepth 1 -type f -name '*.css' -print -quit | grep -q .
+          grep -q 'Chess-Publisher FIDE Tournament Manager' dist/index.html
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+
+          const info = JSON.parse(readFileSync('dist/build-info.json', 'utf8'));
+          if (info.commit !== process.env.GITHUB_SHA) throw new Error('build-info commit does not match GITHUB_SHA');
+          if (info.repository !== 'kbilyal/Chess-Publisher-Web') throw new Error('build-info repository mismatch');
+          if (info.branch !== 'main') throw new Error('build-info branch mismatch');
+          NODE
+          find dist -maxdepth 2 -type f | sort
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
