@@ -36,8 +36,11 @@ jobs:
       - name: TypeScript check
         run: npm run lint
 
-      - name: Online & Cloud regression
+      - name: Online & Cloud beta4 regression
         run: npm run test:online-cloud
+
+      - name: Online & Cloud beta5 Browser Continuation regression
+        run: npm run test:online-cloud-beta5
 
       - name: Transaction regression
         run: npm run test:transactions
