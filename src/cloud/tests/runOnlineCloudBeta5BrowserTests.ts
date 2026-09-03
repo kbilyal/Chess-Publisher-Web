@@ -52,7 +52,7 @@ function testIdentitySurvivesDeviceChange() {
   const desktop: any = ensureLocalIdentity(tournament(), { internalIdCandidates: ['tournament:ABC'] });
   desktop.cloud.localKey = 'desktop-install:111';
   const snapshot = buildPrivateSnapshot(desktop.name, desktop);
-  const portable = snapshot.data.tournaments[desktop.name];
+  const portable: any = snapshot.data.tournaments[desktop.name];
   const web: any = preserveInstallationLocalFields(portable, { cloud: { localKey: 'web-install:222' } }, {
     cloudTournamentId: 'cloud-record-1',
     baseRevision: 2,
@@ -73,7 +73,7 @@ function testPrivateSnapshotSanitization() {
   source.telegram.token = 'TELEGRAM_SECRET';
   const snapshot = buildPrivateSnapshot(source.name, source);
   const serialized = JSON.stringify(snapshot);
-  const portable = snapshot.data.tournaments[source.name];
+  const portable: any = snapshot.data.tournaments[source.name];
 
   assert.equal(portable.cloud.internalId, 'tournament:ABC');
   assert.equal(portable.cloud.localKey, undefined);
