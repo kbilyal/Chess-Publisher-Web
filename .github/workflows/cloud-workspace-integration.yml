@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - integration/cloud-workspace-2026-09-03
+      - prep/cloud-browser-autosync-beta5
   pull_request:
     branches:
       - main
@@ -38,6 +39,18 @@ jobs:
       - name: Online & Cloud beta4 regression
         run: npm run test:online-cloud
 
+      - name: Online & Cloud beta5 Browser Continuation regression
+        run: npm run test:online-cloud-beta5
+
+      - name: Transaction regression
+        run: npm run test:transactions
+
+      - name: Round finalization regression
+        run: npm run test:finalization
+
+      - name: FIDE regression
+        run: npm run test:fide
+
       - name: Production build
         run: npm run build
 
@@ -47,13 +60,18 @@ jobs:
           set -euo pipefail
           test -f src/cloud/cloudWorkspaceApi.ts
           test -f src/cloud/onlineCloudSync.ts
-          test -f src/cloud/OnlineCloudProvider.tsx
-          test -f src/components/OnlineCloudTab.tsx
+          test -f src/cloud/CloudSyncCoordinator.ts
+          test -f src/cloud/browserSyncPolicy.ts
+          test -f src/cloud/OnlineCloudProviderV2.tsx
+          test -f src/cloud/OnlineCloudTabV2.tsx
+          test -f src/cloud/tests/runOnlineCloudBeta5BrowserTests.ts
           test -f cloudrun.ts
           grep -q "OnlineCloudProvider" src/main.tsx
-          grep -q "Online & Cloud (Beta)" src/components/Header.tsx
           grep -q "classifyThreeWay" src/cloud/onlineCloudSync.ts
           grep -q "X-Expected-Revision" src/cloud/cloudWorkspaceApi.ts
+          grep -q "Automatic Cloud Sync" src/cloud/OnlineCloudTabV2.tsx
+          grep -q "Pull Changes" src/cloud/OnlineCloudProviderV2.tsx
+          grep -q "cloudTournamentId" src/cloud/browserSyncPolicy.ts
           grep -q "process.env.PORT" cloudrun.ts
           if grep -R -n -E 'B2_APPLICATION_KEY|B2_KEY_ID|HUB_BETA_CREATE_KEY' src/cloud; then
             echo 'Infrastructure secret identifier found in browser cloud integration.' >&2
