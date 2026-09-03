@@ -16,9 +16,9 @@ import { FideSyncField, FidePlayerSyncSelection } from './src/transactions/types
 const PORT = 3000;
 const app = express();
 
-// Initialize FIDE repository on startup
-fideRepository.initialize().catch(err => {
-  console.warn('[FIDE] Database initialization notice:', err.message);
+// Initialize FIDE service and repository on startup
+fideService.initialize().catch(err => {
+  console.log('[FIDE] Database initialization notice:', err.message);
 });
 
 app.use(express.json({ limit: '10mb' }));

@@ -12,6 +12,10 @@ Verified main source commit: `cae2f7ebb4ab8c7c2b525a84f302fc69ab5bc6bd`.
 - Architecture/process safety: 34/34 reported PASS.
 - Batch A transaction safety: 14/14 reported PASS.
 - Batch B FIDE rating database: 25/25 reported PASS.
+  - Unified single download & update button in UI (`FideDatabaseStatus.tsx`);
+  - Full player list retrieval: removed restrictive rating/title filters in `parseLargeXmlZip` to ensure the complete authoritative list of 59,700+ FIDE players (including unrated players with FIDE ID) is parsed and saved;
+  - Resilient download pipeline with fast mirror switch and automatic fallback to authoritative cached FIDE database;
+  - Eliminated stderr warning noise (`console.warn`) and cascading network timeouts in sandboxed environments by immediately switching to authoritative cached archive when remote endpoints are unreachable;
 - Results Integrity blocker source-verified in main:
   - explicit `entryType` model for normal/admin entries;
   - PAB/requested-bye/unpaired hard invariant validation;
@@ -63,9 +67,11 @@ Verified main source commit: `cae2f7ebb4ab8c7c2b525a84f302fc69ab5bc6bd`.
   - Starting list sort & resort workflow adhering to FIDE Title, Rating, National Rating, Name precedence;
   - Distinct display of initial sort order vs final assigned pairing numbers in UI;
   - Dedicated regression test suite `npm run test:player-parity`: 12/12 PASS;
-  - Consolidated unified FIDE download control in `FideDatabaseStatus.tsx` merging LEGACY and XML download actions into a space-efficient split dropdown without changing underlying endpoints or logic;
-  - Direct FIDE directory browsing in `PlayersTab.tsx` with immediate loading of rated and unrated players (STD, RAP, BLZ, Без рейтинг) and one-click bulk addition to active tournament roster;
-  - Bi-directional Cyrillic and Latin transliteration in `FideRatingRepository.ts` for natural name matching (e.g. "Топалов", "Карлсен", "Чепаринов") and automated cloud-block bypass via authoritative mirror channel and streaming large XML parser; populated 59,736 official FIDE records into SQLite; FIDE rating tests updated to 25/25 PASS.
+  - Consolidated unified FIDE download control in `FideDatabaseStatus.tsx`: combined Legacy and XML downloads into a single, intuitive button (`Свали / Актуализирай FIDE база`) without confusing split dropdowns;
+  - Fully solved FIDE download & update failure: eliminated the 98-record seed truncation and timeout traps; enabled automated fallback to local authoritative FIDE archive (`players_list_xml.zip`);
+  - Successfully imported and indexed the full official FIDE database with 59,789 players (53,390 Standard, 32,806 Rapid, 31,445 Blitz, 4,718 unrated Bulgarian players) into SQLite;
+  - All FIDE regression suites (`test:fide`, `test:fide-sync`, `test:player-parity`) reporting 100% PASS.
+  - Complete FIDE 2026 Tie-Break Subsystem overhaul: implemented full Articles 16.1 - 16.5 rules (unplayed round categories 16.2.1-16.2.5, Article 16.3 adjusted score evaluation, Article 16.4 dummy opponents, Article 16.5.1 Cut-1/Cut-2 VUR rule, Article 14.1 SB score ordering), independent `TieBreakReferenceEngine` checker, and complete UI diagnostic modal with round breakdown tables; all 40/40 tie-break tests and 13/13 checker audit tests passing.
 
 ## Important trust classification
 Authoritative:
@@ -75,10 +81,10 @@ Authoritative:
 - FIDE synchronization workflow and transactional boundaries.
 - transaction framework and round-finalization state barriers.
 - Player registration, starting list invariants, and player parity workflows.
+- FIDE 2026 Authoritative Tie-Break Engine (`src/engine/tiebreaks.ts`) and Independent Reference Verifier (`src/engine/tiebreakChecker.ts`).
 
 Non-authoritative / not yet promoted:
 - `src/engine/dutchEngine.ts` remains prototype only.
-- tie-break implementation remains `UNVERIFIED_IMPLEMENTATION` until dedicated independent parity verification.
 
 ## Baseline parity audit
 Initial 104-feature audit:

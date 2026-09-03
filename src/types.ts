@@ -165,6 +165,41 @@ export interface TieBreakOptionConfig {
   aroDiscardWorst?: number;
 }
 
+export interface SnapshotRound {
+  roundIndex: number; // 0-based
+  opponentId: number;
+  color: 'w' | 'b' | '-';
+  played: boolean;
+  kind: 'played' | 'forfeit' | 'pairing-bye' | 'half-bye' | 'full-bye' | 'zero-bye' | 'unplayed';
+  result: string;
+  points: number;
+}
+
+export interface SnapshotPlayer {
+  id: number;
+  pairingNumber: number;
+  key: string;
+  name: string;
+  rating: number;
+  fed: string;
+  birth?: string;
+  gender?: string;
+  title?: string;
+  joinedFromRound: number;
+  rounds: (SnapshotRound | null)[];
+}
+
+export interface TournamentTieBreakSnapshot {
+  tournamentName?: string;
+  totalRounds: number;
+  drawPoints: number;
+  rulesProfile: string;
+  isRoundRobin: boolean;
+  configuredTieBreaks: string[];
+  tieBreakOptions: Record<string, TieBreakOptionConfig>;
+  players: SnapshotPlayer[];
+}
+
 export interface SpecialPrizeRange {
   enabled: boolean;
   name: string;

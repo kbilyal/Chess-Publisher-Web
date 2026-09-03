@@ -8,9 +8,20 @@
  * as certified for official FIDE reporting.
  */
 
-import { Player, Tournament, PlayerRoundState, SpecialPrizeConfig, SpecialPrizeGroupResult, TieBreakRuleSet } from '../types';
+import {
+  Player,
+  Tournament,
+  PlayerRoundState,
+  SpecialPrizeConfig,
+  SpecialPrizeGroupResult,
+  TieBreakRuleSet,
+  TournamentTieBreakSnapshot,
+  SnapshotPlayer,
+  SnapshotRound
+} from '../types';
 
 export { TieBreakRuleSet };
+export type { TournamentTieBreakSnapshot, SnapshotPlayer, SnapshotRound };
 
 export interface FinalStandingsResult {
   players: PlayerRoundState[];
@@ -954,3 +965,152 @@ export function calculateSpecialPrizes(
 
   return results;
 }
+
+/**
+ * Creates a normalized immutable tournament snapshot DTO for tie-break processing.
+ * Both the production engine and independent reference engine accept this standard DTO.
+ */
+export function createTournamentTieBreakSnapshot(tournament: Tournament): TournamentTieBreakSnapshot {
+  const announcedRounds = parseInt(tournament.settings?.rounds || '7', 10) || 7;
+  const drawPoints = tournament.regulations?.pointsForDraw !== undefined
+    ? Number(tournament.regulations.pointsForDraw)
+    : 0.5;
+  const rulesProfile = String(tournament.regulations?.tieBreakRuleSet || 'FIDE 2026');
+  const isRoundRobin = tournament.settings?.tournamentFormat === 'Individual Round Robin';
+  const configuredTieBreaks = [...(tournament.regulations?.tieBreaks || [])];
+  const tieBreakOptions = { ...(tournament.regulations?.tieBreakOptions || {}) };
+
+  const players = tournament.players || [];
+  const byKey = new Map<string, SnapshotPlayer>();
+  const snapshotPlayers: SnapshotPlayer[] = players.map(p => {
+    const sp: SnapshotPlayer = {
+      id: p.pairingNumber || p.id,
+      pairingNumber: p.pairingNumber || p.id,
+      key: p.localKey,
+      name: p.name,
+      rating: Number(p.rating) || 0,
+      fed: p.fed || 'FID',
+      birth: p.birth,
+      gender: p.gender,
+      title: p.title,
+      joinedFromRound: p.joinedFromRound || 1,
+      rounds: Array(announcedRounds).fill(null)
+    };
+    byKey.set(p.localKey, sp);
+    return sp;
+  });
+
+  for (let r = 1; r <= announcedRounds; r++) {
+    const boards = tournament.pairings?.liveBoards?.[String(r)];
+    if (!Array.isArray(boards)) continue;
+
+    for (const b of boards) {
+      const pWhite = byKey.get(b.whiteKey);
+      const pBlack = byKey.get(b.blackKey);
+      const res = String(b.result || '').trim().toUpperCase();
+
+      if (pWhite && pBlack) {
+        let rw = ' ';
+        let rb = ' ';
+        let played = false;
+        let kind: 'played' | 'forfeit' | 'unplayed' = 'played';
+
+        if (res === '1 - 0' || res === '1-0' || res === '1:0') { rw = '1'; rb = '0'; played = true; kind = 'played'; }
+        else if (res === '0 - 1' || res === '0-1' || res === '0:1') { rw = '0'; rb = '1'; played = true; kind = 'played'; }
+        else if (res === '½ - ½' || res === '1/2-1/2' || res === '0.5-0.5' || res === '=') { rw = '='; rb = '='; played = true; kind = 'played'; }
+        else if (res === '1F - 0F' || res === '1F-0F' || res === '+:-') { rw = '+'; rb = '-'; played = false; kind = 'forfeit'; }
+        else if (res === '0F - 1F' || res === '0F-1F' || res === '-:+') { rw = '-'; rb = '+'; played = false; kind = 'forfeit'; }
+        else if (res === '0F - 0F' || res === '0F-0F' || res === '-:-') { rw = '-'; rb = '-'; played = false; kind = 'forfeit'; }
+
+        const pw = rw === '1' || rw === '+' ? 1 : (rw === '=' ? 0.5 : 0);
+        const pb = rb === '1' || rb === '+' ? 1 : (rb === '=' ? 0.5 : 0);
+
+        pWhite.rounds[r - 1] = {
+          roundIndex: r - 1,
+          opponentId: pBlack.id,
+          color: 'w',
+          played,
+          kind,
+          result: rw,
+          points: pw
+        };
+        pBlack.rounds[r - 1] = {
+          roundIndex: r - 1,
+          opponentId: pWhite.id,
+          color: 'b',
+          played,
+          kind,
+          result: rb,
+          points: pb
+        };
+      } else {
+        const single = pWhite || pBlack;
+        if (!single) continue;
+
+        let code = ' ';
+        let pts = 0;
+        let kind: 'pairing-bye' | 'full-bye' | 'half-bye' | 'zero-bye' | 'unplayed' = 'unplayed';
+
+        if (b.entryType === 'PAB' || res === 'PAB') {
+          code = 'U';
+          pts = b.pabPoints !== undefined ? b.pabPoints : (parseFloat(tournament.regulations?.pabPoints || '1.0') || 1.0);
+          kind = 'pairing-bye';
+        } else if (b.entryType === 'REQUESTED_BYE' || res === '1 BYE' || res === 'FULL BYE' || res === '½ BYE' || res === '1/2 BYE') {
+          if (b.byePoints === 1.0 || res === '1 BYE' || res === 'FULL BYE') {
+            code = 'F'; pts = 1.0; kind = 'full-bye';
+          } else {
+            code = 'H'; pts = b.byePoints !== undefined ? b.byePoints : 0.5; kind = 'half-bye';
+          }
+        } else if (b.entryType === 'ZERO_POINT_BYE' || res === '0 BYE' || res === 'Z') {
+          code = 'Z'; pts = 0.0; kind = 'zero-bye';
+        } else if (b.entryType === 'UNPAIRED' || b.entryType === 'ABSENT' || b.entryType === 'WITHDRAWN') {
+          code = 'Z'; pts = 0.0; kind = 'unplayed';
+        }
+
+        single.rounds[r - 1] = {
+          roundIndex: r - 1,
+          opponentId: 0,
+          color: '-',
+          played: false,
+          kind,
+          result: code,
+          points: pts
+        };
+      }
+    }
+  }
+
+  return {
+    tournamentName: tournament.name || tournament.settings?.organizer || 'Tournament',
+    totalRounds: announcedRounds,
+    drawPoints,
+    rulesProfile,
+    isRoundRobin,
+    configuredTieBreaks,
+    tieBreakOptions,
+    players: snapshotPlayers
+  };
+}
+
+/**
+ * Production TieBreakEngine providing authoritative FIDE 2026 calculations.
+ */
+export const TieBreakEngine = {
+  createSnapshot: createTournamentTieBreakSnapshot,
+  pointsFromRound: fidePointsFromRound,
+  classifyUnplayedRound: getUnplayedRoundCategory2026,
+  getAdjustedScoreForOpponents,
+  calculateAdjustedScores: calculateAdjustedScores2026,
+  getDummyOpponentScore,
+  makeOwnTieBreakElements: makeOwnTieBreakElements2026,
+  chooseBuchholzLowCutIndex: chooseBuchholzLowCutIndex2026,
+  chooseSBLowCutIndex: chooseSBLowCutIndex2026,
+  applyFideCutModifier,
+  buchholzVariant: buchholzVariant2026,
+  sonnebornVariant: sonnebornVariant2026,
+  calculateAllTieBreaks,
+  resolveDirectEncounter,
+  getStandingTieBreakValue,
+  sortStandingsWithTieBreaks,
+  calculateTournamentStandings
+};
