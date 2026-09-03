@@ -10,6 +10,7 @@ import { TieBreaksTab } from './components/TieBreaksTab';
 import { ScheduleTab } from './components/ScheduleTab';
 import { ChessResultsTab } from './components/ChessResultsTab';
 import { ExportTrfTab } from './components/ExportTrfTab';
+import { OnlineCloudTab } from './components/OnlineCloudTab';
 import { PlayerHistoryModal } from './components/PlayerHistoryModal';
 import { TieBreakSettingsModal } from './components/TieBreakSettingsModal';
 import { TestRunnerModal } from './components/TestRunnerModal';
@@ -43,7 +44,8 @@ export default function App() {
   const [showResetModal, setShowResetModal] = useState(false);
   const [hasUndoSnapshot, setHasUndoSnapshot] = useState(false);
 
-  // Auto-save to localStorage
+  // Auto-save to localStorage. Online & Cloud always performs an additional
+  // explicit persistence checkpoint before Pull Changes.
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(tournament));
@@ -52,17 +54,9 @@ export default function App() {
     }
   }, [tournament]);
 
-  // Resort Starting List Handler - Opens Transactional Preflight Modal
-  const handleResortStartingList = () => {
-    setShowResortModal(true);
-  };
+  const handleResortStartingList = () => setShowResortModal(true);
+  const handleOpenResetModal = () => setShowResetModal(true);
 
-  // Reset Tournament Handler - Opens Transactional Preflight Modal
-  const handleOpenResetModal = () => {
-    setShowResetModal(true);
-  };
-
-  // Undo Last Reset Handler
   const handleUndoReset = async () => {
     try {
       const result = await executeUndoReset(defaultTransactionManager);
@@ -74,17 +68,9 @@ export default function App() {
     }
   };
 
-  // Reset to initial sample tournament (calls transactional modal)
-  const handleLoadSampleTournament = () => {
-    setShowResetModal(true);
-  };
+  const handleLoadSampleTournament = () => setShowResetModal(true);
+  const handleCreateNewTournament = () => setShowResetModal(true);
 
-  // Start a fresh tournament (calls transactional modal)
-  const handleCreateNewTournament = () => {
-    setShowResetModal(true);
-  };
-
-  // Export full portable JSON
   const handleExportPortableJson = () => {
     const jsonStr = JSON.stringify(tournament, null, 2);
     const blob = new Blob([jsonStr], { type: 'application/json' });
@@ -99,7 +85,6 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
-  // Import full portable JSON
   const handleImportPortableJson = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -125,7 +110,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-100/80 text-slate-800 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
-      {/* Top Main Navigation Header */}
       <Header
         tournament={tournament}
         activeTab={activeTab}
@@ -140,64 +124,29 @@ export default function App() {
         onImportPortableJson={handleImportPortableJson}
       />
 
-      {/* Primary Tab Content Area */}
       <main className="flex-1 pb-16">
         {activeTab === 'setup' && (
-          <TournamentSetupTab
-            tournament={tournament}
-            onUpdateTournament={setTournament}
-            onOpenTieBreakSettings={name => setSelectedTieBreakForSettings(name)}
-          />
+          <TournamentSetupTab tournament={tournament} onUpdateTournament={setTournament} onOpenTieBreakSettings={name => setSelectedTieBreakForSettings(name)} />
         )}
-
         {activeTab === 'players' && (
-          <PlayersTab
-            tournament={tournament}
-            onUpdateTournament={setTournament}
-            onResortStartingList={handleResortStartingList}
-          />
+          <PlayersTab tournament={tournament} onUpdateTournament={setTournament} onResortStartingList={handleResortStartingList} />
         )}
-
         {activeTab === 'pairings' && (
-          <PairingsTab
-            tournament={tournament}
-            onUpdateTournament={setTournament}
-            onOpenPlayerHistory={id => setSelectedPlayerIdForHistory(id)}
-            onOpenPrintModal={(docType, round) => setSelectedPrintDoc({ docType, round })}
-          />
+          <PairingsTab tournament={tournament} onUpdateTournament={setTournament} onOpenPlayerHistory={id => setSelectedPlayerIdForHistory(id)} onOpenPrintModal={(docType, round) => setSelectedPrintDoc({ docType, round })} />
         )}
-
         {activeTab === 'standings' && (
-          <StandingsTab
-            tournament={tournament}
-            onOpenPlayerHistory={id => setSelectedPlayerIdForHistory(id)}
-            onOpenTieBreakSettings={name => setSelectedTieBreakForSettings(name)}
-            onOpenPrintModal={docType => setSelectedPrintDoc({ docType })}
-          />
+          <StandingsTab tournament={tournament} onOpenPlayerHistory={id => setSelectedPlayerIdForHistory(id)} onOpenTieBreakSettings={name => setSelectedTieBreakForSettings(name)} onOpenPrintModal={docType => setSelectedPrintDoc({ docType })} />
         )}
-
         {activeTab === 'tiebreaks' && (
-          <TieBreaksTab
-            tournament={tournament}
-            onUpdateTournament={setTournament}
-            onNavigateToStandings={() => setActiveTab('standings')}
-          />
+          <TieBreaksTab tournament={tournament} onUpdateTournament={setTournament} onNavigateToStandings={() => setActiveTab('standings')} />
         )}
-
         {activeTab === 'schedule' && (
-          <ScheduleTab
-            tournament={tournament}
-            onUpdateTournament={setTournament}
-          />
+          <ScheduleTab tournament={tournament} onUpdateTournament={setTournament} />
         )}
-
         {activeTab === 'chessresults' && (
-          <ChessResultsTab
-            tournament={tournament}
-            onUpdateTournament={setTournament}
-          />
+          <ChessResultsTab tournament={tournament} onUpdateTournament={setTournament} />
         )}
-
+        {activeTab === 'onlinecloud' && <OnlineCloudTab tournament={tournament} />}
         {activeTab === 'export' && (
           <ExportTrfTab
             tournament={tournament}
@@ -210,39 +159,16 @@ export default function App() {
         )}
       </main>
 
-      {/* Modals */}
       {selectedPrintDoc !== null && (
-        <PrintDocumentModal
-          tournament={tournament}
-          initialDocType={selectedPrintDoc.docType}
-          initialRound={selectedPrintDoc.round}
-          onClose={() => setSelectedPrintDoc(null)}
-        />
+        <PrintDocumentModal tournament={tournament} initialDocType={selectedPrintDoc.docType} initialRound={selectedPrintDoc.round} onClose={() => setSelectedPrintDoc(null)} />
       )}
-
       {selectedPlayerIdForHistory !== null && (
-        <PlayerHistoryModal
-          tournament={tournament}
-          playerId={selectedPlayerIdForHistory}
-          onClose={() => setSelectedPlayerIdForHistory(null)}
-        />
+        <PlayerHistoryModal tournament={tournament} playerId={selectedPlayerIdForHistory} onClose={() => setSelectedPlayerIdForHistory(null)} />
       )}
-
       {selectedTieBreakForSettings !== null && (
-        <TieBreakSettingsModal
-          tournament={tournament}
-          tieBreakName={selectedTieBreakForSettings}
-          onClose={() => setSelectedTieBreakForSettings(null)}
-          onUpdateTournament={setTournament}
-        />
+        <TieBreakSettingsModal tournament={tournament} tieBreakName={selectedTieBreakForSettings} onClose={() => setSelectedTieBreakForSettings(null)} onUpdateTournament={setTournament} />
       )}
-
-      {showTestRunner && (
-        <TestRunnerModal
-          onClose={() => setShowTestRunner(false)}
-        />
-      )}
-
+      {showTestRunner && <TestRunnerModal onClose={() => setShowTestRunner(false)} />}
       {showResortModal && (
         <ResortStartingListModal
           isOpen={showResortModal}
@@ -254,7 +180,6 @@ export default function App() {
           }}
         />
       )}
-
       {showResetModal && (
         <ResetTournamentModal
           isOpen={showResetModal}
