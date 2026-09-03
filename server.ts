@@ -18,7 +18,7 @@ const app = express();
 
 // Initialize FIDE service and repository on startup
 fideService.initialize().catch(err => {
-  console.warn('[FIDE] Database initialization notice:', err.message);
+  console.log('[FIDE] Database initialization notice:', err.message);
 });
 
 app.use(express.json({ limit: '10mb' }));

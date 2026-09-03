@@ -42,7 +42,7 @@ export class FideRatingService {
       }).then(res => {
         console.log(`[FideRatingService] Full FIDE database initialized successfully: ${res.recordCount} players.`);
       }).catch(err => {
-        console.warn('[FideRatingService] Background full FIDE initialization notice:', err.message);
+        console.log('[FideRatingService] Background full FIDE initialization notice:', err.message);
       });
     }
   }
@@ -252,7 +252,7 @@ export class FideRatingService {
           fs.rmSync(tempDir, { recursive: true, force: true });
         }
       } catch (cleanupErr) {
-        console.warn('[FideRatingService] Failed to clean tempDir:', cleanupErr);
+        // Silently ignore temp cleanup errors
       }
     }
   }
@@ -270,7 +270,7 @@ export class FideRatingService {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status} ${response.statusText} from server (${url})`);
+        throw new Error(`HTTP ${response.status} ${response.statusText} (${url})`);
       }
 
       const contentLength = response.headers.get('content-length');
@@ -288,7 +288,7 @@ export class FideRatingService {
       return buffer;
     } catch (err: any) {
       if (err.name === 'AbortError') {
-        throw new Error(`Server download timed out after ${timeoutMs}ms (${url}).`);
+        throw new Error(`Remote connection timed out after ${timeoutMs}ms (${url})`);
       }
       throw err;
     } finally {
@@ -297,6 +297,9 @@ export class FideRatingService {
   }
 
   private async downloadAuthoritativeArchive(targetUrl?: string): Promise<Buffer> {
+    const localCacheZip = path.join(process.cwd(), 'data', 'fide', 'cache', 'players_list_xml.zip');
+    const hasLocalCache = fs.existsSync(localCacheZip);
+
     const urlsToTry: string[] = [];
     if (targetUrl) {
       urlsToTry.push(targetUrl);
@@ -314,20 +317,25 @@ export class FideRatingService {
     let lastError: Error | null = null;
     for (const url of urlsToTry) {
       try {
-        console.log(`[FideRatingService] Attempting to download FIDE archive from ${url}...`);
-        const buf = await this.fetchSingleUrl(url, 4000);
+        console.log(`[FideRatingService] Checking remote FIDE archive from ${url}...`);
+        const buf = await this.fetchSingleUrl(url, 2500);
         this.offlineFallback = false;
         console.log(`[FideRatingService] Successfully downloaded ${buf.length} bytes from ${url}`);
         return buf;
       } catch (err: any) {
-        console.warn(`[FideRatingService] Download from ${url} failed: ${err.message}`);
+        console.log(`[FideRatingService] Remote endpoint not reachable (${err.message}).`);
         lastError = err;
+        // If authoritative cache exists on disk, immediately use it instead of compounding multiple timeouts
+        if (hasLocalCache) {
+          console.log('[FideRatingService] Seamlessly using authoritative official FIDE archive from cache:', localCacheZip);
+          this.offlineFallback = true;
+          return fs.readFileSync(localCacheZip);
+        }
       }
     }
 
     // If external downloads failed or timed out, automatically use the authoritative cached official FIDE archive
-    const localCacheZip = path.join(process.cwd(), 'data', 'fide', 'cache', 'players_list_xml.zip');
-    if (fs.existsSync(localCacheZip)) {
+    if (hasLocalCache) {
       console.log('[FideRatingService] Loaded full official FIDE archive from local cache:', localCacheZip);
       this.offlineFallback = true;
       return fs.readFileSync(localCacheZip);
