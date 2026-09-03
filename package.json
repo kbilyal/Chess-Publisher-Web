@@ -1,7 +1,7 @@
 {
   "name": "chess-publisher-web",
   "private": true,
-  "version": "0.1.0-beta.4",
+  "version": "0.1.0-beta.5",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
@@ -19,7 +19,8 @@
     "test:tiebreak": "tsx src/server/tests/runTieBreakTests.ts",
     "test:checker": "tsx src/server/tests/runTieBreakCheckerTests.ts",
     "test:player-parity": "tsx src/server/tests/runPlayerParityTests.ts",
-    "test:online-cloud": "tsx src/cloud/tests/runOnlineCloudBeta4Tests.ts"
+    "test:online-cloud": "tsx src/cloud/tests/runOnlineCloudBeta4Tests.ts",
+    "test:online-cloud-beta5": "tsx src/cloud/tests/runOnlineCloudBeta5BrowserTests.ts"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",
