@@ -1,9 +1,9 @@
 # Chess-Publisher Web — Project State
 
-Updated: 2026-09-03
+Updated: 2026-09-04
 
 ## Current repository baseline
-Verified main source commit: `cae2f7ebb4ab8c7c2b525a84f302fc69ab5bc6bd`.
+Starting source commit for the latest verified batch: `6aa2deb17d1f555772425226ba04e279dfe5903f`.
 
 ## Completed / verified areas
 - Authoritative Gacrux 1.9.57 integration.
@@ -72,6 +72,13 @@ Verified main source commit: `cae2f7ebb4ab8c7c2b525a84f302fc69ab5bc6bd`.
   - Successfully imported and indexed the full official FIDE database with 59,789 players (53,390 Standard, 32,806 Rapid, 31,445 Blitz, 4,718 unrated Bulgarian players) into SQLite;
   - All FIDE regression suites (`test:fide`, `test:fide-sync`, `test:player-parity`) reporting 100% PASS.
   - Complete FIDE 2026 Tie-Break Subsystem overhaul: implemented full Articles 16.1 - 16.5 rules (unplayed round categories 16.2.1-16.2.5, Article 16.3 adjusted score evaluation, Article 16.4 dummy opponents, Article 16.5.1 Cut-1/Cut-2 VUR rule, Article 14.1 SB score ordering), independent `TieBreakReferenceEngine` checker, and complete UI diagnostic modal with round breakdown tables; all 40/40 tie-break tests and 13/13 checker audit tests passing.
+- Online & Cloud beta.5 browser continuation audit:
+  - Desktop continuation accepts `cloud`, `cloudTournamentId`, and `continue` query aliases;
+  - the hint is resolved only after Organizer Token authentication and only against an organizer-owned server record ID or stable `internalId` (`localKey` in the workspace list);
+  - successful continuation removes all tournament hint aliases from the browser address bar;
+  - `test:cloud-roundtrip` proves Desktop -> Web -> Desktop r1/r2/r3 propagation, two-sided conflict preservation, stale multi-browser revision rejection, portable cloud identity, installation-local field preservation, and serialized Pull Changes concurrency;
+  - production Web, API health, and exact-origin CORS preflight passed on 2026-09-04;
+  - authenticated live Organizer Token round-trip remains the next manual acceptance step and was not simulated against production credentials.
 
 ## Important trust classification
 Authoritative:

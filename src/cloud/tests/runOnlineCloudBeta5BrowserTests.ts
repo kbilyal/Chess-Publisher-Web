@@ -5,7 +5,12 @@ import {
   fingerprintPayload,
   preserveInstallationLocalFields
 } from '../onlineCloudSync';
-import { decideAutomaticSync, parseContinuationHint, stripContinuationHint } from '../browserSyncPolicy';
+import {
+  decideAutomaticSync,
+  findOwnedContinuationTournament,
+  parseContinuationHint,
+  stripContinuationHint
+} from '../browserSyncPolicy';
 import { CloudSyncCoordinator } from '../CloudSyncCoordinator';
 
 function tournament(): any {
@@ -75,6 +80,7 @@ function testPrivateSnapshotSanitization() {
   const serialized = JSON.stringify(snapshot);
   const portable: any = snapshot.data.tournaments[source.name];
 
+  assert.equal(snapshot.cloudWorkspace.clientVersion, 'chess-publisher-web-online-cloud-beta5');
   assert.equal(portable.cloud.internalId, 'tournament:ABC');
   assert.equal(portable.cloud.localKey, undefined);
   assert.equal(portable.cloud.baseRevision, undefined);
@@ -95,9 +101,21 @@ function testAutosyncPolicy() {
 
 function testContinuationHint() {
   assert.equal(parseContinuationHint('?cloudTournamentId=cloud-record-1'), 'cloud-record-1');
+  assert.equal(parseContinuationHint('?cloud=tournament%3AABC&source=desktop'), 'tournament:ABC');
   assert.equal(parseContinuationHint('?continue=tournament%3AABC'), 'tournament:ABC');
   assert.equal(parseContinuationHint('?cloudTournamentId=https://evil.example/x'), '');
-  assert.equal(stripContinuationHint('https://example.test/Chess-Publisher-Web/?cloudTournamentId=abc&x=1#tab'), '/Chess-Publisher-Web/?x=1#tab');
+  assert.equal(
+    stripContinuationHint('https://example.test/Chess-Publisher-Web/?cloud=abc&cloudTournamentId=old&continue=legacy&source=desktop#tab'),
+    '/Chess-Publisher-Web/?source=desktop#tab'
+  );
+
+  const owned = [
+    { id: 'cloud-record-1', localKey: 'tournament:ABC' },
+    { id: 'cloud-record-2', localKey: 'tournament:DEF' }
+  ];
+  assert.equal(findOwnedContinuationTournament(owned, 'cloud-record-1'), owned[0]);
+  assert.equal(findOwnedContinuationTournament(owned, 'tournament:DEF'), owned[1]);
+  assert.equal(findOwnedContinuationTournament(owned, 'cloud-record-foreign'), undefined);
 }
 
 async function testCoordinatorSerializesAndDebounces() {

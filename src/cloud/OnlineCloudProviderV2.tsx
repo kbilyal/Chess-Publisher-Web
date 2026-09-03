@@ -14,7 +14,12 @@ import {
   withUpdatedBase
 } from './onlineCloudSync';
 import { CloudSyncCoordinator } from './CloudSyncCoordinator';
-import { decideAutomaticSync, parseContinuationHint, stripContinuationHint } from './browserSyncPolicy';
+import {
+  decideAutomaticSync,
+  findOwnedContinuationTournament,
+  parseContinuationHint,
+  stripContinuationHint
+} from './browserSyncPolicy';
 
 const TOURNAMENT_STORAGE_KEY = 'fide_tournament_manager_v2';
 const TOKEN_SESSION_KEY = 'cpstudio.organizerToken.session';
@@ -568,7 +573,11 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
         setStatus(`Synced · r${remoteRevision}`);
         setStatusKind('ok');
         log(`Opened private cloud tournament at revision ${remoteRevision}.`);
-        if (continuationHintRef.current === meta.id && typeof window !== 'undefined') {
+        if (
+          continuationHintRef.current &&
+          (continuationHintRef.current === meta.id || continuationHintRef.current === meta.localKey) &&
+          typeof window !== 'undefined'
+        ) {
           continuationHintRef.current = '';
           window.history.replaceState({}, '', stripContinuationHint(window.location.href));
         }
@@ -625,7 +634,10 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
 
       const hint = continuationHintRef.current;
       if (hint) {
-        const owned = list.find(item => item.id === hint);
+        // Resolve only after token authentication and only within the returned
+        // organizer-owned list. Desktop may pass the record ID or internalId
+        // (returned by the API as localKey).
+        const owned = findOwnedContinuationTournament(list, hint);
         if (owned) {
           setPhase('select');
           phaseRef.current = 'select';

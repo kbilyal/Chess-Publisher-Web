@@ -42,6 +42,9 @@ jobs:
       - name: Online & Cloud beta5 Browser Continuation regression
         run: npm run test:online-cloud-beta5
 
+      - name: Desktop-Web Cloud roundtrip regression
+        run: npm run test:cloud-roundtrip
+
       - name: Transaction regression
         run: npm run test:transactions
 

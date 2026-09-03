@@ -2,6 +2,8 @@
 
 Gate K (Player Registration & Starting List Parity) is closed and verified with 12/12 dedicated regression tests passing (`npm run test:player-parity`) and full UI integration in `PlayersTab.tsx` and `RequestedByesModal.tsx`.
 
+Most recent accepted batch: the Online & Cloud beta.5 Desktop-Web contract audit and deterministic `test:cloud-roundtrip` gate pass. Production Web/API/CORS checks pass; an authenticated live Organizer Token round-trip remains a manual acceptance step. This does not change the next roadmap task below.
+
 The next roadmap item is **Integration Gate G: TRF Full Parity**.
 
 ## Objective

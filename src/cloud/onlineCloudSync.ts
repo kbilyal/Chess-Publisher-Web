@@ -238,7 +238,7 @@ export function buildPrivateSnapshot(name: string, tournament: Tournament | any)
       scope: 'single-tournament',
       private: true,
       internalId,
-      clientVersion: 'chess-publisher-web-online-cloud-beta4'
+      clientVersion: 'chess-publisher-web-online-cloud-beta5'
     }
   };
 }
