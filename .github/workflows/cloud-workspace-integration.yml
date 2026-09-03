@@ -3,6 +3,7 @@ name: Cloud Workspace Integration Gate
 on:
   push:
     branches:
+      - main
       - integration/cloud-workspace-2026-09-03
   pull_request:
     branches:
@@ -10,6 +11,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: cloud-workspace-gate-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-and-typecheck:
