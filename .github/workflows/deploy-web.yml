@@ -1,0 +1,80 @@
+name: Deploy Chess-Publisher Web
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: chess-publisher-web-production
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Validate and build Web app
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: TypeScript check
+        run: npm run lint
+
+      - name: Online & Cloud regression
+        run: npm run test:online-cloud
+
+      - name: Transaction regression
+        run: npm run test:transactions
+
+      - name: Round finalization regression
+        run: npm run test:finalization
+
+      - name: FIDE regression
+        run: npm run test:fide
+
+      # GitHub Pages serves this repository at /Chess-Publisher-Web/ until a
+      # custom domain is connected. This build is the actual browser program,
+      # not a documentation/landing page.
+      - name: Build Chess-Publisher Web program
+        run: npx vite build --base=/Chess-Publisher-Web/
+
+      - name: Disable Jekyll processing
+        run: touch dist/.nojekyll
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Web program artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+
+  deploy:
+    name: Publish Web program
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
