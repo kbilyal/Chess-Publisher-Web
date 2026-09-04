@@ -138,6 +138,12 @@ TRF Full Parity (Export-through-round, TRF16/TRF26, starting list, administrativ
 - Reviewed the creator-provided official XML examples. The publication builder now emits the required `blackno="-2"` non-pairing record for every unrepresented player in each generated round and keeps `PAB` distinct from ordinary `1 BYE` entries.
 - Creator-provided encryption material was not committed. The server-side bridge remains the only approved location for runtime credentials.
 
+## Production Web persistence and cloud-sync repair (2026-09-04)
+- Autosave's DOM-capture pass no longer creates a second persistence revision for the same user edit, preventing save/sync feedback loops.
+- Cloud revision/fingerprint bookkeeping is now explicitly excluded from the automatic-sync trigger, so a completed cloud operation cannot recursively schedule itself.
+- Both `Sync Now` and automatic backup reconcile the current remote revision before reporting success; a newer cloud-only revision is surfaced for safe Pull Changes instead of being incorrectly labelled `Synced`.
+- Verified: `npm run test:production-web-beta7`, `npm run test:online-cloud`, `npm run test:cloud-roundtrip`, `npm run lint`, and `npm run build` PASS.
+
 ## Handoff status
 `HANDOFF_READY = false`
 

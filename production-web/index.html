@@ -7356,7 +7356,12 @@ function bindEvents(){
   });
 }
 function saveData(){
-  cpStateRevision++;
+  // cpRunAutosaveCheckpoint() synchronizes the UI by calling saveAll() just
+  // before it captures the pending state. That sync is part of the edit that
+  // already scheduled the checkpoint, not a second user edit. Counting it as
+  // a new revision made each autosave look like fresh work to Cloud backup
+  // observers and could start a save/sync loop.
+  if(!cpAutosaveCaptureSync) cpStateRevision++;
   try{
     localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
   }catch(err){

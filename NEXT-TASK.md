@@ -8,7 +8,7 @@ The public Web startup screen is Organizer-Token-only; the `Continue without Clo
 
 Gate K (Player Registration & Starting List Parity) is closed and verified with 12/12 dedicated regression tests passing (`npm run test:player-parity`) and full UI integration in `PlayersTab.tsx` and `RequestedByesModal.tsx`.
 
-Most recent accepted batch: beta.7 Web Start Page + Simplified Online & Cloud tab + Always-Synced Tournament List, followed by browser FIDE import and explicit Browser-only access for users without a provisioned Organizer Token. Production Pages deployment and artifact checks pass; authenticated Organizer Token behavior and self-service account provisioning remain open backend acceptance work. This does not change the next roadmap task below.
+Most recent accepted batch: beta.7 Web Start Page + Simplified Online & Cloud tab + Always-Synced Tournament List, followed by browser FIDE import and explicit Browser-only access for users without a provisioned Organizer Token. The subsequent production persistence/cloud-sync repair removes autosave revision feedback loops, prevents metadata-only save recursion, and requires a remote reconciliation before Sync Now or automatic backup can report success. Production Pages deployment and artifact checks pass; authenticated Organizer Token behavior and self-service account provisioning remain open backend acceptance work. This does not change the next roadmap task below.
 
 The next roadmap item is **Integration Gate G: TRF Full Parity**.
 

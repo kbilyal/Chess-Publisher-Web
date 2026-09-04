@@ -27,6 +27,7 @@
     "cloudDesktopWebRoundtrip": "PASS deterministic beta.5 contract harness; live authenticated Organizer Token acceptance pending",
     "cloudProductionEndpoints": "Web HTTP 200, API health HTTP 200, exact production-origin CORS HTTP 204 PASS on 2026-09-04",
     "productionWebBeta7": "PASS: canonical shell, token-scoped tournament list, simplified Online & Cloud view, Browser-only access, and no Vite entry",
+    "productionWebPersistenceAndSync": "PASS: autosave revision capture, cloud-metadata loop suppression, and current remote-revision reconciliation verified on 2026-09-04.",
     "productionWebFideBrowser": "PASS locally with real 13,119,942-byte Standard FIDE ZIP: 562,890 records parsed, search results rendered, and selected player added without Organizer Token"
   },
   "gates": {

@@ -36,6 +36,11 @@
     let monitorTimer=null;
     let startupSweepDone=false;
     let suppressAutoSync=0;
+    // Metadata writes (cloud ID, revision, fingerprint) are consequences of
+    // a cloud operation, not new tournament edits. Remember their local
+    // persistence revision so the monitor does not schedule another cloud
+    // operation for the save it just initiated.
+    const cloudMetadataRevisions=new Set();
 
     function autoSyncEnabled(){
       // Beta.4 is conservative by default: background cloud backup is opt-in.
@@ -353,12 +358,37 @@
       return text(error?.message)||"Cloud Workspace operation failed.";
     }
 
+    function persistenceRevision(){
+      try{
+        const status=typeof window.cpPersistenceStatus==="function"?window.cpPersistenceStatus():null;
+        const revision=Number(status?.revision);
+        return Number.isFinite(revision)?revision:null;
+      }catch(_){return null;}
+    }
+
     function persistCloudMeta(){
-      try{if(typeof saveData==="function")saveData();}catch(error){console.warn("Cloud metadata local save warning:",error);}
+      try{
+        const before=persistenceRevision();
+        if(typeof saveData==="function")saveData();
+        const after=persistenceRevision();
+        if(after!==null&&after!==before){
+          cloudMetadataRevisions.add(after);
+          // Bound the bookkeeping in case a browser keeps this tab open for a
+          // very long time while automatic backup is disabled.
+          if(cloudMetadataRevisions.size>128)cloudMetadataRevisions.clear();
+        }
+      }catch(error){console.warn("Cloud metadata local save warning:",error);}
+    }
+
+    function ensureCloudMetaAndPersist(tournament){
+      const before=JSON.stringify(tournament?.cloud||null);
+      const meta=ensureCloudMeta(tournament);
+      if(before!==JSON.stringify(meta))persistCloudMeta();
+      return meta;
     }
 
     async function ensureRemoteTournament(token,name,tournament){
-      const meta=ensureCloudMeta(tournament);
+      const meta=ensureCloudMetaAndPersist(tournament);
       if(!organizerInfo)await refreshOrganizer({quiet:false});
       if(!organizerInfo)throw new Error("Organizer Token is not connected.");
 
@@ -422,17 +452,15 @@
           // beta.3 uses a stable tournament-content fingerprint. beta.2 compared
           // the full cloud snapshot, including volatile savedAt, so unchanged
           // tournaments could look dirty and generate needless revisions.
-          if(!force&&meta.cloudTournamentId&&meta.lastSyncedContentHash===contentHash){
-            setRuntime(name,tournament,"synced","Synced");
-            return {ok:true,unchanged:true,revision:meta.revision,checksum:meta.lastSyncedHash,contentHash};
-          }
-
           let baseRevision=Math.max(0,Number(meta.revision)||0);
 
-          // Manual sync, and the first beta.3 sync of legacy beta.1/beta.2
-          // metadata, reconcile against the remote before writing. A newer
-          // remote revision is NOT a conflict by itself.
-          if(meta.cloudTournamentId&&baseRevision>0&&(force||!meta.lastSyncedContentHash)){
+          // Always reconcile a linked revision before writing. The old fast
+          // path reported "Synced" solely from the locally remembered hash,
+          // so both Sync Now and automatic backup could miss a newer revision
+          // written by another device. A newer remote revision is NOT a
+          // conflict by itself; decideReconciliation selects a safe pull,
+          // push, base advance, or true-conflict outcome below.
+          if(meta.cloudTournamentId&&baseRevision>0){
             const remoteResponse=await api.getCurrentSnapshot(token,meta.cloudTournamentId);
             const remote=remoteResponse?.tournament||{};
             const remoteRevision=Math.max(0,Number(remote.revision)||0);
@@ -513,8 +541,9 @@
           return {...(result||{}),contentHash};
         }catch(error){
           if(error?.code==="cloud_revision_conflict"||error?.code==="cloud_true_conflict"){
-            const meta=ensureCloudMeta(tournament);
+            const meta=ensureCloudMetaAndPersist(tournament);
             if(Number.isInteger(Number(error.currentRevision)))meta.remoteRevision=Number(error.currentRevision);
+            persistCloudMeta();
             setRuntime(name,tournament,"conflict",cloudErrorText(error));
           }else if(error?.code==="network_error"){
             setRuntime(name,tournament,"offline",cloudErrorText(error));
@@ -535,11 +564,10 @@
       const name=currentName();if(!name)return {skipped:true};
       const tournament=currentTournament();
       if(tournament){
-        ensureCloudMeta(tournament);
+        ensureCloudMetaAndPersist(tournament);
         // Persist the installation-local key + shared internal ID before any
         // network operation. These IDs are bookkeeping only, not tournament
         // scoring/content and never authorize cloud access.
-        persistCloudMeta();
       }
       // A foreground cloud operation is a durability boundary: first commit the
       // exact active tournament to managed local storage, then reconcile cloud.
@@ -603,9 +631,11 @@
           if(!autoSyncEnabled()||suppressAutoSync||typeof window.cpPersistenceStatus!=="function")return;
           const status=window.cpPersistenceStatus();
           if(!status||Number(status.queued)!==Number(status.completed))return;
-          const sig=`${status.revision}:${status.completed}`;
+          const revision=Number(status.revision);
+          const sig=`${revision}:${status.completed}`;
           if(sig===lastPersistenceSignature)return;
           lastPersistenceSignature=sig;
+          if(cloudMetadataRevisions.delete(revision))return;
           scheduleAutoSync(2500);
         }catch(error){console.warn("Cloud persistence monitor:",error);}
       },900);
