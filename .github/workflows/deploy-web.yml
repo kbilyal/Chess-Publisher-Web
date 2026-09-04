@@ -122,18 +122,7 @@ jobs:
           test -f production-web/webview/HubAdapter.js
           test -f production-web/cloud/client/cloud-workspace-api.js
           test -f production-web/webview/CloudWorkspaceAdapter.js
-            node --input-type=module <<'NODE'
-            import { createHash } from 'node:crypto';
-            import { readFileSync } from 'node:fs';
-
-            const index = readFileSync('production-web/index.html');
-            const bootstrap = /<!-- cpProductionWeb .*?<\/body>/s;
-            const shell = index.toString().replace(bootstrap, '</body>');
-            const expected = 'f6427a3c2ade30ec2799bdbcbf69688a3247e969c6f03e82daf11901386f791a';
-            if (createHash('sha256').update(shell).digest('hex') !== expected) {
-              throw new Error('production-web/index.html is not the beta.6 desktop shell');
-            }
-            NODE
+          node -e "const { createHash } = require('node:crypto'); const { readFileSync } = require('node:fs'); const shell = readFileSync('production-web/index.html', 'utf8').replace(/<!-- cpProductionWeb .*?<\\/body>/s, '</body>'); const expected = 'f6427a3c2ade30ec2799bdbcbf69688a3247e969c6f03e82daf11901386f791a'; if (createHash('sha256').update(shell).digest('hex') !== expected) throw new Error('production-web/index.html is not the beta.6 desktop shell');"
           rm -rf dist
           mkdir -p dist
           cp -R production-web/. dist/
@@ -142,27 +131,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node --input-type=module <<'NODE'
-          import { createHash } from 'node:crypto';
-          import { readFileSync, writeFileSync } from 'node:fs';
-
-          const indexSha256 = createHash('sha256')
-            .update(readFileSync('dist/index.html'))
-            .digest('hex');
-
-          const buildInfo = {
-            product: 'Chess-Publisher Web',
-            source: 'production-web',
-            deploymentSource: 'Exact desktop ChessPublisher.html production shell',
-            repository: 'kbilyal/Chess-Publisher-Web',
-            branch: 'main',
-            commit: process.env.GITHUB_SHA,
-            indexSha256,
-            builtAt: new Date().toISOString()
-          };
-
-          writeFileSync('dist/build-info.json', `${JSON.stringify(buildInfo, null, 2)}\n`);
-          NODE
+          node -e "const { createHash } = require('node:crypto'); const { readFileSync, writeFileSync } = require('node:fs'); const indexSha256 = createHash('sha256').update(readFileSync('dist/index.html')).digest('hex'); const buildInfo = { product: 'Chess-Publisher Web', source: 'production-web', deploymentSource: 'Exact desktop ChessPublisher.html production shell', repository: 'kbilyal/Chess-Publisher-Web', branch: 'main', commit: process.env.GITHUB_SHA, indexSha256, builtAt: new Date().toISOString() }; writeFileSync('dist/build-info.json', JSON.stringify(buildInfo, null, 2) + '\\n');"
 
       - name: Disable Jekyll processing and preserve SPA routes
         run: |
@@ -192,17 +161,7 @@ jobs:
           ! grep -Eq 'assets/index-[^" ]+\.(js|css)' dist/index.html
           ! grep -q 'vite/client' dist/index.html
           ! grep -q 'src/main.tsx' dist/index.html
-          node --input-type=module <<'NODE'
-          import { readFileSync } from 'node:fs';
-
-          const info = JSON.parse(readFileSync('dist/build-info.json', 'utf8'));
-          if (info.commit !== process.env.GITHUB_SHA) throw new Error('build-info commit does not match GITHUB_SHA');
-          if (info.repository !== 'kbilyal/Chess-Publisher-Web') throw new Error('build-info repository mismatch');
-          if (info.branch !== 'main') throw new Error('build-info branch mismatch');
-          if (info.source !== 'production-web') throw new Error('production source identity mismatch');
-          if (info.deploymentSource !== 'Exact desktop ChessPublisher.html production shell') throw new Error('desktop shell identity mismatch');
-          if (!/^[a-f0-9]{64}$/.test(info.indexSha256)) throw new Error('production index identity missing');
-          NODE
+          node -e "const { readFileSync } = require('node:fs'); const info = JSON.parse(readFileSync('dist/build-info.json', 'utf8')); if (info.commit !== process.env.GITHUB_SHA) throw new Error('build-info commit does not match GITHUB_SHA'); if (info.repository !== 'kbilyal/Chess-Publisher-Web') throw new Error('build-info repository mismatch'); if (info.branch !== 'main') throw new Error('build-info branch mismatch'); if (info.source !== 'production-web') throw new Error('production source identity mismatch'); if (info.deploymentSource !== 'Exact desktop ChessPublisher.html production shell') throw new Error('desktop shell identity mismatch'); if (!/^[a-f0-9]{64}$/.test(info.indexSha256)) throw new Error('production index identity missing');"
           find dist -maxdepth 4 -type f | sort
 
       - name: Configure GitHub Pages
