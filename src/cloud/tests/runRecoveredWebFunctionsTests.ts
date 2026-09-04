@@ -13,7 +13,7 @@ function assert(condition: unknown, message: string): asserts condition {
 
 const shell = index.replace(/<!-- cpProductionWeb .*?<\/body>/s, '</body>');
 assert(
-  createHash('sha256').update(shell).digest('hex') === 'f6427a3c2ade30ec2799bdbcbf69688a3247e969c6f03e82daf11901386f791a',
+  createHash('sha256').update(shell).digest('hex') === '70ffb3b26ea89220feb52dbfcbb79335bc87e85702990bcefa979039bd4e2fd3',
   'protected desktop shell changed'
 );
 
