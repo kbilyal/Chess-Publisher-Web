@@ -18,6 +18,7 @@ for (const marker of ["cpProductionWeb", "cpLinuxWebDev", "Chess-Publisher", "On
 for (const file of [
   "CNAME",
   "web/browser-dev-host.js",
+  "web/fide-browser-adapter.js",
   "hub/client/hub-snapshot.js",
   "hub/client/hub-api-client.js",
   "webview/HubAdapter.js",
@@ -43,14 +44,18 @@ for (const marker of [
   "Back to My Tournaments",
   "Refresh My Tournaments",
   "Technical details",
+  "Continue without Cloud",
+  "Browser-only mode",
 ]) {
   assert(index.includes(marker), `missing beta.7 behavior: ${marker}`);
 }
 assert(index.includes('dataset.cpProductionWeb==="1"'), "production Web detection missing");
 assert(index.includes('desktopCreateScreen.style.display="none"'), "desktop New Tournament startup modal is not suppressed");
 assert(index.includes('api().listTournaments(token)'), "My Tournaments does not load the organizer tournament list");
-assert(index.includes('tournament.webOrigin={source:"Web",status:"registration"}'), "Web tournament source/status metadata missing");
+assert(index.includes('tournament.webOrigin={source:offlineMode?"Browser":"Web",status:"registration"}'), "Web/local tournament source/status metadata missing");
 assert(index.includes('window.cpCloudSyncCurrent({force:true,quiet:false})'), "new Web tournament does not sync to cloud");
+assert(index.includes('if(offlineMode){loadLocalTournaments();return;}'), "browser-only tournament list path missing");
+assert(index.includes('data-cp-local='), "browser-only tournaments cannot be opened");
 assert(index.includes('params.get("cloudTournamentId")||params.get("cloud")||params.get("continue")'), "desktop continuation aliases missing");
 assert(index.includes('const owned=hint?tournaments.find('), "empty continuation can auto-open the first tournament");
 const cloudAdapter = readFileSync(join(root, "webview/CloudWorkspaceAdapter.js"), "utf8");

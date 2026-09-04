@@ -123,6 +123,7 @@ jobs:
           test -f production-web/CNAME
           test "$(cat production-web/CNAME)" = "web.chess-publisher.org"
           test -f production-web/web/browser-dev-host.js
+          test -f production-web/web/fide-browser-adapter.js
           test -f production-web/web/linux-native-engine-adapter.js
           test -f production-web/web/player-registration-enhancements.js
           test -f production-web/web/chess-results-browser-adapter.js
@@ -157,6 +158,7 @@ jobs:
           test -f dist/CNAME
           test "$(cat dist/CNAME)" = "web.chess-publisher.org"
           test -f dist/web/browser-dev-host.js
+          test -f dist/web/fide-browser-adapter.js
           test -f dist/web/linux-native-engine-adapter.js
           test -f dist/web/player-registration-enhancements.js
           test -f dist/web/chess-results-browser-adapter.js

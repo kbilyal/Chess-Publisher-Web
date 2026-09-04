@@ -79,7 +79,13 @@ Starting source commit for the latest verified batch: `6aa2deb17d1f555772425226b
   - `test:cloud-roundtrip` proves Desktop -> Web -> Desktop r1/r2/r3 propagation, two-sided conflict preservation, stale multi-browser revision rejection, portable cloud identity, installation-local field preservation, and serialized Pull Changes concurrency;
   - production Web, API health, and exact-origin CORS preflight passed on 2026-09-04;
   - authenticated live Organizer Token round-trip remains the next manual acceptance step and was not simulated against production credentials.
-- Online & Cloud beta.7 Web UX is implemented in the canonical production shell: token login, token-scoped My Tournaments, cloudTournamentId-safe opening, simplified Online & Cloud controls, and Advanced / Diagnostics / Danger zone details. Production deploy and `npm run test:production-web-beta7` pass.
+- Online & Cloud beta.7 Web UX is implemented in the canonical production shell: token login, token-scoped My Tournaments, cloudTournamentId-safe opening, simplified Online & Cloud controls, and Advanced / Diagnostics / Danger zone details. The deployment workflow and `npm run test:production-web-beta7` pass; live deployment verification is recorded per deployed commit.
+- Production Web FIDE/browser-access recovery:
+  - the Web FIDE Database action now routes through the protected browser download/import pipeline and the verified GitHub FIDE ZIP mirror instead of the desktop-only `127.0.0.1:18765` updater;
+  - FIDE parsing, replacement safeguards, IndexedDB cache and player-add workflow remain the existing protected implementation; no sample/mock player fallback was added;
+  - users without a provisioned Organizer Token can explicitly choose Browser-only mode, create/open tournaments stored in browser persistence and use Lists & Players/FIDE features without Cloud sync;
+  - Organizer Token login and token-scoped Cloud tournaments remain unchanged for provisioned accounts;
+  - the current Cloud API has no self-service organizer registration/token-request route, so the Web UI states that limitation instead of fabricating credentials.
 
 ## Important trust classification
 Authoritative:
@@ -115,6 +121,7 @@ TRF Full Parity (Export-through-round, TRF16/TRF26, starting list, administrativ
 - print/export/Tournament Hub parity closure;
 - DGT Web/local-bridge implementation if required for full desktop capability;
 - durable production tournament persistence, access control, recovery and deployment hardening;
+- self-service Organizer account/token provisioning or a replacement server-side HttpOnly authentication flow;
 - final 104-feature re-audit.
 
 ## Handoff status

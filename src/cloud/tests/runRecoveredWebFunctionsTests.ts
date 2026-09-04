@@ -19,6 +19,7 @@ assert(
 
 for (const file of [
   'production-web/web/linux-native-engine-adapter.js',
+  'production-web/web/fide-browser-adapter.js',
   'production-web/web/player-registration-enhancements.js',
   'production-web/web/chess-results-browser-adapter.js',
   'production-web/web/tournament-setup-enhancements.js',
@@ -44,6 +45,12 @@ const players = read('production-web/web/player-registration-enhancements.js');
 assert(players.includes('addManualPlayer') && players.includes('event.key!=="Enter"'), 'Add Player recovery missing');
 assert(players.includes('manualFide'), 'FIDE ID input wiring missing');
 assert(/Select all/i.test(index) && index.includes('Import Players') && index.includes('Export TRF Starting List'), 'existing selection/import/export controls were removed');
+
+const fide = read('production-web/web/fide-browser-adapter.js');
+assert(fide.includes('updateFideDatabaseNow({manual:true})'), 'Web FIDE button still uses the desktop-only updater');
+assert(fide.includes('originalFetchFideZip(type)'), 'verified browser FIDE mirror fallback missing');
+assert(fide.includes('fideMainDb.size'), 'FIDE browser adapter does not preserve the protected database state checks');
+assert(!/SAMPLE_FIDE_PLAYERS|mock FIDE|prototype FIDE/i.test(fide), 'FIDE adapter contains sample or prototype player data');
 
 const setup = read('production-web/web/tournament-setup-enhancements.js');
 assert(setup.includes('Setup review') && setup.includes('Tie-break review'), 'Tournament Setup review recovery missing');
