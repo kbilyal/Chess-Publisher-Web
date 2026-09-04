@@ -44,8 +44,7 @@ for (const marker of [
   "Back to My Tournaments",
   "Refresh My Tournaments",
   "Technical details",
-  "Continue without Cloud",
-  "Browser-only mode",
+  "cpTokenOnlyGate",
 ]) {
   assert(index.includes(marker), `missing beta.7 behavior: ${marker}`);
 }
@@ -56,6 +55,7 @@ assert(index.includes('tournament.webOrigin={source:offlineMode?"Browser":"Web",
 assert(index.includes('window.cpCloudSyncCurrent({force:true,quiet:false})'), "new Web tournament does not sync to cloud");
 assert(index.includes('if(offlineMode){loadLocalTournaments();return;}'), "browser-only tournament list path missing");
 assert(index.includes('data-cp-local='), "browser-only tournaments cannot be opened");
+assert(index.includes("document.getElementById('cpBeta7Offline')?.remove()"), "public token-only gate does not remove the browser-only sign-in action");
 assert(index.includes('params.get("cloudTournamentId")||params.get("cloud")||params.get("continue")'), "desktop continuation aliases missing");
 assert(index.includes('const owned=hint?tournaments.find('), "empty continuation can auto-open the first tournament");
 const cloudAdapter = readFileSync(join(root, "webview/CloudWorkspaceAdapter.js"), "utf8");

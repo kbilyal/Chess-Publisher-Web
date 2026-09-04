@@ -33226,5 +33226,15 @@ body .window .cp-date-control>button.cp-date-trigger svg{width:15px;height:15px;
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});else setTimeout(init,0);
 })();
 </script>
+<script id="cpTokenOnlyGate">
+// The public Web entry screen is Organizer-Token-only. Keep the existing
+// local/offline implementation intact for installed/Desktop workflows, but do
+// not expose a browser-only bypass from the public sign-in screen.
+(() => {
+  const removeTokenBypass = () => document.getElementById('cpBeta7Offline')?.remove();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', removeTokenBypass, { once: true });
+  else removeTokenBypass();
+})();
+</script>
 </body>
 </html>

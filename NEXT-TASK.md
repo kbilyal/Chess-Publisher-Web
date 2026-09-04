@@ -2,6 +2,8 @@
 
 The preceding Chess-Results bridge batch is complete in source: validated XML preview, TNR lifecycle safety, server-only bridge transport, no simulated success path, and dedicated publication/bridge contract tests. Gate I remains pending live acceptance against provisioned official bridge credentials.
 
+The public Web startup screen is Organizer-Token-only; the `Continue without Cloud` bypass was removed without changing installed/Desktop local workflows.
+
 Gate K (Player Registration & Starting List Parity) is closed and verified with 12/12 dedicated regression tests passing (`npm run test:player-parity`) and full UI integration in `PlayersTab.tsx` and `RequestedByesModal.tsx`.
 
 Most recent accepted batch: beta.7 Web Start Page + Simplified Online & Cloud tab + Always-Synced Tournament List, followed by browser FIDE import and explicit Browser-only access for users without a provisioned Organizer Token. Production Pages deployment and artifact checks pass; authenticated Organizer Token behavior and self-service account provisioning remain open backend acceptance work. This does not change the next roadmap task below.

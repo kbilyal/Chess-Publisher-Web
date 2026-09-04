@@ -131,6 +131,9 @@ TRF Full Parity (Export-through-round, TRF16/TRF26, starting list, administrativ
 - Added `npm run test:chess-results` for payload, pairing, validation and no-duplicate-start-number coverage.
 - Verification for this batch: `npm run lint` PASS; `npm run test:chess-results` PASS (15 assertions); `npm run build` PASS. Existing transaction, finalization, FIDE, FIDE sync, tie-break checker and player-parity suites also passed. The authoritative pairing parity suite could not execute its fixtures in this checkout because Gacrux/BBP binaries are unavailable; no pairing code was changed.
 
+## Public organizer-token entry gate (2026-09-04)
+- The public Web sign-in screen no longer exposes the `Continue without Cloud` browser-only bypass. The local/offline implementation remains available to installed/Desktop workflows and is not otherwise changed.
+
 ## Handoff status
 `HANDOFF_READY = false`
 
