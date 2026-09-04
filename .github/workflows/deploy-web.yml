@@ -122,17 +122,18 @@ jobs:
           test -f production-web/webview/HubAdapter.js
           test -f production-web/cloud/client/cloud-workspace-api.js
           test -f production-web/webview/CloudWorkspaceAdapter.js
-            python - <<'PY'
-            from hashlib import sha256
-            from pathlib import Path
-            import re
+            node --input-type=module <<'NODE'
+            import { createHash } from 'node:crypto';
+            import { readFileSync } from 'node:fs';
 
-            index = Path('production-web/index.html').read_bytes()
-            shell = re.sub(rb'<!-- cpProductionWeb .*?</body>', b'</body>', index, count=1, flags=re.S)
-            expected = 'f6427a3c2ade30ec2799bdbcbf69688a3247e969c6f03e82daf11901386f791a'
-            if sha256(shell).hexdigest() != expected:
-              raise SystemExit('production-web/index.html is not the beta.6 desktop shell')
-            PY
+            const index = readFileSync('production-web/index.html');
+            const bootstrap = /<!-- cpProductionWeb .*?<\/body>/s;
+            const shell = index.toString().replace(bootstrap, '</body>');
+            const expected = 'f6427a3c2ade30ec2799bdbcbf69688a3247e969c6f03e82daf11901386f791a';
+            if (createHash('sha256').update(shell).digest('hex') !== expected) {
+              throw new Error('production-web/index.html is not the beta.6 desktop shell');
+            }
+            NODE
           rm -rf dist
           mkdir -p dist
           cp -R production-web/. dist/
