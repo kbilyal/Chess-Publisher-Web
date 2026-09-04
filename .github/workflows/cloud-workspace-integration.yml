@@ -45,6 +45,12 @@ jobs:
       - name: Desktop-Web Cloud roundtrip regression
         run: npm run test:cloud-roundtrip
 
+      - name: Production Web beta7 regression
+        run: npm run test:production-web-beta7
+
+      - name: Recovered browser function regression
+        run: npm run test:recovered-web-functions
+
       - name: Transaction regression
         run: npm run test:transactions
 

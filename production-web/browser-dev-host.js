@@ -46,25 +46,28 @@
     }
   }
 
-  const webview={
+  const browserBridge={
     addEventListener(type,listener){if(type==="message"&&typeof listener==="function")listeners.add(listener);},
     removeEventListener(type,listener){if(type==="message")listeners.delete(listener);},
     postMessage(message){
       if(message?.type==="cp:hub-secret")return handleSecret(message);
-      // Intentionally do NOT emulate TRF/PGN/DGT/native pairing operations.
-      // Those must be ported to a real Linux/web backend rather than faked.
+      // Intentionally do NOT emulate TRF/PGN/DGT/native operations here.
+      // Native operations require a verified desktop bridge or server backend.
       console.debug("Chess-Publisher web-dev native message ignored:",message?.type||message);
     }
   };
 
-  if(!window.chrome)window.chrome={};
-  if(!window.chrome.webview)window.chrome.webview=webview;
+  // Do not expose a fake window.chrome.webview. The protected desktop shell
+  // uses its presence as a real Windows WebView2 capability check.
+  window.__cpBrowserHostBridge=browserBridge;
 
   window.__cpWebLinuxDevHost={
     enabled:true,
     mode:"browser-dev",
     secretStorage:"sessionStorage",
     nativePairing:false,
+    nativeTieBreak:false,
+    nativePairingChecker:false,
     nativeDgt:false,
     nativeFilesystem:false
   };

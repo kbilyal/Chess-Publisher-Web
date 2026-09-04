@@ -9,7 +9,9 @@
     const ORGANIZER_SECRET_KEY="organizer-primary";
     const apiLib=window.ChessPublisherHubApi;
     const snapshotLib=window.ChessPublisherHubSnapshot;
+    const hostBridge=window.chrome?.webview||window.__cpBrowserHostBridge;
     if(!apiLib||!snapshotLib) throw new Error("Hub client modules are unavailable.");
+    if(!hostBridge?.postMessage||!hostBridge?.addEventListener) throw new Error("Hub credential bridge is unavailable.");
 
     const api=apiLib.createClient({clientVersion:CLIENT_VERSION});
     let organizerTokenCache="";
@@ -48,7 +50,7 @@
         try{
           const payload={type:"cp:hub-secret",requestId,operation,key:String(key||"")};
           if(operation==="set") payload.value=String(value||"");
-          window.chrome.webview.postMessage(payload);
+          hostBridge.postMessage(payload);
         }catch(error){
           clearTimeout(timer);nativePending.delete(requestId);reject(error);
         }
@@ -56,7 +58,7 @@
     }
 
     try{
-      window.chrome.webview.addEventListener("message",event=>{
+      hostBridge.addEventListener("message",event=>{
         const message=event?.data;
         if(!message||message.type!=="cp:hub-secret-result"||!message.requestId)return;
         const pending=nativePending.get(String(message.requestId));

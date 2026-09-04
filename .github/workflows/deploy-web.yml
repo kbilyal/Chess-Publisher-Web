@@ -69,6 +69,12 @@ jobs:
       - name: Desktop-Web Cloud roundtrip regression
         run: npm run test:cloud-roundtrip
 
+      - name: Production Web beta7 regression
+        run: npm run test:production-web-beta7
+
+      - name: Recovered browser function regression
+        run: npm run test:recovered-web-functions
+
       - name: Architecture regression
         shell: bash
         env:
@@ -117,6 +123,10 @@ jobs:
           test -f production-web/CNAME
           test "$(cat production-web/CNAME)" = "web.chess-publisher.org"
           test -f production-web/web/browser-dev-host.js
+          test -f production-web/web/linux-native-engine-adapter.js
+          test -f production-web/web/player-registration-enhancements.js
+          test -f production-web/web/chess-results-browser-adapter.js
+          test -f production-web/web/tournament-setup-enhancements.js
           test -f production-web/hub/client/hub-snapshot.js
           test -f production-web/hub/client/hub-api-client.js
           test -f production-web/webview/HubAdapter.js
@@ -147,6 +157,10 @@ jobs:
           test -f dist/CNAME
           test "$(cat dist/CNAME)" = "web.chess-publisher.org"
           test -f dist/web/browser-dev-host.js
+          test -f dist/web/linux-native-engine-adapter.js
+          test -f dist/web/player-registration-enhancements.js
+          test -f dist/web/chess-results-browser-adapter.js
+          test -f dist/web/tournament-setup-enhancements.js
           test -f dist/hub/client/hub-snapshot.js
           test -f dist/hub/client/hub-api-client.js
           test -f dist/webview/HubAdapter.js

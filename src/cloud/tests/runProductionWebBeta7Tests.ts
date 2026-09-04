@@ -27,9 +27,35 @@ for (const file of [
   assert(statSync(join(root, file)).isFile(), `missing production file: ${file}`);
 }
 assert(readFileSync(join(root, "CNAME"), "utf8").trim() === "web.chess-publisher.org", "production CNAME mismatch");
-for (const marker of ["My Tournaments", "Organizer Token", "data-cp-open", "cloudTournamentId", "Deleted / Archived", "Advanced / Diagnostics / Danger zone", "cpCloudOpenTournament"]) {
+for (const marker of [
+  "My Tournaments",
+  "Organizer Token",
+  "data-cp-open",
+  "cloudTournamentId",
+  '<option value="active">Active</option>',
+  '<option value="registration">Registration</option>',
+  '<option value="finished">Finished</option>',
+  '<option value="deleted">Deleted</option>',
+  '<option value="archived">Archived</option>',
+  "Advanced / Diagnostics / Danger zone",
+  "cpCloudOpenTournament",
+  "Create New Tournament",
+  "Back to My Tournaments",
+  "Refresh My Tournaments",
+  "Technical details",
+]) {
   assert(index.includes(marker), `missing beta.7 behavior: ${marker}`);
 }
+assert(index.includes('dataset.cpProductionWeb==="1"'), "production Web detection missing");
+assert(index.includes('desktopCreateScreen.style.display="none"'), "desktop New Tournament startup modal is not suppressed");
+assert(index.includes('api().listTournaments(token)'), "My Tournaments does not load the organizer tournament list");
+assert(index.includes('tournament.webOrigin={source:"Web",status:"registration"}'), "Web tournament source/status metadata missing");
+assert(index.includes('window.cpCloudSyncCurrent({force:true,quiet:false})'), "new Web tournament does not sync to cloud");
+assert(index.includes('params.get("cloudTournamentId")||params.get("cloud")||params.get("continue")'), "desktop continuation aliases missing");
+assert(index.includes('const owned=hint?tournaments.find('), "empty continuation can auto-open the first tournament");
+const cloudAdapter = readFileSync(join(root, "webview/CloudWorkspaceAdapter.js"), "utf8");
+assert(cloudAdapter.includes('async function openCloudTournament(id'), "cloud open path missing");
+assert(cloudAdapter.includes('api.getCurrentSnapshot(token,id)'), "cloud open does not load the latest snapshot");
 assert(!/assets\/index-[^" ]+\.(?:js|css)/.test(index), "production shell contains Vite asset entry");
 assert(!index.includes("src/main.tsx"), "production shell contains React entry point");
 assert(!index.includes("Organizer Token") || !/https?:[^"' ]*Organizer Token/.test(index), "Organizer Token appears in a URL");
