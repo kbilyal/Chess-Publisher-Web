@@ -109,12 +109,12 @@ jobs:
       - name: Build existing Web test target
         run: npm run build
 
-      - name: Materialize exact real Chess-Publisher production shell
+      - name: Prepare exact current Web application artifact
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf dist
-          bash scripts/materialize-real-web-source.sh dist
+          test -f dist/index.html
+          rm -f dist/server.cjs dist/server.cjs.map
 
       - name: Write exact deployment identity
         shell: bash
@@ -129,8 +129,8 @@ jobs:
             branch: 'main',
             commit: process.env.GITHUB_SHA,
             workflowRun: process.env.GITHUB_RUN_ID,
-            source: 'Chess-Publisher-v1.06.00-beta.5 real WebView shell',
-            indexSha256: '701b2bfcbef99cf0a8e052ad1c16b2a1fd5b891d5285cf688a1775ad3ce57654',
+            source: 'Checked-in Chess-Publisher Web Vite application',
+            indexSha256: null,
             builtAt: new Date().toISOString()
           };
 
@@ -148,16 +148,8 @@ jobs:
           test -f dist/build-info.json
           test -f dist/CNAME
           test "$(cat dist/CNAME)" = "web.chess-publisher.org"
-          test -f dist/web/browser-dev-host.js
-          test -f dist/hub/client/hub-snapshot.js
-          test -f dist/hub/client/hub-api-client.js
-          test -f dist/webview/HubAdapter.js
-          test -f dist/cloud/client/cloud-workspace-api.js
-          test -f dist/webview/CloudWorkspaceAdapter.js
-          echo "701b2bfcbef99cf0a8e052ad1c16b2a1fd5b891d5285cf688a1775ad3ce57654  dist/index.html" | sha256sum -c -
-          grep -q 'cpProductionWeb' dist/index.html
-          grep -q 'Chess-Publisher' dist/index.html
-          grep -q 'schemaVersion' dist/cloud/client/cloud-workspace-api.js
+          grep -q 'Chess-Publisher FIDE Tournament Manager' dist/index.html
+          grep -q '/assets/index-' dist/index.html
           node --input-type=module <<'NODE'
           import { readFileSync } from 'node:fs';
 
@@ -165,7 +157,7 @@ jobs:
           if (info.commit !== process.env.GITHUB_SHA) throw new Error('build-info commit does not match GITHUB_SHA');
           if (info.repository !== 'kbilyal/Chess-Publisher-Web') throw new Error('build-info repository mismatch');
           if (info.branch !== 'main') throw new Error('build-info branch mismatch');
-          if (info.indexSha256 !== '701b2bfcbef99cf0a8e052ad1c16b2a1fd5b891d5285cf688a1775ad3ce57654') throw new Error('production index identity mismatch');
+          if (info.source !== 'Checked-in Chess-Publisher Web Vite application') throw new Error('production source identity mismatch');
           NODE
           find dist -maxdepth 4 -type f | sort
 
