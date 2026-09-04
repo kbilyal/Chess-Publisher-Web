@@ -79,6 +79,7 @@ Starting source commit for the latest verified batch: `6aa2deb17d1f555772425226b
   - `test:cloud-roundtrip` proves Desktop -> Web -> Desktop r1/r2/r3 propagation, two-sided conflict preservation, stale multi-browser revision rejection, portable cloud identity, installation-local field preservation, and serialized Pull Changes concurrency;
   - production Web, API health, and exact-origin CORS preflight passed on 2026-09-04;
   - authenticated live Organizer Token round-trip remains the next manual acceptance step and was not simulated against production credentials.
+- Online & Cloud beta.7 Web UX is implemented in the canonical production shell: token login, token-scoped My Tournaments, cloudTournamentId-safe opening, simplified Online & Cloud controls, and Advanced / Diagnostics / Danger zone details. Production deploy and `npm run test:production-web-beta7` pass.
 
 ## Important trust classification
 Authoritative:

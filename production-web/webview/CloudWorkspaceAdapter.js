@@ -983,6 +983,7 @@
     // Export the non-UI entry points before UI injection. This keeps the cloud
     // service testable and does not change normal desktop startup behaviour.
     window.cpCloudWorkspaceOpen=openWorkspace;
+    window.cpCloudOpenTournament=openCloudTournament;
     window.cpCloudSyncCurrent=syncCurrent;
     window.cpCloudPullChanges=pullCurrentChanges;
     window.cpCloudSyncAllLocal=syncAllLocal;

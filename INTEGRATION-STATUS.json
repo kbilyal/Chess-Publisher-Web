@@ -1,7 +1,7 @@
 {
   "project": "Chess-Publisher-Web",
   "updated": "2026-09-04",
-  "mainCommitVerified": "6aa2deb17d1f555772425226ba04e279dfe5903f",
+  "mainCommitVerified": "290da29e15a479eacae771123a363dfe0b1f588b",
   "handoffReady": false,
   "baselineFeatureAudit": {
     "total": 104,
@@ -23,7 +23,8 @@
     "tieBreakChecker": "13/13 PASS reported",
     "playerParity": "12/12 PASS reported",
     "cloudDesktopWebRoundtrip": "PASS deterministic beta.5 contract harness; live authenticated Organizer Token acceptance pending",
-    "cloudProductionEndpoints": "Web HTTP 200, API health HTTP 200, exact production-origin CORS HTTP 204 PASS on 2026-09-04"
+    "cloudProductionEndpoints": "Web HTTP 200, API health HTTP 200, exact production-origin CORS HTTP 204 PASS on 2026-09-04",
+    "productionWebBeta7": "PASS: canonical shell, token-scoped tournament list, simplified Online & Cloud view, and no Vite entry"
   },
   "gates": {
     "pairingCore": "PASS",

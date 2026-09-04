@@ -21,6 +21,7 @@
     "test:player-parity": "tsx src/server/tests/runPlayerParityTests.ts",
     "test:online-cloud": "tsx src/cloud/tests/runOnlineCloudBeta4Tests.ts",
     "test:online-cloud-beta5": "tsx src/cloud/tests/runOnlineCloudBeta5BrowserTests.ts",
+    "test:production-web-beta7": "tsx src/cloud/tests/runProductionWebBeta7Tests.ts",
     "test:cloud-roundtrip": "tsx src/cloud/tests/runCloudRoundtripTests.ts"
   },
   "dependencies": {
