@@ -134,6 +134,10 @@ TRF Full Parity (Export-through-round, TRF16/TRF26, starting list, administrativ
 ## Public organizer-token entry gate (2026-09-04)
 - The public Web sign-in screen no longer exposes the `Continue without Cloud` browser-only bypass. The local/offline implementation remains available to installed/Desktop workflows and is not otherwise changed.
 
+## Chess-Results creator example review (2026-09-04)
+- Reviewed the creator-provided official XML examples. The publication builder now emits the required `blackno="-2"` non-pairing record for every unrepresented player in each generated round and keeps `PAB` distinct from ordinary `1 BYE` entries.
+- Creator-provided encryption material was not committed. The server-side bridge remains the only approved location for runtime credentials.
+
 ## Handoff status
 `HANDOFF_READY = false`
 

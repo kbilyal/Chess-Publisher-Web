@@ -39,7 +39,11 @@ const birth = (value: string) => {
 const pairingResult = (value: string, single: boolean) => {
   const result = String(value || '').replace(/\s+/g, '').toUpperCase();
   if (single) {
-    if (result === 'PAB' || result === '1BYE') return { white: '1.0', black: '0.0', forfeit: 'K', blackNo: -1 };
+    // A pairing-allocated bye is the only single-player pairing that uses the
+    // Chess-Results -1/K convention. Requested and late-entry byes remain
+    // ordinary non-pairing records (-2) unless the authoritative round entry
+    // explicitly says PAB.
+    if (result === 'PAB') return { white: '1.0', black: '0.0', forfeit: 'K', blackNo: -1 };
     if (result === 'ВЅBYE' || result === '1/2BYE' || result === '0.5BYE') return { white: '0.5', black: '0.0', forfeit: '', blackNo: -2 };
     if (result === '0BYE') return { white: '0.0', black: '0.0', forfeit: '', blackNo: -2 };
     return { white: '', black: '', forfeit: '', blackNo: -2 };
@@ -89,7 +93,7 @@ export function buildChessResultsXml(tournament: Tournament, options: { requireK
     attr('fideeventid', text(settings.fideEventId, 20)), attr('remark', cr.pinBoardEnabled ? text(cr.pinBoardText, 599) : ''),
     attr('director', text(settings.director, 80)), attr('organiser', text(settings.organizer, 80)), attr('location', text(settings.venue || settings.city, 80)),
     attr('arbiter', text(settings.arbiter, 1200)), attr('rounds', rounds), attr('currentround', latestRound), attr('rankinground', latestRound),
-    attr('from', date(settings.startDate)), attr('to', date(settings.endDate) || date(settings.startDate)), attr('ratedfide', settings.fideRated === 'Yes' ? 'J' : 'N'),
+    attr('from', date(settings.startDate)), attr('to', date(settings.endDate) || date(settings.startDate)), attr('ratedfide', settings.fideRated === 'Yes' ? 'J' : '-'),
     attr('timecontrol', text(settings.timeControl, 100)), attr('chiefarbiter', text(settings.chiefArbiter, 120)), attr('mail', text(settings.email, 80)),
     attr('federation', federation), attr('creator', cr.creatorId || 100)
   ];
@@ -105,17 +109,34 @@ export function buildChessResultsXml(tournament: Tournament, options: { requireK
   });
   lines.push('</players>', '<playerpairings>');
   let pairingRecords = 0;
+  const orderedPlayers = [...tournament.players].sort((a, b) => a.pairingNumber - b.pairingNumber);
   for (const round of generatedRounds) {
     const boards = [...(tournament.pairings.liveBoards[String(round)] || [])].sort((a, b) => a.board - b.board);
+    const pairedKeys = new Set<string>();
+    let pairingNumber = 0;
     boards.forEach((board: BoardPairing, index) => {
       const white = playerByKey.get(board.whiteKey);
       const black = playerByKey.get(board.blackKey);
       if (!white && !black) return;
+      if (white) pairedKeys.add(white.localKey);
+      if (black) pairedKeys.add(black.localKey);
       const result = pairingResult(board.result, !black);
       pairingRecords += 1;
+      pairingNumber += 1;
       lines.push(`<playerpairing ${[
-        attr('round', round), attr('pairing', index + 1), attr('board', board.board || 1), attr('whiteno', white?.pairingNumber || black!.pairingNumber),
+        attr('round', round), attr('pairing', pairingNumber), attr('board', board.board || 1), attr('whiteno', white?.pairingNumber || black!.pairingNumber),
         attr('blackno', black?.pairingNumber || result.blackNo || -2), attr('reswhite', result.white), attr('resblack', result.black), attr('forfeit', result.forfeit)
+      ].join(' ')} />`);
+    });
+    // The official XML examples include a -2 placeholder for each player who
+    // has no pairing record in the round. Omitting it can leave stale results
+    // or make an incremental upload fail validation on Chess-Results.
+    orderedPlayers.filter(player => !pairedKeys.has(player.localKey)).forEach(player => {
+      pairingRecords += 1;
+      pairingNumber += 1;
+      lines.push(`<playerpairing ${[
+        attr('round', round), attr('pairing', pairingNumber), attr('board', 1), attr('whiteno', player.pairingNumber),
+        attr('blackno', -2), attr('reswhite', ''), attr('resblack', ''), attr('forfeit', '')
       ].join(' ')} />`);
     });
   }

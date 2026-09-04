@@ -2,6 +2,8 @@
 
 The preceding Chess-Results bridge batch is complete in source: validated XML preview, TNR lifecycle safety, server-only bridge transport, no simulated success path, and dedicated publication/bridge contract tests. Gate I remains pending live acceptance against provisioned official bridge credentials.
 
+Creator XML examples have been reviewed and their required non-pairing and PAB mappings are covered by the Chess-Results publication contract test.
+
 The public Web startup screen is Organizer-Token-only; the `Continue without Cloud` bypass was removed without changing installed/Desktop local workflows.
 
 Gate K (Player Registration & Starting List Parity) is closed and verified with 12/12 dedicated regression tests passing (`npm run test:player-parity`) and full UI integration in `PlayersTab.tsx` and `RequestedByesModal.tsx`.
