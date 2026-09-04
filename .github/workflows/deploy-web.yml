@@ -138,13 +138,16 @@ jobs:
           NODE
 
       - name: Disable Jekyll processing
-        run: touch dist/.nojekyll
+        run: |
+          cp dist/index.html dist/404.html
+          touch dist/.nojekyll
 
       - name: Verify exact production artifact
         shell: bash
         run: |
           set -euo pipefail
           test -f dist/index.html
+          test -f dist/404.html
           test -f dist/build-info.json
           test -f dist/CNAME
           test "$(cat dist/CNAME)" = "web.chess-publisher.org"
