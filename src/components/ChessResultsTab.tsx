@@ -1,289 +1,81 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { AlertTriangle, CheckCircle2, ClipboardCheck, ExternalLink, Globe, Link2, ShieldCheck, Upload } from 'lucide-react';
 import { Tournament } from '../types';
-import { buildTRFText } from '../engine/trfParser';
-import { 
-  Globe, Upload, ShieldCheck, CheckCircle2, AlertTriangle, 
-  Copy, ExternalLink, Code, MessageSquare, RefreshCw
-} from 'lucide-react';
+import { chessResultsApi } from '../chessResults/api';
+import { buildChessResultsXml } from '../chessResults/publication';
 
-interface ChessResultsTabProps {
-  tournament: Tournament;
-  onUpdateTournament: (updater: (prev: Tournament) => Tournament) => void;
-}
+interface Props { tournament: Tournament; onUpdateTournament: (updater: (previous: Tournament) => Tournament) => void; }
+const clientId = () => globalThis.crypto?.randomUUID?.() || `cp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+const isTnr = (value: string) => /^\d+$/.test(String(value || ''));
 
-export const ChessResultsTab: React.FC<ChessResultsTabProps> = ({
-  tournament,
-  onUpdateTournament
-}) => {
-  const { chessResults, settings, regulations } = tournament;
-  const [showXmlPreview, setShowXmlPreview] = useState(false);
-  const [isPublishing, setIsPublishing] = useState(false);
-
-  const updateCrState = <K extends keyof typeof chessResults>(key: K, value: typeof chessResults[K]) => {
-    onUpdateTournament(prev => ({
-      ...prev,
-      chessResults: {
-        ...prev.chessResults,
-        [key]: value
+export const ChessResultsTab: React.FC<Props> = ({ tournament, onUpdateTournament }) => {
+  const [busy, setBusy] = useState<'test' | 'create' | 'publish' | 'admin' | 'unlink' | null>(null);
+  const [showXml, setShowXml] = useState(false);
+  const cr = tournament.chessResults;
+  const preview = useMemo(() => {
+    try { return { value: buildChessResultsXml(tournament), error: '' }; }
+    catch (error: any) { return { value: null, error: error?.message || String(error) }; }
+  }, [tournament]);
+  const update = (updater: (state: typeof cr) => typeof cr) => onUpdateTournament(previous => ({ ...previous, chessResults: updater(previous.chessResults) }));
+  const log = (type: 'info' | 'ok' | 'warn' | 'error', message: string) => update(state => ({ ...state, activityLog: [{ at: new Date().toISOString(), type, message }, ...(state.activityLog || [])].slice(0, 120) }));
+  const fail = (operation: string, error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    update(state => ({ ...state, lastError: `Chess-Results ${operation}: ${message}`, uploadStatus: isTnr(state.key) ? 'Action failed — TNR retained' : 'Action failed' }));
+    log('error', `${operation} failed: ${message}`);
+  };
+  const ready = () => { if (!preview.value) throw new Error(preview.error); return preview.value; };
+  const testConnection = async () => {
+    setBusy('test'); try {
+      const result = await chessResultsApi.test();
+      update(state => ({ ...state, sidVerified: Boolean(result.sidVerified), lastConnectionTest: new Date().toISOString(), lastError: '' }));
+      log('ok', result.sidVerified ? 'Connection test passed: SID/AES verification confirmed by the bridge.' : 'Connection test passed; no SID comparison value was exposed.');
+    } catch (error) { fail('connection test', error); } finally { setBusy(null); }
+  };
+  const create = async () => {
+    setBusy('create'); try {
+      const payload = ready();
+      if (isTnr(cr.key)) throw new Error(`This tournament is already linked to TNR ${cr.key}; a second key will not be requested.`);
+      const result = await chessResultsApi.create({ tournament: tournament.name || '', federation: payload.federation, mode: tournament.settings.tournamentType, clientId: cr.clientId || clientId() });
+      const key = String(result.key || '').trim(); if (!isTnr(key)) throw new Error('The bridge returned an invalid Chess-Results TNR.');
+      onUpdateTournament(previous => ({ ...previous, settings: { ...previous.settings, tnr: key }, chessResults: { ...previous.chessResults, clientId: previous.chessResults.clientId || clientId(), key, mode: previous.settings.tournamentType, federation: payload.federation, createdAt: new Date().toISOString(), freshTnrRequired: false, lastError: '', uploadStatus: 'TNR assigned — not published' } }));
+      log('ok', result.recovered ? `Recovered existing TNR ${key}; GETKEY was not requested again.` : `TNR ${key} created and saved. Publish will reuse this exact TNR.`);
+    } catch (error) { fail('TNR creation', error); } finally { setBusy(null); }
+  };
+  const publish = async () => {
+    setBusy('publish'); try {
+      const initial = ready(); let key = String(cr.key || '').trim(); let created = false;
+      if (!isTnr(key)) {
+        const result = await chessResultsApi.create({ tournament: tournament.name || '', federation: initial.federation, mode: tournament.settings.tournamentType, clientId: cr.clientId || clientId() });
+        key = String(result.key || '').trim(); if (!isTnr(key)) throw new Error('The bridge returned an invalid Chess-Results TNR.'); created = true;
+        onUpdateTournament(previous => ({ ...previous, settings: { ...previous.settings, tnr: key }, chessResults: { ...previous.chessResults, clientId: previous.chessResults.clientId || clientId(), key, mode: previous.settings.tournamentType, federation: initial.federation, createdAt: new Date().toISOString(), freshTnrRequired: false, uploadStatus: 'TNR assigned — preparing upload' } }));
+        log('ok', `TNR ${key} was saved before upload and will be retained if upload fails.`);
       }
-    }));
+      const publication = buildChessResultsXml(tournament, { requireKey: true, key });
+      await chessResultsApi.publish({ key, xml: publication.xml }); const now = new Date().toISOString();
+      onUpdateTournament(previous => ({ ...previous, settings: { ...previous.settings, tnr: key }, chessResults: { ...previous.chessResults, key, lastUpload: now, lastError: '', uploadStatus: 'Published / synced', publishCount: (previous.chessResults.publishCount || 0) + 1 } }));
+      log('ok', `${created ? 'Published' : 'Updated'} TNR ${key}: ${publication.players} players, ${publication.rounds} configured rounds and ${publication.pairingRecords} pairing records.`);
+    } catch (error) { fail('publish', error); } finally { setBusy(null); }
   };
-
-  // Build Simulated Chess-Results XML
-  const generateChessResultsXml = () => {
-    const trf = buildTRFText(tournament, 26);
-    const key = chessResults.key || "490658";
-    const creator = chessResults.creatorId || 100;
-    const source = chessResults.sourceId || 21;
-    const date = new Date().toISOString();
-
-    return `<?xml version="1.0" encoding="UTF-8"?>
-<chessresults>
-  <tournamentdata>
-    <tournament key="${key}" type="0" name="${tournament.name || settings.organizer}" 
-      fideeventid="${settings.fideEventId || ''}" 
-      remark="${chessResults.pinBoardEnabled ? chessResults.pinBoardText : ''}" 
-      director="${settings.director || ''}" organiser="${settings.organizer}" 
-      location="${settings.venue || settings.city}" arbiter="${settings.arbiter || ''}" 
-      rounds="${settings.rounds}" currentround="${Object.keys(tournament.pairings.liveBoards || {}).length}" 
-      from="${settings.startDate?.slice(0, 10).replaceAll('-', '') || '20261002'}" 
-      to="${settings.endDate?.slice(0, 10).replaceAll('-', '') || '20261008'}" 
-      ratedfide="${settings.fideRated === 'Yes' ? 'J' : 'N'}" 
-      timecontrol="${settings.timeControl}" 
-      chiefarbiter="${settings.chiefArbiter}" 
-      mail="${settings.email}" federation="${settings.country.toUpperCase()}" 
-      creator="${creator}" source="${source}" />
-  </tournamentdata>
-  <players count="${tournament.players.length}">
-    <!-- ${tournament.players.length} Competitor Records strictly exported with FIDE 2026 Tie-Breaks -->
-  </players>
-  <security>
-    <securitydata source="${source}" sid="AES-128-ENCRYPTED-SESSION" tnr_sec="${key}-SECURED" />
-  </security>
-</chessresults>`;
+  const openAdmin = async (section: 'admin' | 'upload') => {
+    if (!isTnr(cr.key)) return; setBusy('admin'); try {
+      const result = await chessResultsApi.adminLink({ key: cr.key, section }); if (!result.url) throw new Error('The bridge did not return an authenticated URL.');
+      window.open(result.url, '_blank', 'noopener,noreferrer'); log('ok', `Opened authenticated ${section === 'upload' ? 'Upload Data' : 'Admin'} access for TNR ${cr.key}.`);
+    } catch (error) { fail('admin link', error); } finally { setBusy(null); }
   };
-
-  const handlePublish = () => {
-    setIsPublishing(true);
-    const generatedTnr = chessResults.key || `89210${Math.floor(Math.random() * 90 + 10)}`;
-
-    setTimeout(() => {
-      const now = new Date().toISOString();
-      onUpdateTournament(prev => ({
-        ...prev,
-        chessResults: {
-          ...prev.chessResults,
-          key: generatedTnr,
-          uploadStatus: "Published / Synced",
-          lastUpload: now,
-          publishCount: prev.chessResults.publishCount + 1,
-          activityLog: [
-            {
-              at: now,
-              type: 'ok',
-              message: `Published snapshot successfully to Chess-Results TNR ${generatedTnr} (${prev.players.length} players, ${Object.keys(prev.pairings.liveBoards || {}).length} rounds).`
-            },
-            ...prev.chessResults.activityLog
-          ]
-        }
-      }));
-      setIsPublishing(false);
-    }, 600);
+  const unlink = async () => {
+    if (!isTnr(cr.key) || !window.confirm(`Unlink TNR ${cr.key}? This proceeds only if the bridge confirms the remote tournament was deleted or rejected as stale.`)) return;
+    setBusy('unlink'); try {
+      const result = await chessResultsApi.unlink({ key: cr.key, clientId: cr.clientId, serverError: cr.lastError || '' }); if (!result.canUnlink) throw new Error(result.reason || 'The bridge could not confirm this TNR is safe to unlink.');
+      const oldKey = cr.key; onUpdateTournament(previous => ({ ...previous, settings: { ...previous.settings, tnr: '' }, chessResults: { ...previous.chessResults, clientId: clientId(), key: '', mode: '', federation: '', createdAt: '', lastUpload: '', lastError: '', uploadStatus: 'Not published', publishCount: 0, sidVerified: false, freshTnrRequired: true } })); log('ok', `TNR ${oldKey} was safely unlinked after bridge confirmation.`);
+    } catch (error) { fail('unlink', error); } finally { setBusy(null); }
   };
-
-  const handleCopyXml = () => {
-    const xml = generateChessResultsXml();
-    navigator.clipboard.writeText(xml);
-    alert("Chess-Results XML payload copied to clipboard!");
-  };
-
-  return (
-    <div className="max-w-6xl mx-auto p-4 sm:p-6 space-y-6 animate-in fade-in duration-200 text-slate-800">
-      {/* 1. Header & Live Publication Dashboard */}
-      <section className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-5">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
-              <Globe className="w-4 h-4" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                Chess-Results Official Publication Hub
-              </h2>
-              <p className="text-xs text-slate-500">
-                Direct integration with chess-results.com XML API (Source ID 21 & Creator ID 100).
-              </p>
-            </div>
-          </div>
-
-          <span className="text-xs font-mono font-bold px-2.5 py-1 rounded bg-emerald-50 border border-emerald-300 text-emerald-800 flex items-center gap-1.5">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            API Interface Ready
-          </span>
-        </div>
-
-        {/* 4 Summary Stat Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-          <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-1">
-            <span className="text-slate-500 text-[11px] block">Publication Status</span>
-            <b className="text-slate-800 text-sm font-semibold flex items-center gap-1.5">
-              {chessResults.lastUpload ? (
-                <>
-                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                  Published
-                </>
-              ) : (
-                <>
-                  <span className="w-2 h-2 rounded-full bg-amber-500" />
-                  Not Published
-                </>
-              )}
-            </b>
-          </div>
-
-          <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-1">
-            <span className="text-slate-500 text-[11px] block">TNR Database Key</span>
-            <b className="text-blue-600 text-sm font-mono">
-              {chessResults.key ? `TNR ${chessResults.key}` : 'Auto Assigned on Publish'}
-            </b>
-          </div>
-
-          <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-1">
-            <span className="text-slate-500 text-[11px] block">Last Upload</span>
-            <b className="text-slate-700 text-xs font-mono truncate block">
-              {chessResults.lastUpload ? new Date(chessResults.lastUpload).toLocaleTimeString() : 'Never'}
-            </b>
-          </div>
-
-          <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-1">
-            <span className="text-slate-500 text-[11px] block">FIDE Event ID</span>
-            <b className="text-slate-700 text-xs font-mono">
-              {settings.fideEventId || 'Not Configured'}
-            </b>
-          </div>
-        </div>
-
-        {/* Primary Action Button */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-4 bg-slate-50 border border-slate-200 rounded-xl">
-          <div className="space-y-0.5 text-xs text-slate-700">
-            <div className="font-bold text-slate-900 flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-emerald-600" />
-              Restricted to File Creator (AES-128 Protected)
-            </div>
-            <p className="text-slate-500 text-[11px]">
-              Every upload authenticates securely with CreatorID 100 to prevent third-party modifications.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handlePublish}
-              disabled={isPublishing}
-              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-lg text-xs font-bold shadow-sm flex items-center gap-2 transition disabled:opacity-50"
-            >
-              <Upload className="w-4 h-4" />
-              <span>{isPublishing ? 'Publishing...' : (chessResults.lastUpload ? 'Update on Chess-Results' : 'Publish to Chess-Results')}</span>
-            </button>
-
-            {chessResults.key && (
-              <a
-                href={`https://chess-results.com/tnr${chessResults.key}.aspx?lan=1`}
-                target="_blank"
-                rel="noreferrer"
-                className="px-3 py-2.5 bg-white hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition border border-slate-300 shadow-sm"
-              >
-                <span>Open Page</span>
-                <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
-              </a>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* 2. Pin Board / Remarks Banner */}
-      <section className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-            <MessageSquare className="w-4 h-4 text-amber-500" />
-            Tournament Pin Board / Arbiter Announcement
-          </h2>
-          <span className="text-[11px] font-mono text-slate-500">
-            {chessResults.pinBoardText?.length || 0} / 599 characters
-          </span>
-        </div>
-
-        <div className="space-y-3 text-xs">
-          <label className="flex items-center gap-2 cursor-pointer font-semibold text-slate-700">
-            <input
-              type="checkbox"
-              checked={chessResults.pinBoardEnabled}
-              onChange={e => updateCrState('pinBoardEnabled', e.target.checked)}
-              className="rounded border-slate-300 bg-white text-blue-600"
-            />
-            <span>Display Announcement on Chess-Results Public Page</span>
-          </label>
-
-          <textarea
-            rows={3}
-            maxLength={599}
-            value={chessResults.pinBoardText}
-            onChange={e => updateCrState('pinBoardText', e.target.value)}
-            disabled={!chessResults.pinBoardEnabled}
-            placeholder="Important announcements, arbiter instructions, live stream links..."
-            className="w-full p-3 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:border-amber-500 focus:bg-white resize-none disabled:opacity-40"
-          />
-        </div>
-      </section>
-
-      {/* 3. Live Activity Log & XML Inspector */}
-      <section className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-            <Code className="w-4 h-4 text-indigo-600" />
-            Live Publishing Log & XML Inspector
-          </h2>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowXmlPreview(!showXmlPreview)}
-              className="px-3 py-1 bg-white hover:bg-slate-50 text-slate-700 rounded-md text-xs font-semibold border border-slate-300 transition shadow-sm"
-            >
-              {showXmlPreview ? 'Hide XML' : 'Inspect XML Payload'}
-            </button>
-            <button
-              onClick={handleCopyXml}
-              className="px-3 py-1 bg-white hover:bg-slate-50 text-slate-700 rounded-md text-xs font-semibold border border-slate-300 flex items-center gap-1 transition shadow-sm"
-            >
-              <Copy className="w-3 h-3 text-slate-500" />
-              <span>Copy XML</span>
-            </button>
-          </div>
-        </div>
-
-        {showXmlPreview && (
-          <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg font-mono text-[11px] text-blue-300 overflow-x-auto max-h-60 leading-relaxed shadow-inner">
-            <pre>{generateChessResultsXml()}</pre>
-          </div>
-        )}
-
-        {/* Activity Logs */}
-        <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg font-mono text-[11px] text-slate-700 min-h-[100px] max-h-[160px] overflow-y-auto space-y-1">
-          {chessResults.activityLog.length === 0 ? (
-            <span className="text-slate-400 italic block py-4 text-center">
-              Publish activity logs will appear here.
-            </span>
-          ) : (
-            chessResults.activityLog.map((entry, idx) => (
-              <div key={idx} className="flex items-start gap-2">
-                <span className="text-slate-400">[{new Date(entry.at).toLocaleTimeString()}]</span>
-                <span className={entry.type === 'ok' ? 'text-emerald-700 font-medium' : 'text-slate-700'}>
-                  {entry.type === 'ok' ? '✓' : '•'} {entry.message}
-                </span>
-              </div>
-            ))
-          )}
-        </div>
-      </section>
-    </div>
-  );
+  const disabled = busy !== null || !preview.value;
+  return <div className="max-w-6xl mx-auto p-4 sm:p-6 space-y-5 animate-in fade-in duration-200 text-slate-800">
+    <section className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-5"><div className="flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between border-b border-slate-100 pb-4"><div className="flex gap-3"><div className="w-9 h-9 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center"><Globe className="w-5 h-5 text-blue-600" /></div><div><h2 className="font-bold text-slate-900">Chess-Results Publication</h2><p className="text-xs text-slate-500">Validated XML through the configured server-side Chess-Results bridge. Credentials never enter the browser.</p></div></div><span className={`text-xs font-semibold px-2.5 py-1 rounded border flex items-center gap-1.5 ${preview.value ? 'bg-emerald-50 border-emerald-300 text-emerald-800' : 'bg-amber-50 border-amber-300 text-amber-900'}`}>{preview.value ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}{preview.value ? 'Publication payload ready' : 'Validation required'}</span></div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs"><Stat label="Publication" value={cr.lastUpload ? 'Published' : 'Not published'} /><Stat label="Database key" value={isTnr(cr.key) ? `TNR ${cr.key}` : 'Assigned on publish'} mono /><Stat label="Last upload" value={cr.lastUpload ? new Date(cr.lastUpload).toLocaleString() : 'Never'} /><Stat label="FIDE Event ID" value={tournament.settings.fideEventId || 'Not configured'} mono /></div>{!preview.value && <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs"><b>Publishing is blocked:</b> {preview.error}</div>}
+      <div className="flex flex-wrap gap-2 p-4 rounded-xl bg-slate-50 border border-slate-200"><button onClick={testConnection} disabled={busy !== null} className="button-secondary"><ShieldCheck className="w-4 h-4" />{busy === 'test' ? 'Testing…' : 'Test bridge'}</button><button onClick={create} disabled={disabled || isTnr(cr.key)} className="button-secondary"><Link2 className="w-4 h-4" />{busy === 'create' ? 'Creating…' : 'Create TNR'}</button><button onClick={publish} disabled={disabled} className="button-primary"><Upload className="w-4 h-4" />{busy === 'publish' ? 'Publishing…' : cr.lastUpload ? 'Update tournament' : 'Publish tournament'}</button>{isTnr(cr.key) && <><a href={`https://chess-results.com/tnr${encodeURIComponent(cr.key)}.aspx?lan=1`} target="_blank" rel="noreferrer" className="button-secondary"><ExternalLink className="w-4 h-4" />Open public page</a><button onClick={() => openAdmin('admin')} disabled={busy !== null} className="button-secondary">Open admin</button><button onClick={() => openAdmin('upload')} disabled={busy !== null} className="button-secondary">Upload data</button></>}</div><p className="text-[11px] text-slate-500">A TNR is created only after local validation. The returned key is saved before upload; failed uploads retain it for a safe retry rather than requesting a duplicate TNR.</p></section>
+    <section className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4"><div className="flex justify-between gap-3 border-b border-slate-100 pb-3"><h3 className="text-sm font-bold flex items-center gap-2"><ClipboardCheck className="w-4 h-4 text-indigo-600" />Payload review</h3><button onClick={() => setShowXml(value => !value)} className="button-secondary">{showXml ? 'Hide XML' : 'Inspect XML'}</button></div>{showXml && preview.value && <pre className="max-h-72 overflow-auto p-3 rounded-lg bg-slate-950 text-blue-200 text-[11px] leading-relaxed">{preview.value.xml}</pre>}<div className="text-xs text-slate-600 grid sm:grid-cols-3 gap-3">{preview.value && <><span><b>Players:</b> {preview.value.players}</span><span><b>Configured rounds:</b> {preview.value.rounds}</span><span><b>Pairing records:</b> {preview.value.pairingRecords}</span></>}</div></section>
+    <section className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3"><div className="flex justify-between gap-3 border-b border-slate-100 pb-3"><h3 className="text-sm font-bold">Publication activity</h3>{isTnr(cr.key) && <button onClick={unlink} disabled={busy !== null} className="text-xs text-rose-700 border border-rose-200 rounded-md px-2 py-1 hover:bg-rose-50">Unlink deleted TNR</button>}</div><div className="font-mono text-[11px] bg-slate-50 border border-slate-200 rounded-lg p-3 min-h-24 max-h-56 overflow-auto space-y-1">{(cr.activityLog || []).length ? cr.activityLog.map((entry, index) => <div key={`${entry.at}-${index}`} className={entry.type === 'error' ? 'text-rose-700' : entry.type === 'ok' ? 'text-emerald-700' : entry.type === 'warn' ? 'text-amber-800' : 'text-slate-600'}>[{new Date(entry.at).toLocaleTimeString()}] {entry.message}</div>) : <span className="text-slate-400 italic">Validated publication activity will appear here.</span>}</div></section>
+  </div>;
 };
+const Stat: React.FC<{ label: string; value: string; mono?: boolean }> = ({ label, value, mono }) => <div className="bg-slate-50 border border-slate-200 rounded-lg p-3"><span className="block text-slate-500 text-[11px] mb-1">{label}</span><b className={`text-slate-800 text-xs block truncate ${mono ? 'font-mono' : ''}`}>{value}</b></div>;

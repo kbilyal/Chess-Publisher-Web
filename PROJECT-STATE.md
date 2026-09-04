@@ -124,6 +124,13 @@ TRF Full Parity (Export-through-round, TRF16/TRF26, starting list, administrativ
 - self-service Organizer account/token provisioning or a replacement server-side HttpOnly authentication flow;
 - final 104-feature re-audit.
 
+## Chess-Results bridge batch (2026-09-04)
+- Replaced the React tab's simulated TNR generation and timeout-based success path with a validated XML publication workflow.
+- Added a server-side-only `CHESS_RESULTS_BRIDGE_URL` contract for test, create, publish, admin-link and safe unlink operations. Browser code never receives bridge credentials or encryption material.
+- Publish validates before a TNR is requested, persists/reuses a bridge-returned numeric TNR before upload, and retains that key after upload failure to prevent duplicate TNR allocation.
+- Added `npm run test:chess-results` for payload, pairing, validation and no-duplicate-start-number coverage.
+- Verification for this batch: `npm run lint` PASS; `npm run test:chess-results` PASS (15 assertions); `npm run build` PASS. Existing transaction, finalization, FIDE, FIDE sync, tie-break checker and player-parity suites also passed. The authoritative pairing parity suite could not execute its fixtures in this checkout because Gacrux/BBP binaries are unavailable; no pairing code was changed.
+
 ## Handoff status
 `HANDOFF_READY = false`
 

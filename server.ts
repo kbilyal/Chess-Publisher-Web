@@ -431,6 +431,43 @@ app.post('/api/trf/validate', async (req, res) => {
   res.json({ success: true, result });
 });
 
+// Chess-Results credentials and encryption material belong to an installed or
+// separately operated bridge, never to browser JavaScript or tournament data.
+// This route is deliberately a strict pass-through contract: it does not
+// fabricate a TNR, SID, upload success, or fallback transport.
+const chessResultsOperations = new Set(['test', 'create', 'publish', 'admin-link', 'unlink']);
+
+app.post('/api/chess-results/:operation', async (req, res) => {
+  const operation = String(req.params.operation || '');
+  if (!chessResultsOperations.has(operation)) {
+    res.status(404).json({ ok: false, code: 'UNKNOWN_CHESS_RESULTS_OPERATION', message: 'Unknown Chess-Results bridge operation.' });
+    return;
+  }
+  const bridgeBase = String(process.env.CHESS_RESULTS_BRIDGE_URL || '').trim();
+  if (!bridgeBase) {
+    res.status(503).json({ ok: false, code: 'CHESS_RESULTS_BRIDGE_NOT_CONFIGURED', message: 'Chess-Results bridge is not configured. Set CHESS_RESULTS_BRIDGE_URL on the server; credentials must not be placed in the browser.' });
+    return;
+  }
+  if (operation === 'publish' && (!/^\d+$/.test(String(req.body?.key || '')) || typeof req.body?.xml !== 'string' || !req.body.xml.startsWith('<?xml'))) {
+    res.status(400).json({ ok: false, code: 'INVALID_PUBLICATION_PAYLOAD', message: 'A numeric TNR and a well-formed XML payload are required.' });
+    return;
+  }
+  try {
+    const base = new URL(bridgeBase);
+    if (!['http:', 'https:'].includes(base.protocol)) throw new Error('Bridge URL must use HTTP or HTTPS.');
+    const target = new URL(`/chessresults/${operation}`, base);
+    const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+    if (process.env.CHESS_RESULTS_BRIDGE_TOKEN) headers.Authorization = `Bearer ${process.env.CHESS_RESULTS_BRIDGE_TOKEN}`;
+    const upstream = await fetch(target, { method: 'POST', headers, body: JSON.stringify(req.body || {}) });
+    const raw = await upstream.text();
+    let payload: any = {};
+    try { payload = raw ? JSON.parse(raw) : {}; } catch { payload = { message: 'Chess-Results bridge returned a non-JSON response.' }; }
+    res.status(upstream.status).json(payload);
+  } catch (error: any) {
+    res.status(502).json({ ok: false, code: 'CHESS_RESULTS_BRIDGE_UNAVAILABLE', message: error?.message || 'Chess-Results bridge is unavailable.' });
+  }
+});
+
 // Production Guard Middleware for Audit Endpoints
 function requireAuditAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
   if (process.env.NODE_ENV === 'production') {

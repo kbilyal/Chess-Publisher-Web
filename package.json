@@ -23,7 +23,8 @@
     "test:online-cloud-beta5": "tsx src/cloud/tests/runOnlineCloudBeta5BrowserTests.ts",
     "test:production-web-beta7": "tsx src/cloud/tests/runProductionWebBeta7Tests.ts",
     "test:recovered-web-functions": "tsx src/cloud/tests/runRecoveredWebFunctionsTests.ts",
-    "test:cloud-roundtrip": "tsx src/cloud/tests/runCloudRoundtripTests.ts"
+    "test:cloud-roundtrip": "tsx src/cloud/tests/runCloudRoundtripTests.ts",
+    "test:chess-results": "tsx src/server/tests/runChessResultsTests.ts && tsx src/server/tests/runChessResultsRouteTests.ts"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",
