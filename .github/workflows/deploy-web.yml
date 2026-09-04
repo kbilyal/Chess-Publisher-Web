@@ -18,12 +18,12 @@ concurrency:
 jobs:
   build:
     if: github.ref == 'refs/heads/main'
-    name: Validate and build Web app
+    name: Validate and build real Chess-Publisher Web app
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     steps:
-      - name: Checkout
+      - name: Checkout exact triggering commit
         uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
@@ -106,8 +106,15 @@ jobs:
       - name: FIDE regression
         run: npm run test:fide
 
-      - name: Build Chess-Publisher Web program
+      - name: Build existing Web test target
         run: npm run build
+
+      - name: Materialize exact real Chess-Publisher production shell
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          bash scripts/materialize-real-web-source.sh dist
 
       - name: Write exact deployment identity
         shell: bash
@@ -122,6 +129,8 @@ jobs:
             branch: 'main',
             commit: process.env.GITHUB_SHA,
             workflowRun: process.env.GITHUB_RUN_ID,
+            source: 'Chess-Publisher-v1.06.00-beta.5 real WebView shell',
+            indexSha256: '701b2bfcbef99cf0a8e052ad1c16b2a1fd5b891d5285cf688a1775ad3ce57654',
             builtAt: new Date().toISOString()
           };
 
@@ -131,7 +140,7 @@ jobs:
       - name: Disable Jekyll processing
         run: touch dist/.nojekyll
 
-      - name: Verify production artifact
+      - name: Verify exact production artifact
         shell: bash
         run: |
           set -euo pipefail
@@ -139,9 +148,16 @@ jobs:
           test -f dist/build-info.json
           test -f dist/CNAME
           test "$(cat dist/CNAME)" = "web.chess-publisher.org"
-          find dist/assets -maxdepth 1 -type f -name '*.js' -print -quit | grep -q .
-          find dist/assets -maxdepth 1 -type f -name '*.css' -print -quit | grep -q .
-          grep -q 'Chess-Publisher FIDE Tournament Manager' dist/index.html
+          test -f dist/web/browser-dev-host.js
+          test -f dist/hub/client/hub-snapshot.js
+          test -f dist/hub/client/hub-api-client.js
+          test -f dist/webview/HubAdapter.js
+          test -f dist/cloud/client/cloud-workspace-api.js
+          test -f dist/webview/CloudWorkspaceAdapter.js
+          echo "701b2bfcbef99cf0a8e052ad1c16b2a1fd5b891d5285cf688a1775ad3ce57654  dist/index.html" | sha256sum -c -
+          grep -q 'cpProductionWeb' dist/index.html
+          grep -q 'Chess-Publisher' dist/index.html
+          grep -q 'schemaVersion' dist/cloud/client/cloud-workspace-api.js
           node --input-type=module <<'NODE'
           import { readFileSync } from 'node:fs';
 
@@ -149,19 +165,20 @@ jobs:
           if (info.commit !== process.env.GITHUB_SHA) throw new Error('build-info commit does not match GITHUB_SHA');
           if (info.repository !== 'kbilyal/Chess-Publisher-Web') throw new Error('build-info repository mismatch');
           if (info.branch !== 'main') throw new Error('build-info branch mismatch');
+          if (info.indexSha256 !== '701b2bfcbef99cf0a8e052ad1c16b2a1fd5b891d5285cf688a1775ad3ce57654') throw new Error('production index identity mismatch');
           NODE
-          find dist -maxdepth 2 -type f | sort
+          find dist -maxdepth 4 -type f | sort
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
-      - name: Upload Web program artifact
+      - name: Upload exact Chess-Publisher Web artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./dist
 
   deploy:
-    name: Publish Web program
+    name: Publish real Chess-Publisher Web program
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
