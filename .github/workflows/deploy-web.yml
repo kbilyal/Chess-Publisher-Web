@@ -106,38 +106,64 @@ jobs:
       - name: FIDE regression
         run: npm run test:fide
 
-      - name: Build existing Web test target
+      - name: Build existing Web test target for regression validation
         run: npm run build
 
-      - name: Prepare exact current Web application artifact
+      - name: Assemble canonical production-web artifact
         shell: bash
         run: |
           set -euo pipefail
-          test -f dist/index.html
-          rm -f dist/server.cjs dist/server.cjs.map
+          test -f production-web/index.html
+          test -f production-web/CNAME
+          test "$(cat production-web/CNAME)" = "web.chess-publisher.org"
+          test -f production-web/web/browser-dev-host.js
+          test -f production-web/hub/client/hub-snapshot.js
+          test -f production-web/hub/client/hub-api-client.js
+          test -f production-web/webview/HubAdapter.js
+          test -f production-web/cloud/client/cloud-workspace-api.js
+          test -f production-web/webview/CloudWorkspaceAdapter.js
+            python - <<'PY'
+            from hashlib import sha256
+            from pathlib import Path
+            import re
 
-      - name: Write exact deployment identity
+            index = Path('production-web/index.html').read_bytes()
+            shell = re.sub(rb'<!-- cpProductionWeb .*?</body>', b'</body>', index, count=1, flags=re.S)
+            expected = 'f6427a3c2ade30ec2799bdbcbf69688a3247e969c6f03e82daf11901386f791a'
+            if sha256(shell).hexdigest() != expected:
+              raise SystemExit('production-web/index.html is not the beta.6 desktop shell')
+            PY
+          rm -rf dist
+          mkdir -p dist
+          cp -R production-web/. dist/
+
+      - name: Write deployment identity
         shell: bash
         run: |
           set -euo pipefail
           node --input-type=module <<'NODE'
-          import { writeFileSync } from 'node:fs';
+          import { createHash } from 'node:crypto';
+          import { readFileSync, writeFileSync } from 'node:fs';
+
+          const indexSha256 = createHash('sha256')
+            .update(readFileSync('dist/index.html'))
+            .digest('hex');
 
           const buildInfo = {
             product: 'Chess-Publisher Web',
-            repository: process.env.GITHUB_REPOSITORY,
+            source: 'production-web',
+            deploymentSource: 'Exact desktop ChessPublisher.html production shell',
+            repository: 'kbilyal/Chess-Publisher-Web',
             branch: 'main',
             commit: process.env.GITHUB_SHA,
-            workflowRun: process.env.GITHUB_RUN_ID,
-            source: 'Checked-in Chess-Publisher Web Vite application',
-            indexSha256: null,
+            indexSha256,
             builtAt: new Date().toISOString()
           };
 
           writeFileSync('dist/build-info.json', `${JSON.stringify(buildInfo, null, 2)}\n`);
           NODE
 
-      - name: Disable Jekyll processing
+      - name: Disable Jekyll processing and preserve SPA routes
         run: |
           cp dist/index.html dist/404.html
           touch dist/.nojekyll
@@ -147,12 +173,24 @@ jobs:
         run: |
           set -euo pipefail
           test -f dist/index.html
-          test -f dist/404.html
           test -f dist/build-info.json
           test -f dist/CNAME
           test "$(cat dist/CNAME)" = "web.chess-publisher.org"
-          grep -q 'Chess-Publisher FIDE Tournament Manager' dist/index.html
-          grep -q '/assets/index-' dist/index.html
+          test -f dist/web/browser-dev-host.js
+          test -f dist/hub/client/hub-snapshot.js
+          test -f dist/hub/client/hub-api-client.js
+          test -f dist/webview/HubAdapter.js
+          test -f dist/cloud/client/cloud-workspace-api.js
+          test -f dist/webview/CloudWorkspaceAdapter.js
+          grep -q 'cpProductionWeb' dist/index.html
+          grep -q 'cpLinuxWebDev' dist/index.html
+          grep -q 'Chess-Publisher' dist/index.html
+          grep -q 'Online & Cloud' dist/index.html
+          grep -q 'Pull Changes' dist/index.html
+          grep -q 'Sync Now' dist/index.html
+          ! grep -Eq 'assets/index-[^" ]+\.(js|css)' dist/index.html
+          ! grep -q 'vite/client' dist/index.html
+          ! grep -q 'src/main.tsx' dist/index.html
           node --input-type=module <<'NODE'
           import { readFileSync } from 'node:fs';
 
@@ -160,7 +198,9 @@ jobs:
           if (info.commit !== process.env.GITHUB_SHA) throw new Error('build-info commit does not match GITHUB_SHA');
           if (info.repository !== 'kbilyal/Chess-Publisher-Web') throw new Error('build-info repository mismatch');
           if (info.branch !== 'main') throw new Error('build-info branch mismatch');
-          if (info.source !== 'Checked-in Chess-Publisher Web Vite application') throw new Error('production source identity mismatch');
+          if (info.source !== 'production-web') throw new Error('production source identity mismatch');
+          if (info.deploymentSource !== 'Exact desktop ChessPublisher.html production shell') throw new Error('desktop shell identity mismatch');
+          if (!/^[a-f0-9]{64}$/.test(info.indexSha256)) throw new Error('production index identity missing');
           NODE
           find dist -maxdepth 4 -type f | sort
 
