@@ -1,4 +1,9 @@
-export const CLOUD_API_BASE = 'https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev';
+export const REMOTE_CLOUD_API_BASE = 'https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev';
+const isProductionCloudOrigin = typeof window !== 'undefined'
+  && /^(chess-publisher\.org|www\.chess-publisher\.org)$/.test(window.location.hostname);
+export const CLOUD_API_BASE = typeof window !== 'undefined' && !isProductionCloudOrigin
+  ? '/cloud-api'
+  : REMOTE_CLOUD_API_BASE;
 export const CLOUD_CLIENT_VERSION = 'chess-publisher-web-online-cloud-beta5';
 
 export class CloudApiError extends Error {

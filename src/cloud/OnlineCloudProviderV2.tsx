@@ -74,6 +74,10 @@ type OnlineCloudContextValue = {
 const OnlineCloudContext = createContext<OnlineCloudContextValue | null>(null);
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
 const text = (value: unknown) => value == null ? '' : String(value).trim();
+const normalizeOrganizerToken = (value: unknown) => text(value)
+  .replace(/^Bearer\s+/i, '')
+  .replace(/^['"]|['"]$/g, '')
+  .trim();
 
 function browserDevice() {
   try {
@@ -615,7 +619,7 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
   }
 
   async function loginWithToken(candidateRaw: string, remember: boolean) {
-    const candidate = text(candidateRaw);
+    const candidate = normalizeOrganizerToken(candidateRaw);
     if (!candidate) return;
     setBusy(true);
     setStatus('Checking Organizer Token…');

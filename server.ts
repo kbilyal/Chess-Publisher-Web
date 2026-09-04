@@ -1,4 +1,6 @@
 import express from 'express';
+import dns from 'node:dns';
+import https from 'node:https';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { GacruxAdapter } from './src/server/adapters/GacruxAdapter';
@@ -14,7 +16,38 @@ import { generateFideSyncPreflight, applyFidePlayerSync } from './src/transactio
 import { FideSyncField, FidePlayerSyncSelection } from './src/transactions/types';
 
 const PORT = 3000;
+const CLOUD_API_PROXY_BASE = 'https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev';
 const app = express();
+
+dns.setDefaultResultOrder('ipv4first');
+
+function requestCloudApi(pathname: string, method: string, headers: Headers, body: string | NodeJS.ReadableStream | undefined) {
+  const target = new URL(`${CLOUD_API_PROXY_BASE}${pathname}`);
+  return new Promise<{ status: number; headers: Record<string, string | string[] | undefined>; body: Buffer }>((resolve, reject) => {
+    const request = https.request({
+      hostname: target.hostname,
+      path: `${target.pathname}${target.search}`,
+      method,
+      family: 4,
+      servername: target.hostname,
+      headers: Object.fromEntries(headers)
+    }, response => {
+      const chunks: Buffer[] = [];
+      response.on('data', chunk => chunks.push(Buffer.from(chunk)));
+      response.on('end', () => resolve({
+        status: response.statusCode || 502,
+        headers: response.headers,
+        body: Buffer.concat(chunks)
+      }));
+    });
+    request.on('error', reject);
+    if (body && typeof body === 'object' && 'pipe' in body) (body as NodeJS.ReadableStream).pipe(request);
+    else {
+      if (body) request.write(body);
+      request.end();
+    }
+  });
+}
 
 // Initialize FIDE service and repository on startup
 fideService.initialize().catch(err => {
@@ -22,6 +55,33 @@ fideService.initialize().catch(err => {
 });
 
 app.use(express.json({ limit: '10mb' }));
+
+// Local development proxy avoids browser CORS restrictions for the cloud API.
+app.use('/cloud-api', async (req, res) => {
+  const upstreamPath = req.originalUrl.replace(/^\/cloud-api/, '') || '/';
+  const headers = new Headers();
+  Object.entries(req.headers).forEach(([key, value]) => {
+    if (key === 'host' || key === 'content-length' || value == null) return;
+    headers.set(key, Array.isArray(value) ? value.join(', ') : value);
+  });
+
+  try {
+    const body = ['GET', 'HEAD'].includes(req.method) ? undefined
+      : req.body === undefined ? req : JSON.stringify(req.body);
+    const upstream = await requestCloudApi(upstreamPath, req.method, headers, body);
+    res.status(upstream.status);
+    Object.entries(upstream.headers).forEach(([key, value]) => {
+      if (value !== undefined) res.setHeader(key, value);
+    });
+    res.send(upstream.body);
+  } catch (error: any) {
+    res.status(502).json({
+      ok: false,
+      error: 'cloud_proxy_unavailable',
+      message: error?.message || 'Cloud Workspace is unavailable.'
+    });
+  }
+});
 
 // Initialize adapters
 const gacruxAdapter = new GacruxAdapter();
