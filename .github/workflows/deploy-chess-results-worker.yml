@@ -49,7 +49,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -q '"/api/chess-results/"' production-web/web/chess-results-browser-adapter.js
+          grep -q 'https://chess-publisher-chess-results.kyamranbilyal.workers.dev/api/chess-results/' production-web/web/chess-results-browser-adapter.js
+          grep -q 'transport:"cors-worker-direct"' production-web/web/chess-results-browser-adapter.js
           grep -q 'Authorization' production-web/web/chess-results-browser-adapter.js
           grep -q 'organizer-primary' production-web/web/chess-results-browser-adapter.js
           ! grep -Eq 'AES_KEY|AES_IV|CreatorID 100|7695CF0579445A78A642DCA0316407FF' production-web/web/chess-results-browser-adapter.js
