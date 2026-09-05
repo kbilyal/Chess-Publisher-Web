@@ -1,4 +1,4 @@
-import bridgeWorker from './worker.js';
+import bridgeWorker, { AUTHENTICATED_ORGANIZER } from './worker.js';
 
 const text = value => String(value ?? '').trim();
 
@@ -42,6 +42,7 @@ function scopedEnv(env, organizerId, creatorId) {
   const creatorMap = JSON.stringify({ [organizerId]: String(creatorId) });
   return new Proxy(env, {
     get(target, property) {
+      if (property === AUTHENTICATED_ORGANIZER) return { organizerId };
       if (property === 'CHESS_RESULTS_CREATOR_MAP') return creatorMap;
       return Reflect.get(target, property);
     },
@@ -65,9 +66,9 @@ export default {
     if (!organizerId || !creatorId) return bridgeWorker.fetch(request, env);
 
     // Chess-Results CreatorID is a bridge credential only. It is deliberately
-    // not mapped per organizer. The underlying signed ownership proof still
-    // binds organizerId + TNR, so a different valid Organizer Token cannot
-    // publish, open admin, authorize deletion, or unlink another organizer's TNR.
+    // not mapped per organizer. The authenticated organizer identity is passed
+    // to the bridge core through a private Symbol capability so Hub is checked
+    // exactly once per request while ownership remains organizerId + TNR scoped.
     return bridgeWorker.fetch(request, scopedEnv(env, organizerId, creatorId));
   },
 };

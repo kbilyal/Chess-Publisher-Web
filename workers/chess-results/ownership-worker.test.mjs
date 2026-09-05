@@ -98,8 +98,9 @@ try {
   assert.equal(response.status, 403);
   assert.equal((await response.json()).code, 'TNR_OWNERSHIP_MISMATCH');
 
-  assert.ok(calls.some(call => call.href === 'https://hub.example.test/api/v1/organizer/me'));
-  console.log('Chess-Results cross-organizer TNR ownership guard: PASS');
+  const hubCalls = calls.filter(call => call.href === 'https://hub.example.test/api/v1/organizer/me');
+  assert.equal(hubCalls.length, 4, 'Hub must be called exactly once for each authenticated operation');
+  console.log('Chess-Results single Hub auth + cross-organizer TNR ownership guard: PASS');
 } finally {
   globalThis.fetch = originalFetch;
 }
