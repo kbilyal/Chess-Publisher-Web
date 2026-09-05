@@ -108,6 +108,12 @@ function base64UrlEncode(bytes) {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
 
+function base64UrlDecode(value) {
+  const base64 = String(value).replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(value.length / 4) * 4, '=');
+  const binary = atob(base64);
+  return Uint8Array.from(binary, c => c.charCodeAt(0));
+}
+
 async function signOwnership(env, organizerId, creatorId, key, tournament, clientId) {
   const secret = text(env.CHESS_RESULTS_OWNERSHIP_HMAC_SECRET);
   if (secret.length < 32) throw new Error('OWNERSHIP_HMAC_NOT_CONFIGURED');
@@ -210,6 +216,145 @@ function createPreflightFailure(env) {
   return null;
 }
 
+function secretBytes(raw, allowedLengths) {
+  const value = text(raw);
+  if (!value) throw new Error('SECRET_MISSING');
+  let bytes;
+  if (value.startsWith('base64:')) {
+    bytes = Uint8Array.from(atob(value.slice(7)), c => c.charCodeAt(0));
+  } else if (value.startsWith('hex:')) {
+    const hex = value.slice(4).replace(/\s+/g, '');
+    bytes = Uint8Array.from(hex.match(/../g) || [], x => Number.parseInt(x, 16));
+  } else if (/^\s*\d+(\s*,\s*\d+)+\s*$/.test(value)) {
+    bytes = Uint8Array.from(value.split(',').map(v => Number(v.trim())));
+  } else {
+    bytes = Uint8Array.from(atob(value), c => c.charCodeAt(0));
+  }
+  if (!allowedLengths.includes(bytes.length)) throw new Error('SECRET_LENGTH');
+  return bytes;
+}
+
+function toHex(buffer) {
+  return [...new Uint8Array(buffer)].map(byte => byte.toString(16).padStart(2, '0')).join('').toUpperCase();
+}
+
+async function encryptForBridge(value, env) {
+  const keyBytes = secretBytes(env.CHESS_RESULTS_AES_KEY, [16, 24, 32]);
+  const iv = secretBytes(env.CHESS_RESULTS_AES_IV, [16]);
+  const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-CBC' }, false, ['encrypt']);
+  return toHex(await crypto.subtle.encrypt({ name: 'AES-CBC', iv }, key, new TextEncoder().encode(String(value))));
+}
+
+function parseAttrs(fragment) {
+  const attrs = {};
+  const re = /([A-Za-z0-9_:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
+  let match;
+  while ((match = re.exec(fragment))) attrs[match[1].toLowerCase()] = match[2] ?? match[3] ?? '';
+  return attrs;
+}
+
+function xmlEscape(value) {
+  return String(value ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&apos;');
+}
+
+function replaceTournamentAttribute(xml, name, value) {
+  const re = new RegExp(`(<tournament\\b[^>]*\\s${name}=")[^"]*(")`, 'i');
+  if (!re.test(xml)) throw new Error(`XML_MISSING_${name.toUpperCase()}`);
+  return xml.replace(re, `$1${xmlEscape(value)}$2`);
+}
+
+async function verifyDiagnosticProof(env, proof, organizerId, creatorId, key) {
+  const [payloadPart, signaturePart, extra] = text(proof).split('.');
+  if (!payloadPart || !signaturePart || extra) throw new Error('PROOF_INVALID');
+  const payloadBytes = base64UrlDecode(payloadPart);
+  const signatureBytes = base64UrlDecode(signaturePart);
+  const payload = JSON.parse(new TextDecoder().decode(payloadBytes));
+  const secret = text(env.CHESS_RESULTS_OWNERSHIP_HMAC_SECRET);
+  const hmacKey = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
+  const valid = await crypto.subtle.verify('HMAC', hmacKey, signatureBytes, payloadBytes);
+  if (!valid || payload?.purpose !== 'chess-results-ownership' || Number(payload.sourceId) !== SOURCE_ID || text(payload.organizerId) !== organizerId || Number(payload.creatorId) !== creatorId || text(payload.key) !== key) {
+    throw new Error('PROOF_MISMATCH');
+  }
+  return payload;
+}
+
+function safeUploadPreview(raw) {
+  return String(raw || '')
+    .replace(/[A-F0-9]{32,}/gi, '[hex-redacted]')
+    .replace(/[A-Za-z0-9_-]{80,}/g, '[token-redacted]')
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/[\u0000-\u001f\u007f]/g, '')
+    .slice(0, 500);
+}
+
+function braceXml(xml) {
+  return String(xml).replace(/</g, '{').replace(/>/g, '}');
+}
+
+async function uploadDiagnostic(request, env, organizerId, creatorId) {
+  if (!originAllowed(request, env)) return json({ ok: false, code: 'ORIGIN_NOT_ALLOWED' }, 403, corsHeaders(request, env));
+  let body;
+  try { body = await request.json(); } catch { body = {}; }
+  const key = text(body?.key);
+  if (!/^\d+$/.test(key) || typeof body?.xml !== 'string') {
+    return json({ ok: false, code: 'DIAGNOSTIC_INPUT_INVALID', message: 'key, ownershipProof and xml are required.' }, 400, corsHeaders(request, env));
+  }
+
+  let ownership;
+  try {
+    ownership = await verifyDiagnosticProof(env, body.ownershipProof, organizerId, creatorId, key);
+  } catch {
+    return json({ ok: false, code: 'TNR_OWNERSHIP_MISMATCH', message: 'Diagnostic upload requires the verified owner proof.' }, 403, corsHeaders(request, env));
+  }
+
+  let xml = String(body.xml);
+  const tournament = xml.match(/<tournament\b([^>]*)\/?\s*>/i);
+  const attrs = parseAttrs(tournament?.[1] || '');
+  if (text(attrs.key) !== key) return json({ ok: false, code: 'TNR_XML_MISMATCH' }, 409, corsHeaders(request, env));
+
+  try {
+    xml = replaceTournamentAttribute(xml, 'creator', String(creatorId));
+    xml = replaceTournamentAttribute(xml, 'federation', ownership.federation);
+    const xmlUrl = new URL(text(env.CHESS_RESULTS_XML_URL) || 'https://chess-results.com/xml.aspx');
+    xmlUrl.searchParams.set('key1', text(env.CHESS_RESULTS_GETSID_ACTION) || 'GETSID');
+    xmlUrl.searchParams.set('source', String(SOURCE_ID));
+    const sidResponse = await fetch(xmlUrl.toString(), { method: 'GET', headers: { Accept: 'application/xml,text/xml;q=0.9,*/*;q=0.1' } });
+    const sidRaw = await sidResponse.text();
+    const sidMatch = sidRaw.match(/\bsid\s*=\s*["']([^"']+)["']/i) || sidRaw.match(/<sid\b[^>]*>([^<]+)<\/sid>/i);
+    const sid = text(sidMatch?.[1]);
+    if (!sid) return json({ ok: false, code: 'DIAGNOSTIC_GETSID_FAILED', upstreamStatus: sidResponse.status, preview: safeUploadPreview(sidRaw) }, 502, corsHeaders(request, env));
+
+    const [encryptedSid, encryptedCreator, encryptedTnr] = await Promise.all([
+      encryptForBridge(sid, env), encryptForBridge(String(creatorId), env), encryptForBridge(key, env),
+    ]);
+    const secured = `<securitydata source="${SOURCE_ID}" sid="${encryptedSid}" creator_sid="${encryptedCreator}" tnr_sid="${encryptedTnr}" />`;
+    if (!/<securitydata\b/i.test(xml)) return json({ ok: false, code: 'DIAGNOSTIC_XML_SECURITY_MISSING' }, 400, corsHeaders(request, env));
+    xml = xml.replace(/<securitydata\b[^>]*\/?\s*>/i, secured);
+
+    const form = new URLSearchParams();
+    form.set('xml', braceXml(xml));
+    const uploadUrl = text(env.CHESS_RESULTS_UPLOAD_XML_URL) || 'https://chess-results.com/uploadxml.aspx';
+    const response = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: { Accept: 'application/xml,text/xml,text/html;q=0.8,*/*;q=0.1', 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+      body: form.toString(),
+    });
+    const raw = await response.text();
+    return json({
+      ok: response.ok,
+      diagnostic: true,
+      key,
+      upstreamStatus: response.status,
+      contentType: text(response.headers.get('content-type')),
+      responseLength: raw.length,
+      preview: safeUploadPreview(raw),
+    }, response.ok ? 200 : 502, corsHeaders(request, env));
+  } catch (error) {
+    return json({ ok: false, code: 'UPLOAD_DIAGNOSTIC_FAILED', message: text(error?.message || error) }, 500, corsHeaders(request, env));
+  }
+}
+
 export default {
   async fetch(request, env) {
     if (request.method === 'OPTIONS') return bridgeWorker.fetch(request, env);
@@ -233,6 +378,10 @@ export default {
 
     if (/\/claim\/?$/i.test(url.pathname)) {
       return claimSyncedTnr(request, env, auth.organizerId, creatorId);
+    }
+
+    if (/\/upload-diagnostic\/?$/i.test(url.pathname)) {
+      return uploadDiagnostic(request, env, auth.organizerId, creatorId);
     }
 
     if (/\/create\/?$/i.test(url.pathname)) {
