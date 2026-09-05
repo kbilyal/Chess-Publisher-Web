@@ -275,94 +275,7 @@
     else setTimeout(startRestore,0);
   }
 
-  // The Web build has no manual save mode. Every model-changing event enters the
-  // existing serialized persistence pipeline immediately instead of waiting for
-  // the old 300 ms debounce. The legacy Save button and Autosave switch are
-  // hidden, while the underlying durable local/IndexedDB/cloud guards remain.
-  function installAlwaysOnInstantPersistence(){
-    let originalSchedule=null;
-    let originalToggle=null;
-    let installed=false;
-
-    const hideLegacyControls=()=>{
-      const save=document.getElementById("manualSaveButton");
-      const autosave=document.querySelector(".autosave-switch");
-      if(save)save.style.display="none";
-      if(autosave)autosave.style.display="none";
-    };
-
-    const forceAutosaveOn=()=>{
-      try{
-        if(typeof originalToggle==="function")originalToggle(true);
-        else if(typeof window.toggleAutosave==="function")window.toggleAutosave(true);
-      }catch(error){console.warn("Always-on autosave enable warning:",error);}
-    };
-
-    const flushImmediate=()=>{
-      queueMicrotask(async()=>{
-        try{
-          forceAutosaveOn();
-          if(typeof window.cpRunAutosaveCheckpoint==="function"){
-            await window.cpRunAutosaveCheckpoint();
-          }else if(typeof window.cpFlushPersistence==="function"){
-            await window.cpFlushPersistence();
-          }
-          saveContinuity();
-        }catch(error){console.warn("Immediate Web persistence failed:",error);}
-      });
-    };
-
-    const installHooks=()=>{
-      hideLegacyControls();
-      if(installed)return true;
-      if(typeof window.scheduleAutosave!=="function")return false;
-
-      originalSchedule=window.scheduleAutosave;
-      originalToggle=typeof window.toggleAutosave==="function"?window.toggleAutosave:null;
-      forceAutosaveOn();
-
-      window.toggleAutosave=function(){
-        forceAutosaveOn();
-        return true;
-      };
-      window.scheduleAutosave=function(){
-        const result=originalSchedule.apply(this,arguments);
-        flushImmediate();
-        return result;
-      };
-
-      // Do not call saveAll() after every document click. That races normal
-      // button handlers and async actions, causing the Web UI to appear broken.
-      // Model-changing controls already enter scheduleAutosave(), which is now
-      // immediate and serialized above.
-
-      window.addEventListener("pagehide",()=>{
-        try{if(typeof window.saveAll==="function")window.saveAll();}catch(_){}
-        flushImmediate();
-      });
-      document.addEventListener("visibilitychange",()=>{
-        if(document.visibilityState!=="hidden")return;
-        try{if(typeof window.saveAll==="function")window.saveAll();}catch(_){}
-        flushImmediate();
-      });
-
-      installed=true;
-      document.documentElement.dataset.cpAlwaysAutosave="instant";
-      return true;
-    };
-
-    let attempts=0;
-    const timer=setInterval(()=>{
-      attempts++;
-      hideLegacyControls();
-      if(installHooks()||attempts>=100)clearInterval(timer);
-    },50);
-    if(document.readyState!=="loading")installHooks();
-    else document.addEventListener("DOMContentLoaded",()=>{hideLegacyControls();installHooks();},{once:true});
-  }
-
   installRefreshContinuity();
-  installAlwaysOnInstantPersistence();
 
   window.__cpChessResultsBrowserAdapter={
     enabled:true,
@@ -374,10 +287,6 @@
     recoveryAuthority:"organizer-owned-cloud-snapshot",
     refreshContinuity:true,
     refreshContinuityStorage:"sessionStorage",
-    alwaysAutosave:true,
-    persistenceMode:"instant-serialized",
-    genericClickSaveAll:false,
-    manualSaveUi:false,
     secretsInBrowser:false
   };
 })();
