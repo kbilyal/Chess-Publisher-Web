@@ -128,6 +128,7 @@ jobs:
           test -f production-web/web/player-registration-enhancements.js
           test -f production-web/web/chess-results-browser-adapter.js
           test -f production-web/web/tournament-setup-enhancements.js
+          test -f production-web/web/cloud-tournaments-shortcut.js
           test -f production-web/hub/client/hub-snapshot.js
           test -f production-web/hub/client/hub-api-client.js
           test -f production-web/webview/HubAdapter.js
@@ -140,9 +141,6 @@ jobs:
           rm -rf dist
           mkdir -p dist
           cp -R production-web/. dist/
-          # Cache-bust the transport adapter on every deployment. This avoids an
-          # old same-origin adapter surviving in browser/CDN cache and returning
-          # HTTP 405 after the code has moved to the direct Cloudflare Worker.
           python - <<'PY'
           from pathlib import Path
           import os
@@ -151,6 +149,9 @@ jobs:
           src = '/web/chess-results-browser-adapter.js'
           busted = f"{src}?v={os.environ['GITHUB_SHA']}"
           text = text.replace(src, busted)
+          shortcut = f'<script src="/web/cloud-tournaments-shortcut.js?v={os.environ["GITHUB_SHA"]}"></script>'
+          if shortcut not in text:
+              text = text.replace('</body>', f'{shortcut}\n</body>')
           p.write_text(text, encoding='utf-8')
           PY
 
@@ -179,6 +180,7 @@ jobs:
           test -f dist/web/player-registration-enhancements.js
           test -f dist/web/chess-results-browser-adapter.js
           test -f dist/web/tournament-setup-enhancements.js
+          test -f dist/web/cloud-tournaments-shortcut.js
           test -f dist/hub/client/hub-snapshot.js
           test -f dist/hub/client/hub-api-client.js
           test -f dist/webview/HubAdapter.js
@@ -191,6 +193,9 @@ jobs:
           grep -q 'Pull Changes' dist/index.html
           grep -q 'Sync Now' dist/index.html
           grep -q "/web/chess-results-browser-adapter.js?v=${GITHUB_SHA}" dist/index.html
+          grep -q "/web/cloud-tournaments-shortcut.js?v=${GITHUB_SHA}" dist/index.html
+          grep -q 'My Cloud Tournaments' dist/web/cloud-tournaments-shortcut.js
+          grep -q 'legacyOnlineMenuRemoved:true' dist/web/cloud-tournaments-shortcut.js
           ! grep -Eq 'assets/index-[^" ]+\.(js|css)' dist/index.html
           ! grep -q 'vite/client' dist/index.html
           ! grep -q 'src/main.tsx' dist/index.html
