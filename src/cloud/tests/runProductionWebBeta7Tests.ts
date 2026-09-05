@@ -76,6 +76,11 @@ assert(browserHost.includes('removeOrganizerToken()'), "sign-out cannot clear th
 const chessResultsAdapter = readFileSync(join(root, "web/chess-results-browser-adapter.js"), "utf8");
 assert(chessResultsAdapter.includes('window.cpNativeHubSecretGet(ORGANIZER_SECRET_KEY)'), "Chess-Results does not consume the shared organizer credential");
 assert(chessResultsAdapter.includes('cpweb.organizerToken.remembered'), "Chess-Results remembered-token fallback missing");
+assert(chessResultsAdapter.includes('const CONTINUITY_KEY="cpweb.refresh.continuity.v1"'), "Web refresh continuity state key missing");
+assert(chessResultsAdapter.includes('window.cpCloudOpenTournament(text(state.cloudId),{skipLocalPreSync:true})'), "Web refresh does not reopen the active Cloud tournament");
+assert(chessResultsAdapter.includes('window.showTab(id,button)'), "Web refresh does not restore the active tab");
+assert(chessResultsAdapter.includes('#cpBeta7Back,#cpBeta7CloudRefresh,#cpBeta7SignOut'), "explicit return-to-list/sign-out does not clear refresh continuity");
+assert(chessResultsAdapter.includes('refreshContinuity:true'), "refresh continuity capability marker missing");
 assert(!/assets\/index-[^" ]+\.(?:js|css)/.test(index), "production shell contains Vite asset entry");
 assert(!index.includes("src/main.tsx"), "production shell contains React entry point");
 assert(!index.includes("Organizer Token") || !/https?:[^"' ]*Organizer Token/.test(index), "Organizer Token appears in a URL");
