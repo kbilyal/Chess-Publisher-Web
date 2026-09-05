@@ -73,6 +73,9 @@ assert(browserHost.includes('cpstudio.organizerToken.remembered'), "Cloud organi
 assert(browserHost.includes('unifiedOrganizerIdentity:true'), "Hub/Cloud/Chess-Results organizer identity is not unified");
 assert(browserHost.includes('organizerCredentialStorage:"localStorage-browser-profile"'), "organizer token does not survive Web reloads on the same browser profile");
 assert(browserHost.includes('removeOrganizerToken()'), "sign-out cannot clear the shared organizer credential");
+assert(browserHost.includes('const HUB_API_ORIGIN="https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev"'), "production Web Hub direct-origin compatibility shim missing");
+assert(browserHost.includes('headers.delete("X-Client-Version")'), "production Web can still trigger Hub CORS preflight with the optional client-version header");
+assert(browserHost.includes('hubCorsCompatibility:true'), "production Hub CORS compatibility capability marker missing");
 const chessResultsAdapter = readFileSync(join(root, "web/chess-results-browser-adapter.js"), "utf8");
 assert(chessResultsAdapter.includes('window.cpNativeHubSecretGet(ORGANIZER_SECRET_KEY)'), "Chess-Results does not consume the shared organizer credential");
 assert(chessResultsAdapter.includes('cpweb.organizerToken.remembered'), "Chess-Results remembered-token fallback missing");
