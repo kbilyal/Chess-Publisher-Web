@@ -3,9 +3,28 @@ import worker from './ownership-worker.js';
 
 const originalFetch = globalThis.fetch;
 const calls = [];
+const hubCalls = [];
+
+function hubResponseFor(request) {
+  const auth = request.headers.get('Authorization');
+  hubCalls.push({ url: request.url, auth });
+  if (auth === 'Bearer organizer-A') {
+    return new Response(JSON.stringify({ organizer: { id: 'org_A' } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  }
+  if (auth === 'Bearer organizer-B') {
+    return new Response(JSON.stringify({ organizer: { id: 'org_B' } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  }
+  return new Response('{}', { status: 401, headers: { 'Content-Type': 'application/json' } });
+}
+
 const env = {
   WEB_ORIGIN: 'https://web.chess-publisher.org',
   HUB_API_BASE: 'https://hub.example.test',
+  HUB_SERVICE: {
+    fetch(request) {
+      return hubResponseFor(request);
+    },
+  },
   CHESS_RESULTS_XML_URL: 'https://chess-results.example.test/xml.aspx',
   CHESS_RESULTS_UPLOAD_XML_URL: 'https://chess-results.example.test/uploadxml.aspx',
   CHESS_RESULTS_ADMIN_URL: 'https://chess-results.example.test/Stammdaten.aspx',
@@ -33,16 +52,7 @@ globalThis.fetch = async (url, init = {}) => {
   const href = String(url);
   calls.push({ href, init });
 
-  if (href === 'https://hub.example.test/api/v1/organizer/me') {
-    const auth = init.headers.Authorization;
-    if (auth === 'Bearer organizer-A') {
-      return new Response(JSON.stringify({ organizer: { id: 'org_A' } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-    }
-    if (auth === 'Bearer organizer-B') {
-      return new Response(JSON.stringify({ organizer: { id: 'org_B' } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-    }
-    return new Response('{}', { status: 401, headers: { 'Content-Type': 'application/json' } });
-  }
+  assert.notEqual(href, 'https://hub.example.test/api/v1/organizer/me', 'public Hub URL must not be used when HUB_SERVICE is bound');
 
   if (href.includes('key1=GETSID')) {
     return new Response('<?xml version="1.0"?><chessresults><result sid="987654321" status="OK"/></chessresults>', { status: 200 });
@@ -98,9 +108,9 @@ try {
   assert.equal(response.status, 403);
   assert.equal((await response.json()).code, 'TNR_OWNERSHIP_MISMATCH');
 
-  const hubCalls = calls.filter(call => call.href === 'https://hub.example.test/api/v1/organizer/me');
-  assert.equal(hubCalls.length, 4, 'Hub must be called exactly once for each authenticated operation');
-  console.log('Chess-Results single Hub auth + cross-organizer TNR ownership guard: PASS');
+  assert.equal(hubCalls.length, 4, 'Hub service binding must be called exactly once for each authenticated operation');
+  assert.ok(hubCalls.every(call => call.url === 'https://hub.internal/api/v1/organizer/me'));
+  console.log('Chess-Results Hub service binding + single auth + cross-organizer ownership guard: PASS');
 } finally {
   globalThis.fetch = originalFetch;
 }
