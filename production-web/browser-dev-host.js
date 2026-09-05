@@ -81,6 +81,27 @@
 
   installMobileFriendlyStyles();
 
+  // The canonical production shell loads browser-dev-host before the Hub/Cloud
+  // clients. Those legacy clients still add X-Client-Version, while the public
+  // Worker CORS contract only needs the security/operation headers. Strip that
+  // optional header only for the Hub Worker so browser preflight cannot block
+  // Organizer Token login or Cloud writes before the request reaches the Worker.
+  const HUB_API_ORIGIN="https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev";
+  const nativeFetch=typeof window.fetch==="function"?window.fetch.bind(window):null;
+  if(nativeFetch){
+    window.fetch=async function cpProductionHubFetch(input,init){
+      let url;
+      try{url=new URL(input instanceof Request?input.url:String(input),window.location.href);}catch{return nativeFetch(input,init);}
+      if(url.origin!==HUB_API_ORIGIN)return nativeFetch(input,init);
+      const headers=new Headers(input instanceof Request?input.headers:undefined);
+      if(init?.headers)new Headers(init.headers).forEach((value,key)=>headers.set(key,value));
+      headers.delete("X-Client-Version");
+      headers.delete("x-client-version");
+      if(input instanceof Request)return nativeFetch(new Request(input,{...init,headers}));
+      return nativeFetch(input,{...init,headers});
+    };
+  }
+
   // Linux/browser bridge. The organizer credential is one browser-profile
   // identity shared by login, Online Hub, Cloud Workspace and Chess-Results.
   // It survives page reloads on this browser profile, but a new browser/profile
@@ -207,6 +228,7 @@
     organizerCredentialStorage:"localStorage-browser-profile",
     otherSecretStorage:"sessionStorage",
     unifiedOrganizerIdentity:true,
+    hubCorsCompatibility:true,
     nativePairing:false,
     nativeTieBreak:false,
     nativePairingChecker:false,
