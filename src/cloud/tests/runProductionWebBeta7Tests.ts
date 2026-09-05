@@ -76,6 +76,9 @@ assert(browserHost.includes('removeOrganizerToken()'), "sign-out cannot clear th
 const chessResultsAdapter = readFileSync(join(root, "web/chess-results-browser-adapter.js"), "utf8");
 assert(chessResultsAdapter.includes('window.cpNativeHubSecretGet(ORGANIZER_SECRET_KEY)'), "Chess-Results does not consume the shared organizer credential");
 assert(chessResultsAdapter.includes('cpweb.organizerToken.remembered'), "Chess-Results remembered-token fallback missing");
+assert(chessResultsAdapter.includes('https://chess-publisher-chess-results.kyamranbilyal.workers.dev/api/chess-results/'), "Chess-Results browser transport still targets the Fastly/GitHub Pages origin and can return HTTP 405");
+assert(chessResultsAdapter.includes('transport:"cors-worker-direct"'), "Chess-Results direct Worker transport marker missing");
+assert(chessResultsAdapter.includes('credentials:"omit"'), "cross-origin Chess-Results Worker call must not send unrelated site credentials");
 assert(chessResultsAdapter.includes('const CONTINUITY_KEY="cpweb.refresh.continuity.v1"'), "Web refresh continuity state key missing");
 assert(chessResultsAdapter.includes('window.cpCloudOpenTournament(text(state.cloudId),{skipLocalPreSync:true})'), "Web refresh does not reopen the active Cloud tournament");
 assert(chessResultsAdapter.includes('window.showTab(id,button)'), "Web refresh does not restore the active tab");
