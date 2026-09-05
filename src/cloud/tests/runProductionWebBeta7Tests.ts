@@ -87,15 +87,9 @@ assert(chessResultsAdapter.includes('window.cpCloudOpenTournament(text(state.clo
 assert(chessResultsAdapter.includes('window.showTab(id,button)'), "Web refresh does not restore the active tab");
 assert(chessResultsAdapter.includes('#cpBeta7Back,#cpBeta7CloudRefresh,#cpBeta7SignOut'), "explicit return-to-list/sign-out does not clear refresh continuity");
 assert(chessResultsAdapter.includes('refreshContinuity:true'), "refresh continuity capability marker missing");
-assert(chessResultsAdapter.includes('function installAlwaysOnInstantPersistence()'), "always-on Web persistence hook missing");
-assert(chessResultsAdapter.includes('window.toggleAutosave=function()'), "Web can still disable autosave");
-assert(chessResultsAdapter.includes('window.scheduleAutosave=function()'), "Web autosave debounce is not overridden for immediate persistence");
-assert(chessResultsAdapter.includes('window.cpRunAutosaveCheckpoint()'), "immediate Web persistence does not enter the serialized persistence checkpoint");
-assert(chessResultsAdapter.includes('document.getElementById("manualSaveButton")'), "manual Save UI is not removed from the Web experience");
-assert(chessResultsAdapter.includes('document.querySelector(".autosave-switch")'), "Autosave on/off UI is not removed from the Web experience");
-assert(chessResultsAdapter.includes('alwaysAutosave:true'), "always-on autosave capability marker missing");
-assert(chessResultsAdapter.includes('persistenceMode:"instant-serialized"'), "instant serialized persistence capability marker missing");
-assert(chessResultsAdapter.includes('manualSaveUi:false'), "manual Save UI capability marker missing");
+assert(!chessResultsAdapter.includes('function installAlwaysOnInstantPersistence()'), "unsafe Web instant autosave wrapper reintroduced");
+assert(!chessResultsAdapter.includes('window.scheduleAutosave=function()'), "production adapter must not override core autosave scheduling");
+assert(!chessResultsAdapter.includes('window.toggleAutosave=function()'), "production adapter must not override core autosave toggle/runtime state");
 assert(!/assets\/index-[^" ]+\.(?:js|css)/.test(index), "production shell contains Vite asset entry");
 assert(!index.includes("src/main.tsx"), "production shell contains React entry point");
 assert(!index.includes("Organizer Token") || !/https?:[^"' ]*Organizer Token/.test(index), "Organizer Token appears in a URL");
