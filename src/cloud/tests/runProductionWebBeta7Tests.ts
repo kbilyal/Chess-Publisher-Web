@@ -66,6 +66,16 @@ assert(cloudAdapter.includes("const cloudMetadataRevisions=new Set();"), "cloud 
 assert(cloudAdapter.includes("if(cloudMetadataRevisions.delete(revision))return;"), "cloud metadata save can retrigger automatic sync");
 assert(!cloudAdapter.includes('meta.lastSyncedContentHash===contentHash){\n            setRuntime(name,tournament,"synced","Synced")'), "sync can report current before checking the remote revision");
 assert(cloudAdapter.includes("if(meta.cloudTournamentId&&baseRevision>0){"), "sync does not inspect newer remote revisions");
+const browserHost = readFileSync(join(root, "web/browser-dev-host.js"), "utf8");
+assert(browserHost.includes('const ORGANIZER_KEY="organizer-primary"'), "browser organizer identity key missing");
+assert(browserHost.includes('cpweb.organizerToken.remembered'), "canonical Web organizer token persistence missing");
+assert(browserHost.includes('cpstudio.organizerToken.remembered'), "Cloud organizer token alias persistence missing");
+assert(browserHost.includes('unifiedOrganizerIdentity:true'), "Hub/Cloud/Chess-Results organizer identity is not unified");
+assert(browserHost.includes('organizerCredentialStorage:"localStorage-browser-profile"'), "organizer token does not survive Web reloads on the same browser profile");
+assert(browserHost.includes('removeOrganizerToken()'), "sign-out cannot clear the shared organizer credential");
+const chessResultsAdapter = readFileSync(join(root, "web/chess-results-browser-adapter.js"), "utf8");
+assert(chessResultsAdapter.includes('window.cpNativeHubSecretGet(ORGANIZER_SECRET_KEY)'), "Chess-Results does not consume the shared organizer credential");
+assert(chessResultsAdapter.includes('cpweb.organizerToken.remembered'), "Chess-Results remembered-token fallback missing");
 assert(!/assets\/index-[^" ]+\.(?:js|css)/.test(index), "production shell contains Vite asset entry");
 assert(!index.includes("src/main.tsx"), "production shell contains React entry point");
 assert(!index.includes("Organizer Token") || !/https?:[^"' ]*Organizer Token/.test(index), "Organizer Token appears in a URL");

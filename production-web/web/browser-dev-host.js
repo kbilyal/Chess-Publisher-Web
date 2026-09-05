@@ -81,13 +81,21 @@
 
   installMobileFriendlyStyles();
 
-  // Linux/browser DEVELOPMENT bridge only.
-  // It emulates only the small WebView message surface needed by the beta.4
-  // Hub credential adapter. Secrets live in sessionStorage and disappear when
-  // the browser session closes. Production web auth must use a server-side,
-  // secure HttpOnly session/cookie flow instead of this bridge.
+  // Linux/browser bridge. The organizer credential is one browser-profile
+  // identity shared by login, Online Hub, Cloud Workspace and Chess-Results.
+  // It survives page reloads on this browser profile, but a new browser/profile
+  // starts without it. Other bridge secrets remain session-only.
   const listeners=new Set();
   const prefix="cp:web-dev:secret:";
+  const ORGANIZER_KEY="organizer-primary";
+  const ORGANIZER_LOCAL_KEYS=[
+    "cpweb.organizerToken.remembered",
+    "cpstudio.organizerToken.remembered"
+  ];
+  const ORGANIZER_SESSION_KEYS=[
+    "cpweb.organizerToken.session",
+    "cpstudio.organizerToken.session"
+  ];
 
   function emit(data){
     queueMicrotask(()=>{
@@ -101,10 +109,62 @@
     return `${prefix}${String(key||"")}`;
   }
 
+  function readOrganizerToken(){
+    for(const key of ORGANIZER_LOCAL_KEYS){
+      const value=String(localStorage.getItem(key)||"").trim();
+      if(value)return value;
+    }
+    for(const key of ORGANIZER_SESSION_KEYS){
+      const value=String(sessionStorage.getItem(key)||"").trim();
+      if(value){
+        for(const localKey of ORGANIZER_LOCAL_KEYS)localStorage.setItem(localKey,value);
+        return value;
+      }
+    }
+    const legacy=String(sessionStorage.getItem(secretKey(ORGANIZER_KEY))||"").trim();
+    if(legacy){
+      for(const localKey of ORGANIZER_LOCAL_KEYS)localStorage.setItem(localKey,legacy);
+      return legacy;
+    }
+    return "";
+  }
+
+  function storeOrganizerToken(value){
+    const token=String(value||"").trim();
+    if(!token)return;
+    for(const key of ORGANIZER_LOCAL_KEYS)localStorage.setItem(key,token);
+    for(const key of ORGANIZER_SESSION_KEYS)sessionStorage.setItem(key,token);
+    sessionStorage.setItem(secretKey(ORGANIZER_KEY),token);
+  }
+
+  function removeOrganizerToken(){
+    for(const key of ORGANIZER_LOCAL_KEYS)localStorage.removeItem(key);
+    for(const key of ORGANIZER_SESSION_KEYS)sessionStorage.removeItem(key);
+    sessionStorage.removeItem(secretKey(ORGANIZER_KEY));
+  }
+
   function handleSecret(message){
     const requestId=String(message.requestId||"");
-    const key=secretKey(message.key);
+    const rawKey=String(message.key||"");
+    const key=secretKey(rawKey);
     try{
+      if(rawKey===ORGANIZER_KEY){
+        if(message.operation==="get"){
+          const value=readOrganizerToken();
+          emit({type:"cp:hub-secret-result",requestId,ok:true,found:!!value,value});
+          return;
+        }
+        if(message.operation==="set"){
+          storeOrganizerToken(message.value);
+          emit({type:"cp:hub-secret-result",requestId,ok:true,found:true});
+          return;
+        }
+        if(message.operation==="remove"){
+          removeOrganizerToken();
+          emit({type:"cp:hub-secret-result",requestId,ok:true,found:false});
+          return;
+        }
+      }
       if(message.operation==="get"){
         const value=sessionStorage.getItem(key);
         emit({type:"cp:hub-secret-result",requestId,ok:true,found:value!==null,value:value||""});
@@ -144,7 +204,9 @@
   window.__cpWebLinuxDevHost={
     enabled:true,
     mode:"browser-dev",
-    secretStorage:"sessionStorage",
+    organizerCredentialStorage:"localStorage-browser-profile",
+    otherSecretStorage:"sessionStorage",
+    unifiedOrganizerIdentity:true,
     nativePairing:false,
     nativeTieBreak:false,
     nativePairingChecker:false,
@@ -152,5 +214,5 @@
     nativeFilesystem:false
   };
 
-  console.info("Chess-Publisher Ubuntu web-dev host active. Native Windows services are intentionally not emulated.");
+  console.info("Chess-Publisher browser host active. Organizer identity is shared across Web login, Hub, Cloud and Chess-Results for this browser profile.");
 })();
