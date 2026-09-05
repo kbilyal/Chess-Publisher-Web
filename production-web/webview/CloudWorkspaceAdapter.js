@@ -43,9 +43,9 @@
     const cloudMetadataRevisions=new Set();
 
     function autoSyncEnabled(){
-      // Beta.4 is conservative by default: background cloud backup is opt-in.
-      // Existing users who explicitly enabled it keep their preference ("1").
-      try{return localStorage.getItem(AUTO_SYNC_KEY)==="1";}catch(_){return false;}
+      // beta.33 parity: automatic Desktop/Web backup is ON by default. A user
+      // can still explicitly disable it, persisted as "0".
+      try{return localStorage.getItem(AUTO_SYNC_KEY)!=="0";}catch(_){return true;}
     }
     function setAutoSyncEnabled(enabled){
       try{localStorage.setItem(AUTO_SYNC_KEY,enabled?"1":"0");}catch(_){ }
@@ -581,10 +581,59 @@
     }
 
     async function pullCurrentChanges(){
-      // Safe three-way reconcile. The local file is saved first. Then:
-      // cloud-only change -> pull; local-only change -> upload as a new revision;
-      // identical -> advance sync base; two-sided change -> fail closed/conflict.
-      return syncCurrent({force:true,quiet:false,allowPull:true});
+      // Explicit Pull is cloud-authoritative, but never silent. The current PC
+      // copy is committed first. If both sides changed, ask before replacing the
+      // open local copy with the cloud snapshot. This makes Pull useful across
+      // Desktop/Web while preserving the local copy on disk.
+      const name=currentName();
+      const tournament=currentTournament();
+      if(!name||!tournament)throw new Error("No tournament is open.");
+      const token=await getOrganizerToken();
+      if(!token)throw new Error("Organizer Token is not connected.");
+      ensureCloudMeta(tournament);
+      persistCloudMeta();
+      if(typeof fileSaveTournament==="function"){
+        const saved=await fileSaveTournament(true);
+        if(!saved)throw new Error("Local tournament could not be saved. Pull was cancelled.");
+      }
+      const meta=await ensureRemoteTournament(token,name,tournament);
+      const response=await api.getCurrentSnapshot(token,meta.cloudTournamentId);
+      const remote=response?.tournament||{};
+      const remoteRevision=Math.max(0,Number(remote.revision)||0);
+      const localRevision=Math.max(0,Number(meta.revision)||0);
+      if(remoteRevision<localRevision)throw new Error(`Cloud revision ${remoteRevision} is older than the local sync base ${localRevision}. No data was overwritten.`);
+
+      const localHash=await tournamentContentHash(name,tournament);
+      const remoteHash=await snapshotContentHash(response?.snapshot);
+      const baseHash=text(meta.lastSyncedContentHash||meta.baseFingerprint).toLowerCase();
+      if(localHash===remoteHash){
+        updateSyncBase(meta,{revision:remoteRevision,checksum:text(remote.checksum)||meta.lastSyncedHash,contentHash:localHash,updatedAt:remote.updatedAt});
+        persistCloudMeta();
+        setRuntime(name,tournament,"synced","Already current");
+        return {ok:true,unchanged:true,revision:remoteRevision};
+      }
+
+      const localChanged=!!baseHash&&localHash!==baseHash;
+      const remoteChanged=remoteRevision>localRevision || (!!baseHash&&remoteHash!==baseHash);
+      if(localChanged&&remoteChanged){
+        let ok=false;
+        const message=`This tournament changed both on this PC and in cloud (cloud revision ${remoteRevision}).\n\nPull Changes will now use the CLOUD copy. Your current PC copy has already been saved locally, so it is not lost.\n\nContinue with cloud copy?`;
+        if(typeof appConfirm==="function")ok=await appConfirm(message,"Pull Changes — resolve conflict","warning");
+        else ok=window.confirm(message);
+        if(!ok)return {ok:false,cancelled:true,conflict:true,revision:remoteRevision};
+      }else if(!remoteChanged&&localChanged){
+        setRuntime(name,tournament,"local","Local changes are newer; use Save & Sync Web to upload them.");
+        return {ok:true,skipped:true,localNewer:true,revision:localRevision};
+      }
+
+      const targetName=await importCloudSnapshot(response,{showMain:false});
+      const pulled=data?.tournaments?.[targetName];
+      const pulledMeta=ensureCloudMeta(pulled);
+      const pulledHash=await tournamentContentHash(targetName,pulled);
+      updateSyncBase(pulledMeta,{revision:remoteRevision,checksum:text(remote.checksum)||pulledMeta.lastSyncedHash,contentHash:pulledHash,updatedAt:remote.updatedAt});
+      persistCloudMeta();
+      setRuntime(targetName,pulled,"synced",`Pulled cloud revision ${remoteRevision}`);
+      return {ok:true,pulled:true,revision:remoteRevision,contentHash:pulledHash};
     }
 
     async function syncAllLocal({quiet=false}={}){
