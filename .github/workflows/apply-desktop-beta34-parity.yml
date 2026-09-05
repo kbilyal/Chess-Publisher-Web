@@ -1,0 +1,78 @@
+name: Apply desktop beta34 Web parity payload
+
+on:
+  push:
+    branches:
+      - align/desktop-beta34-web-parity
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-desktop-beta34-parity
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact branch
+        uses: actions/checkout@v4
+        with:
+          ref: align/desktop-beta34-web-parity
+          fetch-depth: 0
+
+      - name: Verify protected baseline and reconstruct candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(sha256sum production-web/index.html | awk '{print $1}')" = "2f91f23e4947322fc0c65713b6cceb73644161b1b13a52b28d5c737acc10c1df"
+          test "$(sha256sum production-web/webview/CloudWorkspaceAdapter.js | awk '{print $1}')" = "9201ba2ab72b2f0a2a72f20e8d2c836fb05669a948ca314120fef93589dae909"
+          test "$(sha256sum production-web/cloud/client/cloud-workspace-api.js | awk '{print $1}')" = "b594aaace0accf73f3090706d7e73fb1ab823fb286146e6f3547c7fc49fb2388"
+          test "$(sha256sum production-web/web/chess-results-browser-adapter.js | awk '{print $1}')" = "6d313e9f6ef3d0fc313f8ca1df3fee5d0b862f51d808ba9fd94bb3605735d3fa"
+          test "$(sha256sum production-web/hub/client/hub-api-client.js | awk '{print $1}')" = "2311446a69c16a14e041dbf08d4e198280d3a3f1232b739bf8e089d8ffdac9f0"
+          test "$(sha256sum production-web/hub/client/hub-snapshot.js | awk '{print $1}')" = "d980c520d74a71e66b3a3aa2a54e5ed626ea3618c53159145f9e48b445effac9"
+          test "$(sha256sum production-web/webview/HubAdapter.js | awk '{print $1}')" = "5477080af2e9dce1dcb25b622bf4aa8e77bc977a2f60759d175e6a8464bf8348"
+
+          cat .parity-payload/index.* | base64 -d | xz -d > /tmp/final-index.patch
+          sed -i '1c--- production-web/index.html' /tmp/final-index.patch
+          sed -i '2c+++ production-web/index.html' /tmp/final-index.patch
+          patch --fuzz=0 -p0 < /tmp/final-index.patch
+          cat .parity-payload/adapter.* | base64 -d | xz -d > production-web/webview/CloudWorkspaceAdapter.js
+          cat .parity-payload/api.* | base64 -d | xz -d > production-web/cloud/client/cloud-workspace-api.js
+
+          test "$(sha256sum production-web/index.html | awk '{print $1}')" = "a8e0571339b311e7b97009dc783e1f0be0cc08f118321998d1dfbf764100acd9"
+          test "$(sha256sum production-web/webview/CloudWorkspaceAdapter.js | awk '{print $1}')" = "85488b0800575451b797dca9955fcca10582cf169ad9d56ccc294655de0078ad"
+          test "$(sha256sum production-web/cloud/client/cloud-workspace-api.js | awk '{print $1}')" = "ff1ac911a563980509647ddfea4294692089029aa5f1fb5b50170fca983d4a13"
+
+          node --check production-web/webview/CloudWorkspaceAdapter.js
+          node --check production-web/cloud/client/cloud-workspace-api.js
+
+      - name: Install test dependencies
+        run: npm ci
+
+      - name: Run desktop beta34 Web parity gate
+        run: npm run test:desktop-beta34-web-parity
+
+      - name: Prove protected paths were not modified
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(sha256sum production-web/web/chess-results-browser-adapter.js | awk '{print $1}')" = "6d313e9f6ef3d0fc313f8ca1df3fee5d0b862f51d808ba9fd94bb3605735d3fa"
+          test "$(sha256sum production-web/hub/client/hub-api-client.js | awk '{print $1}')" = "2311446a69c16a14e041dbf08d4e198280d3a3f1232b739bf8e089d8ffdac9f0"
+          test "$(sha256sum production-web/hub/client/hub-snapshot.js | awk '{print $1}')" = "d980c520d74a71e66b3a3aa2a54e5ed626ea3618c53159145f9e48b445effac9"
+          test "$(sha256sum production-web/webview/HubAdapter.js | awk '{print $1}')" = "5477080af2e9dce1dcb25b622bf4aa8e77bc977a2f60759d175e6a8464bf8348"
+
+      - name: Commit only final parity changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .parity-payload
+          rm -f .github/workflows/apply-desktop-beta34-parity.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Align Web with desktop v1.06.00-beta.34 reference"
+          git push origin HEAD:align/desktop-beta34-web-parity
