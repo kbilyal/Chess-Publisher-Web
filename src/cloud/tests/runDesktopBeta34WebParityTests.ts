@@ -14,7 +14,8 @@ const html = read("production-web/index.html");
 const cloud = read("production-web/webview/CloudWorkspaceAdapter.js");
 const cloudApi = read("production-web/cloud/client/cloud-workspace-api.js");
 
-assert(/data-chesspublisher-version="1\.06\.00-beta\.34"/.test(html), "production shell is based on desktop beta.34 branding");
+// The exact v1.06.00-beta.34 reference ZIP still carries beta.30 in the HTML shell's internal data marker.
+assert(/data-chesspublisher-version="1\.06\.00-beta\.30"/.test(html), "production shell matches the exact desktop beta.34 package internal shell identity");
 assert(html.includes("CP-BETA19-EXPLICIT-LATE-ENTRY"), "beta.19 late-entry parity is present");
 assert(html.includes("CP-BETA25-DELETE-ANYTIME"), "beta.25 delete-anytime safety is present");
 assert(html.includes("CP-BETA29-TRF-EXPORT-RELIABILITY"), "beta.29 TRF export reliability is present");
