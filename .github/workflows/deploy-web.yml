@@ -194,7 +194,10 @@ jobs:
           grep -q 'Sync Now' dist/index.html
           grep -q "/web/chess-results-browser-adapter.js?v=${GITHUB_SHA}" dist/index.html
           grep -q "/web/cloud-tournaments-shortcut.js?v=${GITHUB_SHA}" dist/index.html
-          grep -q 'My Cloud Tournaments' dist/web/cloud-tournaments-shortcut.js
+          grep -q 'button.innerHTML="<span>My Cloud</span><span></span>"' dist/web/cloud-tournaments-shortcut.js
+          grep -q 'visible:false' dist/web/cloud-tournaments-shortcut.js
+          grep -q 'fileMenu:true' dist/web/cloud-tournaments-shortcut.js
+          grep -q 'publicOnlineListHidden:true' dist/web/cloud-tournaments-shortcut.js
           grep -q 'legacyOnlineMenuRemoved:true' dist/web/cloud-tournaments-shortcut.js
           ! grep -Eq 'assets/index-[^" ]+\.(js|css)' dist/index.html
           ! grep -q 'vite/client' dist/index.html
