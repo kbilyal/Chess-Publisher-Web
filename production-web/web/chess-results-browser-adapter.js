@@ -283,7 +283,6 @@
     let originalSchedule=null;
     let originalToggle=null;
     let installed=false;
-    let fallbackQueued=false;
 
     const hideLegacyControls=()=>{
       const save=document.getElementById("manualSaveButton");
@@ -332,19 +331,10 @@
         return result;
       };
 
-      // Some button actions mutate state after their click handler finishes.
-      // Queue one immediate checkpoint after those UI actions as an additional
-      // safety net. Input/change already call scheduleAutosave in the core.
-      document.addEventListener("click",event=>{
-        if(event.target instanceof Element && event.target.closest("#manualSaveButton,.autosave-switch"))return;
-        if(fallbackQueued)return;
-        fallbackQueued=true;
-        queueMicrotask(()=>{
-          fallbackQueued=false;
-          try{if(typeof window.saveAll==="function")window.saveAll();}catch(error){console.warn("Immediate UI capture warning:",error);}
-          flushImmediate();
-        });
-      },false);
+      // Do not call saveAll() after every document click. That races normal
+      // button handlers and async actions, causing the Web UI to appear broken.
+      // Model-changing controls already enter scheduleAutosave(), which is now
+      // immediate and serialized above.
 
       window.addEventListener("pagehide",()=>{
         try{if(typeof window.saveAll==="function")window.saveAll();}catch(_){}
@@ -386,6 +376,7 @@
     refreshContinuityStorage:"sessionStorage",
     alwaysAutosave:true,
     persistenceMode:"instant-serialized",
+    genericClickSaveAll:false,
     manualSaveUi:false,
     secretsInBrowser:false
   };
