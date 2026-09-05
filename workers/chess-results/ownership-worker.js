@@ -197,6 +197,19 @@ async function claimSyncedTnr(request, env, organizerId, creatorId) {
   }
 }
 
+function createPreflightFailure(env) {
+  if (text(env.CHESS_RESULTS_OWNERSHIP_HMAC_SECRET).length < 32) {
+    return { code: 'OWNERSHIP_HMAC_NOT_CONFIGURED', message: 'Chess-Results ownership signing is not configured on the Worker.' };
+  }
+  if (!text(env.CHESS_RESULTS_AES_KEY)) {
+    return { code: 'CHESS_RESULTS_AES_KEY_NOT_CONFIGURED', message: 'CHESS_RESULTS_AES_KEY is not configured on the Worker.' };
+  }
+  if (!text(env.CHESS_RESULTS_AES_IV)) {
+    return { code: 'CHESS_RESULTS_AES_IV_NOT_CONFIGURED', message: 'CHESS_RESULTS_AES_IV is not configured on the Worker.' };
+  }
+  return null;
+}
+
 export default {
   async fetch(request, env) {
     if (request.method === 'OPTIONS') return bridgeWorker.fetch(request, env);
@@ -222,9 +235,17 @@ export default {
       return claimSyncedTnr(request, env, auth.organizerId, creatorId);
     }
 
+    if (/\/create\/?$/i.test(url.pathname)) {
+      const preflightFailure = createPreflightFailure(env);
+      if (preflightFailure) {
+        return json({ ok: false, ...preflightFailure }, 500, corsHeaders(request, env));
+      }
+    }
+
     // Hub authentication is completed exactly once above. The verified organizer
     // identity is passed to the bridge core through a private Symbol capability.
-    // GETSID, GETKEY, AES, Source ID 21, upload, and ownership semantics remain unchanged.
+    // For create, all signing/encryption prerequisites are checked before GETKEY so
+    // a missing Worker secret can never allocate a tournament key and fail afterward.
     return bridgeWorker.fetch(request, scopedEnv(env, auth.organizerId, creatorId));
   },
 };
