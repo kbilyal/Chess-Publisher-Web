@@ -1,7 +1,11 @@
 (()=>{
   "use strict";
 
-  const API_PREFIX="/api/chess-results/";
+  // web.chess-publisher.org is currently served behind Fastly/GitHub Pages, so
+  // /api/chess-results/* on that origin is not intercepted by Cloudflare and
+  // returns HTTP 405. Call the already deployed Worker directly; it still
+  // enforces WEB_ORIGIN CORS and validates the same Organizer Token server-side.
+  const API_PREFIX="https://chess-publisher-chess-results.kyamranbilyal.workers.dev/api/chess-results/";
   const ORGANIZER_SECRET_KEY="organizer-primary";
   const OWNERSHIP_PREFIX="cp:chess-results:ownership:";
   const CONTINUITY_KEY="cpweb.refresh.continuity.v1";
@@ -88,6 +92,7 @@
     try{
       response=await fetch(API_PREFIX+operation,{
         method:"POST",
+        mode:"cors",
         headers:{
           "Content-Type":"application/json;charset=utf-8",
           "Accept":"application/json",
@@ -95,7 +100,7 @@
         },
         body:JSON.stringify(payload||{}),
         cache:"no-store",
-        credentials:"same-origin"
+        credentials:"omit"
       });
     }catch(_){
       throw new Error("Chess-Results backend not connected. The secure Worker route is unavailable.");
@@ -129,9 +134,6 @@
 
     const payload=body&&typeof body==="object"&&!Array.isArray(body)?{...body}:{};
     const tournament=currentTournament();
-    // Desktop and web share one logical tournament. If the desktop-side state
-    // has a TNR in settings but an older Chess-Results state has no key, reuse
-    // the synchronized TNR instead of requesting a duplicate.
     if(!payload.key&&!payload.tnr){
       const linked=text(tournament?.chessResults?.key||tournament?.settings?.tnr);
       if(/^\d+$/.test(linked))payload.key=linked;
@@ -151,16 +153,8 @@
     return result;
   }
 
-  // Replace only the transport boundary. Protected beta.4 remains the
-  // authority for validation and Chess-Results XML construction. Every old
-  // /chessresults/* call is normalized to /api/chess-results/* and never sent
-  // to a static browser path.
   window.chessResultsLocalJson=request;
 
-  // In the browser, Upload Section is also a valid first action for a new
-  // tournament. Reuse an existing desktop-created TNR when present; otherwise
-  // reuse the protected GETKEY workflow. This prevents duplicate tournaments
-  // when the arbiter switches desktop -> web -> desktop between rounds.
   const protectedOpenUploadSection=window.openChessResultsUploadPage;
   if(typeof protectedOpenUploadSection==="function"){
     window.openChessResultsUploadPage=async function(){
@@ -177,9 +171,6 @@
     };
   }
 
-  // Refresh continuity is intentionally session-scoped: a page reload keeps the
-  // arbiter in the same open tournament and tab, while a new browser session
-  // still starts from My Tournaments. Explicit Back/Refresh-list/Sign-out clears it.
   let continuityDisabled=false;
   let continuityRestoring=false;
 
@@ -288,7 +279,7 @@
 
   window.__cpChessResultsBrowserAdapter={
     enabled:true,
-    transport:"same-origin-worker",
+    transport:"cors-worker-direct",
     backendPrefix:API_PREFIX,
     organizerScoped:true,
     ownershipProof:true,
