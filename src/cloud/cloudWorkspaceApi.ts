@@ -33,7 +33,10 @@ async function request(path: string, options: {
 } = {}) {
   const headers = new Headers(options.headers || {});
   headers.set('Accept', 'application/json');
-  headers.set('X-Client-Version', CLOUD_CLIENT_VERSION);
+  // Production Web calls the Hub Worker cross-origin. Do not add an optional
+  // X-Client-Version request header here: it expands the CORS preflight header
+  // set and can make an otherwise valid Organizer Token request fail before it
+  // reaches the Worker. Authentication remains the Bearer token.
   if (options.token) headers.set('Authorization', `Bearer ${options.token}`);
 
   let body: BodyInit | undefined;
