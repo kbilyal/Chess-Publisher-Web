@@ -38,7 +38,7 @@ globalThis.fetch = async (url, init = {}) => {
   }
   if (href.includes('key1=GETSID')) {
     assert.match(href, /source=21/);
-    return new Response('<?xml version="1.0"?><chessresults><result sid="987654321" status="OK"/></chessresults>', { status: 200 });
+    return new Response("<?xml version='1.0'?><cr:chessresults xmlns:cr='urn:test'><cr:result SID='987654321' STATUS='OK'/></cr:chessresults>", { status: 200 });
   }
   if (href.includes('key1=GETKEY')) {
     const form = new URLSearchParams(String(init.body || ''));
