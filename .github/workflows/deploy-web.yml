@@ -137,6 +137,7 @@ jobs:
           test "$(git hash-object production-web/index.html)" = "$(git rev-parse "${GITHUB_SHA}:production-web/index.html")"
           grep -q 'cpProductionWeb' production-web/index.html
           grep -q 'cpLinuxWebDev' production-web/index.html
+          grep -q '/web/browser-dev-host.js' production-web/index.html
           grep -q '/web/chess-results-browser-adapter.js' production-web/index.html
           rm -rf dist
           mkdir -p dist
@@ -146,10 +147,10 @@ jobs:
           import os
           p = Path('dist/index.html')
           text = p.read_text(encoding='utf-8')
-          src = '/web/chess-results-browser-adapter.js'
-          busted = f"{src}?v={os.environ['GITHUB_SHA']}"
-          text = text.replace(src, busted)
-          shortcut = f'<script src="/web/cloud-tournaments-shortcut.js?v={os.environ["GITHUB_SHA"]}"></script>'
+          sha = os.environ['GITHUB_SHA']
+          for src in ('/web/browser-dev-host.js', '/web/chess-results-browser-adapter.js'):
+              text = text.replace(src, f'{src}?v={sha}')
+          shortcut = f'<script src="/web/cloud-tournaments-shortcut.js?v={sha}"></script>'
           if shortcut not in text:
               text = text.replace('</body>', f'{shortcut}\n</body>')
           p.write_text(text, encoding='utf-8')
@@ -192,6 +193,7 @@ jobs:
           grep -q 'Online & Cloud' dist/index.html
           grep -q 'Pull Changes' dist/index.html
           grep -q 'Sync Now' dist/index.html
+          grep -q "/web/browser-dev-host.js?v=${GITHUB_SHA}" dist/index.html
           grep -q "/web/chess-results-browser-adapter.js?v=${GITHUB_SHA}" dist/index.html
           grep -q "/web/cloud-tournaments-shortcut.js?v=${GITHUB_SHA}" dist/index.html
           grep -q 'button.innerHTML="<span>My Cloud</span><span></span>"' dist/web/cloud-tournaments-shortcut.js
@@ -199,6 +201,11 @@ jobs:
           grep -q 'fileMenu:true' dist/web/cloud-tournaments-shortcut.js
           grep -q 'publicOnlineListHidden:true' dist/web/cloud-tournaments-shortcut.js
           grep -q 'legacyOnlineMenuRemoved:true' dist/web/cloud-tournaments-shortcut.js
+          grep -q 'durableSave:true' dist/web/cloud-tournaments-shortcut.js
+          grep -q 'localSaveOnChange:true' dist/web/cloud-tournaments-shortcut.js
+          grep -q 'cloudSaveOnManualSave:true' dist/web/cloud-tournaments-shortcut.js
+          grep -q 'window.saveData' dist/web/cloud-tournaments-shortcut.js
+          grep -q 'window.cpCloudSyncCurrent' dist/web/cloud-tournaments-shortcut.js
           ! grep -Eq 'assets/index-[^" ]+\.(js|css)' dist/index.html
           ! grep -q 'vite/client' dist/index.html
           ! grep -q 'src/main.tsx' dist/index.html
