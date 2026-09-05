@@ -199,11 +199,16 @@ jobs:
           grep -q 'button.innerHTML="<span>My Cloud</span><span></span>"' dist/web/cloud-tournaments-shortcut.js
           grep -q 'visible:false' dist/web/cloud-tournaments-shortcut.js
           grep -q 'fileMenu:true' dist/web/cloud-tournaments-shortcut.js
+          grep -q 'dialog:true' dist/web/cloud-tournaments-shortcut.js
+          grep -q 'cpWebMyCloudDialog' dist/web/cloud-tournaments-shortcut.js
           grep -q 'publicOnlineListHidden:true' dist/web/cloud-tournaments-shortcut.js
           grep -q 'legacyOnlineMenuRemoved:true' dist/web/cloud-tournaments-shortcut.js
           grep -q 'durableSave:true' dist/web/cloud-tournaments-shortcut.js
-          grep -q 'localSaveOnChange:true' dist/web/cloud-tournaments-shortcut.js
+          grep -q 'autosaveUsesDurableSavePath:true' dist/web/cloud-tournaments-shortcut.js
+          grep -q 'autosaveCloudSync:true' dist/web/cloud-tournaments-shortcut.js
           grep -q 'cloudSaveOnManualSave:true' dist/web/cloud-tournaments-shortcut.js
+          grep -q 'document.addEventListener("input"' dist/web/cloud-tournaments-shortcut.js
+          grep -q 'document.addEventListener("change"' dist/web/cloud-tournaments-shortcut.js
           grep -q 'window.saveData' dist/web/cloud-tournaments-shortcut.js
           grep -q 'window.cpCloudSyncCurrent' dist/web/cloud-tournaments-shortcut.js
           ! grep -Eq 'assets/index-[^" ]+\.(js|css)' dist/index.html
