@@ -10,6 +10,7 @@ zone_name = "chess-publisher.org"
 [vars]
 WEB_ORIGIN = "https://web.chess-publisher.org"
 HUB_API_BASE = "https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev"
+CHESS_RESULTS_CREATOR_ID = "100"
 CHESS_RESULTS_XML_URL = "https://chess-results.com/xml.aspx"
 CHESS_RESULTS_GETSID_ACTION = "GETSID"
 CHESS_RESULTS_GETKEY_ACTION = "GETKEY"
