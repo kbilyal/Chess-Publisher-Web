@@ -1,67 +1,82 @@
 (()=>{
   "use strict";
 
-  // Mobile-only presentation layer. All rules are scoped to <= 768px so the
-  // desktop web UI remains untouched. No application logic is changed here.
+  // Mobile-only presentation layer. Keep the exact desktop application and all
+  // controls available; only add safe touch sizing, scrolling and viewport fit.
+  // No application logic, menu items, tabs or actions are removed/rearranged.
   function installMobileFriendlyStyles(){
     if(document.getElementById("cp-mobile-friendly-styles")) return;
     const style=document.createElement("style");
     style.id="cp-mobile-friendly-styles";
     style.textContent=`
 @media (max-width: 768px) {
-  html, body { max-width: 100%; overflow-x: hidden; }
+  html, body {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
   body { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   *, *::before, *::after { box-sizing: border-box; }
-  main, section, article, aside, header, footer,
-  [class*="container"], [class*="content"], [class*="panel"], [class*="card"],
-  [class*="dialog"], [class*="modal"] { max-width: 100%; }
+
   input:not([type="checkbox"]):not([type="radio"]), select, textarea {
-    max-width: 100%; min-height: 44px; font-size: 16px !important;
+    max-width: 100%;
+    min-height: 44px;
+    font-size: 16px !important;
   }
   button, [role="button"], input[type="button"], input[type="submit"] {
-    min-height: 44px; touch-action: manipulation;
+    min-height: 44px;
+    touch-action: manipulation;
   }
-  form { max-width: 100%; }
-  form input:not([type="checkbox"]):not([type="radio"]), form select, form textarea,
-  form button, form [role="button"] { width: 100%; }
+
   nav, [role="tablist"], [class*="tabs"], [class*="tab-bar"], [class*="toolbar"] {
-    max-width: 100%; overflow-x: auto; overflow-y: hidden;
-    -webkit-overflow-scrolling: touch; scrollbar-width: thin;
+    max-width: 100%;
+    overflow-x: auto !important;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
   }
-  [role="tablist"], [class*="tabs"], [class*="tab-bar"] { flex-wrap: nowrap !important; }
+  [role="tablist"], [class*="tabs"], [class*="tab-bar"] {
+    flex-wrap: nowrap !important;
+  }
   [role="tab"], [class*="tab-button"], [class*="tab-item"] {
-    flex: 0 0 auto; white-space: nowrap;
+    flex: 0 0 auto;
+    white-space: nowrap;
   }
+
   table {
-    display: block; width: 100%; max-width: 100%; overflow-x: auto;
-    -webkit-overflow-scrolling: touch; white-space: nowrap;
+    width: max-content;
+    min-width: 100%;
+    max-width: none;
   }
-  [class*="grid"], [class*="columns"], [class*="split"],
-  [class*="two-column"], [class*="three-column"] {
-    grid-template-columns: minmax(0, 1fr) !important;
-  }
-  [class*="row"], [class*="actions"], [class*="button-group"] {
-    max-width: 100%; flex-wrap: wrap;
-  }
-  [class*="actions"] > button, [class*="button-group"] > button { flex: 1 1 140px; }
+
   dialog, [role="dialog"], [class*="modal"] {
-    width: calc(100vw - 24px) !important; max-width: calc(100vw - 24px) !important;
-    max-height: calc(100dvh - 24px) !important; overflow: auto; margin: 12px auto !important;
+    max-width: calc(100vw - 16px) !important;
+    max-height: calc(100dvh - 16px) !important;
+    overflow: auto !important;
   }
-  [class*="login"], [class*="auth"], [id*="login"], [id*="auth"] { max-width: 100% !important; }
-  [class*="login"] form, [class*="auth"] form, [id*="login"] form, [id*="auth"] form {
-    width: 100% !important; max-width: 100% !important;
+
+  [class*="login-card"], [class*="auth-card"],
+  [class*="login-panel"], [class*="auth-panel"] {
+    width: calc(100vw - 24px) !important;
+    max-width: 480px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
   }
-  [class*="login-card"], [class*="auth-card"], [class*="login-panel"], [class*="auth-panel"] {
-    width: calc(100vw - 24px) !important; max-width: 480px !important;
-    margin-left: auto !important; margin-right: auto !important;
+  [class*="login-card"] input, [class*="auth-card"] input,
+  [class*="login-panel"] input, [class*="auth-panel"] input,
+  [class*="login-card"] button, [class*="auth-card"] button,
+  [class*="login-panel"] button, [class*="auth-panel"] button {
+    max-width: 100%;
   }
+
   img, svg, canvas, video { max-width: 100%; height: auto; }
   pre, code { max-width: 100%; overflow-x: auto; }
 }
 `;
     document.head.appendChild(style);
-    document.documentElement.dataset.cpMobileFriendly="1";
+    document.documentElement.dataset.cpMobileFriendly="full-access";
   }
 
   installMobileFriendlyStyles();
