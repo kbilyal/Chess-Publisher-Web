@@ -5,16 +5,46 @@ const originalFetch = globalThis.fetch;
 const calls = [];
 const hubCalls = [];
 
+function organizerIdFor(auth) {
+  if (auth === 'Bearer organizer-A') return 'org_A';
+  if (auth === 'Bearer organizer-B') return 'org_B';
+  return '';
+}
+
+function cloudSnapshot(key = '7654321') {
+  return {
+    snapshot: {
+      version: 'V99',
+      data: {
+        currentTournament: 'Ownership Test',
+        tournaments: {
+          'Ownership Test': {
+            settings: { tnr: key, tournamentType: 'test', country: 'BUL' },
+            chessResults: { key, mode: 'test', federation: 'XXX', clientId: 'desktop-client' },
+          },
+        },
+      },
+    },
+  };
+}
+
 function hubResponseFor(request) {
   const auth = request.headers.get('Authorization');
+  const url = new URL(request.url);
   hubCalls.push({ url: request.url, auth });
-  if (auth === 'Bearer organizer-A') {
-    return new Response(JSON.stringify({ organizer: { id: 'org_A' } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  const organizerId = organizerIdFor(auth);
+  if (!organizerId) return new Response('{}', { status: 401, headers: { 'Content-Type': 'application/json' } });
+
+  if (url.pathname === '/api/v1/organizer/me') {
+    return new Response(JSON.stringify({ organizer: { id: organizerId } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   }
-  if (auth === 'Bearer organizer-B') {
-    return new Response(JSON.stringify({ organizer: { id: 'org_B' } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+
+  if (url.pathname === '/api/v1/cloud/tournaments/cloud-A/snapshot') {
+    if (organizerId !== 'org_A') return new Response('{}', { status: 404, headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify(cloudSnapshot()), { status: 200, headers: { 'Content-Type': 'application/json' } });
   }
-  return new Response('{}', { status: 401, headers: { 'Content-Type': 'application/json' } });
+
+  return new Response('{}', { status: 404, headers: { 'Content-Type': 'application/json' } });
 }
 
 const env = {
@@ -88,7 +118,6 @@ try {
     key: created.key,
     ownershipProof: created.ownershipProof,
   }, 'organizer-B'), env);
-
   assert.equal(response.status, 403);
   assert.equal((await response.json()).code, 'TNR_OWNERSHIP_MISMATCH');
 
@@ -96,7 +125,6 @@ try {
     key: created.key,
     ownershipProof: created.ownershipProof,
   }, 'organizer-B'), env);
-
   assert.equal(response.status, 403);
   assert.equal((await response.json()).code, 'TNR_OWNERSHIP_MISMATCH');
 
@@ -104,13 +132,45 @@ try {
     key: created.key,
     ownershipProof: created.ownershipProof,
   }, 'organizer-B'), env);
-
   assert.equal(response.status, 403);
   assert.equal((await response.json()).code, 'TNR_OWNERSHIP_MISMATCH');
 
-  assert.equal(hubCalls.length, 4, 'Hub service binding must be called exactly once for each authenticated operation');
-  assert.ok(hubCalls.every(call => call.url === 'https://hub.internal/api/v1/organizer/me'));
-  console.log('Chess-Results Hub service binding + single auth + cross-organizer ownership guard: PASS');
+  // Simulate desktop -> cloud sync -> a fresh web browser with no local proof.
+  response = await worker.fetch(request('claim', {
+    key: created.key,
+    cloudTournamentId: 'cloud-A',
+    clientId: 'fresh-web-client',
+  }, 'organizer-A'), env);
+  assert.equal(response.status, 200);
+  const claimed = await response.json();
+  assert.equal(claimed.key, created.key);
+  assert.equal(claimed.recoveredFromCloud, true);
+  assert.equal(claimed.federation, 'XXX');
+  assert.equal(typeof claimed.ownershipProof, 'string');
+
+  // The recovered proof is valid on another client for the same organizer/TNR.
+  response = await worker.fetch(request('admin-link', {
+    key: created.key,
+    ownershipProof: claimed.ownershipProof,
+  }, 'organizer-A'), env);
+  assert.equal(response.status, 200);
+  assert.match((await response.json()).url, /key1=7654321/);
+
+  // Another organizer cannot claim the same cloud tournament/TNR.
+  response = await worker.fetch(request('claim', {
+    key: created.key,
+    cloudTournamentId: 'cloud-A',
+    clientId: 'other-organizer-client',
+  }, 'organizer-B'), env);
+  assert.equal(response.status, 403);
+  assert.equal((await response.json()).code, 'TNR_CLAIM_NOT_OWNED');
+
+  const authCalls = hubCalls.filter(call => new URL(call.url).pathname === '/api/v1/organizer/me');
+  const snapshotCalls = hubCalls.filter(call => new URL(call.url).pathname.includes('/api/v1/cloud/tournaments/'));
+  assert.equal(authCalls.length, 7, 'Hub organizer authentication must occur exactly once for each authenticated operation');
+  assert.equal(snapshotCalls.length, 2, 'Only explicit cross-device claim operations may read the organizer-owned cloud snapshot');
+  assert.ok(authCalls.every(call => call.url === 'https://hub.internal/api/v1/organizer/me'));
+  console.log('Chess-Results Hub service binding + cross-device TNR recovery + cross-organizer guard: PASS');
 } finally {
   globalThis.fetch = originalFetch;
 }
