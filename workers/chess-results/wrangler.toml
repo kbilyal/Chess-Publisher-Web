@@ -7,6 +7,10 @@ workers_dev = true
 pattern = "web.chess-publisher.org/api/chess-results/*"
 zone_name = "chess-publisher.org"
 
+[[services]]
+binding = "HUB_SERVICE"
+service = "chess-publisher-hub-api-beta"
+
 [vars]
 WEB_ORIGIN = "https://web.chess-publisher.org"
 HUB_API_BASE = "https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev"
