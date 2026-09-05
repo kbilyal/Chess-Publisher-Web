@@ -76,6 +76,10 @@ assert(browserHost.includes('removeOrganizerToken()'), "sign-out cannot clear th
 assert(browserHost.includes('const HUB_API_ORIGIN="https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev"'), "production Web Hub direct-origin compatibility shim missing");
 assert(browserHost.includes('headers.delete("X-Client-Version")'), "production Web can still trigger Hub CORS preflight with the optional client-version header");
 assert(browserHost.includes('hubCorsCompatibility:true'), "production Hub CORS compatibility capability marker missing");
+assert(browserHost.includes('function installWebManualSave()'), "explicit Web Save installer missing");
+assert(browserHost.includes('cpWebManualSaveButton'), "explicit Web Save control missing");
+assert(browserHost.includes('if(typeof window.saveAll==="function")window.saveAll()'), "Web Save does not capture current UI state");
+assert(browserHost.includes('manualSave:true'), "Web Save capability marker missing");
 const chessResultsAdapter = readFileSync(join(root, "web/chess-results-browser-adapter.js"), "utf8");
 assert(chessResultsAdapter.includes('window.cpNativeHubSecretGet(ORGANIZER_SECRET_KEY)'), "Chess-Results does not consume the shared organizer credential");
 assert(chessResultsAdapter.includes('cpweb.organizerToken.remembered'), "Chess-Results remembered-token fallback missing");

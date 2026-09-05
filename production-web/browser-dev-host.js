@@ -222,6 +222,57 @@
   // uses its presence as a real Windows WebView2 capability check.
   window.__cpBrowserHostBridge=browserBridge;
 
+  // Production Web always exposes an explicit Save control. It does not wrap or
+  // replace the core autosave scheduler: one click captures the current UI model
+  // through the existing saveAll() path and then asks the existing persistence
+  // pipeline to flush/checkpoint once. This avoids the runtime races caused by
+  // the removed global/instant autosave wrapper.
+  function installWebManualSave(){
+    const ensure=()=>{
+      let button=document.getElementById("manualSaveButton")||document.getElementById("cpWebManualSaveButton");
+      if(!button){
+        button=document.createElement("button");
+        button.id="cpWebManualSaveButton";
+        button.type="button";
+        button.textContent="💾 Save";
+        button.title="Save current tournament";
+        button.style.cssText="position:fixed;right:14px;top:14px;z-index:100000;padding:8px 14px;border-radius:8px;font-weight:700;cursor:pointer";
+        document.body.appendChild(button);
+      }else{
+        button.hidden=false;
+        button.style.display="";
+      }
+      if(button.dataset.cpWebSaveBound==="1")return true;
+      button.dataset.cpWebSaveBound="1";
+      button.addEventListener("click",async()=>{
+        const oldText=button.textContent;
+        button.disabled=true;
+        button.textContent="Saving…";
+        try{
+          if(typeof window.saveAll==="function")window.saveAll();
+          if(typeof window.cpFlushPersistence==="function")await window.cpFlushPersistence();
+          else if(typeof window.cpRunAutosaveCheckpoint==="function")await window.cpRunAutosaveCheckpoint();
+          else if(typeof window.scheduleAutosave==="function")window.scheduleAutosave();
+          button.textContent="Saved ✓";
+          setTimeout(()=>{if(button)button.textContent=oldText||"💾 Save";},900);
+        }catch(error){
+          console.error("Web manual save failed:",error);
+          button.textContent="Save failed";
+          setTimeout(()=>{if(button)button.textContent=oldText||"💾 Save";},1400);
+        }finally{
+          button.disabled=false;
+        }
+      });
+      return true;
+    };
+    if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",ensure,{once:true});
+    else ensure();
+    let attempts=0;
+    const timer=setInterval(()=>{attempts++;if(ensure()||attempts>=100)clearInterval(timer);},100);
+  }
+
+  installWebManualSave();
+
   window.__cpWebLinuxDevHost={
     enabled:true,
     mode:"browser-dev",
@@ -229,6 +280,8 @@
     otherSecretStorage:"sessionStorage",
     unifiedOrganizerIdentity:true,
     hubCorsCompatibility:true,
+    manualSave:true,
+    manualSaveControl:"cpWebManualSaveButton",
     nativePairing:false,
     nativeTieBreak:false,
     nativePairingChecker:false,
