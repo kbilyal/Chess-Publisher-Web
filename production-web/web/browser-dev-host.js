@@ -273,6 +273,43 @@
 
   installWebManualSave();
 
+  // Web-only File menu shortcut. It reuses the existing My Tournaments screen
+  // and refresh action; it does not create a second tournament list or bypass
+  // Organizer Token ownership checks.
+  function installMyOnlineTournamentsFileMenu(){
+    const ensure=()=>{
+      const menu=document.getElementById("fileMenu");
+      if(!menu)return false;
+      if(document.getElementById("cpWebMyOnlineTournamentsMenu"))return true;
+      const button=document.createElement("button");
+      button.id="cpWebMyOnlineTournamentsMenu";
+      button.type="button";
+      button.innerHTML="<span>My Online Tournaments</span><span></span>";
+      button.addEventListener("click",async event=>{
+        event.stopPropagation();
+        try{if(typeof window.closeFileMenu==="function")window.closeFileMenu();}catch(_){}
+        const back=document.getElementById("cpBeta7Back");
+        if(back){try{back.click();}catch(_){}}
+        const start=document.getElementById("cpBeta7Start");
+        if(start)start.style.display="";
+        await new Promise(resolve=>setTimeout(resolve,0));
+        const refresh=document.getElementById("cpBeta7CloudRefresh");
+        if(refresh){try{refresh.click();return;}catch(_){}}
+        try{if(typeof window.cpCloudRefreshList==="function")await window.cpCloudRefreshList({quiet:false});}catch(error){console.error("My Online Tournaments refresh failed:",error);}
+      });
+      const recent=[...menu.querySelectorAll("button")].find(item=>/Recent Tournaments/i.test(item.textContent||""));
+      if(recent)recent.insertAdjacentElement("afterend",button);
+      else menu.prepend(button);
+      return true;
+    };
+    if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",ensure,{once:true});
+    else ensure();
+    let attempts=0;
+    const timer=setInterval(()=>{attempts++;if(ensure()||attempts>=100)clearInterval(timer);},100);
+  }
+
+  installMyOnlineTournamentsFileMenu();
+
   window.__cpWebLinuxDevHost={
     enabled:true,
     mode:"browser-dev",
@@ -282,6 +319,8 @@
     hubCorsCompatibility:true,
     manualSave:true,
     manualSaveControl:"cpWebManualSaveButton",
+    myOnlineTournamentsFileMenu:true,
+    myOnlineTournamentsMenuControl:"cpWebMyOnlineTournamentsMenu",
     nativePairing:false,
     nativeTieBreak:false,
     nativePairingChecker:false,
