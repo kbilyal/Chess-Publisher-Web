@@ -34,10 +34,14 @@ jobs:
           node-version: '22'
 
       - name: Verify Worker syntax
-        run: node --check workers/chess-results/worker.js
+        run: |
+          node --check workers/chess-results/worker.js
+          node --check workers/chess-results/ownership-worker.js
 
       - name: Chess-Results Worker protocol/security regression
-        run: node workers/chess-results/worker.test.mjs
+        run: |
+          node workers/chess-results/worker.test.mjs
+          node workers/chess-results/ownership-worker.test.mjs
 
       - name: Verify browser boundary
         shell: bash
