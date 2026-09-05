@@ -24,10 +24,22 @@ function smokeXml(key) {
   return `<?xml version="1.0" encoding="UTF-8"?><chessresults><tournamentdata><tournament key="${key}" type="0" name="Chess-Publisher Web Bridge Smoke Test" federation="XXX" creator="100" /></tournamentdata><rounds><round round="1" date="" time="" /></rounds><players><player no="1" lastname="Test Player 1" rtg="1500" rtgfide="1500" sex="M" fed="XXX" rank="1" /><player no="2" lastname="Test Player 2" rtg="1500" rtgfide="1500" sex="M" fed="XXX" rank="2" /></players><playerpairings></playerpairings><security><securitydata source="21" sid="x" creator_sid="x" tnr_sid="x" /></security></chessresults>`;
 }
 
+function smokeRequest(request, pathname, key, ownershipProof) {
+  const target = new URL(request.url);
+  target.pathname = pathname;
+  return new Request(target, {
+    method: 'POST',
+    headers: request.headers,
+    body: JSON.stringify({ key, ownershipProof, xml: smokeXml(key) }),
+  });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (request.method === 'POST' && /\/api\/chess-results\/upload-smoke\/?$/i.test(url.pathname)) {
+    const isUploadSmoke = request.method === 'POST' && /\/api\/chess-results\/upload-smoke\/?$/i.test(url.pathname);
+    const isPublishSmoke = request.method === 'POST' && /\/api\/chess-results\/publish-smoke\/?$/i.test(url.pathname);
+    if (isUploadSmoke || isPublishSmoke) {
       let body;
       try { body = await request.clone().json(); } catch { body = {}; }
       const key = text(body?.key);
@@ -39,14 +51,8 @@ export default {
       if (payload?.mode !== 'test' || payload?.federation !== 'XXX' || text(payload?.key) !== key) {
         return json({ ok: false, code: 'SMOKE_TEST_TNR_REQUIRED', message: 'The short smoke route is restricted to signed test TNRs with federation XXX.' }, 403);
       }
-      const diagnosticUrl = new URL(request.url);
-      diagnosticUrl.pathname = '/api/chess-results/upload-diagnostic';
-      const forwarded = new Request(diagnosticUrl, {
-        method: 'POST',
-        headers: request.headers,
-        body: JSON.stringify({ key, ownershipProof, xml: smokeXml(key) }),
-      });
-      return ownershipWorker.fetch(forwarded, env);
+      const pathname = isPublishSmoke ? '/api/chess-results/publish' : '/api/chess-results/upload-diagnostic';
+      return ownershipWorker.fetch(smokeRequest(request, pathname, key, ownershipProof), env);
     }
     return ownershipWorker.fetch(request, env);
   },
