@@ -1,6 +1,9 @@
 (()=>{
   "use strict";
 
+  let saveSyncTail=Promise.resolve();
+  let localSaveTimer=0;
+
   function removeLegacyControls(){
     document.getElementById("cpWebMyOnlineTournamentsMenu")?.remove();
     document.getElementById("cpWebMyCloudTournamentsButton")?.remove();
@@ -11,7 +14,9 @@
     for(const group of groups){
       const title=group.querySelector(":scope > .group-title")?.textContent?.trim()||"";
       if(title==="My Online Tournaments"){
-        group.style.display="none";
+        group.hidden=true;
+        group.style.setProperty("display","none","important");
+        group.setAttribute("aria-hidden","true");
         group.dataset.cpWebHiddenOnlineTournamentList="1";
       }
     }
@@ -26,6 +31,7 @@
 
   async function openMyCloud(){
     removeLegacyControls();
+    hidePublicOnlineTournamentList();
     try{if(typeof window.closeFileMenu==="function")window.closeFileMenu();}catch(_){}
     const tab=document.getElementById("tabCloudWorkspace");
     if(tab){
@@ -64,19 +70,64 @@
     return true;
   }
 
+  function persistLocalNow(){
+    try{if(typeof window.saveAll==="function")window.saveAll();}catch(error){console.error("Web saveAll failed:",error);}
+    try{if(typeof window.saveData==="function")window.saveData();}catch(error){console.error("Web saveData failed:",error);}
+  }
+
+  function queueCloudSave(){
+    saveSyncTail=saveSyncTail.catch(()=>undefined).then(async()=>{
+      persistLocalNow();
+      if(typeof window.cpCloudSyncCurrent==="function"){
+        await window.cpCloudSyncCurrent({force:false,quiet:false,allowPull:false});
+      }
+    });
+    return saveSyncTail;
+  }
+
+  function ensureDurableSave(){
+    const button=document.getElementById("manualSaveButton")||document.getElementById("cpWebManualSaveButton");
+    if(!button)return false;
+    if(button.dataset.cpWebDurableSaveBound==="1")return true;
+    button.dataset.cpWebDurableSaveBound="1";
+    button.addEventListener("click",()=>{
+      setTimeout(()=>{void queueCloudSave().catch(error=>console.error("Web durable Save failed:",error));},0);
+    });
+    return true;
+  }
+
+  function scheduleSafeLocalSave(){
+    clearTimeout(localSaveTimer);
+    localSaveTimer=setTimeout(()=>persistLocalNow(),350);
+  }
+
   function install(){
     ensureFileMenuItem();
+    ensureDurableSave();
+    hidePublicOnlineTournamentList();
+
+    document.addEventListener("change",scheduleSafeLocalSave,true);
+    window.addEventListener("pagehide",persistLocalNow);
+
     const observer=new MutationObserver(()=>{
       removeLegacyControls();
       hidePublicOnlineTournamentList();
       ensureFileMenuItem();
+      ensureDurableSave();
       const group=cloudGroup();
       const title=group?.querySelector(":scope > .group-title");
       if(title&&title.textContent.trim()==="My Private Cloud Tournaments")title.textContent="My Cloud Tournaments";
     });
     observer.observe(document.documentElement,{childList:true,subtree:true});
+
     let attempts=0;
-    const timer=setInterval(()=>{attempts++;ensureFileMenuItem();if(attempts>=100)clearInterval(timer);},100);
+    const timer=setInterval(()=>{
+      attempts++;
+      ensureFileMenuItem();
+      ensureDurableSave();
+      hidePublicOnlineTournamentList();
+      if(attempts>=100)clearInterval(timer);
+    },100);
   }
 
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",install,{once:true});
@@ -90,6 +141,9 @@
     control:"cpWebMyCloudMenu",
     legacyOnlineMenuRemoved:true,
     publicOnlineListHidden:true,
+    durableSave:true,
+    localSaveOnChange:true,
+    cloudSaveOnManualSave:true,
     open:openMyCloud
   };
 })();
