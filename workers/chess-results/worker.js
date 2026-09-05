@@ -7,9 +7,6 @@ const DEFAULT_UPLOAD_SECTION_URL = 'https://chess-results.com/UploadData.aspx';
 const DEFAULT_PUBLIC_BASE = 'https://chess-results.com';
 const ALLOWED_OPERATIONS = new Set(['test', 'create', 'publish', 'admin-link', 'delete-authorize', 'unlink']);
 
-// Private module capability used only by ownership-worker.js after it has
-// successfully authenticated the Organizer Token against Hub. A Symbol keeps
-// this trust marker out of Cloudflare environment bindings and HTTP input.
 export const AUTHENTICATED_ORGANIZER = Symbol('chess-results-authenticated-organizer');
 
 class BridgeError extends Error {
@@ -145,9 +142,13 @@ async function encryptValue(value, env) {
 
 function parseAttributes(fragment) {
   const attrs = {};
-  const re = /([A-Za-z0-9_:-]+)\s*=\s*"([^"]*)"/g;
+  const re = /([A-Za-z0-9_:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
   let match;
-  while ((match = re.exec(fragment))) attrs[match[1]] = match[2];
+  while ((match = re.exec(fragment))) {
+    const rawName = match[1];
+    const localName = rawName.includes(':') ? rawName.split(':').pop() : rawName;
+    attrs[localName.toLowerCase()] = match[2] ?? match[3] ?? '';
+  }
   return attrs;
 }
 
@@ -156,15 +157,25 @@ function decodeXmlEntities(value) {
     .replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 }
 
+function elementText(source, name) {
+  const escaped = String(name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = source.match(new RegExp(`<(?:[A-Za-z0-9_.-]+:)?${escaped}\\b[^>]*>([\\s\\S]*?)<\\/(?:[A-Za-z0-9_.-]+:)?${escaped}\\s*>`, 'i'));
+  return decodeXmlEntities(text(match?.[1]).replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1'));
+}
+
 function parseBridgeXml(raw) {
   const source = String(raw || '').trim();
-  const resultTag = source.match(/<result\b([^>]*)\/?\s*>/i);
-  const genericTag = source.match(/<(?:data|securitydata)\b([^>]*)\/?\s*>/i);
+  const resultTag = source.match(/<(?:[A-Za-z0-9_.-]+:)?result\b([^>]*)\/?\s*>/i);
+  const genericTag = source.match(/<(?:[A-Za-z0-9_.-]+:)?(?:data|securitydata)\b([^>]*)\/?\s*>/i);
   const attrs = parseAttributes((resultTag || genericTag || [null, ''])[1] || '');
-  const status = text(attrs.status).toUpperCase();
-  const messageMatch = source.match(/<message\b[^>]*(?:Text|text|statusMsg)="([^"]*)"/i);
-  const message = decodeXmlEntities(attrs.statusMsg || messageMatch?.[1] || '');
-  return { source, attrs, status, message };
+  const status = text(attrs.status || elementText(source, 'status')).toUpperCase();
+  const messageTag = source.match(/<(?:[A-Za-z0-9_.-]+:)?message\b([^>]*)\/?\s*>/i);
+  const messageAttrs = parseAttributes(messageTag?.[1] || '');
+  const message = decodeXmlEntities(attrs.statusmsg || messageAttrs.text || messageAttrs.statusmsg || elementText(source, 'message') || '');
+  const sid = text(attrs.sid || elementText(source, 'sid'));
+  const sidEncrypt = text(attrs.sidencrypt || elementText(source, 'sidEncrypt'));
+  const key = text(attrs.key || elementText(source, 'key'));
+  return { source, attrs: { ...attrs, sid, sidEncrypt, key }, status, message };
 }
 
 async function upstreamText(url, init, code) {
@@ -185,6 +196,14 @@ function officialXmlUrl(env, action) {
   return url;
 }
 
+function safeBridgePreview(raw) {
+  return String(raw || '')
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/[\u0000-\u001f\u007f]/g, '')
+    .slice(0, 180);
+}
+
 async function getSid(env) {
   const action = text(env.CHESS_RESULTS_GETSID_ACTION) || 'GETSID';
   const url = officialXmlUrl(env, action);
@@ -193,7 +212,10 @@ async function getSid(env) {
   const parsed = parseBridgeXml(raw);
   if (parsed.status && parsed.status !== 'OK') throw new BridgeError(502, 'GETSID_REJECTED', parsed.message || 'Chess-Results rejected GETSID.');
   const sid = text(parsed.attrs.sid);
-  if (!sid) throw new BridgeError(502, 'GETSID_INVALID_RESPONSE', 'Chess-Results GETSID did not return a SID.');
+  if (!sid) {
+    const preview = safeBridgePreview(raw);
+    throw new BridgeError(502, 'GETSID_INVALID_RESPONSE', `Chess-Results GETSID did not return a SID.${preview ? ` Response starts: ${preview}` : ''}`);
+  }
   const encryptedSid = await encryptValue(sid, env);
   const expected = text(parsed.attrs.sidEncrypt).toUpperCase();
   if (expected && encryptedSid !== expected) throw new BridgeError(500, 'AES_VERIFICATION_FAILED', 'Chess-Results SID encryption verification failed.');
@@ -339,7 +361,7 @@ async function uploadPublication(env, key, ownership, creatorId, xml) {
     body: formBody(securedXml),
   }, 'UPLOAD_FAILED');
   const parsed = parseBridgeXml(raw);
-  const statusMatch = raw.match(/\bstatus\s*=\s*"(OK|WARNING|ERROR)"/i);
+  const statusMatch = raw.match(/\bstatus\s*=\s*["'](OK|WARNING|ERROR)["']/i);
   const status = text(parsed.status || statusMatch?.[1]).toUpperCase();
   if (status === 'ERROR') throw new BridgeError(502, 'UPLOAD_REJECTED', parsed.message || 'Chess-Results rejected the XML upload.');
   if (status !== 'OK' && status !== 'WARNING') throw new BridgeError(502, 'UPLOAD_INVALID_RESPONSE', 'Chess-Results upload did not return a verifiable success status.');
