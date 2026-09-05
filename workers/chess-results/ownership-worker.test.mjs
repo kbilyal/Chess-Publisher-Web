@@ -101,13 +101,24 @@ globalThis.fetch = async (url, init = {}) => {
 };
 
 try {
-  let response = await worker.fetch(request('create', {
+  const createBody = {
     tournament: 'Ownership Test',
     federation: 'BUL',
     mode: 'test',
     clientId: 'test-client',
-  }), env);
+  };
 
+  // A missing ownership secret must fail before any Chess-Results GETSID/GETKEY call.
+  const callsBeforePreflight = calls.length;
+  let response = await worker.fetch(request('create', createBody), {
+    ...env,
+    CHESS_RESULTS_OWNERSHIP_HMAC_SECRET: '',
+  });
+  assert.equal(response.status, 500);
+  assert.equal((await response.json()).code, 'OWNERSHIP_HMAC_NOT_CONFIGURED');
+  assert.equal(calls.length, callsBeforePreflight, 'create preflight must not contact Chess-Results when HMAC is missing');
+
+  response = await worker.fetch(request('create', createBody), env);
   assert.equal(response.status, 200);
   const created = await response.json();
   assert.equal(created.key, '7654321');
@@ -135,7 +146,6 @@ try {
   assert.equal(response.status, 403);
   assert.equal((await response.json()).code, 'TNR_OWNERSHIP_MISMATCH');
 
-  // Simulate desktop -> cloud sync -> a fresh web browser with no local proof.
   response = await worker.fetch(request('claim', {
     key: created.key,
     cloudTournamentId: 'cloud-A',
@@ -148,7 +158,6 @@ try {
   assert.equal(claimed.federation, 'XXX');
   assert.equal(typeof claimed.ownershipProof, 'string');
 
-  // The recovered proof is valid on another client for the same organizer/TNR.
   response = await worker.fetch(request('admin-link', {
     key: created.key,
     ownershipProof: claimed.ownershipProof,
@@ -156,7 +165,6 @@ try {
   assert.equal(response.status, 200);
   assert.match((await response.json()).url, /key1=7654321/);
 
-  // Another organizer cannot claim the same cloud tournament/TNR.
   response = await worker.fetch(request('claim', {
     key: created.key,
     cloudTournamentId: 'cloud-A',
@@ -167,10 +175,10 @@ try {
 
   const authCalls = hubCalls.filter(call => new URL(call.url).pathname === '/api/v1/organizer/me');
   const snapshotCalls = hubCalls.filter(call => new URL(call.url).pathname.includes('/api/v1/cloud/tournaments/'));
-  assert.equal(authCalls.length, 7, 'Hub organizer authentication must occur exactly once for each authenticated operation');
+  assert.equal(authCalls.length, 8, 'Hub organizer authentication must occur exactly once for each authenticated operation');
   assert.equal(snapshotCalls.length, 2, 'Only explicit cross-device claim operations may read the organizer-owned cloud snapshot');
   assert.ok(authCalls.every(call => call.url === 'https://hub.internal/api/v1/organizer/me'));
-  console.log('Chess-Results Hub service binding + cross-device TNR recovery + cross-organizer guard: PASS');
+  console.log('Chess-Results create preflight + Hub service binding + cross-device recovery + cross-organizer guard: PASS');
 } finally {
   globalThis.fetch = originalFetch;
 }
