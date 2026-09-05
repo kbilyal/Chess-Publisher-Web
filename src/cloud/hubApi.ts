@@ -25,7 +25,10 @@ async function request(path: string, options: {
 } = {}) {
   const headers = new Headers(options.headers || {});
   headers.set('Accept', 'application/json');
-  headers.set('X-Client-Version', 'studio-online-cloud-beta4');
+  // Keep the production browser CORS preflight minimal. Organizer identity is
+  // authenticated by Authorization; the optional client-version header is not
+  // part of the security contract and can cause the Worker preflight to reject
+  // a valid browser request before token validation runs.
   if (options.token) headers.set('Authorization', `Bearer ${options.token}`);
 
   let body = options.rawBody;
