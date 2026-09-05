@@ -7,6 +7,11 @@ const DEFAULT_UPLOAD_SECTION_URL = 'https://chess-results.com/UploadData.aspx';
 const DEFAULT_PUBLIC_BASE = 'https://chess-results.com';
 const ALLOWED_OPERATIONS = new Set(['test', 'create', 'publish', 'admin-link', 'delete-authorize', 'unlink']);
 
+// Private module capability used only by ownership-worker.js after it has
+// successfully authenticated the Organizer Token against Hub. A Symbol keeps
+// this trust marker out of Cloudflare environment bindings and HTTP input.
+export const AUTHENTICATED_ORGANIZER = Symbol('chess-results-authenticated-organizer');
+
 class BridgeError extends Error {
   constructor(status, code, message) {
     super(message);
@@ -54,6 +59,10 @@ function bearerToken(request) {
 
 async function hubOrganizer(request, env) {
   const token = bearerToken(request);
+  const preauthenticated = env?.[AUTHENTICATED_ORGANIZER];
+  const preauthenticatedOrganizerId = text(preauthenticated?.organizerId);
+  if (preauthenticatedOrganizerId) return { organizerId: preauthenticatedOrganizerId };
+
   const hubBase = text(env.HUB_API_BASE) || DEFAULT_HUB_API_BASE;
   let response;
   try {
