@@ -6,3 +6,6 @@ coverage/
 *.log
 .env*
 !.env.example
+.wrangler/
+.dev.vars*
+workers/chess-results/worker-configuration.d.ts

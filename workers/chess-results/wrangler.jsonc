@@ -1,0 +1,20 @@
+{
+  "name": "chess-publisher-chess-results",
+  "main": "worker.js",
+  "compatibility_date": "2026-09-05",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "vars": {
+    "WEB_ORIGIN": "https://web.chess-publisher.org"
+  },
+  "services": [
+    { "binding": "HUB", "service": "chess-publisher-hub-api-beta" }
+  ],
+  "d1_databases": [
+    { "binding": "DB", "database_name": "chess-publisher-chess-results", "database_id": "9291197b-1092-4a3b-bba4-0f8a0c5b2a5c" }
+  ],
+  "observability": { "enabled": true, "head_sampling_rate": 1 }
+}
+
+

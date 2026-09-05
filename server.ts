@@ -435,9 +435,10 @@ app.post('/api/trf/validate', async (req, res) => {
 // separately operated bridge, never to browser JavaScript or tournament data.
 // This route is deliberately a strict pass-through contract: it does not
 // fabricate a TNR, SID, upload success, or fallback transport.
-const chessResultsOperations = new Set(['test', 'create', 'publish', 'admin-link', 'unlink']);
+const chessResultsOperations = new Set(['test', 'create', 'publish', 'admin-link', 'delete-authorize', 'unlink']);
 
 app.post('/api/chess-results/:operation', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   const operation = String(req.params.operation || '');
   if (!chessResultsOperations.has(operation)) {
     res.status(404).json({ ok: false, code: 'UNKNOWN_CHESS_RESULTS_OPERATION', message: 'Unknown Chess-Results bridge operation.' });
@@ -458,10 +459,14 @@ app.post('/api/chess-results/:operation', async (req, res) => {
     const target = new URL(`/chessresults/${operation}`, base);
     const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
     if (process.env.CHESS_RESULTS_BRIDGE_TOKEN) headers.Authorization = `Bearer ${process.env.CHESS_RESULTS_BRIDGE_TOKEN}`;
-    const upstream = await fetch(target, { method: 'POST', headers, body: JSON.stringify(req.body || {}) });
+    const upstream = await fetch(target, { method: 'POST', headers, body: JSON.stringify(req.body || {}), redirect: 'error', signal: AbortSignal.timeout(40_000) });
     const raw = await upstream.text();
     let payload: any = {};
-    try { payload = raw ? JSON.parse(raw) : {}; } catch { payload = { message: 'Chess-Results bridge returned a non-JSON response.' }; }
+    try { payload = JSON.parse(raw); } catch { payload = null; }
+    if (!payload || typeof payload !== 'object' || (upstream.ok && payload.ok !== true)) {
+      res.status(502).json({ ok: false, code: 'INVALID_CHESS_RESULTS_BRIDGE_RESPONSE', message: 'Chess-Results bridge returned an invalid response.' });
+      return;
+    }
     res.status(upstream.status).json(payload);
   } catch (error: any) {
     res.status(502).json({ ok: false, code: 'CHESS_RESULTS_BRIDGE_UNAVAILABLE', message: error?.message || 'Chess-Results bridge is unavailable.' });

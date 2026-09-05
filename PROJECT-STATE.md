@@ -1,6 +1,6 @@
 # Chess-Publisher Web — Project State
 
-Updated: 2026-09-04
+Updated: 2026-09-05
 
 ## Current repository baseline
 Starting source commit for the latest verified batch: `6aa2deb17d1f555772425226ba04e279dfe5903f`.
@@ -143,6 +143,20 @@ TRF Full Parity (Export-through-round, TRF16/TRF26, starting list, administrativ
 - Cloud revision/fingerprint bookkeeping is now explicitly excluded from the automatic-sync trigger, so a completed cloud operation cannot recursively schedule itself.
 - Both `Sync Now` and automatic backup reconcile the current remote revision before reporting success; a newer cloud-only revision is surfaced for safe Pull Changes instead of being incorrectly labelled `Synced`.
 - Verified: `npm run test:production-web-beta7`, `npm run test:online-cloud`, `npm run test:cloud-roundtrip`, `npm run lint`, and `npm run build` PASS.
+
+## Hosted Web cloud-only save boundary (2026-09-04)
+- On `web.chess-publisher.org`, Save and Autosave now use the authenticated Private Cloud sync boundary rather than local tournament-folder persistence.
+- The hosted Save control is labelled Sync/Cloud Autosave; Save As is hidden and safely rejected with Export/Desktop guidance.
+- Desktop and localhost (`127.0.0.1`) retain managed-folder save and autosave behavior; browser storage in Web remains only transient runtime recovery, not the reported save destination.
+
+## Chess-Results hosted Web HTTP 405 repair (2026-09-05)
+- Root cause: the hosted browser adapter POSTed desktop `/chessresults/*` routes to the static Pages origin, which has no publishing service.
+- Hosted transport now reads a public HTTPS backend origin from `production-web/web/chess-results-config.json`, uses `/api/chess-results/*` and the existing Organizer Token, and leaves the installed desktop transport intact.
+- Fixed the production API mount that stripped the `/api` prefix; added exact-origin Chess-Results CORS/preflight handling before Organizer authentication and retained server-only bridge credentials.
+- Added the missing `delete-authorize` forwarding operation, bounded transport timeouts, redirect rejection and strict response validation. Existing XML and TNR lifecycle workflows remain unchanged, with no mutation retry or fabricated success.
+- Dedicated browser/production-route regression tests are included in `npm run test:chess-results` and both CI workflows. Publishing tests, lint/build, Web beta.7, recovered browser functions, cloud beta.4/beta.5/roundtrip, transactions, finalization, FIDE, FIDE sync, tie-break, checker and player-parity suites passed locally.
+- Full engine gates are still not passing on this Windows checkout: `test:parity` reports 0/11 due to the unavailable configured Gacrux/BBP runtimes (`python3` is absent); `test:arch` aborts with `spawn EFTYPE` in its process fixture. No authoritative engine code was changed.
+- Live acceptance remains OPEN: no hosted official bridge URL is configured, `apiBaseUrl` is intentionally empty, and these changes have not been deployed. See `CHESS-RESULTS-WEB.md` for the concrete backend and Pages configuration steps.
 
 ## Handoff status
 `HANDOFF_READY = false`

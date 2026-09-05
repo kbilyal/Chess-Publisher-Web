@@ -20,6 +20,10 @@
     const esc=v=>text(v).replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
     const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
     const runtimeState=new Map();
+    const isCloudOnlyWeb=()=>{
+      const host=text(location.hostname).toLowerCase();
+      return location.protocol==="https:"&&(host==="web.chess-publisher.org"||host.endsWith(".github.io"));
+    };
 
     let tokenCache="";
     let organizerInfo=null;
@@ -43,9 +47,13 @@
     const cloudMetadataRevisions=new Set();
 
     function autoSyncEnabled(){
-      // Beta.4 is conservative by default: background cloud backup is opt-in.
-      // Existing users who explicitly enabled it keep their preference ("1").
-      try{return localStorage.getItem(AUTO_SYNC_KEY)==="1";}catch(_){return false;}
+      // Desktop keeps its opt-in backup preference. The hosted Web product has
+      // no local-folder save path, so automatic Cloud save is enabled unless
+      // the organizer explicitly pauses it.
+      try{
+        const stored=localStorage.getItem(AUTO_SYNC_KEY);
+        return stored===null?isCloudOnlyWeb():stored==="1";
+      }catch(_){return isCloudOnlyWeb();}
     }
     function setAutoSyncEnabled(enabled){
       try{localStorage.setItem(AUTO_SYNC_KEY,enabled?"1":"0");}catch(_){ }
@@ -369,7 +377,9 @@
     function persistCloudMeta(){
       try{
         const before=persistenceRevision();
-        if(typeof saveData==="function")saveData();
+        window.__cpCloudMetadataSaving=Number(window.__cpCloudMetadataSaving||0)+1;
+        try{if(typeof saveData==="function")saveData();}
+        finally{window.__cpCloudMetadataSaving=Math.max(0,Number(window.__cpCloudMetadataSaving||1)-1);}
         const after=persistenceRevision();
         if(after!==null&&after!==before){
           cloudMetadataRevisions.add(after);
@@ -569,15 +579,41 @@
         // network operation. These IDs are bookkeeping only, not tournament
         // scoring/content and never authorize cloud access.
       }
-      // A foreground cloud operation is a durability boundary: first commit the
-      // exact active tournament to managed local storage, then reconcile cloud.
-      if(!quiet&&typeof fileSaveTournament==="function"){
+      // Desktop uses a managed local-file checkpoint before Cloud reconcile.
+      // Hosted Web has no local-folder workflow: the Cloud write below is its
+      // only durability boundary, avoiding a recursive file-save -> cloud-save
+      // call from the browser's Save button.
+      if(!quiet&&!isCloudOnlyWeb()&&typeof fileSaveTournament==="function"){
         const saved=await fileSaveTournament(true);
         if(!saved)throw new Error("Local tournament could not be saved. Cloud sync was cancelled.");
       }
       const result=await syncTournamentByName(name,{force,quiet,allowPull});
       if(result?.ok!==false)await pushOrganizerSettings({quiet:true,force});
       return result;
+    }
+
+    async function saveCurrentToCloud({quiet=false,force=false}={}){
+      try{
+        const result=await syncCurrent({force,quiet,allowPull:!quiet});
+        if(result?.ok!==true||result?.noToken)return false;
+        // Keep the active Web session clean only after its Cloud revision has
+        // accepted the exact in-memory tournament. Browser storage remains a
+        // cache, never the reported save destination.
+        try{
+          stateDirty=false;
+          if(typeof getPersistentSnapshot==="function")lastCommittedSnapshot=clone(getPersistentSnapshot());
+          if(typeof setSaveIndicator==="function")setSaveIndicator("Saved","saved");
+          if(!quiet&&typeof setStatus==="function")setStatus("Tournament synced to Private Cloud.");
+        }catch(_){ }
+        return true;
+      }catch(error){
+        console.warn("Cloud save:",error);
+        try{
+          if(typeof setSaveIndicator==="function")setSaveIndicator("Cloud save failed","dirty");
+          if(!quiet&&typeof setStatus==="function")setStatus(cloudErrorText(error));
+        }catch(_){ }
+        return false;
+      }
     }
 
     async function pullCurrentChanges(){
@@ -799,7 +835,7 @@
         if(typeof normalizeData==="function")normalizeData();
         stateDirty=true;
         if(typeof refreshEverything==="function")refreshEverything();
-        const saved=typeof fileSaveTournament==="function"?await fileSaveTournament(true):false;
+        const saved=isCloudOnlyWeb()?true:(typeof fileSaveTournament==="function"?await fileSaveTournament(true):false);
         if(!saved)throw new Error("Cloud tournament was downloaded but could not be committed to local managed storage.");
         setRuntime(targetName,data.tournaments[targetName],"synced","Opened from private cloud");
         if(showMain&&document.getElementById("tabMain")&&typeof showTab==="function")showTab("main",document.getElementById("tabMain"));
@@ -1015,6 +1051,7 @@
     window.cpCloudWorkspaceOpen=openWorkspace;
     window.cpCloudOpenTournament=openCloudTournament;
     window.cpCloudSyncCurrent=syncCurrent;
+    window.cpCloudSaveCurrent=saveCurrentToCloud;
     window.cpCloudPullChanges=pullCurrentChanges;
     window.cpCloudSyncAllLocal=syncAllLocal;
     window.cpCloudRefreshList=refreshCloudList;

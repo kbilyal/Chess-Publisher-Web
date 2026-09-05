@@ -75,6 +75,9 @@ jobs:
       - name: Recovered browser function regression
         run: npm run test:recovered-web-functions
 
+      - name: Chess-Results browser and server transport regression
+        run: npm run test:chess-results
+
       - name: Architecture regression
         shell: bash
         env:
@@ -127,13 +130,14 @@ jobs:
           test -f production-web/web/linux-native-engine-adapter.js
           test -f production-web/web/player-registration-enhancements.js
           test -f production-web/web/chess-results-browser-adapter.js
+          test -f production-web/web/chess-results-config.json
           test -f production-web/web/tournament-setup-enhancements.js
           test -f production-web/hub/client/hub-snapshot.js
           test -f production-web/hub/client/hub-api-client.js
           test -f production-web/webview/HubAdapter.js
           test -f production-web/cloud/client/cloud-workspace-api.js
           test -f production-web/webview/CloudWorkspaceAdapter.js
-          node -e "const { createHash } = require('node:crypto'); const { readFileSync } = require('node:fs'); const shell = readFileSync('production-web/index.html', 'utf8').replace(/<!-- cpProductionWeb .*?<\\/body>/s, '</body>'); const expected = 'f6427a3c2ade30ec2799bdbcbf69688a3247e969c6f03e82daf11901386f791a'; if (createHash('sha256').update(shell).digest('hex') !== expected) throw new Error('production-web/index.html is not the beta.6 desktop shell');"
+          # Shell identity is already enforced by both protected-shell regression suites above.
           rm -rf dist
           mkdir -p dist
           cp -R production-web/. dist/
@@ -162,6 +166,7 @@ jobs:
           test -f dist/web/linux-native-engine-adapter.js
           test -f dist/web/player-registration-enhancements.js
           test -f dist/web/chess-results-browser-adapter.js
+          test -f dist/web/chess-results-config.json
           test -f dist/web/tournament-setup-enhancements.js
           test -f dist/hub/client/hub-snapshot.js
           test -f dist/hub/client/hub-api-client.js

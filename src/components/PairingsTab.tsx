@@ -284,7 +284,18 @@ export const PairingsTab: React.FC<PairingsTabProps> = ({
         })
       });
 
-      const data = await res.json();
+      const data: {
+        success?: boolean;
+        code?: string;
+        message?: string;
+        result?: {
+          round?: number;
+          boards?: BoardPairing[];
+          engine?: { id?: string; name?: string; version?: string };
+          ruleLog?: string[];
+          pabKey?: string;
+        };
+      } = await res.json();
       if (!res.ok || !data.success) {
         setAuthoritativeError({
           code: data.code || 'AUTHORITATIVE_ENGINE_NOT_CONFIGURED',
@@ -293,19 +304,22 @@ export const PairingsTab: React.FC<PairingsTabProps> = ({
         return;
       }
 
+      const result = data.result || {};
+      const engine = result.engine || { id: 'gacrux', name: 'Gacrux', version: 'unknown' };
+
       // Open Draft Preview for Arbiter inspection
       setPreviewModalData({
-        round: data.result.round,
-        previewBoards: data.result.boards,
+        round: result.round || 0,
+        previewBoards: result.boards || [],
         engineMetadata: {
-          id: data.result.engine.id,
-          name: data.result.engine.name,
-          version: data.result.engine.version,
+          id: engine.id || 'gacrux',
+          name: engine.name || 'Gacrux',
+          version: engine.version || 'unknown',
           authoritative: true,
           engineType: 'authoritative_gacrux'
         },
-        ruleLog: data.result.ruleLog,
-        pabKey: data.result.pabKey
+        ruleLog: result.ruleLog || [],
+        pabKey: result.pabKey
       });
     } catch (err: any) {
       setAuthoritativeError({

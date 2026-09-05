@@ -73,12 +73,12 @@ export const FideSyncModal: React.FC<FideSyncModalProps> = ({
         body: JSON.stringify(body)
       });
 
-      const data = await res.json();
+      const data: { success?: boolean; message?: string; diffReport?: FideSyncDiffReport } = await res.json();
       if (!res.ok || !data.success) {
         throw new Error(data.message || 'Failed to generate FIDE sync preview.');
       }
 
-      const diffReport: FideSyncDiffReport = data.diffReport;
+      const diffReport: FideSyncDiffReport = data.diffReport as FideSyncDiffReport;
       setReport(diffReport);
 
       // Initialize selections for CHANGED players
@@ -211,15 +211,15 @@ export const FideSyncModal: React.FC<FideSyncModalProps> = ({
         body: JSON.stringify(body)
       });
 
-      const data = await res.json();
+      const data: { success?: boolean; message?: string; tournament?: Tournament; appliedCount?: number } = await res.json();
       if (!res.ok || !data.success) {
         throw new Error(data.message || 'Transaction failed and was safely rolled back.');
       }
 
       // Successfully committed
-      onUpdateTournament(data.tournament);
+      onUpdateTournament(data.tournament as Tournament);
       setSuccessNotice(
-        `Successfully applied FIDE synchronization for ${data.appliedCount} player(s). Transaction committed.`
+        `Successfully applied FIDE synchronization for ${data.appliedCount ?? 0} player(s). Transaction committed.`
       );
 
       // Re-fetch diff or refresh report

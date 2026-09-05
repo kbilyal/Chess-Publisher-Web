@@ -1,15 +1,44 @@
 (()=>{
   "use strict";
 
+  const desktopRequest=window.chessResultsLocalJson;
+  const operations=new Set(["test","create","publish","admin-link","delete-authorize","unlink"]);
+  const notConnected="Chess-Results backend not connected. The Web publishing server must be configured before publishing from this website.";
+  let backendPromise;
+
+  async function backendUrl(){
+    if(!backendPromise)backendPromise=(async()=>{
+      const response=await fetch("/web/chess-results-config.json",{cache:"no-store"});
+      if(!response.ok)throw new Error(notConnected);
+      const config=await response.json();
+      if(!String(config?.apiBaseUrl||"").trim())throw new Error(notConnected);
+      const url=new URL(config.apiBaseUrl);
+      if(url.protocol!=="https:"||url.username||url.password||url.search||url.hash||url.pathname!=="/"){
+        throw new Error("Chess-Results publishing server must be configured with an HTTPS origin.");
+      }
+      return url.origin;
+    })().catch(error=>{backendPromise=null;throw new Error(error?.message||notConnected);});
+    return backendPromise;
+  }
+
   async function request(path,body=null){
-    const options=body===null?{}:{method:"POST",headers:{"Content-Type":"application/json;charset=utf-8"},body:JSON.stringify(body)};
+    if(typeof window.isLocalEnginePage==="function"&&window.isLocalEnginePage()&&typeof desktopRequest==="function"){
+      return desktopRequest(path,body);
+    }
+    const match=/^\/chessresults\/([a-z-]+)$/.exec(path);
+    if(!match||!operations.has(match[1]))throw new Error("Unknown Chess-Results operation.");
+    const base=await backendUrl();
+    const token=String(await window.cpNativeHubSecretGet?.("organizer-primary")||"").trim();
+    if(!token)throw new Error("Sign in with your Organizer Token before using Chess-Results publishing.");
+    const options={method:"POST",headers:{"Content-Type":"application/json;charset=utf-8",Accept:"application/json",Authorization:`Bearer ${token}`},body:JSON.stringify(body||{})};
     let response;
-    try{response=await fetch(path,{...options,cache:"no-store"});}
-    catch(_){throw new Error("Chess-Results backend not connected. Use the Desktop launcher or connect the verified Chess-Results server backend.");}
-    let payload={};
+    try{response=await fetch(`${base}/api/chess-results/${match[1]}`,{...options,cache:"no-store",credentials:"omit",redirect:"error",signal:AbortSignal.timeout(45000)});}
+    catch(_){throw new Error("Could not reach the Chess-Results publishing server. Check the connection and server configuration before retrying.");}
+    let payload=null;
     try{payload=await response.json();}catch{}
-    if(response.status===404)throw new Error("Chess-Results backend not connected. Use the Desktop launcher or connect the verified Chess-Results server backend.");
-    if(!response.ok||!payload.ok)throw new Error(payload.error||`Chess-Results service HTTP ${response.status}`);
+    if(response.status===404||response.status===405)throw new Error("The configured server does not support Chess-Results publishing. Connect the Chess-Results API backend, then retry.");
+    if(!payload||typeof payload!=="object")throw new Error("The Chess-Results publishing server returned an invalid response.");
+    if(!response.ok||payload.ok!==true)throw new Error(payload.message||payload.error||`Chess-Results service HTTP ${response.status}`);
     return payload;
   }
 
@@ -35,5 +64,5 @@
       return protectedOpenUploadSection();
     };
   }
-  window.__cpChessResultsBrowserAdapter={enabled:true,transport:"same-origin-server",secretsInBrowser:false};
+  window.__cpChessResultsBrowserAdapter={enabled:true,transport:"configured-authenticated-server",secretsInBrowser:false};
 })();

@@ -1,6 +1,6 @@
 {
   "project": "Chess-Publisher-Web",
-  "updated": "2026-09-04",
+  "updated": "2026-09-05",
   "mainCommitVerified": "20862b7eea8281c43062db825d792751c007e6cb",
   "handoffReady": false,
   "baselineFeatureAudit": {
@@ -13,6 +13,7 @@
     "requiresFinalReaudit": true
   },
   "regressionStatus": {
+    "chessResultsHostedWeb405": "2026-09-05: browser routing, production API prefix, Organizer auth/CORS, Desktop preservation, missing backend and invalid-response regressions PASS; lint/build and Web/cloud/tournament suites PASS. Hosted backend configuration, deployment and live acceptance remain OPEN. Architecture process fixture fails with spawn EFTYPE on Windows; pairing parity remains blocked by runtime setup.",
     "architecture": "34/34 PASS reported",
     "desktopParity": "11/11 PASS reported",
     "transactions": "14/14 PASS reported",
@@ -28,6 +29,7 @@
     "cloudProductionEndpoints": "Web HTTP 200, API health HTTP 200, exact production-origin CORS HTTP 204 PASS on 2026-09-04",
     "productionWebBeta7": "PASS: canonical shell, token-scoped tournament list, simplified Online & Cloud view, Browser-only access, and no Vite entry",
     "productionWebPersistenceAndSync": "PASS: autosave revision capture, cloud-metadata loop suppression, and current remote-revision reconciliation verified on 2026-09-04.",
+    "productionWebCloudOnlySave": "PASS: hosted Save/Autosave delegate to authenticated Private Cloud; managed local folders remain Desktop/localhost-only, verified on 2026-09-04.",
     "productionWebFideBrowser": "PASS locally with real 13,119,942-byte Standard FIDE ZIP: 562,890 records parsed, search results rendered, and selected player added without Organizer Token"
   },
   "gates": {

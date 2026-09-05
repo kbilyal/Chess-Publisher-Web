@@ -77,7 +77,7 @@ export async function runAllArchitectureTests(baseUrl: string = 'http://localhos
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tournament: mockTournament, round: 1 })
       });
-      const data = await res.json();
+      const data: { prototype?: boolean; result?: { engine?: { authoritative?: boolean; engineType?: string } } } = await res.json();
       // On live system, either 200 (real authoritative engine) or 503 (unconfigured); NEVER prototype fallback!
       const isAuthoritative = data.result?.engine?.authoritative === true || res.status === 503;
       const noPrototype = !data.prototype && data.result?.engine?.engineType !== 'prototype';
@@ -215,7 +215,7 @@ export async function runAllArchitectureTests(baseUrl: string = 'http://localhos
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tournament: null, round: -5 })
       });
-      const data = await res.json();
+      const data: { code?: string } = await res.json();
       passed = res.status === 400 && data.code === 'INVALID_REQUEST';
       message = passed ? 'PASS: HTTP 400 INVALID_REQUEST returned for malformed payload.' : `FAIL: Expected 400, got ${res.status}`;
     } catch (e: any) {
@@ -239,7 +239,7 @@ export async function runAllArchitectureTests(baseUrl: string = 'http://localhos
           executablePath: '/bin/sh'
         })
       });
-      const data = await res.json();
+      const data: { code?: string } = await res.json();
       passed = res.status === 400 && data.code === 'INVALID_ARGUMENT';
       message = passed ? 'PASS: Client-supplied executablePath injection explicitly rejected.' : `FAIL: Expected 400 INVALID_ARGUMENT, got ${res.status}`;
     } catch (e: any) {
@@ -259,7 +259,7 @@ export async function runAllArchitectureTests(baseUrl: string = 'http://localhos
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tournament: mockTournament, round: 1 })
       });
-      const data = await res.json();
+      const data: { authoritative?: boolean; prototype?: boolean } = await res.json();
       passed = res.status === 200 && data.authoritative === false && data.prototype === true;
       message = passed ? 'PASS: Prototype route explicitly flags authoritative=false and prototype=true.' : `FAIL: Expected prototype flags, got: ${JSON.stringify(data)}`;
     } catch (e: any) {

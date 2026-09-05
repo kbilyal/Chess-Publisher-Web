@@ -1,5 +1,7 @@
 # Next Task — TRF Full Parity (Integration Gate G)
 
+The 2026-09-05 Chess-Results Web HTTP 405 routing repair is implemented and locally tested. Live publishing still requires the HTTPS backend origin and official bridge configuration described in `CHESS-RESULTS-WEB.md`, followed by deployment and live acceptance. This remains an open Gate I dependency; no publication success is claimed.
+
 The preceding Chess-Results bridge batch is complete in source: validated XML preview, TNR lifecycle safety, server-only bridge transport, no simulated success path, and dedicated publication/bridge contract tests. Gate I remains pending live acceptance against provisioned official bridge credentials.
 
 Creator XML examples have been reviewed and their required non-pairing and PAB mappings are covered by the Chess-Results publication contract test.
@@ -8,7 +10,7 @@ The public Web startup screen is Organizer-Token-only; the `Continue without Clo
 
 Gate K (Player Registration & Starting List Parity) is closed and verified with 12/12 dedicated regression tests passing (`npm run test:player-parity`) and full UI integration in `PlayersTab.tsx` and `RequestedByesModal.tsx`.
 
-Most recent accepted batch: beta.7 Web Start Page + Simplified Online & Cloud tab + Always-Synced Tournament List, followed by browser FIDE import and explicit Browser-only access for users without a provisioned Organizer Token. The subsequent production persistence/cloud-sync repair removes autosave revision feedback loops, prevents metadata-only save recursion, and requires a remote reconciliation before Sync Now or automatic backup can report success. Production Pages deployment and artifact checks pass; authenticated Organizer Token behavior and self-service account provisioning remain open backend acceptance work. This does not change the next roadmap task below.
+Most recent accepted batch: beta.7 Web Start Page + Simplified Online & Cloud tab + Always-Synced Tournament List, followed by browser FIDE import and explicit Browser-only access for users without a provisioned Organizer Token. The subsequent production persistence/cloud-sync repair removes autosave revision feedback loops, prevents metadata-only save recursion, and requires a remote reconciliation before Sync Now or automatic backup can report success. Hosted Web Save and Autosave now use Private Cloud only; managed local-folder saving remains the Desktop/localhost application responsibility. Production Pages deployment and artifact checks pass; authenticated Organizer Token behavior and self-service account provisioning remain open backend acceptance work. This does not change the next roadmap task below.
 
 The next roadmap item is **Integration Gate G: TRF Full Parity**.
 

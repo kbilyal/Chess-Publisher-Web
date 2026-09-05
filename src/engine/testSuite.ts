@@ -740,7 +740,7 @@ export const TEST_SUITE: TestCase[] = [
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ tournament: tourn, round: 1 })
         });
-        const data = await res.json();
+        const data: { code?: string } = await res.json();
         caughtCode = data.code || '';
       } catch (err: any) {
         caughtCode = err.message || '';
@@ -767,7 +767,7 @@ export const TEST_SUITE: TestCase[] = [
       const start = performance.now();
       try {
         const res = await fetch('/api/engine/status');
-        const data = await res.json();
+        const data: { pairingChecker?: { available?: boolean; status?: string; version?: string }; checkers?: Array<{ available?: boolean; status?: string; version?: string }> } = await res.json();
         const checker = data.pairingChecker || data.checkers?.[0];
         const passed = typeof checker?.available === 'boolean';
         const benchmarkMs = performance.now() - start;

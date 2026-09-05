@@ -155,8 +155,8 @@ export class ServerTournamentRepository implements TournamentRepository {
     try {
       const res = await fetch(`/api/tournaments/${id || 'current'}`);
       if (res.ok) {
-        const data = await res.json();
-        return data.tournament;
+        const data: { tournament?: Tournament } = await res.json();
+        return data.tournament || null;
       }
     } catch {
       // Fallback

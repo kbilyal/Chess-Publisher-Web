@@ -84,10 +84,10 @@ export const PairingPreviewModal: React.FC<PairingPreviewModalProps> = ({
       });
 
       if (res.ok) {
-        const data = await res.json();
-        setCheckerResult(data.checkResult);
+        const data: { checkResult?: PairingCheckResult } = await res.json();
+        setCheckerResult(data.checkResult ?? null);
       } else {
-        const errData = await res.json().catch(() => ({}));
+        const errData: { message?: string } = await res.json().catch(() => ({} as { message?: string }));
         setCheckerResult({
           status: 'CHECKER_NOT_CONFIGURED',
           passed: false,

@@ -118,7 +118,7 @@ export const PlayersTab: React.FC<PlayersTabProps> = ({
         const queryParam = `&q=${encodeURIComponent(q)}`;
         const res = await fetch(`/api/fide/search?limit=50&tournamentType=${encodeURIComponent(defaultRatingType)}&filterRating=${encodeURIComponent(fideRatingFilter)}${queryParam}`);
         if (res.ok) {
-          const data = await res.json();
+          const data: { players?: FidePlayerRecord[] } = await res.json();
           setFideResults(data.players || []);
           if (data.players && data.players.length === 0) {
             setFideSearchNotice('Няма намерени FIDE състезатели по зададените критерии.');
@@ -151,7 +151,7 @@ export const PlayersTab: React.FC<PlayersTabProps> = ({
     try {
       const res = await fetch(`/api/fide/player/${encodeURIComponent(fideId)}?tournamentType=${encodeURIComponent(defaultRatingType)}`);
       if (res.ok) {
-        const data = await res.json();
+        const data: { found?: boolean; player?: FidePlayerRecord } = await res.json();
         if (data.found && data.player) {
           const p: FidePlayerRecord = data.player;
           if (p.name) setManualName(p.name);

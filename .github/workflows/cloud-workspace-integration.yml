@@ -51,6 +51,9 @@ jobs:
       - name: Recovered browser function regression
         run: npm run test:recovered-web-functions
 
+      - name: Chess-Results browser and server transport regression
+        run: npm run test:chess-results
+
       - name: Transaction regression
         run: npm run test:transactions
 

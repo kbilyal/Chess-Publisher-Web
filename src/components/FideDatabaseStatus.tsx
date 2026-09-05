@@ -52,7 +52,7 @@ export const FideDatabaseStatus: React.FC<FideDatabaseStatusProps> = ({ onDataba
         body: JSON.stringify({})
       });
 
-      const data = await res.json();
+      const data: { success?: boolean; result?: { recordCount?: number }; message?: string } = await res.json();
 
       if (res.ok && data.success) {
         const total = (data.result?.recordCount || 0).toLocaleString('bg-BG');
@@ -98,7 +98,7 @@ export const FideDatabaseStatus: React.FC<FideDatabaseStatusProps> = ({ onDataba
             })
           });
 
-          const data = await res.json();
+          const data: { success?: boolean; result?: { recordCount?: number }; message?: string } = await res.json();
           if (res.ok && data.success) {
             setSuccessMsg(`Успешно импортиран ${file.name} — заредени ${data.result?.recordCount || 0} състезатели.`);
             await fetchStatus();

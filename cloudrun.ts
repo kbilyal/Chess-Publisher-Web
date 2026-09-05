@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'path';
 import { createHash } from 'crypto';
+import { installProductionApi } from './src/server/productionApi';
 
 const HUB_API_BASE = 'https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev';
 const AUTH_CACHE_TTL_MS = 60_000;
@@ -72,14 +73,7 @@ async function main() {
   });
 
   // All functional Studio APIs require the same Organizer Token used by Cloud Workspace.
-  app.use('/api', async (req, res) => {
-    const auth = await validateOrganizerToken(req.header('authorization'));
-    if (!auth.ok) {
-      res.status(auth.status).json({ success: false, code: 'ORGANIZER_AUTH_REQUIRED', message: auth.message });
-      return;
-    }
-    studioApi(req, res);
-  });
+  installProductionApi(app, studioApi, validateOrganizerToken);
 
   const distPath = path.join(process.cwd(), 'dist');
   app.use(express.static(distPath));

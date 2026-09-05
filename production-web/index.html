@@ -4180,6 +4180,15 @@ function canUseLocalStateFile(){
   return location.protocol==="http:" && location.hostname==="127.0.0.1";
 }
 
+// The hosted Web edition is cloud-backed. Folder/managed-file persistence is
+// deliberately a Desktop/local-host concern; Web Save and Autosave delegate to
+// the authenticated Private Cloud adapter below instead.
+function cpIsCloudOnlyWeb(){
+  const host=String(location.hostname||"").toLowerCase();
+  return !canUseLocalStateFile() && location.protocol==="https:" &&
+    (host==="web.chess-publisher.org" || host.endsWith(".github.io"));
+}
+
 let openedTournamentStorageName="";
 
 // --- CP NATIVE FILE PATH COMPATIBILITY START ---
@@ -4599,6 +4608,11 @@ async function fileSaveTournament(silent=false){
 
 async function fileSaveAsTournament(){
   closeFileMenu();
+
+  if(cpIsCloudOnlyWeb()){
+    await appAlert("Chess-Publisher Web saves tournament changes to Private Cloud. Use Export when you need a downloadable copy; Save As is available in the Desktop app.","Save As","info");
+    return;
+  }
 
   if(!data?.currentTournament){
     fileNewTournament();
@@ -5049,6 +5063,17 @@ async function cpExecutePersistentSave(job){
 }
 
 function writePersistentState(showStatus=false,force=false){
+  // The public Web application has no local tournament-folder workflow. Its
+  // save boundary is a completed authenticated Cloud sync; browser cache is
+  // only transient runtime recovery and must not be presented as a save.
+  if(cpIsCloudOnlyWeb()){
+    const saveToCloud=window.cpCloudSaveCurrent;
+    if(typeof saveToCloud==="function")return Promise.resolve(saveToCloud({quiet:!showStatus,force:!!force}));
+    const message="Cloud save is unavailable until Online & Cloud has loaded.";
+    setSaveIndicator("Cloud save unavailable","dirty");
+    if(showStatus) setStatus(message);
+    return Promise.resolve(false);
+  }
   // Capture NOW, enqueue AFTER. Capturing first is essential: if the operator
   // switches tournaments while an older save is still in flight, that queued
   // save must still contain the original tournament snapshot and TRF backup.
@@ -7368,7 +7393,10 @@ function saveData(){
     console.warn("Core local save failed:",err);
   }
 
-  scheduleAutosave();
+  // Cloud metadata is written during an already-running cloud operation. It
+  // must not be interpreted as a fresh tournament edit and schedule another
+  // hosted-Web autosave/sync cycle.
+  if(!(cpIsCloudOnlyWeb() && Number(window.__cpCloudMetadataSaving||0)>0)) scheduleAutosave();
 }
 function getCurrentTournament(){return data.tournaments[data.currentTournament]}
 
@@ -33239,6 +33267,28 @@ body .window .cp-date-control>button.cp-date-trigger svg{width:15px;height:15px;
   const removeTokenBypass = () => document.getElementById('cpBeta7Offline')?.remove();
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', removeTokenBypass, { once: true });
   else removeTokenBypass();
+})();
+</script>
+<script id="cpCloudOnlySaveUi">
+// Make the hosted product's storage boundary explicit. The Desktop/local-host
+// build keeps its existing folder save UI; only web.chess-publisher.org uses
+// Private Cloud for Save and Autosave.
+(() => {
+  const host = String(location.hostname || '').toLowerCase();
+  if (location.protocol !== 'https:' || (host !== 'web.chess-publisher.org' && !host.endsWith('.github.io'))) return;
+  const apply = () => {
+    const save = document.getElementById('manualSaveButton');
+    if (save) { save.textContent = 'Sync'; save.title = 'Save this tournament to Private Cloud'; }
+    const autosave = document.querySelector('.autosave-switch');
+    const label = autosave?.querySelector('.autosave-text');
+    if (autosave) autosave.title = 'Automatically save changes to Private Cloud';
+    if (label) label.textContent = 'Cloud Autosave';
+    document.querySelectorAll('#fileMenuRoot button').forEach(button => {
+      if (/^Save As/i.test(String(button.textContent || '').trim())) button.style.display = 'none';
+    });
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply, { once: true });
+  else apply();
 })();
 </script>
 </body>
