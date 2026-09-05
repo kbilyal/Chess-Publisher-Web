@@ -1,0 +1,19 @@
+name = "chess-publisher-chess-results"
+main = "worker.js"
+compatibility_date = "2026-09-05"
+workers_dev = true
+
+[[routes]]
+pattern = "web.chess-publisher.org/api/chess-results/*"
+zone_name = "chess-publisher.org"
+
+[vars]
+WEB_ORIGIN = "https://web.chess-publisher.org"
+HUB_API_BASE = "https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev"
+CHESS_RESULTS_XML_URL = "https://chess-results.com/xml.aspx"
+CHESS_RESULTS_GETSID_ACTION = "GETSID"
+CHESS_RESULTS_GETKEY_ACTION = "GETKEY"
+CHESS_RESULTS_UPLOAD_XML_URL = "https://chess-results.com/uploadxml.aspx"
+CHESS_RESULTS_ADMIN_URL = "https://chess-results.com/Stammdaten.aspx"
+CHESS_RESULTS_UPLOAD_SECTION_URL = "https://chess-results.com/UploadData.aspx"
+CHESS_RESULTS_PUBLIC_BASE = "https://chess-results.com"
