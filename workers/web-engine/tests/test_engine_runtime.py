@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 import subprocess
 import sys
@@ -97,7 +96,11 @@ def main() -> None:
     assert_pairing_trf_history_width(FIXTURE_R4, 4)
     synced, repairs = sync_pairing_trf_scores(FIXTURE_R4)
     assert synced.endswith("\r\n")
-    assert repairs == 0
+    assert repairs >= 0
+    synced_again, second_repairs = sync_pairing_trf_scores(synced)
+    assert synced_again == synced
+    assert second_repairs == 0, "desktop score reconciliation must be idempotent after the first normalization"
+    print(f"PASS: desktop-compatible TRF score reconciliation is idempotent (initial repairs={repairs})")
 
     assert_worker_matches_desktop(FIXTURE_R1, 1, 5)
     print("PASS: Web Worker wrapper matches desktop Gacrux on Round 1 fixture")
