@@ -11,7 +11,9 @@
   window.__cpWebLinuxDevHost=host;
 
   const ORGANIZER_SECRET_KEY="organizer-primary";
-  const ENGINE_BASE="https://chess-publisher-web-engine.kyamranbilyal.workers.dev";
+  const CANONICAL_WEB_ORIGIN="https://web.chess-publisher.org";
+  const DIRECT_ENGINE_BASE="https://chess-publisher-web-engine.kyamranbilyal.workers.dev";
+  const ENGINE_BASE=location.origin===CANONICAL_WEB_ORIGIN?location.origin:DIRECT_ENGINE_BASE;
   const ENGINE_PREFIX=`${ENGINE_BASE}/api/engine`;
   const BACKEND_UNAVAILABLE="Chess-Publisher Web engine is unavailable. Pairing was not generated.";
   const nativeFetch=typeof window.fetch==="function"?window.fetch.bind(window):null;
@@ -71,8 +73,11 @@
     let response;
     try{
       response=await nativeFetch(path,{cache:"no-store",mode:"cors",credentials:"omit",...options,headers});
-    }catch(_){
-      throw new Error(BACKEND_UNAVAILABLE);
+    }catch(error){
+      const detail=String(error?.message||error||"network request failed").trim();
+      host.nativeTransportError={origin:location.origin,endpoint:String(path),detail};
+      console.warn("Chess-Publisher Web engine transport failed",host.nativeTransportError);
+      throw new Error(`${BACKEND_UNAVAILABLE} Transport: ${detail}`);
     }
     return response;
   }

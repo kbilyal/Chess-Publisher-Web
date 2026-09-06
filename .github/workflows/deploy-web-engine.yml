@@ -28,6 +28,7 @@ permissions:
 
 env:
   WEB_ENGINE_PUBLIC_BASE: https://chess-publisher-web-engine.kyamranbilyal.workers.dev
+  CANONICAL_WEB_BASE: https://web.chess-publisher.org
 
 jobs:
   validate:
@@ -195,7 +196,7 @@ jobs:
           uv sync
           uv run pywrangler deploy
 
-      - name: Verify deployed direct Worker endpoint and Hub auth path
+      - name: Verify deployed direct and same-origin Worker routes
         if: steps.cf.outputs.configured == 'true'
         shell: bash
         run: |
@@ -213,6 +214,19 @@ jobs:
             exit 1
           fi
 
+          canonical_ready=0
+          for attempt in {1..20}; do
+            if curl --fail --silent --show-error "$CANONICAL_WEB_BASE/api/engine/health" | grep -q '1.9.57'; then
+              canonical_ready=1
+              break
+            fi
+            sleep 3
+          done
+          if [[ "$canonical_ready" != "1" ]]; then
+            echo 'Canonical same-origin /api/engine route did not become ready.' >&2
+            exit 1
+          fi
+
           headers="$RUNNER_TEMP/production-engine-headers.txt"
           body="$RUNNER_TEMP/production-engine-unauth.json"
           code=$(curl --silent --show-error --dump-header "$headers" --output "$body" --write-out '%{http_code}' \
@@ -221,6 +235,13 @@ jobs:
           test "$code" = "401"
           grep -qi '^access-control-allow-origin: https://web.chess-publisher.org' "$headers"
           grep -q 'organizer_auth_required' "$body"
+
+          canonical_body="$RUNNER_TEMP/production-engine-canonical-unauth.json"
+          canonical_code=$(curl --silent --show-error --output "$canonical_body" --write-out '%{http_code}' \
+            -H 'Origin: https://web.chess-publisher.org' \
+            "$CANONICAL_WEB_BASE/api/engine/capabilities")
+          test "$canonical_code" = "401"
+          grep -q 'organizer_auth_required' "$canonical_body"
 
           invalid_body="$RUNNER_TEMP/production-engine-invalid-token.json"
           invalid_code=$(curl --silent --show-error --output "$invalid_body" --write-out '%{http_code}' \
