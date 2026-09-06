@@ -1,0 +1,67 @@
+name: UI v6 real-browser preview
+on:
+  pull_request:
+    paths:
+      - 'src/App.tsx'
+      - 'src/components/Header.tsx'
+      - 'src/index.css'
+      - 'src/ui-v6-approved.css'
+      - 'src/main.tsx'
+      - '.github/workflows/ui-v6-preview.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Start real Vite app
+        run: |
+          npm run dev -- --host 127.0.0.1 --port 4173 > /tmp/cpv6-vite.log 2>&1 &
+          for i in {1..60}; do
+            if curl -fsS http://127.0.0.1:4173 >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/cpv6-vite.log
+          exit 1
+      - name: Capture desktop and mobile Tournament Setup
+        run: |
+          mkdir -p ui-v6-preview
+          cat > /tmp/capture-ui-v6.mjs <<'EOF'
+          import { chromium } from process.cwd() + '/node_modules/playwright/index.mjs';
+          const browser = await chromium.launch({ headless: true });
+          const base = 'http://127.0.0.1:4173';
+
+          const desktop = await browser.newPage({ viewport: { width: 1728, height: 1000 }, deviceScaleFactor: 1 });
+          await desktop.goto(base, { waitUntil: 'networkidle' });
+          await desktop.getByRole('button', { name: 'Tournament Setup' }).first().click();
+          await desktop.waitForTimeout(350);
+          await desktop.screenshot({ path: 'ui-v6-preview/desktop-tournament-setup.png', fullPage: true });
+
+          const mobile = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
+          await mobile.goto(base, { waitUntil: 'networkidle' });
+          await mobile.getByRole('button', { name: 'Open navigation' }).click();
+          await mobile.getByRole('button', { name: 'Tournament Setup' }).first().click();
+          await mobile.waitForTimeout(350);
+          await mobile.screenshot({ path: 'ui-v6-preview/mobile-tournament-setup.png', fullPage: true });
+
+          await browser.close();
+          EOF
+          node /tmp/capture-ui-v6.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ui-v6-real-browser-preview
+          path: ui-v6-preview/*.png
+          if-no-files-found: error
+          retention-days: 7
