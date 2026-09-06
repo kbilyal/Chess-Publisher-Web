@@ -196,6 +196,42 @@ def assert_gacrux_error_diagnostics() -> None:
         raise AssertionError("Gacrux Error 510 text was misparsed as a pairing")
 
 
+def assert_pairing_phase_exception_diagnostics() -> None:
+    """A real upstream Python exception must not collapse to generic Error 510."""
+    import pairingchecker as pairingchecker_module
+
+    original_do_checker = pairingchecker_module.pairingchecker.do_checker
+
+    def explode_do_checker(self):
+        raise KeyError("fixture-runtime-cause")
+
+    pairingchecker_module.pairingchecker.do_checker = explode_do_checker
+    try:
+        with tempfile.TemporaryDirectory(prefix="cp-worker-phase-diagnostics-") as temp_name:
+            temp = Path(temp_name)
+            inp = temp / "input.trf"
+            out = temp / "output.txt"
+            normalized, _ = normalize_pairing_trf_method(FIXTURE_R1)
+            inp.write_bytes(normalized.encode("latin-1", errors="replace"))
+            argv = [
+                "pairingchecker.py", "-p", "-m", "dutch",
+                "-i", str(inp), "-o", str(out), "-f", "TRF", "-F", "TXT", "-d", "T",
+                "-n", "1", "-N", "5", "-t", "W", "-x", "weighted",
+            ]
+            try:
+                _run_common_main("pairingchecker", argv, out)
+            except EngineRuntimeError as exc:
+                message = str(exc)
+                assert "pairing computation" in message
+                assert "KeyError" in message
+                assert "fixture-runtime-cause" in message
+                assert "Program error" not in message
+            else:
+                raise AssertionError("pairing phase exception was swallowed as a generic Gacrux error")
+    finally:
+        pairingchecker_module.pairingchecker.do_checker = original_do_checker
+
+
 def main() -> None:
     assert GACRUX_VERSION == "1.9.57"
     assert GACRUX.exists(), GACRUX
@@ -217,6 +253,8 @@ def main() -> None:
     print("PASS: in-process Worker reasserts desktop -m dutch semantics and blocks upstream Error 510 drift")
     assert_gacrux_error_diagnostics()
     print("PASS: Gacrux Error 510 diagnostics preserve the upstream reason")
+    assert_pairing_phase_exception_diagnostics()
+    print("PASS: real Gacrux pairing-phase Python exceptions preserve type and cause")
 
     assert_worker_matches_desktop(FIXTURE_R1, 1, 5)
     print("PASS: Web Worker wrapper matches desktop Gacrux on Round 1 fixture")
