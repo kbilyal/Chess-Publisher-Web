@@ -4,6 +4,18 @@
   let saveSyncTail=Promise.resolve();
   let autosaveTimer=0;
   let cloudDialogRestore=null;
+  const REFRESH_CONTINUITY_KEY="cpweb.refresh.continuity.v1";
+
+  // A remembered Organizer Token must not make the login screen disappear by
+  // replaying a stale refresh-continuity record. The user should explicitly
+  // sign in/open a tournament first; token persistence itself is left intact.
+  function guardVisibleLoginScreen(){
+    const start=document.getElementById("cpBeta7Start");
+    if(!start||start.hidden||start.style.display==="none")return false;
+    try{sessionStorage.removeItem(REFRESH_CONTINUITY_KEY);}catch(_){}
+    start.dataset.cpLoginContinuityGuard="1";
+    return true;
+  }
 
   function removeLegacyControls(){
     document.getElementById("cpWebMyOnlineTournamentsMenu")?.remove();
@@ -152,6 +164,7 @@
   }
 
   function install(){
+    guardVisibleLoginScreen();
     ensureFileMenuItem();
     ensureDurableSave();
     hidePublicOnlineTournamentList();
@@ -182,6 +195,9 @@
     },100);
   }
 
+  // Run once immediately as this script is injected at the end of the body,
+  // before the continuity adapter's first delayed restore tick can fire.
+  guardVisibleLoginScreen();
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",install,{once:true});
   else install();
 
@@ -198,6 +214,7 @@
     autosaveUsesDurableSavePath:true,
     autosaveCloudSync:true,
     cloudSaveOnManualSave:true,
+    loginScreenContinuityGuard:true,
     open:openMyCloud
   };
 })();
