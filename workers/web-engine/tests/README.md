@@ -1,0 +1,1 @@
+The runtime parity test copies the protected Gacrux source into the temporary Worker module path, runs the new Worker wrapper, runs the same Gacrux source through its normal Python CLI, and requires identical pairing output for Round 1 and a multi-round fixture. No generated Gacrux source copy is committed.
