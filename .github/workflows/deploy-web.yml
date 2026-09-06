@@ -81,6 +81,9 @@ jobs:
       - name: Production Web engine boundary regression
         run: npm run test:web-engine
 
+      - name: Chess-Results Web compatibility regression
+        run: npm run test:chess-results-web-contract
+
       - name: Architecture regression
         shell: bash
         env:
@@ -200,11 +203,16 @@ jobs:
           grep -q 'Online & Cloud' dist/index.html
           grep -q 'Pull Changes' dist/index.html
           grep -q 'Sync Now' dist/index.html
+          grep -q 'Pin Board / Remarks' dist/index.html
+          grep -q 'function chessResultsPinBoardRemark' dist/index.html
+          grep -q 'crAttr("remark",chessResultsPinBoardRemark(cr))' dist/index.html
           grep -q "/web/browser-dev-host.js?v=${GITHUB_SHA}" dist/index.html
           grep -q "/web/linux-native-engine-adapter.js?v=${GITHUB_SHA}" dist/index.html
           grep -q "/web/chess-results-browser-adapter.js?v=${GITHUB_SHA}" dist/index.html
           grep -q "/web/cloud-tournaments-shortcut.js?v=${GITHUB_SHA}" dist/index.html
           grep -q 'chess-publisher-web-engine.kyamranbilyal.workers.dev' dist/web/linux-native-engine-adapter.js
+          grep -q 'desktopContract(operation,result)' dist/web/chess-results-browser-adapter.js
+          grep -q 'canDelete:result?.canDelete===true||result?.verifiedOwner===true' dist/web/chess-results-browser-adapter.js
           grep -q 'button.innerHTML="<span>My Cloud</span><span></span>"' dist/web/cloud-tournaments-shortcut.js
           grep -q 'visible:false' dist/web/cloud-tournaments-shortcut.js
           grep -q 'fileMenu:true' dist/web/cloud-tournaments-shortcut.js
