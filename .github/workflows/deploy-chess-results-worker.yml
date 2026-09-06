@@ -1,12 +1,23 @@
 name: Deploy Chess-Results Worker
 
 on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'workers/chess-results/**'
+      - 'production-web/web/chess-results-browser-adapter.js'
+      - 'src/cloud/tests/runChessResultsWebContractTests.ts'
+      - 'package.json'
+      - '.github/workflows/deploy-chess-results-worker.yml'
   push:
     branches:
       - main
     paths:
       - 'workers/chess-results/**'
       - 'production-web/web/chess-results-browser-adapter.js'
+      - 'src/cloud/tests/runChessResultsWebContractTests.ts'
+      - 'package.json'
       - '.github/workflows/deploy-chess-results-worker.yml'
   workflow_dispatch:
 
@@ -33,11 +44,15 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Install repository dependencies
+        run: npm ci
+
       - name: Verify Worker syntax
         run: |
           node --check workers/chess-results/worker.js
           node --check workers/chess-results/ownership-worker.js
           node --check workers/chess-results/smoke-worker.js
+          node --check production-web/web/chess-results-browser-adapter.js
 
       - name: Chess-Results Worker protocol/security regression
         run: |
@@ -45,18 +60,24 @@ jobs:
           node workers/chess-results/ownership-worker.test.mjs
           node workers/chess-results/smoke-worker.test.mjs
 
+      - name: Chess-Results Web desktop-contract regression
+        run: npm run test:chess-results-web-contract
+
       - name: Verify browser boundary
         shell: bash
         run: |
           set -euo pipefail
           grep -q 'https://chess-publisher-chess-results.kyamranbilyal.workers.dev/api/chess-results/' production-web/web/chess-results-browser-adapter.js
           grep -q 'transport:"cors-worker-direct"' production-web/web/chess-results-browser-adapter.js
+          grep -q 'desktopContract(operation,result)' production-web/web/chess-results-browser-adapter.js
+          grep -q 'canDelete:result?.canDelete===true||result?.verifiedOwner===true' production-web/web/chess-results-browser-adapter.js
           grep -q 'Authorization' production-web/web/chess-results-browser-adapter.js
           grep -q 'organizer-primary' production-web/web/chess-results-browser-adapter.js
           ! grep -Eq 'AES_KEY|AES_IV|CreatorID 100|7695CF0579445A78A642DCA0316407FF' production-web/web/chess-results-browser-adapter.js
 
       - name: Check Cloudflare deployment credentials
         id: cf
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: bash
         run: |
           if [[ -n "${CF_API_TOKEN}" && -n "${CF_ACCOUNT_ID}" ]]; then
@@ -67,7 +88,7 @@ jobs:
           fi
 
       - name: Deploy Worker route
-        if: steps.cf.outputs.configured == 'true'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cf.outputs.configured == 'true'
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
