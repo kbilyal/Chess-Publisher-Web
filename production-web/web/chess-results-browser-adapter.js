@@ -64,6 +64,72 @@
     return text(payload.clientId||tournament?.chessResults?.clientId||tournament?.cloud?.localKey||"");
   }
 
+  // A Chess-Results TNR is permanently bound to the Real/Test mode used when
+  // GETKEY assigned it. The desktop shell already fails closed if that mode is
+  // changed later. On Web, however, a stale DOM value or a cloud/open transition
+  // could be written by saveAll() before the check and create a false mismatch.
+  // Keep the assigned TNR mode authoritative until Reset Tournament clears the
+  // key/mode pair; a genuine type change must therefore go through Reset first.
+  function linkedTnrBinding(){
+    const tournament=currentTournament();
+    const key=text(tournament?.chessResults?.key);
+    const mode=text(tournament?.chessResults?.mode).toLowerCase();
+    if(!/^\d+$/.test(key)||(mode!=="real"&&mode!=="test"))return null;
+    return {tournament,key,mode};
+  }
+
+  function enforceLinkedTnrMode(source="web"){
+    const binding=linkedTnrBinding();
+    if(!binding)return {locked:false,changed:false,key:"",mode:""};
+    const {tournament,key,mode}=binding;
+    if(!tournament.settings||typeof tournament.settings!=="object")tournament.settings={};
+    const select=document.getElementById("tournamentType");
+    let changed=false;
+    if(text(tournament.settings.tournamentType).toLowerCase()!==mode){
+      tournament.settings.tournamentType=mode;
+      changed=true;
+    }
+    if(select&&"value" in select&&text(select.value).toLowerCase()!==mode){
+      select.value=mode;
+      changed=true;
+    }
+    if(select){
+      try{select.setAttribute("data-cp-tnr-mode-lock",mode);}catch(_){}
+      try{select.title=`TNR ${key} is locked to ${mode==="real"?"Real tournament":"Test tournament"}. Reset Tournament before changing type.`;}catch(_){}
+    }
+    window.__cpChessResultsLastModeLock={locked:true,changed,key,mode,source,at:Date.now()};
+    return {locked:true,changed,key,mode};
+  }
+
+  function installLinkedTnrModeLock(){
+    const protectedSaveAll=window.saveAll;
+    if(typeof protectedSaveAll==="function"&&!protectedSaveAll.__cpChessResultsTnrModeLock){
+      const wrappedSaveAll=function(...args){
+        enforceLinkedTnrMode("saveAll");
+        return protectedSaveAll.apply(this,args);
+      };
+      wrappedSaveAll.__cpChessResultsTnrModeLock=true;
+      window.saveAll=wrappedSaveAll;
+    }
+
+    document.addEventListener("change",event=>{
+      const target=event?.target;
+      if(!target||target.id!=="tournamentType")return;
+      const requested=text(target.value).toLowerCase();
+      const repaired=enforceLinkedTnrMode("tournamentType-change");
+      if(repaired.locked&&requested!==repaired.mode){
+        try{event.preventDefault();}catch(_){}
+        try{
+          if(typeof window.setChessResultsUiMessage==="function"){
+            window.setChessResultsUiMessage(`TNR ${repaired.key} is already assigned as ${repaired.mode==="real"?"Real tournament":"Test tournament"}. Use Reset Tournament before changing type.`,"warn");
+          }
+        }catch(_){}
+      }
+    },true);
+
+    setTimeout(()=>enforceLinkedTnrMode("startup"),0);
+  }
+
   async function organizerToken(){
     try{
       if(typeof window.cpNativeHubSecretGet==="function"){
@@ -143,6 +209,7 @@
     const token=await organizerToken();
     if(!token)throw new Error("Organizer Token is not connected. Connect it first in Online & Cloud.");
 
+    enforceLinkedTnrMode(`backend-${operation}`);
     const payload=body&&typeof body==="object"&&!Array.isArray(body)?{...body}:{};
     const tournament=currentTournament();
     if(!payload.key&&!payload.tnr){
@@ -248,6 +315,7 @@
         if(typeof window.changeTournament!=="function")throw new Error("Local tournament open not ready");
         await window.changeTournament(text(state.localName));
       }
+      enforceLinkedTnrMode("continuity-restore");
       continuityDisabled=false;
       setTimeout(()=>restoreTab(state.tab),80);
       setTimeout(saveContinuity,200);
@@ -286,6 +354,7 @@
     else setTimeout(startRestore,0);
   }
 
+  installLinkedTnrModeLock();
   installRefreshContinuity();
 
   window.__cpChessResultsBrowserAdapter={
@@ -296,6 +365,8 @@
     ownershipProof:true,
     crossDeviceTnrRecovery:true,
     recoveryAuthority:"organizer-owned-cloud-snapshot",
+    linkedTnrModeLock:true,
+    linkedTnrModeAuthority:"chessResults.mode-until-reset",
     refreshContinuity:true,
     refreshContinuityStorage:"sessionStorage",
     secretsInBrowser:false
