@@ -20,6 +20,8 @@ GACRUX_VERSION = "1.9.57"
 PAIRING_RULES = "FIDE Dutch System — Gacrux 1.9.57 weighted"
 TIEBREAK_RULES = "2026-03-01"
 MAX_REQUEST_BYTES = 25 * 1024 * 1024
+PAIRING_METHOD_RECORD = "192 FIDE_DUTCH_2025"
+_DUTCH_METHOD_CODES = {"FIDE_DUTCH_2017", "FIDE_DUTCH_2025", "FIDE_DUTCH"}
 
 
 class EngineRuntimeError(RuntimeError):
@@ -96,7 +98,58 @@ def sync_pairing_trf_scores(trf: str) -> tuple[str, int]:
     return "\r\n".join(repaired) + "\r\n", repairs
 
 
+def normalize_pairing_trf_method(trf: str) -> tuple[str, bool]:
+    """Canonicalize the temporary Worker pairing TRF as FIDE Dutch.
+
+    The production Web pairing route is intentionally Dutch-only. Desktop Gacrux is
+    invoked with ``-m dutch``; this record is a second, input-level guard so the
+    in-process Cloudflare runtime cannot fall back to a stale/empty parsed method.
+    The protected upstream source and the user's persisted/exported TRF are untouched.
+    """
+    source = _lines(trf)
+    normalized: list[str] = []
+    found = False
+    changed = False
+    for line in source:
+        if re.match(r"^192(?:\s|$)", line):
+            method = line[3:].strip().upper()
+            if method and method not in _DUTCH_METHOD_CODES:
+                raise EngineRuntimeError(
+                    f"Pairing TRF declares unsupported method '{method}'. "
+                    "The Web Gacrux route supports FIDE Dutch System only."
+                )
+            if not found:
+                normalized.append(PAIRING_METHOD_RECORD)
+                found = True
+                changed = changed or line.strip() != PAIRING_METHOD_RECORD
+            else:
+                changed = True
+            continue
+        normalized.append(line)
+
+    if not found:
+        insert_at = next((index for index, line in enumerate(normalized) if line.startswith("001")), len(normalized))
+        normalized.insert(insert_at, PAIRING_METHOD_RECORD)
+        changed = True
+
+    return "\r\n".join(normalized) + "\r\n", changed
+
+
+def _raise_gacrux_text_error(text: str, context: str) -> None:
+    lines = [line.strip() for line in re.split(r"\r?\n", text) if line.strip()]
+    if not lines:
+        return
+    match = re.fullmatch(r"###\s*Error\s+(\d+)\s*", lines[0], flags=re.I)
+    if not match:
+        return
+    code = match.group(1)
+    details = " ".join(lines[1:]).strip()
+    suffix = f": {details}" if details else "."
+    raise EngineRuntimeError(f"{context} rejected the pairing input (Error {code}){suffix}")
+
+
 def read_pairing_text(text: str, context: str = "Gacrux") -> list[tuple[int, int]]:
+    _raise_gacrux_text_error(text, context)
     lines = [line.strip() for line in re.split(r"\r?\n", text) if line.strip()]
     if len(lines) < 2:
         raise EngineRuntimeError(f"{context} returned no pairing.")
@@ -138,6 +191,21 @@ def _run_common_main(class_name: str, argv: list[str], output_path: Path) -> tup
         sys.argv = argv
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
             instance = engine_class()
+            if class_name == "pairingchecker":
+                upstream_read_command_line = instance.read_command_line
+
+                def read_command_line_with_worker_dutch_lock():
+                    result = upstream_read_command_line()
+                    if not isinstance(instance.params, dict):
+                        raise EngineRuntimeError("Gacrux pairing parameters were not initialized.")
+                    # Cloudflare runs the upstream class in-process rather than as the
+                    # desktop executable. Reassert the exact desktop `-m dutch`
+                    # contract after argparse so method resolution cannot drift to an
+                    # empty/stale TRF method and trigger upstream Error 510.
+                    instance.params["method"] = ["dutch"]
+                    return result
+
+                instance.read_command_line = read_command_line_with_worker_dutch_lock
             try:
                 returned = instance.common_main()
                 code = int(returned or 0)
@@ -162,6 +230,7 @@ def run_pairing(trf: str, pairing_round: int, announced_rounds: int, top_color: 
         raise EngineRuntimeError("Gacrux received an empty TRF.")
     assert_pairing_trf_history_width(trf, pairing_round)
     synced_trf, repairs = sync_pairing_trf_scores(trf)
+    synced_trf, method_repaired = normalize_pairing_trf_method(synced_trf)
     colour = "B" if str(top_color).upper() == "B" else "W"
     unpaired_numbers = sorted({int(x) for x in (unpaired or []) if int(x) > 0})
 
@@ -194,6 +263,7 @@ def run_pairing(trf: str, pairing_round: int, announced_rounds: int, top_color: 
         "version": GACRUX_VERSION,
         "rules": PAIRING_RULES,
         "scoreRepairs": repairs,
+        "methodCanonicalized": method_repaired,
         "checker": {"available": True, "ok": True, "check": True, "state": "pass", "checker": "Gacrux deterministic regeneration", "version": GACRUX_VERSION, "round": pairing_round, "message": "Gacrux repeated the same pairing from the same protected TRF input."},
         "independentChecker": {"available": False, "ok": False, "check": None, "state": "unavailable", "checker": "bbpPairings", "version": "6.0.0", "round": pairing_round, "message": "The optional independent BBP native checker is not available inside the WebAssembly Worker runtime; Gacrux deterministic verification completed."},
     }
