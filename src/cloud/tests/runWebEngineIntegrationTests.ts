@@ -16,11 +16,13 @@ const runtime = read('workers/web-engine/src/engine_runtime.py');
 const wrangler = read('workers/web-engine/wrangler.toml');
 
 assert(adapter.includes('const CANONICAL_WEB_ORIGIN="https://web.chess-publisher.org"'), 'browser adapter identifies the canonical production Web origin');
-assert(adapter.includes('const DIRECT_ENGINE_BASE="https://chess-publisher-web-engine.kyamranbilyal.workers.dev"'), 'direct workers.dev endpoint remains available as a non-production fallback');
-assert(adapter.includes('location.origin===CANONICAL_WEB_ORIGIN?location.origin:DIRECT_ENGINE_BASE'), 'canonical production Web uses the same-origin Cloudflare engine route');
+assert(adapter.includes('const CUSTOM_ENGINE_BASE="https://engine.chess-publisher.org"'), 'canonical Web engine uses a first-party Cloudflare custom domain');
+assert(adapter.includes('const DIRECT_ENGINE_BASE="https://chess-publisher-web-engine.kyamranbilyal.workers.dev"'), 'direct workers.dev endpoint remains an emergency fallback');
+assert(adapter.includes('location.origin===CANONICAL_WEB_ORIGIN?CUSTOM_ENGINE_BASE:DIRECT_ENGINE_BASE'), 'canonical production Web selects the first-party engine domain');
+assert(adapter.includes('primary.replace(CUSTOM_ENGINE_BASE,DIRECT_ENGINE_BASE)') && adapter.includes('usedFallback:true'), 'browser engine retries the direct Worker only after a custom-domain transport failure');
 assert(adapter.includes('const ENGINE_PREFIX=`${ENGINE_BASE}/api/engine`'), 'browser engine API prefix is built from the selected Worker route');
 assert(adapter.includes('mode:"cors"') && adapter.includes('credentials:"omit"'), 'browser engine transport remains credential-free apart from explicit bearer auth');
-assert(adapter.includes('nativeTransportError') && adapter.includes('Transport: ${detail}'), 'browser engine preserves transport failure diagnostics instead of hiding them');
+assert(adapter.includes('nativeTransportError') && adapter.includes('Transport: custom='), 'browser engine preserves both transport failure reasons instead of hiding them');
 assert(adapter.includes('Authorization') && adapter.includes('organizer-primary'), 'browser engine requests use the shared Organizer Token');
 assert(adapter.includes('${ENGINE_PREFIX}/pair'), 'browser pairing path is routed to the Web engine Worker');
 assert(adapter.includes('${ENGINE_PREFIX}/tiebreak-checker/check'), 'desktop tie-break checker path is routed to the Web engine Worker');
@@ -43,7 +45,8 @@ assert(runtime.includes('"state": "unavailable"') && runtime.includes('"checker"
 
 assert(wrangler.includes('name = "chess-publisher-web-engine"'), 'Web engine has an isolated Worker deployment');
 assert(wrangler.includes('workers_dev = true'), 'direct workers.dev endpoint remains enabled');
-assert(wrangler.includes('pattern = "web.chess-publisher.org/api/engine/*"'), 'canonical same-origin /api/engine route is owned by the Cloudflare Worker');
+assert(wrangler.includes('pattern = "engine.chess-publisher.org"') && wrangler.includes('custom_domain = true'), 'production engine is exposed through a Cloudflare-managed custom domain');
+assert(!wrangler.includes('pattern = "web.chess-publisher.org/api/engine/*"'), 'Web engine no longer relies on a route over the DNS-only GitHub Pages hostname');
 assert(wrangler.includes('compatibility_flags = ["python_workers"]'), 'Cloudflare Python Worker runtime is enabled');
 assert(wrangler.includes('binding = "HUB_SERVICE"') && wrangler.includes('service = "chess-publisher-hub-api-beta"'), 'Web engine has a direct Hub service binding');
 assert(!wrangler.includes('global_fetch_strictly_public'), 'Web engine auth does not weaken Worker-to-Worker fetch restrictions');
