@@ -4,6 +4,7 @@ import './cloud/installOrganizerApiAuth';
 import App from './App.tsx';
 import {OnlineCloudProvider} from './cloud/OnlineCloudProvider';
 import './index.css';
+import './ui-v6-approved.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
