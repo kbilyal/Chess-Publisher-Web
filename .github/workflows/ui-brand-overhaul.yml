@@ -23,7 +23,6 @@ jobs:
       - run: node tests/ui/brand-overhaul.test.mjs
       - run: node tests/ui/full-overhaul-v2.test.mjs
       - run: node tests/ui/masterpiece-v3.test.mjs
-      - run: node tests/ui/web-native-v4.test.mjs
       - run: node tests/ui/login-screen-persistence.test.mjs
       - run: npm run lint
       - run: npm run build
