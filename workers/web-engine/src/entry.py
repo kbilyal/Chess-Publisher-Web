@@ -6,6 +6,8 @@ import time
 from urllib.parse import urlparse
 
 import aiohttp
+from js import Headers, Object, Request
+from pyodide.ffi import to_js as _to_js
 from workers import Response, WorkerEntrypoint
 
 from engine_runtime import EngineRuntimeError, GACRUX_VERSION, MAX_REQUEST_BYTES, run_pairing, run_tiebreak
@@ -39,24 +41,55 @@ def _json(payload: dict, status: int, origin: str, allowed_origin: str):
     return Response.json(payload, status=status, headers=_cors_headers(origin, allowed_origin))
 
 
-async def _validate_token(token: str, hub_api_base: str) -> tuple[bool, bool]:
+def _request_init(method: str, headers):
+    return _to_js({"method": method, "headers": headers}, dict_converter=Object.fromEntries)
+
+
+async def _hub_auth_status(token: str, hub_api_base: str, hub_service) -> int | None:
+    headers = Headers.new()
+    headers.set("Accept", "application/json")
+    headers.set("Authorization", f"Bearer {token}")
+    headers.set("X-Client-Version", "chess-publisher-web-engine-2")
+
+    if hub_service is not None:
+        request = Request.new(
+            "https://hub.internal/api/v1/organizer/me",
+            _request_init("GET", headers),
+        )
+        response = await hub_service.fetch(request)
+        return int(response.status)
+
+    timeout = aiohttp.ClientTimeout(total=7)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        async with session.get(
+            hub_api_base.rstrip("/") + "/api/v1/organizer/me",
+            headers={
+                "Accept": "application/json",
+                "Authorization": f"Bearer {token}",
+                "X-Client-Version": "chess-publisher-web-engine-2",
+            },
+        ) as response:
+            return int(response.status)
+
+
+async def _validate_token(token: str, hub_api_base: str, hub_service) -> tuple[bool, bool]:
     if not token:
         return False, True
     cache_key = hashlib.sha256(token.encode("utf-8")).hexdigest()
     now = time.monotonic()
     if _AUTH_CACHE.get(cache_key, 0.0) > now:
         return True, True
-    timeout = aiohttp.ClientTimeout(total=7)
+
     try:
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.get(
-                hub_api_base.rstrip("/") + "/api/v1/cloud/workspace",
-                headers={"Accept": "application/json", "Authorization": f"Bearer {token}"},
-            ) as response:
-                if response.status not in (200, 204):
-                    return False, True
+        status = await _hub_auth_status(token, hub_api_base, hub_service)
     except Exception:
         return False, False
+
+    if status not in (200, 204):
+        if status in (401, 403):
+            return False, True
+        return False, False
+
     _AUTH_CACHE[cache_key] = now + _AUTH_CACHE_TTL
     if len(_AUTH_CACHE) > 500:
         for key, until in list(_AUTH_CACHE.items()):
@@ -70,6 +103,7 @@ class Default(WorkerEntrypoint):
         origin = _header(request, "Origin")
         allowed_origin = str(self.env.WEB_ORIGIN)
         hub_api_base = str(self.env.HUB_API_BASE)
+        hub_service = getattr(self.env, "HUB_SERVICE", None)
         path = urlparse(str(request.url)).path
         method = str(request.method).upper()
 
@@ -86,7 +120,7 @@ class Default(WorkerEntrypoint):
 
         authorization = _header(request, "Authorization")
         token = authorization[7:].strip() if authorization.lower().startswith("bearer ") else ""
-        authenticated, auth_service_ok = await _validate_token(token, hub_api_base)
+        authenticated, auth_service_ok = await _validate_token(token, hub_api_base, hub_service)
         if not authenticated:
             status = 401 if auth_service_ok else 503
             error = "organizer_auth_required" if auth_service_ok else "organizer_auth_unavailable"
