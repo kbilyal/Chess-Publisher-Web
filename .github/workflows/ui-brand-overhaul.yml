@@ -7,6 +7,7 @@ on:
       - 'production-web/web/cloud-tournaments-shortcut.js'
       - 'tests/ui/**'
       - '.github/workflows/ui-brand-overhaul.yml'
+      - '.github/workflows/deploy-web.yml'
   workflow_dispatch:
 permissions:
   contents: read
@@ -23,6 +24,7 @@ jobs:
       - run: node tests/ui/brand-overhaul.test.mjs
       - run: node tests/ui/full-overhaul-v2.test.mjs
       - run: node tests/ui/masterpiece-v3.test.mjs
+      - run: node tests/ui/stable-reliable-v5.test.mjs
       - run: node tests/ui/login-screen-persistence.test.mjs
       - run: npm run lint
       - run: npm run build
