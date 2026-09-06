@@ -37,8 +37,9 @@ assert(!/window\.chrome\.webview\s*=/.test(bridge), 'browser bridge fakes Window
 assert(hub.includes('window.chrome?.webview||window.__cpBrowserHostBridge'), 'Hub does not accept the browser-only credential bridge');
 
 const engine = read('production-web/web/linux-native-engine-adapter.js');
-assert(engine.includes('/native/capabilities') && engine.includes('/pair'), 'verified native service wiring missing');
-assert(engine.includes('Engine backend not connected'), 'native backend fail-clear message missing');
+assert(engine.includes('/native/capabilities') && engine.includes('/pair') && engine.includes('ENGINE_PREFIX="/api/engine"'), 'verified Web engine service wiring missing');
+assert(engine.includes('Web engine is unavailable') && engine.includes('Pairing was not generated'), 'Web engine fail-closed message missing');
+assert(!engine.includes('operations are Desktop only'), 'obsolete Desktop-only Web pairing blocker returned');
 assert(!engine.includes('/api/prototype') && !engine.includes('generateLocalSwissFallback'), 'browser adapter contains a synthetic pairing fallback');
 
 const players = read('production-web/web/player-registration-enhancements.js');

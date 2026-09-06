@@ -1,0 +1,13 @@
+name = "chess-publisher-web-engine"
+main = "src/entry.py"
+compatibility_date = "2026-09-06"
+compatibility_flags = ["python_workers"]
+workers_dev = true
+
+[[routes]]
+pattern = "web.chess-publisher.org/api/engine/*"
+zone_name = "chess-publisher.org"
+
+[vars]
+WEB_ORIGIN = "https://web.chess-publisher.org"
+HUB_API_BASE = "https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev"

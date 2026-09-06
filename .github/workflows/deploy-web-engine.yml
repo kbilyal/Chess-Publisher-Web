@@ -1,0 +1,192 @@
+name: Validate and Deploy Chess-Publisher Web Engine
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'workers/web-engine/**'
+      - 'production-web/web/linux-native-engine-adapter.js'
+      - 'engine/gacrux/**'
+      - 'src/cloud/tests/runWebEngineIntegrationTests.ts'
+      - 'package.json'
+      - '.github/workflows/deploy-web-engine.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'workers/web-engine/**'
+      - 'production-web/web/linux-native-engine-adapter.js'
+      - 'engine/gacrux/**'
+      - 'src/cloud/tests/runWebEngineIntegrationTests.ts'
+      - 'package.json'
+      - '.github/workflows/deploy-web-engine.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Gacrux 1.9.57 Web engine parity and Worker runtime
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install repository dependencies
+        run: npm ci
+
+      - name: Production Web engine boundary regression
+        run: npm run test:web-engine
+
+      - name: Verify protected Gacrux version and browser adapter syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q '"version": "1.9.57"' engine/gacrux/version.py
+          node --check production-web/web/linux-native-engine-adapter.js
+          python -m py_compile workers/web-engine/src/engine_runtime.py workers/web-engine/src/entry.py
+
+      - name: Assemble temporary Worker bundle from protected Gacrux source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp engine/gacrux/*.py workers/web-engine/src/
+          test -f workers/web-engine/src/pairingchecker.py
+          test -f workers/web-engine/src/tiebreakchecker.py
+          grep -q '"version": "1.9.57"' workers/web-engine/src/version.py
+
+      - name: Desktop versus Worker Gacrux fixture parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check 'networkx>=3.6,<4'
+          PYTHONPATH=workers/web-engine/src python workers/web-engine/tests/test_engine_runtime.py
+
+      - name: Install uv
+        run: python -m pip install --disable-pip-version-check uv
+
+      - name: Cloudflare Python Worker dry-run
+        working-directory: workers/web-engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv sync
+          uv run pywrangler deploy --dry-run --outdir ../../.web-engine-dry-run
+          test -d ../../.web-engine-dry-run
+
+      - name: Cloudflare Python Worker local runtime smoke
+        working-directory: workers/web-engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/chess-publisher-web-engine-dev.log"
+          uv run pywrangler dev --port 8790 >"$log" 2>&1 &
+          worker_pid=$!
+          trap 'kill "$worker_pid" 2>/dev/null || true' EXIT
+
+          ready=0
+          for attempt in {1..40}; do
+            if curl --fail --silent http://127.0.0.1:8790/api/engine/health | grep -q '1.9.57'; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [[ "$ready" != "1" ]]; then
+            cat "$log"
+            echo 'Local Python Worker did not become healthy.' >&2
+            exit 1
+          fi
+
+          unauth_code=$(curl --silent --output "$RUNNER_TEMP/engine-unauth.json" --write-out '%{http_code}' \
+            -H 'Origin: https://web.chess-publisher.org' \
+            http://127.0.0.1:8790/api/engine/capabilities)
+          test "$unauth_code" = "401"
+          grep -q 'organizer_auth_required' "$RUNNER_TEMP/engine-unauth.json"
+
+          origin_code=$(curl --silent --output "$RUNNER_TEMP/engine-origin.json" --write-out '%{http_code}' \
+            -H 'Origin: https://example.invalid' \
+            http://127.0.0.1:8790/api/engine/capabilities)
+          test "$origin_code" = "403"
+          grep -q 'origin_not_allowed' "$RUNNER_TEMP/engine-origin.json"
+
+  deploy:
+    name: Deploy authenticated Web engine route
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Check Cloudflare deployment credentials
+        id: cf
+        shell: bash
+        run: |
+          if [[ -n "${CLOUDFLARE_API_TOKEN}" && -n "${CLOUDFLARE_ACCOUNT_ID}" ]]; then
+            echo 'configured=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'configured=false' >> "$GITHUB_OUTPUT"
+            echo 'Web engine deployment skipped: Cloudflare repository credentials are not configured.'
+          fi
+
+      - name: Assemble protected Gacrux deployment bundle
+        if: steps.cf.outputs.configured == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp engine/gacrux/*.py workers/web-engine/src/
+          grep -q '"version": "1.9.57"' workers/web-engine/src/version.py
+
+      - name: Install uv
+        if: steps.cf.outputs.configured == 'true'
+        run: python -m pip install --disable-pip-version-check uv
+
+      - name: Deploy Web engine Worker
+        if: steps.cf.outputs.configured == 'true'
+        working-directory: workers/web-engine
+        run: |
+          uv sync
+          uv run pywrangler deploy
+
+      - name: Verify public Web engine health route
+        if: steps.cf.outputs.configured == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in {1..20}; do
+            if curl --fail --silent --show-error https://web.chess-publisher.org/api/engine/health | grep -q '1.9.57'; then
+              exit 0
+            fi
+            sleep 3
+          done
+          echo 'Web engine health route did not become ready.' >&2
+          exit 1
