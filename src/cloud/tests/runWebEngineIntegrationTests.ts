@@ -29,6 +29,9 @@ assert(!adapter.includes('/api/prototype') && !adapter.includes('generateLocalSw
 assert(entry.includes('A valid Organizer Token is required for Web engine operations.'), 'Worker requires Organizer Token authentication');
 assert(entry.includes('origin_not_allowed') && entry.includes('WEB_ORIGIN'), 'Worker enforces the Web origin boundary');
 assert(entry.includes('run_pairing') && entry.includes('run_tiebreak'), 'Worker exposes both Gacrux pairing and tie-break execution');
+assert(entry.includes('HUB_SERVICE') && entry.includes('/api/v1/organizer/me'), 'Worker validates Organizer Token through the bound Hub organizer identity route');
+assert(entry.includes('hub_service.fetch'), 'Worker uses the Hub service binding before any public fallback');
+assert(entry.includes('if status in (401, 403)'), 'invalid Organizer Token is distinguished from Hub transport failure');
 assert(runtime.includes('GACRUX_VERSION = "1.9.57"'), 'Worker is pinned to Gacrux 1.9.57');
 assert(runtime.includes('"-x", "weighted"'), 'Worker uses the desktop weighted Dutch Gacrux mode');
 assert(runtime.includes('assert_pairing_trf_history_width'), 'Worker preserves desktop TRF history-width safety');
@@ -39,9 +42,10 @@ assert(runtime.includes('"state": "unavailable"') && runtime.includes('"checker"
 assert(wrangler.includes('name = "chess-publisher-web-engine"'), 'Web engine has an isolated Worker deployment');
 assert(wrangler.includes('workers_dev = true'), 'direct workers.dev endpoint remains enabled');
 assert(wrangler.includes('compatibility_flags = ["python_workers"]'), 'Cloudflare Python Worker runtime is enabled');
+assert(wrangler.includes('binding = "HUB_SERVICE"') && wrangler.includes('service = "chess-publisher-hub-api-beta"'), 'Web engine has a direct Hub service binding');
+assert(wrangler.includes('remote = true'), 'local Web engine runtime exercises the deployed Hub binding rather than a disconnected simulation');
 
 const protectedHashes: Record<string, string> = {
-  'production-web/web/chess-results-browser-adapter.js': '6d313e9f6ef3d0fc313f8ca1df3fee5d0b862f51d808ba9fd94bb3605735d3fa',
   'production-web/hub/client/hub-api-client.js': '2311446a69c16a14e041dbf08d4e198280d3a3f1232b739bf8e089d8ffdac9f0',
   'production-web/hub/client/hub-snapshot.js': 'd980c520d74a71e66b3a3aa2a54e5ed626ea3618c53159145f9e48b445effac9',
   'production-web/webview/HubAdapter.js': '5477080af2e9dce1dcb25b622bf4aa8e77bc977a2f60759d175e6a8464bf8348',
