@@ -35,11 +35,12 @@ jobs:
 
           index_path = Path('production-web/index.html')
           text = index_path.read_text(encoding='utf-8')
-          old = 'function saveData(){   cpStateRevision++;'
-          new = 'function saveData(){   if(!cpAutosaveCaptureSync) cpStateRevision++;'
-          if text.count(old) != 1:
-              raise SystemExit(f'expected exactly one unguarded saveData revision increment, found {text.count(old)}')
-          text = text.replace(old, new, 1)
+          pattern = r'(function\s+saveData\s*\(\)\s*\{\s*)cpStateRevision\+\+;'
+          text, count = re.subn(pattern, r'\1if(!cpAutosaveCaptureSync) cpStateRevision++;', text, count=1)
+          if count != 1:
+              pos = text.find('function saveData')
+              context = text[pos:pos+260] if pos >= 0 else 'function saveData not found'
+              raise SystemExit(f'expected exactly one unguarded saveData revision increment; context={context!r}')
           index_path.write_text(text, encoding='utf-8')
 
           shell = re.sub(r'<!-- cpProductionWeb .*?</body>', '</body>', text, count=1, flags=re.S)
@@ -52,7 +53,7 @@ jobs:
           test_path.write_text(test, encoding='utf-8')
           print(f'guarded_shell_sha256={shell_sha}')
           PY
-          grep -q 'function saveData(){   if(!cpAutosaveCaptureSync) cpStateRevision++;' production-web/index.html
+          grep -Eq 'function[[:space:]]+saveData[[:space:]]*\(\)[[:space:]]*\{[[:space:]]*if\(!cpAutosaveCaptureSync\)[[:space:]]+cpStateRevision\+\+;' production-web/index.html
           test "$(sha256sum production-web/web/chess-results-browser-adapter.js | awk '{print $1}')" = "6d313e9f6ef3d0fc313f8ca1df3fee5d0b862f51d808ba9fd94bb3605735d3fa"
           test "$(sha256sum production-web/hub/client/hub-api-client.js | awk '{print $1}')" = "2311446a69c16a14e041dbf08d4e198280d3a3f1232b739bf8e089d8ffdac9f0"
           test "$(sha256sum production-web/hub/client/hub-snapshot.js | awk '{print $1}')" = "d980c520d74a71e66b3a3aa2a54e5ed626ea3618c53159145f9e48b445effac9"
