@@ -5,7 +5,16 @@ import subprocess
 import sys
 import tempfile
 
-from engine_runtime import GACRUX_VERSION, assert_pairing_trf_history_width, read_pairing_text, run_pairing, sync_pairing_trf_scores
+from engine_runtime import (
+    EngineRuntimeError,
+    GACRUX_VERSION,
+    _run_common_main,
+    assert_pairing_trf_history_width,
+    normalize_pairing_trf_method,
+    read_pairing_text,
+    run_pairing,
+    sync_pairing_trf_scores,
+)
 
 ROOT = Path(__file__).resolve().parents[3]
 GACRUX = ROOT / "engine" / "gacrux" / "pairingchecker.py"
@@ -122,6 +131,71 @@ def assert_worker_matches_desktop(trf: str, round_no: int, announced_rounds: int
     assert worker["independentChecker"]["state"] == "unavailable"
 
 
+def assert_worker_dutch_method_lock() -> None:
+    """Reproduce the upstream Error 510 condition and prove Worker lock repairs it.
+
+    FIDE_DUBOV is understood by the TRF parser but is not implemented by the
+    pairingchecker. Without the Web Worker post-argparse Dutch lock, this exact
+    input reaches upstream Error 510. The wrapper must enforce the same Dutch
+    method that desktop passes via `-m dutch`.
+    """
+    stale = FIXTURE_R1.replace(
+        "182 Chess-Publisher v1.05.00 Stable\n",
+        "182 Chess-Publisher v1.05.00 Stable\n192 FIDE_DUBOV\n",
+    )
+    synced, _ = sync_pairing_trf_scores(stale)
+    with tempfile.TemporaryDirectory(prefix="cp-worker-method-lock-") as temp_name:
+        temp = Path(temp_name)
+        inp = temp / "input.trf"
+        out = temp / "output.txt"
+        inp.write_bytes(synced.encode("latin-1", errors="replace"))
+        argv = [
+            "pairingchecker.py", "-p",
+            "-i", str(inp), "-o", str(out), "-f", "TRF", "-F", "TXT", "-d", "T",
+            "-n", "1", "-N", "5", "-t", "W", "-x", "weighted",
+        ]
+        code, stdout, stderr = _run_common_main("pairingchecker", argv, out)
+        raw = out.read_text(encoding="latin-1", errors="replace")
+        actual = read_pairing_text(raw, "Worker method-lock Gacrux")
+        expected = direct_gacrux(FIXTURE_R1, 1, 5)
+        assert code == 0, f"method lock returned exit={code}: {stderr}\n{stdout}\n{raw}"
+        assert actual == expected, f"method lock pairing mismatch: {actual} != {expected}"
+
+
+def assert_pairing_method_canonicalization() -> None:
+    normalized, changed = normalize_pairing_trf_method(FIXTURE_R1)
+    assert changed is True
+    assert normalized.count("192 FIDE_DUTCH_2025") == 1
+    assert normalized.index("192 FIDE_DUTCH_2025") < normalized.index("001    1")
+
+    normalized_again, changed_again = normalize_pairing_trf_method(normalized)
+    assert changed_again is False
+    assert normalized_again == normalized
+
+    stale = FIXTURE_R1.replace(
+        "182 Chess-Publisher v1.05.00 Stable\n",
+        "182 Chess-Publisher v1.05.00 Stable\n192 FIDE_DUBOV\n",
+    )
+    try:
+        normalize_pairing_trf_method(stale)
+    except EngineRuntimeError as exc:
+        assert "supports FIDE Dutch System only" in str(exc)
+    else:
+        raise AssertionError("non-Dutch TRF method was not rejected by the pairing route")
+
+
+def assert_gacrux_error_diagnostics() -> None:
+    raw = "### Error 510\n\rMethod 'FIDE_DUBOV' not implemented\r\n"
+    try:
+        read_pairing_text(raw, "Gacrux 1.9.57")
+    except EngineRuntimeError as exc:
+        message = str(exc)
+        assert "Error 510" in message
+        assert "Method 'FIDE_DUBOV' not implemented" in message
+    else:
+        raise AssertionError("Gacrux Error 510 text was misparsed as a pairing")
+
+
 def main() -> None:
     assert GACRUX_VERSION == "1.9.57"
     assert GACRUX.exists(), GACRUX
@@ -136,6 +210,13 @@ def main() -> None:
     assert synced_again == synced
     assert second_repairs == 0
     print("PASS: beta.34 exact-column multi-round TRF is score-stable")
+
+    assert_pairing_method_canonicalization()
+    print("PASS: Web pairing TRF method is canonical FIDE Dutch and non-Dutch input is rejected")
+    assert_worker_dutch_method_lock()
+    print("PASS: in-process Worker reasserts desktop -m dutch semantics and blocks upstream Error 510 drift")
+    assert_gacrux_error_diagnostics()
+    print("PASS: Gacrux Error 510 diagnostics preserve the upstream reason")
 
     assert_worker_matches_desktop(FIXTURE_R1, 1, 5)
     print("PASS: Web Worker wrapper matches desktop Gacrux on Round 1 fixture")
