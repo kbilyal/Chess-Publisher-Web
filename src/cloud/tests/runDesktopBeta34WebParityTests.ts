@@ -13,6 +13,7 @@ const assert = (condition: unknown, message: string) => {
 const html = read("production-web/index.html");
 const cloud = read("production-web/webview/CloudWorkspaceAdapter.js");
 const cloudApi = read("production-web/cloud/client/cloud-workspace-api.js");
+const chessResultsAdapter = read("production-web/web/chess-results-browser-adapter.js");
 
 // The exact v1.06.00-beta.34 reference ZIP still carries beta.30 in the HTML shell's internal data marker.
 assert(/data-chesspublisher-version="1\.06\.00-beta\.30"/.test(html), "production shell matches the exact desktop beta.34 package internal shell identity");
@@ -40,8 +41,13 @@ assert(cloudApi.includes("X-Expected-Revision"), "Cloud revision guard is preser
 assert(cloudApi.includes("loopbackDesktop") && cloudApi.includes('fetchImpl("/cloud-proxy"'), "beta.34 desktop proxy compatibility remains available only on loopback hosts");
 assert(cloudApi.includes("DEFAULT_BASE_URL"), "public Web continues to use the official Cloud API base URL");
 
+// Chess-Results browser transport now contains one explicitly approved compatibility repair:
+// map the verified Worker delete-authorize response back to the desktop beta.34 canDelete/adminUrl contract.
+assert(chessResultsAdapter.includes('desktopContract(operation,result)'), "approved Chess-Results delete-authorize compatibility mapper is present");
+assert(chessResultsAdapter.includes('canDelete:result?.canDelete===true||result?.verifiedOwner===true'), "verified owner maps to desktop canDelete contract");
+assert(!/AES_KEY|AES_IV/.test(chessResultsAdapter), "Chess-Results AES material remains outside the browser");
+
 const protectedHashes: Record<string, string> = {
-  "production-web/web/chess-results-browser-adapter.js": "6d313e9f6ef3d0fc313f8ca1df3fee5d0b862f51d808ba9fd94bb3605735d3fa",
   "production-web/hub/client/hub-api-client.js": "2311446a69c16a14e041dbf08d4e198280d3a3f1232b739bf8e089d8ffdac9f0",
   "production-web/hub/client/hub-snapshot.js": "d980c520d74a71e66b3a3aa2a54e5ed626ea3618c53159145f9e48b445effac9",
   "production-web/webview/HubAdapter.js": "5477080af2e9dce1dcb25b622bf4aa8e77bc977a2f60759d175e6a8464bf8348",
