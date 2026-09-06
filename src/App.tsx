@@ -102,7 +102,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100/80 text-slate-800 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
+    <div className="cpv6-app">
       <Header
         tournament={tournament}
         activeTab={activeTab}
@@ -117,18 +117,20 @@ export default function App() {
         onImportPortableJson={handleImportPortableJson}
       />
 
-      <main className="flex-1 pb-16">
-        {activeTab === 'setup' && <TournamentSetupTab tournament={tournament} onUpdateTournament={setTournament} onOpenTieBreakSettings={name => setSelectedTieBreakForSettings(name)} />}
-        {activeTab === 'players' && <PlayersTab tournament={tournament} onUpdateTournament={setTournament} onResortStartingList={handleResortStartingList} />}
-        {activeTab === 'pairings' && <PairingsTab tournament={tournament} onUpdateTournament={setTournament} onOpenPlayerHistory={id => setSelectedPlayerIdForHistory(id)} onOpenPrintModal={(docType, round) => setSelectedPrintDoc({ docType, round })} />}
-        {activeTab === 'standings' && <StandingsTab tournament={tournament} onOpenPlayerHistory={id => setSelectedPlayerIdForHistory(id)} onOpenTieBreakSettings={name => setSelectedTieBreakForSettings(name)} onOpenPrintModal={docType => setSelectedPrintDoc({ docType })} />}
-        {activeTab === 'tiebreaks' && <TieBreaksTab tournament={tournament} onUpdateTournament={setTournament} onNavigateToStandings={() => setActiveTab('standings')} />}
-        {activeTab === 'schedule' && <ScheduleTab tournament={tournament} onUpdateTournament={setTournament} />}
-        {activeTab === 'chessresults' && <ChessResultsTab tournament={tournament} onUpdateTournament={setTournament} />}
-        {activeTab === 'onlinecloud' && <OnlineCloudTab tournament={tournament} />}
-        {activeTab === 'export' && (
-          <ExportTrfTab tournament={tournament} onImportTournament={imported => { setTournament(imported); setActiveTab('pairings'); }} onOpenPrintModal={(docType, round) => setSelectedPrintDoc({ docType, round })} />
-        )}
+      <main className="cpv6-main">
+        <div className="cpv6-main-inner">
+          {activeTab === 'setup' && <TournamentSetupTab tournament={tournament} onUpdateTournament={setTournament} onOpenTieBreakSettings={name => setSelectedTieBreakForSettings(name)} />}
+          {activeTab === 'players' && <PlayersTab tournament={tournament} onUpdateTournament={setTournament} onResortStartingList={handleResortStartingList} />}
+          {activeTab === 'pairings' && <PairingsTab tournament={tournament} onUpdateTournament={setTournament} onOpenPlayerHistory={id => setSelectedPlayerIdForHistory(id)} onOpenPrintModal={(docType, round) => setSelectedPrintDoc({ docType, round })} />}
+          {activeTab === 'standings' && <StandingsTab tournament={tournament} onOpenPlayerHistory={id => setSelectedPlayerIdForHistory(id)} onOpenTieBreakSettings={name => setSelectedTieBreakForSettings(name)} onOpenPrintModal={docType => setSelectedPrintDoc({ docType })} />}
+          {activeTab === 'tiebreaks' && <TieBreaksTab tournament={tournament} onUpdateTournament={setTournament} onNavigateToStandings={() => setActiveTab('standings')} />}
+          {activeTab === 'schedule' && <ScheduleTab tournament={tournament} onUpdateTournament={setTournament} />}
+          {activeTab === 'chessresults' && <ChessResultsTab tournament={tournament} onUpdateTournament={setTournament} />}
+          {activeTab === 'onlinecloud' && <OnlineCloudTab tournament={tournament} />}
+          {activeTab === 'export' && (
+            <ExportTrfTab tournament={tournament} onImportTournament={imported => { setTournament(imported); setActiveTab('pairings'); }} onOpenPrintModal={(docType, round) => setSelectedPrintDoc({ docType, round })} />
+          )}
+        </div>
       </main>
 
       {selectedPrintDoc !== null && <PrintDocumentModal tournament={tournament} initialDocType={selectedPrintDoc.docType} initialRound={selectedPrintDoc.round} onClose={() => setSelectedPrintDoc(null)} />}
