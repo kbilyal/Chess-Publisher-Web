@@ -26,6 +26,9 @@ on:
 permissions:
   contents: read
 
+env:
+  WEB_ENGINE_PUBLIC_BASE: https://chess-publisher-web-engine.kyamranbilyal.workers.dev
+
 jobs:
   validate:
     name: Gacrux 1.9.57 Web engine parity and Worker runtime
@@ -126,6 +129,21 @@ jobs:
           test "$origin_code" = "403"
           grep -q 'origin_not_allowed' "$RUNNER_TEMP/engine-origin.json"
 
+      - name: Direct deployed Worker network smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error "$WEB_ENGINE_PUBLIC_BASE/api/engine/health" | grep -q '1.9.57'
+
+          headers="$RUNNER_TEMP/direct-engine-headers.txt"
+          body="$RUNNER_TEMP/direct-engine-unauth.json"
+          code=$(curl --silent --show-error --dump-header "$headers" --output "$body" --write-out '%{http_code}' \
+            -H 'Origin: https://web.chess-publisher.org' \
+            "$WEB_ENGINE_PUBLIC_BASE/api/engine/capabilities")
+          test "$code" = "401"
+          grep -qi '^access-control-allow-origin: https://web.chess-publisher.org' "$headers"
+          grep -q 'organizer_auth_required' "$body"
+
   deploy:
     name: Deploy authenticated Web engine route
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -177,16 +195,29 @@ jobs:
           uv sync
           uv run pywrangler deploy
 
-      - name: Verify public Web engine health route
+      - name: Verify deployed direct Worker endpoint
         if: steps.cf.outputs.configured == 'true'
         shell: bash
         run: |
           set -euo pipefail
+          ready=0
           for attempt in {1..20}; do
-            if curl --fail --silent --show-error https://web.chess-publisher.org/api/engine/health | grep -q '1.9.57'; then
-              exit 0
+            if curl --fail --silent --show-error "$WEB_ENGINE_PUBLIC_BASE/api/engine/health" | grep -q '1.9.57'; then
+              ready=1
+              break
             fi
             sleep 3
           done
-          echo 'Web engine health route did not become ready.' >&2
-          exit 1
+          if [[ "$ready" != "1" ]]; then
+            echo 'Direct Web engine Worker endpoint did not become ready.' >&2
+            exit 1
+          fi
+
+          headers="$RUNNER_TEMP/production-engine-headers.txt"
+          body="$RUNNER_TEMP/production-engine-unauth.json"
+          code=$(curl --silent --show-error --dump-header "$headers" --output "$body" --write-out '%{http_code}' \
+            -H 'Origin: https://web.chess-publisher.org' \
+            "$WEB_ENGINE_PUBLIC_BASE/api/engine/capabilities")
+          test "$code" = "401"
+          grep -qi '^access-control-allow-origin: https://web.chess-publisher.org' "$headers"
+          grep -q 'organizer_auth_required' "$body"
