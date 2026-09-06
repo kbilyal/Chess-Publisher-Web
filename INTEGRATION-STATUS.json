@@ -1,6 +1,6 @@
 {
   "project": "Chess-Publisher-Web",
-  "updated": "2026-09-04",
+  "updated": "2026-09-06",
   "mainCommitVerified": "20862b7eea8281c43062db825d792751c007e6cb",
   "handoffReady": false,
   "baselineFeatureAudit": {
@@ -48,5 +48,16 @@
   },
   "nextTask": "TRF Full Parity (Export-through-round, TRF16/TRF26, starting list, administrative semantics)",
   "nextTaskFile": "NEXT-TASK.md",
-  "integrationGateFile": "INTEGRATION-GATE.md"
+  "integrationGateFile": "INTEGRATION-GATE.md",
+  "uiBrandOverhaul": {
+    "baseCommit": "d0ff861afd6452a18f37631ebe60216e45bb7e66",
+    "status": "REVIEW_CANDIDATE",
+    "source": "production-web",
+    "preservation": "PASS: screen-only CSS link; original HTML and 13 JS adapters hash-verified",
+    "lintBuild": "PASS",
+    "regressionSuites": "16 existing suites PASS; pairing parity 11/11 and failure injection 5/5 PASS",
+    "browserVisualAcceptance": "NOT_RUN",
+    "deployed": false,
+    "architecture": "PASS 34/34"
+  }
 }

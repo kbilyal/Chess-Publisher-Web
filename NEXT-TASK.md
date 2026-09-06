@@ -43,3 +43,8 @@ Close the functional parity and compliance gaps for Tournament Report File (TRF)
 - TRF outputs must be verified by `bbpPairings --check` and standard FIDE TRF parsers.
 - No truncated or misaligned columns in exported files.
 - Export-through-round `R` must never leak pairings or results from rounds `> R`.
+
+## UI candidate acceptance (2026-09-06)
+Before merging the brand overhaul candidate, visually check the real canonical shell at 390px, 768px and 1440px, including 200% zoom; all tabs, action groups, nested dialogs, font controls, menu flyouts, minimize/restore/close/reopen, token sign-in and My Cloud. Confirm long tables scroll locally and all controls remain reachable. Use a test tournament for Save/Pull/Sync/publish workflows. Do not infer visual acceptance from the byte-preservation test.
+
+This UI batch does not close or replace the TRF roadmap above.

@@ -148,3 +148,13 @@ TRF Full Parity (Export-through-round, TRF16/TRF26, starting list, administrativ
 `HANDOFF_READY = false`
 
 Reason: Batch C is closed and verified, but the full 100% integration gate is not yet complete.
+
+## Brand UI overhaul candidate (2026-09-06)
+- Exact source base: `d0ff861afd6452a18f37631ebe60216e45bb7e66` (main, merged PR #44).
+- User-requested complete visual refresh of the canonical `production-web` app, using the public website palette; preserve every control, feature and connection.
+- Added a Web-scoped, screen-only stylesheet: navy workspace/sidebar, blue active actions, cyan accents, white forms, refreshed tables/dialogs, Organizer Token entry and My Tournaments. Wide-screen navigation uses the original tab nodes; smaller screens retain all tabs with scrolling and touch sizing.
+- Original HTML, 28 inline scripts, all 13 production JS adapters, button handlers and visibility logic are byte-identical after removing the single new stylesheet link. Protected engines, Cloud revision flow, TRF, Chess-Results, Hub and print styles are unchanged.
+- Executable preservation gate: `node tests/ui/brand-overhaul.test.mjs`. Baseline hashes are in `tests/ui/brand-baseline.json`; never refresh these hashes merely to silence a failure. A later intentional functional batch must document why its baseline changes.
+- Verified locally: TypeScript/build; UI source-preservation/CSS syntax gate; 16 existing Cloud, production, engine-boundary, Chess-Results, transaction, finalization, FIDE, sync, tie-break, checker and player suites; Gacrux/BBP parity 11/11 and failure injection 5/5; architecture 34/34 (server and test runner in the same local process environment).
+- Test runner note: invoked the existing TypeScript suites through `node --import tsx` because the tsx CLI IPC socket is unavailable in this environment. No test assertions were changed.
+- Browser visual/touch/keyboard acceptance and real authenticated production round-trip have NOT been performed in this batch. Candidate is for review; not deployed or promoted to stable. Existing integration gates stay open.

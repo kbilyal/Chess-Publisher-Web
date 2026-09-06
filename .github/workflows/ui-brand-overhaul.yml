@@ -1,0 +1,28 @@
+name: UI brand preservation
+on:
+  pull_request:
+    paths:
+      - 'production-web/index.html'
+      - 'production-web/web/brand-overhaul.css'
+      - 'tests/ui/**'
+      - '.github/workflows/ui-brand-overhaul.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  preserve:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: node tests/ui/brand-overhaul.test.mjs
+      - run: npm run lint
+      - run: npm run build
+      - run: npm run test:production-web-beta7
+      - run: npm run test:desktop-beta34-web-parity
+      - run: npm run test:cloud-roundtrip
+      - run: npm run test:chess-results-web-contract
