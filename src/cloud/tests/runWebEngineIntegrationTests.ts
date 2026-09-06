@@ -43,7 +43,7 @@ assert(wrangler.includes('name = "chess-publisher-web-engine"'), 'Web engine has
 assert(wrangler.includes('workers_dev = true'), 'direct workers.dev endpoint remains enabled');
 assert(wrangler.includes('compatibility_flags = ["python_workers"]'), 'Cloudflare Python Worker runtime is enabled');
 assert(wrangler.includes('binding = "HUB_SERVICE"') && wrangler.includes('service = "chess-publisher-hub-api-beta"'), 'Web engine has a direct Hub service binding');
-assert(wrangler.includes('remote = true'), 'local Web engine runtime exercises the deployed Hub binding rather than a disconnected simulation');
+assert(!wrangler.includes('global_fetch_strictly_public'), 'Web engine auth does not weaken Worker-to-Worker fetch restrictions');
 
 const protectedHashes: Record<string, string> = {
   'production-web/hub/client/hub-api-client.js': '2311446a69c16a14e041dbf08d4e198280d3a3f1232b739bf8e089d8ffdac9f0',
