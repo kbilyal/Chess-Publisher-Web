@@ -205,6 +205,7 @@ def assert_pairing_phase_exception_diagnostics() -> None:
     def explode_do_checker(self):
         raise KeyError("fixture-runtime-cause")
 
+    explode_do_checker.__name__ = "do_checker"
     pairingchecker_module.pairingchecker.do_checker = explode_do_checker
     try:
         with tempfile.TemporaryDirectory(prefix="cp-worker-phase-diagnostics-") as temp_name:
