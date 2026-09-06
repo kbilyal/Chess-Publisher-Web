@@ -75,6 +75,9 @@ jobs:
       - name: Recovered browser function regression
         run: npm run test:recovered-web-functions
 
+      - name: Desktop beta34 Web parity regression
+        run: npm run test:desktop-beta34-web-parity
+
       - name: Architecture regression
         shell: bash
         env:

@@ -1,9 +1,9 @@
-<!DOCTYPE html>
-<html lang="bg" data-chesspublisher-version="1.06.00-beta.1">
+﻿<!DOCTYPE html>
+<html lang="bg" data-chesspublisher-version="1.06.00-beta.30">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chess-Publisher v1.06.00-beta.1</title>
+<title>Chess-Publisher v1.06.00-beta.30</title>
 
 <style>
 *{box-sizing:border-box}
@@ -166,7 +166,7 @@ tbody tr:hover,tbody tr.selected{background:#0a246a;color:#fff}
 .button-cluster-title{font-weight:bold;margin-bottom:6px;color:#1f1f1f}
 .button-cluster .toolbar{margin-bottom:4px}
 .button-cluster .toolbar:last-child{margin-bottom:0}
-.player-action-row{display:grid;grid-template-columns:minmax(280px,1fr) auto auto auto auto auto;gap:6px;align-items:center;margin-bottom:7px}
+.player-action-row{display:grid;grid-template-columns:minmax(280px,1fr) auto auto auto auto auto auto;gap:6px;align-items:center;margin-bottom:7px}
 .player-action-row .inline-tools{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .player-action-row #selectedCount{justify-self:end}
 .publish-strip-pro{display:grid;grid-template-columns:90px minmax(220px,1fr) auto auto auto;gap:6px;align-items:center}
@@ -2703,6 +2703,85 @@ button[onclick*="fileExportTournamentTunx"]{display:none!important;visibility:hi
   #pairings .result-palette{position:static!important;max-height:none!important;overflow:visible!important}
 }
 </style>
+
+<style id="beta21PairingsExportStyle">
+.pairings-export-window{width:760px;max-width:94vw}.pairings-export-body{max-height:76vh;overflow:auto}.pairings-export-intro{margin-bottom:10px;color:#333}.pairings-export-presets{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:11px;padding:8px;background:#eef3f8;border:1px solid #b9c7d7}.pairings-export-presets-label{font-weight:700;margin-right:2px}.pairings-export-options-grid{display:grid;grid-template-columns:1.05fr 1.3fr 1.05fr;gap:10px}.pairings-export-options-grid fieldset{border:1px solid #aeb8c4;padding:8px 10px;min-width:0}.pairings-export-options-grid legend{font-weight:700;padding:0 4px}.pairings-export-options-grid label{display:block;margin:5px 0;line-height:1.25}.pairings-export-preview{margin-top:12px;padding:9px;border:1px solid #b7b7b7;background:#fff;font-size:11px}.pairings-export-preview .preview-board{display:grid;grid-template-columns:54px 1fr 130px 1fr;gap:6px;align-items:center;padding:7px 4px;border-bottom:1px solid #ddd}.pairings-export-preview .preview-board:last-child{border-bottom:0}.pairings-export-preview .preview-board-no{font-size:14px;font-weight:800;text-align:center}.pairings-export-preview .preview-player-name{font-weight:800;font-size:12px}.pairings-export-preview .preview-meta{color:#555;margin-top:2px}.pairings-export-preview .preview-result{text-align:center;font-weight:700}.pairing-export-readable-table{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:8px}.pairing-export-readable-table th{background:#e9eef4;border:1px solid #999;padding:6px 5px;font-size:9pt}.pairing-export-readable-table td{border:1px solid #999;padding:7px 6px;vertical-align:middle}.pairing-export-readable-table .pe-board{width:7%;text-align:center;font-weight:800;font-size:12pt}.pairing-export-readable-table .pe-player{width:35%}.pairing-export-readable-table .pe-result{width:23%;text-align:center;font-weight:700}.pairing-export-readable-table .pe-name{font-size:10.8pt;font-weight:800;line-height:1.15}.pairing-export-readable-table .pe-meta{font-size:8.2pt;color:#444;margin-top:3px;line-height:1.3}.pairing-result-boxes{display:flex;justify-content:center;gap:5px;flex-wrap:wrap;font-size:8.4pt}.pairing-result-boxes span{display:inline-block;border:1px solid #777;padding:3px 5px;min-width:42px;background:#fff}.pairing-result-blank{display:inline-block;border-bottom:1.5px solid #222;min-width:82px;height:15px}.pairing-export-header-meta{display:flex;gap:8px;flex-wrap:wrap;margin:5px 0 8px;font-size:8.5pt;color:#444}@media(max-width:760px){.pairings-export-options-grid{grid-template-columns:1fr}.pairings-export-preview .preview-board{grid-template-columns:42px 1fr}.pairings-export-preview .preview-result{grid-column:2}.pairings-export-window{width:96vw}}@media print{.pairing-export-readable-table tr{break-inside:avoid;page-break-inside:avoid}.pairing-export-readable-table .pe-name{font-size:10pt}.pairing-export-readable-table .pe-meta{font-size:7.6pt}}
+/* beta.24 — compact classic pairing sheet */
+/* beta.25 — delete-anytime registration withdrawal + pairing-history safety */
+.pairing-export-classic-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;border-bottom:1.5px solid #222;padding-bottom:4px;margin:0 0 5px}
+.pairing-export-classic-title{font-weight:800;font-size:12pt;line-height:1.05}
+.pairing-export-classic-round{font-weight:700;font-size:9pt;white-space:nowrap;text-align:right}
+.pairing-export-classic-meta{font-size:7.7pt;line-height:1.2;margin:0 0 5px;color:#333}
+.pairing-export-classic-table{width:100%;border-collapse:collapse;table-layout:auto;font-size:8.3pt;line-height:1.06}
+.pairing-export-classic-table th{border-top:1px solid #333;border-bottom:1px solid #333;padding:2px 3px;font-weight:700;text-align:center;white-space:nowrap;background:#f2f2f2}
+.pairing-export-classic-table td{border-bottom:1px solid #bbb;padding:2px 3px;vertical-align:middle;white-space:nowrap}
+.pairing-export-classic-table tbody tr:nth-child(even){background:#fafafa}
+.pairing-export-classic-table .pc-board{width:28px;text-align:center;font-weight:700}
+.pairing-export-classic-table .pc-name{min-width:145px;max-width:245px;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.pairing-export-classic-table .pc-small{width:1%;text-align:center}
+.pairing-export-classic-table .pc-id{width:1%;text-align:center;font-size:7.5pt}
+.pairing-export-classic-table .pc-result{width:54px;text-align:center;font-weight:700}
+.pairing-export-classic-table .pc-result-box{display:inline-block;width:42px;height:14px;border:1px solid #333;vertical-align:middle}
+.pairing-export-classic-table .pc-result-line{display:inline-block;width:42px;height:12px;border-bottom:1.2px solid #222;vertical-align:middle}
+.pairing-export-classic-schedule{margin-top:8px;font-size:7.7pt}
+.pairing-export-classic-schedule-title{font-weight:700;border-bottom:1px solid #777;padding-bottom:2px;margin-bottom:2px}
+.pairing-export-classic-schedule table{width:100%;border-collapse:collapse}
+.pairing-export-classic-schedule td{padding:1px 3px;border-bottom:1px solid #ddd}
+.pairing-export-classic-footer{margin-top:5px;padding-top:2px;border-top:1px solid #aaa;font-size:6.8pt;color:#555;text-align:right}
+.pairings-export-preview .pairing-export-classic-table{font-size:8px}
+.pairings-export-preview .pairing-export-classic-table th,.pairings-export-preview .pairing-export-classic-table td{padding:2px}
+.pairings-export-preview .pairing-export-classic-table .pc-name{min-width:90px;max-width:150px}
+
+/* CP-BETA26-EXACT-EXPORT-FORMATS
+   Compact tournament report layout derived from the supplied reference exports.
+   The exported reports intentionally contain no application/user/vendor footer. */
+/* CP-BETA27-LARGER-EXACT-EXPORT-FONT
+   Same exact report structures as beta.26; only print/readability sizing is increased. */
+.cp-exact-report{font-family:Calibri,Arial,sans-serif;color:#000;background:#fff;margin:0;padding:0;font-size:11pt;line-height:1.10}
+.cp-exact-tournament{font-size:9pt;font-weight:400;margin:0 0 14px 0;white-space:nowrap}
+.cp-exact-report-title{font-size:12pt;font-weight:400;margin:0 0 14px 0}
+.cp-exact-table{border-collapse:collapse;table-layout:auto;width:100%;font-size:11pt;line-height:1.08}
+.cp-exact-table th,.cp-exact-table td{border:1px solid #b7b7b7;padding:2px 4px;vertical-align:middle;white-space:nowrap;background:#fff}
+.cp-exact-table th{font-size:11pt;font-weight:400;background:#f2f2f2}
+.cp-exact-table .x-num{text-align:right}
+.cp-exact-table .x-center{text-align:center}
+.cp-exact-table .x-name{text-align:left;min-width:180px}
+.cp-exact-table .x-title{width:42px;text-align:center}
+.cp-exact-table .x-fed{width:48px;text-align:center}
+.cp-exact-table .x-rating{width:55px;text-align:right}
+.cp-exact-table .x-points{width:48px;text-align:center}
+.cp-exact-table .x-result{width:62px;text-align:center}
+.cp-exact-table .x-id{width:88px;text-align:right}
+.cp-exact-table .x-board{width:42px;text-align:right}
+.cp-exact-table .x-sno{width:48px;text-align:right}
+.cp-exact-schedule{margin-top:12px;font-size:9.5pt}
+.cp-exact-schedule-title{font-weight:400;margin-bottom:4px}
+.cp-exact-schedule table{border-collapse:collapse;width:100%}
+.cp-exact-schedule td{border:1px solid #c8c8c8;padding:2px 4px}
+@media print{
+  .cp-exact-report{font-size:11pt}
+  .cp-exact-table{font-size:11pt}
+  .cp-exact-table th,.cp-exact-table td{padding:2px 3.5px}
+  .cp-exact-table tr{break-inside:avoid;page-break-inside:avoid}
+}
+/* CP-BETA28-PAIRINGS-FONT-BOLD-CONTROLS
+   Typography controls are scoped to Pairings Export only. */
+.cp-pairings-exact-report,.cp-pairings-exact-report .cp-exact-table{font-family:inherit}
+.cp-pairings-exact-report.cp-pairings-bold .cp-exact-tournament,
+.cp-pairings-exact-report.cp-pairings-bold .cp-exact-report-title,
+.cp-pairings-exact-report.cp-pairings-bold .cp-exact-table th,
+.cp-pairings-exact-report.cp-pairings-bold .cp-exact-table td,
+.cp-pairings-exact-report.cp-pairings-bold .cp-exact-schedule{font-weight:700}
+#peFontFamily{width:100%;margin-top:3px}
+@media print{
+  .pairing-export-classic-head{margin-top:0}
+  .pairing-export-classic-table{font-size:8pt}
+  .pairing-export-classic-table th,.pairing-export-classic-table td{padding:1.6px 2.4px}
+  .pairing-export-classic-table tr{break-inside:avoid;page-break-inside:avoid}
+  .pairing-export-classic-footer{font-size:6.3pt}
+}
+
+</style>
 </head>
 <body>
 
@@ -2715,7 +2794,7 @@ button[onclick*="fileExportTournamentTunx"]{display:none!important;visibility:hi
   <div class="app-resize-handle app-resize-nw" data-resize="nw" aria-hidden="true"></div>
   <div class="app-resize-handle app-resize-se" data-resize="se" aria-hidden="true"></div>
   <div class="app-resize-handle app-resize-sw" data-resize="sw" aria-hidden="true"></div>
-  <div class="titlebar"><span id="windowDocumentTitle">Chess-Publisher v1.06.00-beta.1 — Tournament Manager & Publisher</span><span class="window-controls" aria-label="Window controls"><span id="saveIndicator" class="save-indicator saved">Saved</span><label class="autosave-switch" title="Automatically save changes" onclick="event.stopPropagation()"><span class="autosave-text">Autosave</span><input id="autosaveToggle" type="checkbox" onchange="toggleAutosave(this.checked);event.stopPropagation()"><span class="autosave-slider" aria-hidden="true"></span></label><button id="manualSaveButton" type="button" class="titlebar-save" title="Save all tournament data" onclick="fileSaveTournament(false);event.stopPropagation()">Save</button><button type="button" title="Minimize" onclick="minimizeAppWindow(event)">—</button><button type="button" title="Maximize / restore" onclick="toggleMaximizeAppWindow(event)">▢</button><button type="button" class="window-close" title="Close" onclick="closeAppWindow(event)">×</button></span></div>
+  <div class="titlebar"><span id="windowDocumentTitle">Chess-Publisher v1.06.00-beta.26 — Tournament Manager & Publisher</span><span class="window-controls" aria-label="Window controls"><span id="saveIndicator" class="save-indicator saved">Saved</span><label class="autosave-switch" title="Automatically save changes" onclick="event.stopPropagation()"><span class="autosave-text">Autosave</span><input id="autosaveToggle" type="checkbox" onchange="toggleAutosave(this.checked);event.stopPropagation()"><span class="autosave-slider" aria-hidden="true"></span></label><button id="manualSaveButton" type="button" class="titlebar-save" title="Save all tournament data" onclick="fileSaveTournament(false);event.stopPropagation()">Save</button><button type="button" title="Minimize" onclick="minimizeAppWindow(event)">—</button><button type="button" title="Maximize / restore" onclick="toggleMaximizeAppWindow(event)">▢</button><button type="button" class="window-close" title="Close" onclick="closeAppWindow(event)">×</button></span></div>
 
   <div class="menu-bar" id="classicMenuBar">
     <div class="menu-root" id="fileMenuRoot">
@@ -2748,8 +2827,8 @@ button[onclick*="fileExportTournamentTunx"]{display:none!important;visibility:hi
         <button id="menuPairingsResort" type="button" onclick="pairingsMenuResort()"><span>Resort Starting List</span><span></span></button>
         <div class="separator"></div>
         <button id="menuPairingsImport" type="button" onclick="pairingsMenuImportResults()"><span>Import Pairings / Results...</span><span></span></button>
-        <button id="menuPairingsTxt" type="button" onclick="pairingsMenuTxt()"><span>Print Pairings TXT</span><span></span></button>
-        <button id="menuPairingsPdf" type="button" onclick="pairingsMenuPdf()"><span>Export Pairings PDF</span><span></span></button>
+        <button id="menuPairingsTxt" type="button" onclick="pairingsMenuTxt()"><span>Export Pairings TXT…</span><span></span></button>
+        <button id="menuPairingsPdf" type="button" onclick="pairingsMenuPdf()"><span>Export Pairings PDF…</span><span></span></button>
         <button id="menuPairingsDgt" type="button" onclick="pairingsMenuDgt()"><span>Export DGT PGN...</span><span></span></button>
         <div class="separator"></div>
         <button id="menuPairingsClear" type="button" onclick="pairingsMenuClearResults()"><span>Clear Current Round Results...</span><span></span></button>
@@ -3042,6 +3121,7 @@ button[onclick*="fileExportTournamentTunx"]{display:none!important;visibility:hi
           </select>
         </div>
         <button onclick="editSelectedPlayer()">Edit Selected</button>
+        <button id="setLateEntryBtn" type="button" onclick="setSelectedPlayerLateEntry()" title="Available after the tournament starts for exactly one Swiss player who has never appeared in any generated pairing.">Set Late Entry</button>
         <button id="deleteSelectedPlayersBtn" class="danger" onclick="deleteSelectedPlayers()">Delete Selected</button>
         <span id="selectedCount">Selected: 0</span>
       </div>
@@ -3098,8 +3178,8 @@ button[onclick*="fileExportTournamentTunx"]{display:none!important;visibility:hi
       <div class="pairing-quickbar">
         <span class="quick-title">⚡ Quick:</span>
         <button class="primary telegram-command" onclick="publishProgramPairingsTelegram()">Telegram</button>
-        <button onclick="printPairingsTxt()">TXT Print</button>
-        <button onclick="printReport('pairings')">Export PDF</button>
+        <button onclick="openPairingsExportDialog('txt')">Export TXT…</button>
+        <button onclick="openPairingsExportDialog('pdf')">Export PDF…</button>
         <label class="pairings-print-option" title="Include the Tournament Schedule below the pairing list in TXT and PDF printouts.">
           <input id="pairingsShowScheduleOnPrint" type="checkbox" onchange="saveAll()">
           <span>Print tournament schedule</span>
@@ -3812,6 +3892,59 @@ button[onclick*="fileExportTournamentTunx"]{display:none!important;visibility:hi
   </div>
 </div>
 
+<!-- PAIRINGS EXPORT OPTIONS -->
+<div id="pairingsExportModal" class="modal-overlay">
+  <div class="modal-window app-message-window pairings-export-window">
+    <div id="pairingsExportTitle" class="modal-titlebar">Export Pairings</div>
+    <div class="modal-body pairings-export-body">
+      <div class="pairings-export-intro">Compact pairing sheet: one row per board. Choose only the columns you want to print.</div>
+      <div class="pairings-export-presets">
+        <span class="pairings-export-presets-label">Preset:</span>
+        <button type="button" onclick="applyPairingsExportPreset('public')">Public</button>
+        <button type="button" onclick="applyPairingsExportPreset('arbiter')">Arbiter result sheet</button>
+        <button type="button" onclick="applyPairingsExportPreset('detailed')">Detailed</button>
+        <button type="button" onclick="applyPairingsExportPreset('minimal')">Minimal</button>
+      </div>
+      <div class="pairings-export-options-grid">
+        <fieldset><legend>Player information</legend>
+          <label><input id="peShowTitle" type="checkbox"> Title</label>
+          <label><input id="peShowFederation" type="checkbox"> Federation</label>
+          <label><input id="peShowPoints" type="checkbox"> Current points</label>
+          <label><input id="peShowRating" type="checkbox"> Rating</label>
+          <label><input id="peShowFideId" type="checkbox"> FIDE ID</label>
+        </fieldset>
+        <fieldset><legend>Result area</legend>
+          <label><input name="peResultMode" type="radio" value="current"> Current result</label>
+          <label><input name="peResultMode" type="radio" value="boxes"> Arbiter boxes: 1-0 / ½-½ / 0-1</label>
+          <label><input name="peResultMode" type="radio" value="blank"> Blank result field</label>
+          <label><input name="peResultMode" type="radio" value="none"> Hide result area</label>
+        </fieldset>
+        <fieldset><legend>Output</legend>
+          <label>Font
+            <select id="peFontFamily" onchange="updatePairingsExportPreview()">
+              <option value="Calibri">Calibri</option>
+              <option value="Arial">Arial</option>
+              <option value="Segoe UI">Segoe UI</option>
+              <option value="Tahoma">Tahoma</option>
+              <option value="Verdana">Verdana</option>
+              <option value="Times New Roman">Times New Roman</option>
+            </select>
+          </label>
+          <label><input id="peBold" type="checkbox"> Bold</label>
+          <label><input id="peIncludeSchedule" type="checkbox"> Tournament schedule</label>
+          <input id="peShowHeaderDetails" type="checkbox" style="display:none" aria-hidden="true">
+          <div id="pairingsExportFormatHint" class="muted"></div>
+        </fieldset>
+      </div>
+      <div id="pairingsExportPreview" class="pairings-export-preview"></div>
+    </div>
+    <div class="modal-bottom">
+      <button onclick="closePairingsExportDialog()">Cancel</button>
+      <button id="pairingsExportRunBtn" class="primary" data-dialog-positive="true" onclick="runPairingsExport()">Export</button>
+    </div>
+  </div>
+</div>
+
 <!-- PAIRING SUCCESS -->
 <div id="pairingSuccessModal" class="modal-overlay">
   <div class="modal-window pairing-success-window">
@@ -4426,15 +4559,29 @@ async function writeServerSnapshot(snapshot,saveContext=null){
   return true;
 }
 
-async function readServerSnapshot(){
+async function readServerSnapshot(timeoutMs=1800){
   if(!canUseLocalStateFile()) return null;
-  // Compatibility migration only: old ChessPublisher-data.json is still read
-  // on startup. Once saved, the tournament is stored in Tournaments/<name>/.
-  const response=await fetch("/state",{cache:"no-store"});
-  if(response.status===404) return null;
-  if(!response.ok) throw new Error(`Local save file returned HTTP ${response.status}.`);
-  const snapshot=await response.json();
-  return snapshot?.data?.tournaments ? snapshot : null;
+  // beta.23 STARTUP-PERF-01: startup must never hang forever on a stalled
+  // LocalEngine /state request. Tournament files remain authoritative when the
+  // service responds in time; otherwise boot continues from browser recovery
+  // and the operator can open the managed tournament file normally afterwards.
+  const controller=typeof AbortController!=="undefined" ? new AbortController() : null;
+  const timer=controller ? setTimeout(()=>controller.abort(),Math.max(250,Number(timeoutMs)||1800)) : null;
+  try{
+    const response=await fetch("/state",{cache:"no-store",...(controller?{signal:controller.signal}:{})});
+    if(response.status===404) return null;
+    if(!response.ok) throw new Error(`Local save file returned HTTP ${response.status}.`);
+    const snapshot=await response.json();
+    return snapshot?.data?.tournaments ? snapshot : null;
+  }catch(err){
+    if(err?.name==="AbortError"){
+      console.warn("Local save file restore timed out; continuing with browser recovery.");
+      return null;
+    }
+    throw err;
+  }finally{
+    if(timer) clearTimeout(timer);
+  }
 }
 
 async function listServerTournaments(){
@@ -4582,7 +4729,14 @@ async function fileNewTournament(){
   refreshEverything();
   showTab("main",document.getElementById("tabMain"));
   updateDocumentFileUI();
-  await fileSaveTournament(true);
+  const savedNewTournament=await fileSaveTournament(true);
+  // beta.33 parity: a newly created Web tournament is immediately created or
+  // updated in the organizer-scoped private Cloud. This is upload-only: it must
+  // never auto-pull a remote revision over the just-created local tournament.
+  if(savedNewTournament&&typeof window.cpCloudSyncCurrent==="function"){
+    try{await window.cpCloudSyncCurrent({force:true,quiet:true,allowPull:false});}
+    catch(error){console.warn("New tournament automatic Cloud sync:",error);}
+  }
   }finally{
     cpEndTournamentScopedOperation();
   }
@@ -4689,7 +4843,7 @@ async function fileOpenTournament(){
       input.click();
     });
 
-    if(!picked) return;
+    if(!picked) return false;
 
     const text=await picked.text();
 
@@ -4706,7 +4860,7 @@ async function fileOpenTournament(){
       );
     }
 
-    if(!await prepareCurrentTournamentForTransition("Open Tournament","Save unsaved changes before opening the selected tournament?")) return;
+    if(!await prepareCurrentTournamentForTransition("Open Tournament","Save unsaved changes before opening the selected tournament?")) return false;
 
     if(!loadAndNormalizeSnapshotObject(snapshot)){
       throw new Error("The selected tournament file is malformed and was not opened.");
@@ -4765,9 +4919,10 @@ async function fileOpenTournament(){
 
     // ChessPublisher's own backup remains available.
     writeLocalBackup(getPersistentSnapshot());
+    return true;
 
   }catch(err){
-    if(err?.name==="AbortError") return;
+    if(err?.name==="AbortError") return false;
 
     console.error("Read-only Open Tournament:",err);
 
@@ -4775,6 +4930,7 @@ async function fileOpenTournament(){
       err?.message||String(err),
       {title:"Open Tournament",type:"error"}
     );
+    return false;
   }finally{
     cpEndTournamentScopedOperation();
   }
@@ -5462,6 +5618,19 @@ function loadLocalSnapshot(){
   return false;
 }
 
+function cpStartupTimeout(promise,timeoutMs,label){
+  let timer=null;
+  return Promise.race([
+    Promise.resolve(promise),
+    new Promise(resolve=>{
+      timer=setTimeout(()=>{
+        console.warn(`${label||"Startup restore"} timed out; continuing without it.`);
+        resolve(null);
+      },Math.max(250,Number(timeoutMs)||1200));
+    })
+  ]).finally(()=>{ if(timer) clearTimeout(timer); });
+}
+
 async function loadPersistentState(){
   try{
     const pref=localStorage.getItem(AUTOSAVE_PREF_KEY);
@@ -5470,21 +5639,18 @@ async function loadPersistentState(){
     autosaveEnabled=true;
   }
 
-  let idbSnapshot=null;
-  try{
-    idbSnapshot=await idbReadSnapshot();
-  }catch(err){
-    console.warn("IndexedDB restore unavailable:",err);
-  }
-
-  let serverSnapshot=null;
-  try{
-    serverSnapshot=await readServerSnapshot();
-  }catch(err){
-    console.warn("Local save file restore unavailable:",err);
-  }
-
+  // beta.23 STARTUP-PERF-02: recovery sources are independent. Read them in
+  // parallel and bound their wait time so a slow IndexedDB or LocalEngine
+  // cannot hold the entire application window blank indefinitely.
   const localSnapshot=readCurrentLocalSnapshot();
+  const [idbResult,serverResult]=await Promise.allSettled([
+    cpStartupTimeout(idbReadSnapshot(),1200,"IndexedDB restore"),
+    cpStartupTimeout(readServerSnapshot(1600),1800,"Local save file restore")
+  ]);
+  const idbSnapshot=idbResult.status==="fulfilled" ? idbResult.value : null;
+  const serverSnapshot=serverResult.status==="fulfilled" ? serverResult.value : null;
+  if(idbResult.status==="rejected") console.warn("IndexedDB restore unavailable:",idbResult.reason);
+  if(serverResult.status==="rejected") console.warn("Local save file restore unavailable:",serverResult.reason);
 
   // A repair package may contain a one-time, explicitly reconstructed local
   // state. Load it before a newer browser copy that still contains the damaged
@@ -6101,12 +6267,15 @@ async function bootApplication(){
 
   // V91: local cached FIDE data loads after the app UI is ready.
   // Network update is intentionally background/non-blocking.
-  setTimeout(()=>{
-    initializeFideDatabaseBackground().catch(err=>{
-      console.warn("FIDE background initialization failed:",err);
-      updateFideAutoStatus("Cached/manual FIDE mode");
-    });
-  },120);
+  // beta.23 STARTUP-PERF-03: cached FIDE data can be large. Give the first
+  // tournament render and input bindings priority, then load FIDE data when the
+  // browser is idle (or after a short fallback delay).
+  const startFideBackground=()=>initializeFideDatabaseBackground().catch(err=>{
+    console.warn("FIDE background initialization failed:",err);
+    updateFideAutoStatus("Cached/manual FIDE mode");
+  });
+  if(typeof requestIdleCallback==="function") requestIdleCallback(startFideBackground,{timeout:2500});
+  else setTimeout(startFideBackground,1200);
 }
 
 function startApplication(){
@@ -6365,6 +6534,7 @@ function normalizeData(){
     if(!t.pairings.engine.roundActivationConfirmed || typeof t.pairings.engine.roundActivationConfirmed!=="object") t.pairings.engine.roundActivationConfirmed={};
     if(typeof t.pairings.engine.playerStatusCollapsed!=="boolean") t.pairings.engine.playerStatusCollapsed=true;
     t.pairings.engine.needsResort=!!t.pairings.engine.needsResort;
+    t.pairings.engine.rankCorrectionNeedsResort=!!t.pairings.engine.rankCorrectionNeedsResort;
     t.pairings.engine.registrationsDirty=!!t.pairings.engine.registrationsDirty;
     if(!t.pairings.engine.syncedAbsent || typeof t.pairings.engine.syncedAbsent!=="object" || Array.isArray(t.pairings.engine.syncedAbsent)) t.pairings.engine.syncedAbsent={};
     t.pairings.engine.registrationSyncedAt=String(t.pairings.engine.registrationSyncedAt||"");
@@ -6400,6 +6570,18 @@ function normalizeData(){
       p.gender=normalizePlayerGender(p.gender);
       if(p.attendance!=="absent") p.attendance="present";
       p.joinedFromRound=getPlayerJoinRound(p);
+      p.registrationDeleted=!!p.registrationDeleted;
+      if(p.registrationDeleted){
+        p.attendance="absent";
+        const deletedFrom=parseInt(p.registrationDeletedFromRound);
+        p.registrationDeletedFromRound=Number.isInteger(deletedFrom)&&deletedFrom>0
+          ? deletedFrom
+          : Math.max(1,getLatestGeneratedRoundForTournament(t)+1);
+        p.registrationDeletedAt=String(p.registrationDeletedAt||"");
+      }else{
+        delete p.registrationDeletedFromRound;
+        delete p.registrationDeletedAt;
+      }
       ensureStableLocalPlayerKey(p,i);
     });
     migrateTournamentStablePlayerKeys(t);
@@ -7356,12 +7538,7 @@ function bindEvents(){
   });
 }
 function saveData(){
-  // cpRunAutosaveCheckpoint() synchronizes the UI by calling saveAll() just
-  // before it captures the pending state. That sync is part of the edit that
-  // already scheduled the checkpoint, not a second user edit. Counting it as
-  // a new revision made each autosave look like fresh work to Cloud backup
-  // observers and could start a save/sync loop.
-  if(!cpAutosaveCaptureSync) cpStateRevision++;
+  cpStateRevision++;
   try{
     localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
   }catch(err){
@@ -8054,6 +8231,14 @@ async function changeTournament(name){
   stateDirty=false;
   refreshEverything();
 
+  // beta.33: opening/switching to a local-only tournament automatically links
+  // and uploads it to the organizer's private Cloud. For an already linked
+  // tournament this is a safe no-pull reconcile: newer Web content is never
+  // overwritten here and remains available through Pull Changes.
+  if(typeof window.cpCloudSyncCurrent==="function"){
+    setTimeout(()=>window.cpCloudSyncCurrent({quiet:true,allowPull:false}).catch(error=>console.warn("Tournament-open automatic Cloud sync:",error)),250);
+  }
+
   // UI-only tournament switch refresh for the Special Prizes area in Standings.
   // Prevents the previous tournament's rendered prize table remaining on screen.
   if(document.getElementById("standings")?.classList.contains("active")){
@@ -8604,6 +8789,7 @@ async function resetTournamentRounds(){
     engine.firstRoundRegistrationSyncedSignature="";
     engine.firstRoundRegistrationNeedsResort=false;
     engine.firstRoundRegistrationSyncedAt="";
+    engine.rankCorrectionNeedsResort=false;
     engine.excludeRemaining={};
     engine.excludeRounds={};
     engine.fixedBoards={};
@@ -9220,9 +9406,12 @@ document.addEventListener("keydown",function(e){
   const page=document.getElementById("pairings");
   if(!page || !page.classList.contains("active")) return;
 
-  const tag=(document.activeElement?.tagName||"").toUpperCase();
-  const typing=tag==="INPUT" || tag==="TEXTAREA";
-  if(typing) return;
+  // CP-BETA17-PAIRINGS-HOTKEY-SAFETY: result/navigation hotkeys must never
+  // mutate a board while the user is operating a form control or modal dialog.
+  const active=e.target||document.activeElement;
+  const tag=(active?.tagName||"").toUpperCase();
+  const typing=tag==="INPUT" || tag==="TEXTAREA" || tag==="SELECT" || !!active?.isContentEditable;
+  if(typing || getTopmostVisibleDialog()) return;
 
   if(e.key==="1"){
     e.preventDefault();
@@ -9389,22 +9578,36 @@ function pairingsRoundChanged(){
   refreshPairingsView(false);
 }
 
+// CP-BETA19-PAIRINGS-EXPORT-CURRENT-POINTS
 function buildLivePairingsRows(){
+  const displayedRound=getSelectedPairingRoundNumber();
+  const pointsBeforeRound=pairingPointsBeforeRound(displayedRound);
   return getLivePairingBoards().map((b,i)=>{
     const white=resolveRegisteredPlayer(b.whiteKey);
     const black=resolveRegisteredPlayer(b.blackKey);
     return {
       board:b.board||i+1,
       white:(white?.name||"")+(b.fixedWhite?" *)":""),
+      whiteSNo:white?(Number(white.pairingNumber||white.pairingNo)||""):"",
       whiteFed:white?.fed||"",
+      whiteTitle:normalizePlayerTitle(white?.title)||"",
+      whiteFideId:String(white?.fideId||"").replace(/^-$|^0$/g,""),
+      whitePoints:white?formatPairingPoints(pointsBeforeRound.get(b.whiteKey)):"",
       whiteRating:Number(white?.rating)||0,
       result:b.result||"-",
       black:(black?.name||"")+(b.fixedBlack?" *)":""),
+      blackSNo:black?(Number(black.pairingNumber||black.pairingNo)||""):"",
       blackFed:black?.fed||"",
+      blackTitle:normalizePlayerTitle(black?.title)||"",
+      blackFideId:String(black?.fideId||"").replace(/^-$|^0$/g,""),
+      blackPoints:black?formatPairingPoints(pointsBeforeRound.get(b.blackKey)):"",
       blackRating:Number(black?.rating)||0
     };
   });
 }
+
+// beta.21: update export preview immediately when an option changes.
+document.addEventListener("change",event=>{if(event.target?.closest?.("#pairingsExportModal"))updatePairingsExportPreview();});
 
 /* =========================================================
    WINDOWS-STYLE APPLICATION MESSAGE BOX
@@ -11898,6 +12101,20 @@ function getPlayerJoinRound(player){
   return Number.isInteger(n) && n>0 ? n : 1;
 }
 
+// CP-BETA25-DELETE-ANYTIME: after pairing starts, Delete becomes a safe
+// registration withdrawal. The player object remains as a historical tombstone
+// so old boards/results/TRF/tie-break references keep resolving by immutable key.
+function isPlayerRegistrationDeleted(player){
+  return !!player?.registrationDeleted;
+}
+function getPlayerRegistrationDeletedFromRound(player){
+  const n=parseInt(player?.registrationDeletedFromRound);
+  return Number.isInteger(n)&&n>0 ? n : 1;
+}
+function getActiveRegistrationPlayers(tournament=getCurrentTournament()){
+  return (tournament?.players||[]).filter(player=>!isPlayerRegistrationDeleted(player));
+}
+
 function getPlayerByStableKey(key){
   if(!key) return null;
   return resolveRegisteredPlayer(key);
@@ -11906,7 +12123,10 @@ function getPlayerByStableKey(key){
 function isPlayerEligibleForRound(playerOrKey,round){
   const player=typeof playerOrKey==="string" ? getPlayerByStableKey(playerOrKey) : playerOrKey;
   if(!player) return false;
-  return Number(round)>=getPlayerJoinRound(player);
+  const r=Number(round);
+  if(!Number.isFinite(r) || r<getPlayerJoinRound(player)) return false;
+  if(isPlayerRegistrationDeleted(player) && r>=getPlayerRegistrationDeletedFromRound(player)) return false;
+  return true;
 }
 
 function getLatestGeneratedRoundForTournament(tournament){
@@ -11918,7 +12138,8 @@ function getLatestGeneratedRoundForTournament(tournament){
 
 function getRegistrationSignature(tournament=getCurrentTournament()){
   if(!tournament) return "";
-  return (tournament.players||[]).map((p,i)=>{
+  return (tournament.players||[]).filter(p=>!isPlayerRegistrationDeleted(p)).map((p)=>{
+    const i=tournament.players.indexOf(p);
     const key=playerKey(p,i);
     const attendance=getPlayerAttendance(p);
     const join=getPlayerJoinRound(p);
@@ -11938,7 +12159,9 @@ function getFirstRoundRegistrationSignature(tournament=getCurrentTournament()){
     String(settings.tournamentRatingType||"")
   ].join("::");
   const roundRobin=typeof isRoundRobinTournament==="function" && isRoundRobinTournament(tournament);
-  const players=(tournament.players||[]).map((p,i)=>[
+  const players=(tournament.players||[]).filter(p=>!isPlayerRegistrationDeleted(p)).map((p)=>{
+    const i=tournament.players.indexOf(p);
+    return [
     playerKey(p,i),
     // Swiss presence is live round eligibility, not part of Starting Rank.
     // Round Robin keeps attendance in the final-roster signature because the
@@ -11951,7 +12174,8 @@ function getFirstRoundRegistrationSignature(tournament=getCurrentTournament()){
     Number(p.rating)||0,
     Number(p.nationalRating)||0,
     String(p.title||"")
-  ].join("::")).sort().join("||");
+  ].join("::");
+  }).sort().join("||");
   return `${header}||${players}`;
 }
 
@@ -11959,7 +12183,7 @@ function hasPendingLateRegistrationForTournament(tournament=getCurrentTournament
   if(!tournament) return false;
   const latest=latestOverride===null ? getLatestGeneratedRoundForTournament(tournament) : Number(latestOverride)||0;
   if(latest<=0) return false;
-  return (tournament.players||[]).some(p=>getPlayerJoinRound(p)>latest);
+  return (tournament.players||[]).some(p=>!isPlayerRegistrationDeleted(p) && getPlayerJoinRound(p)>latest);
 }
 
 function setCurrentRegistrationsAsSynced(tournament=getCurrentTournament(),options={}){
@@ -11969,6 +12193,7 @@ function setCurrentRegistrationsAsSynced(tournament=getCurrentTournament(),optio
   const engine=tournament.pairings.engine;
   const synced={};
   (tournament.players||[]).forEach((p,i)=>{
+    if(isPlayerRegistrationDeleted(p)) return;
     if(getPlayerAttendance(p)==="absent") synced[playerKey(p,i)]=true;
   });
   engine.syncedAbsent=synced;
@@ -12005,12 +12230,16 @@ function getRegistrationWorkflowState(tournament=getCurrentTournament()){
       : (!syncedFirstRound || !!engine.firstRoundRegistrationNeedsResort)
   );
 
-  // Late Entry after tournament start keeps the established v1.52 Resort gate.
+  // After Round 1, Resort is no longer a free-form action. It is required only
+  // for an admitted Late Entry, or for a ranking-data correction made before
+  // Round 4 is paired. This mirrors FIDE C.04.2 Articles 2.3-2.5.
   const needsLateResort=latest>0 && !!engine.needsResort && pendingLate;
-  const needsResort=needsFirstRoundResort || needsLateResort;
+  const needsRankCorrectionResort=latest>0 && latest<4 && !!engine.rankCorrectionNeedsResort;
+  const needsResort=needsFirstRoundResort || needsLateResort || needsRankCorrectionResort;
 
   const syncedAbsent={};
   (tournament?.players||[]).forEach((p,i)=>{
+    if(isPlayerRegistrationDeleted(p)) return;
     if(getPlayerAttendance(p)==="absent") syncedAbsent[playerKey(p,i)]=true;
   });
   return {
@@ -12022,6 +12251,8 @@ function getRegistrationWorkflowState(tournament=getCurrentTournament()){
     firstRoundLocked,
     firstRoundSynced:syncedFirstRound,
     firstRoundNeedsResort:needsFirstRoundResort,
+    needsLateResort,
+    needsRankCorrectionResort,
     firstRoundCurrentSignature:currentFirstRoundSignature,
     firstRoundSyncedSignature:String(engine.firstRoundRegistrationSyncedSignature||"")
   };
@@ -12042,7 +12273,7 @@ function updateRegistrationWorkflowUI(){
   const latest=getLatestGeneratedRound();
   const roundRobin=typeof isRoundRobinTournament==="function" && isRoundRobinTournament(t);
   const preRound1=!state.firstRoundLocked && latest===0;
-  const absentCount=(t.players||[]).filter(p=>getPlayerAttendance(p)==="absent").length;
+  const absentCount=(t.players||[]).filter(p=>!isPlayerRegistrationDeleted(p) && getPlayerAttendance(p)==="absent").length;
   const resortState=document.getElementById("startingRankResortState");
   if(resortState){
     if(state.needsSync) resortState.textContent="⚠ Finalize roster required";
@@ -12123,6 +12354,20 @@ async function resortStartingList(){
     return;
   }
 
+  // Once a Swiss tournament has started, TPN resort is not a general-purpose
+  // reorder button. It is allowed only when the workflow has a rule-based
+  // reason: Late Entry or an admissible pre-R4 ranking-data correction.
+  if(latest>0 && !workflow.needsLateResort && !workflow.needsRankCorrectionResort){
+    appAlert(
+      latest>=4
+        ? "Starting Rank / TPN cannot be freely recalculated after Round 4 has been paired. Existing TPNs are preserved. Admit a true Late Entry through the Late Entry workflow instead."
+        : "No rule-based Resort is pending. Starting Rank / TPN remains unchanged until a Late Entry is admitted or ranking data is corrected.",
+      "Resort Starting List",
+      "warning"
+    );
+    return;
+  }
+
   // Storage preflight happens before a single TPN is changed.
   const transaction=await cpBeginCriticalMutationCheckpoint("Resort Starting List");
   if(!transaction) return;
@@ -12136,6 +12381,7 @@ async function resortStartingList(){
     if(oldKeys.length!==newKeys.length || oldKeys.some((key,i)=>key!==newKeys[i])) throw new Error("Immutable localKey changed during Resort.");
     validateStableHistoryReferences(t);
     e.needsResort=false;
+    e.rankCorrectionNeedsResort=false;
     e.registrationsDirty=false;
     e.syncedAbsent={};
     e.registrationSyncedSignature="";
@@ -12743,7 +12989,6 @@ async function addManualPlayer(){
   if(!await cpPersistCriticalMutation("Add Player")) return;
   renderRegistered();updatePlayerCount();renderNextRoundPlayerManager();
   await showLateEntryNotice(player,joinInfo);
-  await offerPostPairLateEntryPab(player,joinInfo);
 }
 function ratingListTypeFromTournamentRatingType(value){
   const type=String(value||"").trim().toLowerCase();
@@ -12900,7 +13145,6 @@ async function confirmRatingSelection(){
     if(!await cpPersistCriticalMutation("Add FIDE Player")) return;
     closeRatingModal();renderRegistered();updatePlayerCount();renderNextRoundPlayerManager();
     await showLateEntryNotice(player,joinInfo);
-    await offerPostPairLateEntryPab(player,joinInfo);
 
     // If an old cached row needed longer than the 180 ms grace period, update
     // the already-added player silently when the lookup completes.
@@ -12950,6 +13194,7 @@ function getSortedPlayers(){
 function getVisibleRegisteredPlayers(){
   const q=String(document.getElementById("startingRankSearch")?.value||"").trim().toLowerCase();
   return getSortedPlayers().filter(p=>{
+    if(isPlayerRegistrationDeleted(p)) return false;
     if(!q) return true;
     return [p.name,p.fed,p.fideId].some(v=>String(v||"").toLowerCase().includes(q));
   });
@@ -12976,6 +13221,99 @@ async function setPlayerAttendance(originalIndex,status,e){
   if(!await cpPersistCriticalMutation("Player Attendance")) return;
   renderRegistered(); renderNextRoundPlayerManager(); updateGacruxPanel(); updateRegistrationWorkflowUI();
   setStatus(`${p.name}: ${nextStatus==="absent" ? "✕ Absent — Not Paired until reactivated" : "✓ Present — active for the next eligible pairing"}.`);
+}
+
+// CP-BETA19-EXPLICIT-LATE-ENTRY
+// An explicit Late Entry may only change the eligibility start of a Swiss player
+// who has never appeared in any generated pairing row. Historical pairings,
+// opponents, colours, board numbers and results are therefore never rewritten.
+function playerHasEverAppearedInGeneratedPairing(originalIndex,tournament=getCurrentTournament()){
+  const player=tournament?.players?.[originalIndex];
+  if(!player) return false;
+  const key=playerKey(player,originalIndex);
+  for(const boards of Object.values(tournament?.pairings?.liveBoards||{})){
+    if(!Array.isArray(boards)) continue;
+    if(boards.some(board=>String(board?.whiteKey||"")===key || String(board?.blackKey||"")===key)) return true;
+  }
+  return false;
+}
+
+function getSelectedLateEntryState(){
+  const tournament=getCurrentTournament();
+  if(!tournament) return {ok:false,reason:"No tournament is open."};
+  if(selectedPlayerIndexes.size!==1) return {ok:false,reason:"Select exactly one player."};
+  if(isRoundRobinTournament(tournament)) return {ok:false,reason:"Late Entry is a Swiss-only workflow. Round Robin uses the protected Berger additional-entry rules."};
+  const originalIndex=[...selectedPlayerIndexes][0];
+  const player=tournament.players?.[originalIndex];
+  if(!player) return {ok:false,reason:"The selected player no longer exists."};
+  const latest=getLatestGeneratedRoundForTournament(tournament);
+  if(latest<=0) return {ok:false,reason:"Late Entry becomes available after at least one Swiss round has been generated."};
+  const joinRound=latest+1;
+  const declared=getDeclaredTournamentRounds?.() || parseInt(tournament.settings?.rounds)||0;
+  if(declared && joinRound>declared) return {ok:false,reason:`The tournament is complete at Round ${declared}; there is no next round for a Late Entry.`};
+  if(playerHasEverAppearedInGeneratedPairing(originalIndex,tournament)){
+    return {ok:false,reason:"This player has already appeared in a generated pairing/BYE and cannot be converted to Late Entry."};
+  }
+  const currentJoin=getPlayerJoinRound(player);
+  const already=currentJoin===joinRound && getPlayerAttendance(player)==="present";
+  return {ok:!already,already,reason:already?`Already Late Entry from Round ${joinRound}.`:"",tournament,player,originalIndex,latest,joinRound,declared};
+}
+
+function updateLateEntryAvailability(){
+  const btn=document.getElementById("setLateEntryBtn");
+  if(!btn) return;
+  const state=getSelectedLateEntryState();
+  btn.disabled=!state.ok;
+  btn.textContent=state.already ? `Late Entry R${state.joinRound} ✓` : "Set Late Entry";
+  btn.title=state.ok
+    ? `Set ${state.player?.name||"the selected player"} as Late Entry starting Round ${state.joinRound}. Only players never used in a generated pairing are eligible.`
+    : (state.reason||"Select one eligible player.");
+}
+
+async function setSelectedPlayerLateEntry(){
+  const state=getSelectedLateEntryState();
+  if(!state.ok){
+    await appAlert(state.reason||"The selected player cannot be marked as Late Entry.","Late Entry","warning");
+    return false;
+  }
+  const {tournament,player,originalIndex,latest,joinRound}=state;
+  // Re-check immediately before mutation in case the selection/history changed
+  // while the confirmation dialog was open.
+  const ok=await appConfirm(
+    `${player.name} has never appeared in a generated pairing.\n\nSet this player as Late Entry starting Round ${joinRound}?\n\nRounds 1–${latest} will remain historical and unchanged and count as 0 points for this player unless the tournament regulations explicitly state otherwise. The player will be Present for the next eligible pairing, future Exclude/BYE overrides from Round ${joinRound} onward will be cleared, and Resort Starting List will be required before the next pairing.`,
+    "Set Late Entry",
+    "question"
+  );
+  if(!ok) return false;
+  if(tournament!==getCurrentTournament() || player!==tournament.players?.[originalIndex] || playerHasEverAppearedInGeneratedPairing(originalIndex,tournament)){
+    await appAlert("Tournament or pairing history changed while Late Entry was awaiting confirmation. No change was applied.","Late Entry","warning");
+    renderRegistered();
+    return false;
+  }
+
+  const key=playerKey(player,originalIndex);
+  player.joinedFromRound=joinRound;
+  player.attendance="present";
+  const engine=getPairingEngineConfig();
+  const declared=Math.max(joinRound,getDeclaredTournamentRounds?.() || parseInt(tournament.settings?.rounds)||joinRound);
+  clearPlayerParticipationFromRound(key,joinRound,declared);
+  engine.needsResort=true;
+  engine.registrationsDirty=false;
+  engine.syncedAbsent={};
+  engine.registrationSyncedSignature="";
+  saveData();
+  if(!await cpPersistCriticalMutation("Set Late Entry")) return false;
+  renderRegistered();
+  renderNextRoundPlayerManager();
+  updateGacruxPanel();
+  updateRegistrationWorkflowUI();
+  setStatus(`${player.name}: Late Entry from Round ${joinRound}. Resort Starting List is required before the next pairing.`);
+  await appAlert(
+    `${player.name} is now Late Entry from Round ${joinRound}.\n\nExisting Rounds 1–${latest} were not changed. Before generating Round ${joinRound}, use Resort Starting List.`,
+    "Late Entry",
+    "success"
+  );
+  return true;
 }
 
 function renderRegistered(){
@@ -13019,27 +13357,45 @@ function selectPlayerRow(e,sortedIndex,originalIndex){
   renderRegistered();
 }
 function clearSelection(){selectedPlayerIndexes.clear();lastClickedSortedIndex=null;updateSelectedCount()}
-function updateSelectedCount(){document.getElementById("selectedCount").textContent=`Selected: ${selectedPlayerIndexes.size}`}
-function isPlayerDeletionLocked(tournament=getCurrentTournament()){
-  if(!tournament) return false;
-  const latest=getLatestGeneratedRoundForTournament(tournament);
-  const engine=tournament?.pairings?.engine||{};
-  // Once Round 1 has ever been generated, deletion stays locked even if rounds
-  // are removed one by one. Only a full Reset Tournament explicitly unlocks it.
-  return latest>0 || !!engine.firstRoundRegistrationLocked;
+function updateSelectedCount(){document.getElementById("selectedCount").textContent=`Selected: ${selectedPlayerIndexes.size}`;updateLateEntryAvailability()}
+function isPlayerDeletionLocked(){
+  // beta.25: Delete is always available. After pairing starts it becomes a
+  // non-destructive withdrawal that preserves every historical reference.
+  return false;
 }
 
 function updatePlayerDeletionAvailability(){
   const btn=document.getElementById("deleteSelectedPlayersBtn");
   if(!btn) return;
-
-  const started=isPlayerDeletionLocked();
-  btn.disabled=started;
-  btn.title=started
+  const latest=getLatestGeneratedRound();
+  btn.disabled=false;
+  btn.title=latest>0
     ? (getLanguage()==="bg"
-        ? "След генериран жребий състезател не може да се изтрива. Използвайте Exclude."
-        : "After a pairing has been generated, players cannot be deleted. Use Exclude.")
-    : "Delete selected player(s)";
+        ? "Премахва от активната регистрация и бъдещите Swiss жребии; старите кръгове и резултати се запазват."
+        : "Removes from active registration and future Swiss pairings; old rounds and results are preserved.")
+    : (getLanguage()==="bg" ? "Изтрий избраните състезатели." : "Delete selected player(s).");
+}
+
+function markPlayerDeletedFromRegistration(tournament,originalIndex,fromRound){
+  const player=tournament?.players?.[originalIndex];
+  if(!player) return "";
+  const key=playerKey(player,originalIndex);
+  const start=Math.max(1,Number(fromRound)||1);
+  const declared=Math.max(start,getDeclaredTournamentRounds?.() || parseInt(tournament.settings?.rounds)||start);
+  player.registrationDeleted=true;
+  player.registrationDeletedFromRound=start;
+  player.registrationDeletedAt=new Date().toISOString();
+  player.attendance="absent";
+
+  // Remove every future manual override, then add one authoritative future
+  // exclusion. Existing generated boards/results are never edited here.
+  clearPlayerParticipationFromRound(key,start,declared);
+  const engine=getPairingEngineConfig();
+  if(engine){
+    engine.excludeRemaining[key]=start;
+    if(engine.fixedBoards) delete engine.fixedBoards[key];
+  }
+  return key;
 }
 
 async function deleteSelectedPlayers(){
@@ -13048,27 +13404,81 @@ async function deleteSelectedPlayers(){
     return;
   }
 
-  if(isPlayerDeletionLocked()){
-    appAlert(
-      getLanguage()==="bg"
-        ? "След генериран поне един жребий състезател не може да бъде изтрит.\n\nИзползвайте Exclude... и изберете кръговете, в които няма да участва."
-        : "After at least one pairing has been generated, a player cannot be deleted.\n\nUse Exclude... and choose the rounds in which the player will not participate."
-    );
+  const t=getCurrentTournament();
+  if(!t) return;
+  const indexes=[...selectedPlayerIndexes].filter(i=>t.players?.[i]).sort((a,b)=>a-b);
+  if(!indexes.length){ clearSelection(); return; }
+  const latest=getLatestGeneratedRoundForTournament(t);
+  const engine=getPairingEngineConfig();
+  const started=latest>0 || !!engine?.firstRoundRegistrationLocked;
+  const roundRobin=isRoundRobinTournament(t);
+  const nextRound=Math.max(1,latest+1);
+  const names=indexes.map(i=>t.players[i]?.name||`#${i+1}`).slice(0,5).join(", ");
+  const more=indexes.length>5?` +${indexes.length-5}`:"";
+
+  let question;
+  if(!started){
+    question=`Delete ${indexes.length} selected player(s)?\n\n${names}${more}\n\nThis is a pre-Round-1 roster change. The player records will be removed completely and Resort Starting List will be required before pairing.`;
+  }else if(roundRobin){
+    question=`Delete ${indexes.length} selected player(s) from active registration?\n\n${names}${more}\n\nThe Berger schedule has already been generated. Existing Round Robin pairings/results will NOT be rewritten or renumbered. The player will disappear from Registration, while the historical player record remains internally so every scheduled board can still be resolved safely.`;
+  }else{
+    question=`Delete ${indexes.length} selected player(s) from active registration?\n\n${names}${more}\n\nExisting Rounds 1–${latest} and all results will remain unchanged. The player will disappear from Registration and will be excluded automatically from Round ${nextRound} onward. Starting Rank / TPN will NOT be renumbered.`;
+  }
+  if(!await appConfirm(question,"Delete Players","warning")) return;
+
+  const transaction=await cpBeginCriticalMutationCheckpoint("Delete Players");
+  if(!transaction) return;
+  let mode="hard";
+  try{
+    validateStableHistoryReferences(t);
+    if(!started){
+      const descending=[...indexes].sort((a,b)=>b-a);
+      const removedKeys=new Set(descending.map(i=>String(playerKey(t.players[i],i))));
+      descending.forEach(i=>t.players.splice(i,1));
+      cleanupRemovedRegistrationKeys(t,removedKeys);
+      const e=getPairingEngineConfig();
+      e.firstRoundRegistrationNeedsResort=true;
+      e.firstRoundRegistrationSyncedSignature="";
+      e.rankCorrectionNeedsResort=false;
+      e.needsResort=false;
+    }else{
+      mode="withdraw";
+      for(const index of indexes) markPlayerDeletedFromRegistration(t,index,nextRound);
+      const e=getPairingEngineConfig();
+      e.registrationsDirty=false;
+      e.syncedAbsent={};
+      e.registrationSyncedSignature="";
+      // Delete itself never requests a Resort after tournament start: existing
+      // TPNs are historical and must stay stable. Do NOT clear a Resort that was
+      // already pending for an unrelated Late Entry or ranking-data correction.
+      // The pairing engine receives the withdrawn player as unpaired/ineligible
+      // from the next round onward.
+      validateStableHistoryReferences(t);
+    }
+    selectedPlayerIndexes.clear();
+    lastClickedSortedIndex=null;
+    saveData();
+    if(!await cpCommitCriticalMutationCheckpoint(transaction)) return;
+  }catch(err){
+    await cpRestoreCriticalMutationCheckpoint(transaction,{showAlert:false,reason:"delete-player-exception"});
+    await appAlert(`Delete Players was cancelled and the previous tournament state was restored.\n\n${err?.message||String(err)}`,"Delete Players","error");
     return;
   }
 
-  if(!await appConfirm(`Delete ${selectedPlayerIndexes.size} selected player(s)?`,"Delete Players","warning")) return;
-
-  const indexes=[...selectedPlayerIndexes].sort((a,b)=>b-a);
-  const players=getCurrentTournament().players;
-  indexes.forEach(i=>players.splice(i,1));
-
-  clearSelection();
-  saveData();
-  if(!await cpPersistCriticalMutation("Delete Players")) return;
   renderRegistered();
   updatePlayerCount();
+  renderNextRoundPlayerManager();
+  updateRegistrationWorkflowUI();
+  updateGacruxPanel();
+  if(mode==="hard"){
+    setStatus("Player(s) deleted before Round 1. Resort Starting List is required.");
+  }else if(roundRobin){
+    setStatus("Player(s) removed from active registration. Existing Berger schedule/history was preserved unchanged.");
+  }else{
+    setStatus(`Player(s) removed from active registration and excluded from Round ${nextRound} onward. Existing rounds/results were preserved.`);
+  }
 }
+
 function editSelectedPlayer(){
   if(selectedPlayerIndexes.size!==1){appAlert("Select exactly one player to edit.");return}
   openEditPlayerModal([...selectedPlayerIndexes][0]);
@@ -13084,6 +13494,8 @@ function openEditPlayerModal(index){
   setVal("editPlayerRating",p.rating);
   setVal("editPlayerTitle",normalizePlayerTitle(p.title));
   setVal("editPlayerPairingNo",p.pairingNumber);
+  const pairingNoInput=document.getElementById("editPlayerPairingNo");
+  if(pairingNoInput){ pairingNoInput.readOnly=true; pairingNoInput.title="Tournament Pairing Number is managed by Resort Starting List."; }
   setVal("editPlayerFed",p.fed||"BUL");
   setVal("editPlayerFide",p.fideId);
   setVal("editPlayerBirth",p.birth);
@@ -13121,16 +13533,9 @@ async function saveEditedPlayer(){
   if(!checked.ok){ appAlert(checked.error); return; }
   const fide=checked.fideId;
   if(fide!=="-" && players.some((x,i)=>i!==editingPlayerIndex&&String(x.fideId||"").trim()===fide)){appAlert("Another player already has this FIDE ID.");return}
-  const pairingNo=parseInt(val("editPlayerPairingNo"));
-  if(!pairingNo || pairingNo<1){appAlert("Pairing No. must be a positive whole number.");return}
-  if(getLatestGeneratedRound()>0 && pairingNo!==Number(p.pairingNumber)){
-    appAlert("Pairing No. cannot be changed after pairings have been generated.");
-    return;
-  }
-  if(players.some((x,i)=>i!==editingPlayerIndex&&Number(x.pairingNumber)===pairingNo)){
-    appAlert("This Pairing No. is already assigned to another player.");
-    return;
-  }
+  // TPN is derived from the FIDE initial order / Resort workflow, not manually edited.
+  const pairingNo=Number(p.pairingNumber)||1;
+  const oldRankData={name:String(p.name||""),rating:Number(p.rating)||0,title:normalizePlayerTitle(p.title)};
   const fixed=parseInt(val("editPlayerFixedBoard"));
   if(fixed && fixed>0){
     const nextRound=getNextPairingRound();
@@ -13143,6 +13548,18 @@ async function saveEditedPlayer(){
   p.name=checked.name;p.rating=checked.rating;p.title=normalizePlayerTitle(val("editPlayerTitle"));p.pairingNumber=pairingNo;p.fed=String(val("editPlayerFed")||"BUL").trim().toUpperCase();p.fideId=fide;p.birth=checked.birth;p.gender=normalizePlayerGender(val("editPlayerGender"));if(p.attendance!=="absent") p.attendance="present";
 
   const cfg=getPairingEngineConfig();
+  const latestForRank=getLatestGeneratedRound();
+  const rankDataChanged=oldRankData.name!==String(p.name||"") || oldRankData.rating!==(Number(p.rating)||0) || oldRankData.title!==normalizePlayerTitle(p.title);
+  if(rankDataChanged){
+    if(latestForRank===0){
+      cfg.firstRoundRegistrationNeedsResort=true;
+      cfg.firstRoundRegistrationSyncedSignature="";
+    }else if(latestForRank<4){
+      cfg.rankCorrectionNeedsResort=true;
+    }
+    // After Round 4 has been paired, FIDE C.04.2 does not allow a generic
+    // TPN reassignment for ranking-data corrections, so the existing TPN is kept.
+  }
   const key=stableKey;
   const status=val("editPlayerPairingStatus");
   const next=getNextPairingRound();
@@ -13166,10 +13583,15 @@ async function saveEditedPlayer(){
 
   saveData();
   if(!await cpPersistCriticalMutation("Edit Player")) return;
-  closeEditPlayerModal();renderRegistered();renderNextRoundPlayerManager();setStatus(`Player edited: ${p.name}`);
+  closeEditPlayerModal();renderRegistered();renderNextRoundPlayerManager();updateRegistrationWorkflowUI();
+  if(rankDataChanged && latestForRank>0 && latestForRank<4) setStatus(`Player edited: ${p.name}. Ranking data changed — Resort Starting List is required before the next pairing.`);
+  else if(rankDataChanged && latestForRank>=4) setStatus(`Player edited: ${p.name}. Ranking data updated; existing TPN preserved because Round 4 has already been paired.`);
+  else setStatus(`Player edited: ${p.name}`);
 }
 function updatePlayerCount(){
-  document.getElementById("playerCountStatus").textContent=`Players: ${getCurrentTournament()?.players.length||0}`;
+  const tournament=getCurrentTournament();
+  const visible=getActiveRegistrationPlayers(tournament).length;
+  document.getElementById("playerCountStatus").textContent=`Players: ${visible}`;
   if(isRoundRobinFormat()) updateTournamentFormatUI();
   updateWorkflowTabs();
 }
@@ -14726,7 +15148,7 @@ async function showRatedScheduleBlockingMessage(check){
     `${rating} requires a complete playing schedule before pairings.\n\n`+
     check.errors.slice(0,12).join("\n")+
     (check.errors.length>12?`\n... and ${check.errors.length-12} more.`:"")+
-    "\n\nOpen Tournament Schedule → Generate Rounds, then enter the date and time for every round.",
+    "\n\nOpen Tournament Schedule → Generate Smart Schedule, then check the date and time for every round.",
     "Schedule required for rating",
     "warning"
   );
@@ -17890,37 +18312,6 @@ function publishChessResultsPairingsTelegram(){
   return sendTelegram(withExportLanguage(()=>buildChessResultsMonitorText()),getExportLanguage());
 }
 
-function printPairingsTxt(){
-  return withExportLanguage(()=>{
-  const report=document.getElementById("screenPrintReport");
-  const rows=buildLivePairingsRows();
-  const bg=getLanguage()==="bg";
-  let text=`${data.currentTournament.toUpperCase()}\n\n${bg?"ЖРЕБИЙ ОТ ПРОГРАМАТА":"PROGRAM PAIRINGS"}\n${pairingsRoundLabel()}\n\n`;
-  text+=pad("Bo.",6)+pad("White",34)+pad("Rtg",7)+centerPad("Result",10)+pad("Black",34)+pad("Rtg",7)+"\n";
-  text+="-".repeat(98)+"\n";
-  rows.forEach(r=>{
-    text+=pad(r.board,6)+pad(r.white||"",34)+pad(r.whiteRating||"",7)+centerPad(r.result||"-",10)+pad(r.black||"",34)+pad(r.blackRating||"",7)+"\n";
-  });
-  if(getCurrentTournament()?.pairings?.showScheduleOnPrint){
-    const scheduleRows=meaningfulScheduleRows(getCurrentTournament()?.schedule?.rows||[]);
-    text+="\n"+(bg?"ПРОГРАМА НА ТУРНИРА":"TOURNAMENT SCHEDULE")+"\n"+"-".repeat(60)+"\n";
-    if(scheduleRows.length){
-      scheduleRows.forEach(r=>{
-        const event=translateScheduleEvent(r.event);
-        const when=formatDateTime(r.dateTime)||"—";
-        const note=cpSchedulePublicDescription(r);
-        text+=`${event}: ${when}${note?" • "+note:""}\n`;
-      });
-    }else{
-      text+=(bg?"Програмата не е въведена.":"Tournament schedule has not been entered.")+"\n";
-    }
-  }
-  report.innerHTML=`<div class="print-doc"><div class="print-pre" style="font-family:Consolas,'Courier New',monospace;font-size:10pt">${escapeHtml(text)}</div></div>`;
-  setTimeout(()=>window.print(),30);
-  });
-}
-
-
 /* =========================================================
    LANGUAGE / TEXT
 ========================================================= */
@@ -18272,6 +18663,181 @@ function publishPlayersTelegram(){return sendTelegram(withExportLanguage(()=>bui
 function publishScheduleTelegram(){return sendTelegram(withExportLanguage(()=>buildScheduleText()),getExportLanguage())}
 function publishRegulationsTelegram(){return sendTelegram(withExportLanguage(()=>buildRegulationsText()),getExportLanguage())}
 
+
+// beta.22: pairings export UX continues below; shared language/Telegram helpers restored from beta.20.
+// CP-BETA26-EXACT-EXPORT-FORMATS
+let pairingsExportTarget="pdf";
+function pairingsExportFontName(value){const allowed=["Calibri","Arial","Segoe UI","Tahoma","Verdana","Times New Roman"];const wanted=String(value||"").trim();return allowed.includes(wanted)?wanted:"Calibri";}
+function pairingsExportFontCss(value){switch(pairingsExportFontName(value)){case "Arial":return "Arial,Helvetica,sans-serif";case "Segoe UI":return "\"Segoe UI\",Tahoma,Arial,sans-serif";case "Tahoma":return "Tahoma,Arial,sans-serif";case "Verdana":return "Verdana,Arial,sans-serif";case "Times New Roman":return "\"Times New Roman\",Times,serif";default:return "Calibri,Arial,sans-serif";}}
+function pairingsExportTypographyAttrs(options){const css=pairingsExportFontCss(options?.fontFamily);const cls=options?.bold?" cp-pairings-bold":"";return {cls,style:`font-family:${css}`};}
+function pairingsExportDefaults(){return {formatVersion:"exact-reference-v1",title:true,federation:false,points:true,rating:false,fideId:false,resultMode:"blank",includeSchedule:false,showHeaderDetails:false,fontFamily:"Calibri",bold:false};}
+function getPairingsExportOptions(){const saved=getCurrentTournament()?.pairings?.exportOptions;return saved&&saved.formatVersion==="exact-reference-v1"?{...pairingsExportDefaults(),...saved}:pairingsExportDefaults();}
+function setPairingsExportControls(options){const o={...pairingsExportDefaults(),...(options||{})};const map={peShowTitle:o.title,peShowFederation:o.federation,peShowPoints:o.points,peShowRating:o.rating,peShowFideId:o.fideId,peIncludeSchedule:o.includeSchedule,peBold:o.bold};Object.entries(map).forEach(([id,value])=>{const el=document.getElementById(id);if(el)el.checked=!!value;});const font=document.getElementById("peFontFamily");if(font)font.value=pairingsExportFontName(o.fontFamily);const wanted=String(o.resultMode||"blank");const radio=[...document.querySelectorAll('input[name="peResultMode"]')].find(x=>x.value===wanted)||document.querySelector('input[name="peResultMode"][value="blank"]');if(radio)radio.checked=true;}
+function readPairingsExportControls(){const checked=id=>!!document.getElementById(id)?.checked;return {title:checked("peShowTitle"),federation:checked("peShowFederation"),points:checked("peShowPoints"),rating:checked("peShowRating"),fideId:checked("peShowFideId"),resultMode:document.querySelector('input[name="peResultMode"]:checked')?.value||"blank",includeSchedule:checked("peIncludeSchedule"),showHeaderDetails:false,fontFamily:pairingsExportFontName(document.getElementById("peFontFamily")?.value),bold:checked("peBold")};}
+function savePairingsExportOptions(options){const t=getCurrentTournament();if(!t)return;t.pairings=t.pairings||{};t.pairings.exportOptions={...pairingsExportDefaults(),...options,formatVersion:"exact-reference-v1"};t.pairings.showScheduleOnPrint=!!options.includeSchedule;const scheduleToggle=document.getElementById("pairingsShowScheduleOnPrint");if(scheduleToggle)scheduleToggle.checked=!!options.includeSchedule;try{saveData();}catch(_){}}
+function applyPairingsExportPreset(name){const presets={public:{title:true,federation:false,points:true,rating:false,fideId:false,resultMode:"blank",includeSchedule:false,showHeaderDetails:false},arbiter:{title:true,federation:false,points:true,rating:false,fideId:false,resultMode:"blank",includeSchedule:false,showHeaderDetails:false},detailed:{title:true,federation:true,points:true,rating:true,fideId:true,resultMode:"current",includeSchedule:true,showHeaderDetails:false},minimal:{title:false,federation:false,points:false,rating:false,fideId:false,resultMode:"blank",includeSchedule:false,showHeaderDetails:false}};const typography=readPairingsExportControls();setPairingsExportControls({...presets[name]||presets.public,fontFamily:typography.fontFamily,bold:typography.bold});updatePairingsExportPreview();}
+function openPairingsExportDialog(target="pdf"){const rows=buildLivePairingsRows();if(!rows.length){appAlert(getLanguage()==="bg"?"Няма генериран жребий за избрания кръг.":"No generated pairings are available for the selected round.","Pairings Export","warning");return;}pairingsExportTarget=String(target||"pdf").toLowerCase()==="txt"?"txt":"pdf";setPairingsExportControls(getPairingsExportOptions());const bg=getLanguage()==="bg";const title=document.getElementById("pairingsExportTitle");if(title)title.textContent=pairingsExportTarget==="txt"?(bg?"Експорт на жребий — TXT":"Export Pairings — TXT"):(bg?"Експорт на жребий — PDF":"Export Pairings — PDF");const hint=document.getElementById("pairingsExportFormatHint");if(hint)hint.textContent=pairingsExportTarget==="txt"?(bg?"TXT е обикновен текст; изборът на шрифт и Bold важи за PDF/печат.":"TXT is plain text; Font and Bold apply to PDF/print."):(bg?"PDF използва системния Print / Save as PDF прозорец.":"PDF uses the system Print / Save as PDF dialog.");["peFontFamily","peBold"].forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=pairingsExportTarget==="txt";});const btn=document.getElementById("pairingsExportRunBtn");if(btn)btn.textContent=pairingsExportTarget==="txt"?(bg?"Експорт TXT":"Export TXT"):(bg?"Експорт PDF":"Export PDF");updatePairingsExportPreview();const modal=document.getElementById("pairingsExportModal");if(modal)modal.style.display="flex";setTimeout(()=>btn?.focus(),20);}
+function closePairingsExportDialog(){const modal=document.getElementById("pairingsExportModal");if(modal)modal.style.display="none";}
+
+function cpExactExportPoints(value){
+  const raw=String(value??"").trim();
+  const parsed=Number(raw.replace("½",".5").replace(",","."));
+  if(!Number.isFinite(parsed))return raw;
+  const whole=Math.trunc(parsed),frac=Math.round((parsed-whole)*100)/100;
+  if(Math.abs(frac)<1e-9)return String(whole);
+  if(Math.abs(frac-0.5)<1e-9)return `${whole?whole:""}½`;
+  return String(parsed).replace(".",",");
+}
+function cpExactExportNumber(value){
+  if(value===null||value===undefined||value==="")return "";
+  return String(value).replace(".",",");
+}
+function cpExactExportDateTime(value){
+  const raw=String(value||"").trim();
+  const m=raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2}))?/);
+  if(!m)return "";
+  return `${m[1]}/${m[2]}/${m[3]}${m[4]?` at ${m[4]}:${m[5]}`:""}`;
+}
+function cpExactPairingsRoundLine(){
+  const t=getCurrentTournament(),round=getSelectedPairingRoundNumber();
+  const row=(t?.schedule?.rows||[]).find(r=>scheduleRoundNumberFromEvent(r?.event)===Number(round));
+  const dt=cpExactExportDateTime(row?.dateTime||"");
+  return `Round ${round}${dt?` on ${dt}`:""}`;
+}
+function cpExactTieBreakLabel(tie){
+  const text=String(tie||"");
+  if(text.includes("BH-C1"))return "BH:GP/C1";
+  if(text.includes("BH-C2"))return "BH:GP/C2";
+  if(text.includes("BH-M1"))return "BH:GP/M1";
+  if(text.includes("BH-M2"))return "BH:GP/M2";
+  if(text.includes("SB-C1"))return "SB:GP/C1";
+  if(/Greater number of victories|Number of Wins|Greater number of games won \(WON\)/i.test(text))return "WIN:GP";
+  return shortTieBreakLabel(tie);
+}
+function pairingsExportPlayerMeta(row,side,options){
+  const pick=suffix=>row?.[side+suffix],parts=[];
+  const fed=String(pick("Fed")||"").trim().toUpperCase(),pts=String(pick("Points")||"").trim(),rtg=Number(pick("Rating"))||0,fide=String(pick("FideId")||"").trim();
+  if(options.points&&pts)parts.push(pts);
+  if(options.rating&&rtg)parts.push(String(rtg));
+  if(options.federation&&fed)parts.push(fed);
+  if(options.fideId&&fide)parts.push(fide);
+  return parts.join(" | ");
+}
+function pairingsExportName(row,side,options){
+  const name=String(row?.[side]||"").trim(),title=String(row?.[side+"Title"]||"").trim();
+  return options?.title&&title?`${title} ${name}`:name;
+}
+function cpExactPlayerName(row,side){
+  const raw=String(row?.[side]||"").trim();
+  if(raw)return raw;
+  if(side==="black"){
+    const result=String(row?.result||"").trim().toUpperCase();
+    if(["PAB","BYE","1 BYE","0.5 BYE","½ BYE","0 BYE"].includes(result))return "Bye";
+    return "-";
+  }
+  return "";
+}
+function pairingsExportResultHtml(row,options){switch(options.resultMode){case "boxes":return '<span class="pc-result-box"></span>';case "blank":return '<span class="pc-result-line"></span>';case "none":return "";default:return escapeHtml(row.result&&row.result!=="-"?row.result:"");}}
+function pairingsExportResultText(row,options){switch(options.resultMode){case "boxes":case "blank":return "";case "none":return "";default:return row.result&&row.result!=="-"?row.result:"";}}
+
+function pairingsExportClassicColumns(options){
+  const cols=[{key:"board",label:"Bo.",cls:"x-board"},{key:"whiteSNo",label:"SNo.",cls:"x-sno"}];
+  if(options.title)cols.push({key:"whiteTitle",label:"",cls:"x-title"});
+  cols.push({key:"whiteName",label:"White",cls:"x-name"});
+  if(options.federation)cols.push({key:"whiteFed",label:"FED",cls:"x-fed"});
+  if(options.rating)cols.push({key:"whiteRating",label:"Rtg",cls:"x-rating"});
+  if(options.fideId)cols.push({key:"whiteFide",label:"FIDE ID",cls:"x-id"});
+  if(options.points)cols.push({key:"whitePoints",label:"Pts",cls:"x-points"});
+  if(options.resultMode!=="none")cols.push({key:"result",label:"Res.",cls:"x-result"});
+  if(options.points)cols.push({key:"blackPoints",label:"Pts",cls:"x-points"});
+  if(options.fideId)cols.push({key:"blackFide",label:"FIDE ID",cls:"x-id"});
+  if(options.rating)cols.push({key:"blackRating",label:"Rtg",cls:"x-rating"});
+  if(options.federation)cols.push({key:"blackFed",label:"FED",cls:"x-fed"});
+  cols.push({key:"blackName",label:"Black",cls:"x-name"},{key:"blackSNo",label:"SNo.",cls:"x-sno"});
+  return cols;
+}
+function pairingsExportClassicValue(row,key,options,{html=false}={}){
+  switch(key){
+    case "board":return row.board??"";
+    case "whiteSNo":return row.whiteSNo||"";
+    case "blackSNo":return row.blackSNo||"";
+    case "whiteTitle":return row.whiteTitle||"";
+    case "whiteName":return cpExactPlayerName(row,"white");
+    case "blackName":{const name=cpExactPlayerName(row,"black");const title=options.title?String(row.blackTitle||"").trim():"";return title&&name&&name!=="-"&&name!=="Bye"?`${title} ${name}`:name;}
+    case "whiteFide":return row.whiteFideId||"";
+    case "blackFide":return row.blackFideId||"";
+    case "whiteFed":return String(row.whiteFed||"").toUpperCase();
+    case "blackFed":return String(row.blackFed||"").toUpperCase();
+    case "whiteRating":return row.whiteRating||"";
+    case "blackRating":return row.blackRating||"";
+    case "whitePoints":return cpExactExportPoints(row.whitePoints);
+    case "blackPoints":return cpExactExportPoints(row.blackPoints);
+    case "result":return html?pairingsExportResultHtml(row,options):pairingsExportResultText(row,options);
+    default:return "";
+  }
+}
+function pairingsExportCompactHeader(){
+  return `<div class="cp-exact-tournament">${escapeHtml(data.currentTournament||"")}</div><div class="cp-exact-report-title">${escapeHtml(cpExactPairingsRoundLine())}</div>`;
+}
+function buildPairingsReadableHtml(options){
+  const t=getCurrentTournament(),rows=buildLivePairingsRows(),cols=pairingsExportClassicColumns(options);
+  const head=cols.map(c=>`<th class="${c.cls}">${escapeHtml(c.label)}</th>`).join("");
+  const body=rows.map(r=>`<tr>${cols.map(c=>`<td class="${c.cls}">${c.key==="result"?pairingsExportClassicValue(r,c.key,options,{html:true}):escapeHtml(String(pairingsExportClassicValue(r,c.key,options)||""))}</td>`).join("")}</tr>`).join("");
+  let schedule="";
+  if(options.includeSchedule){
+    const scheduleRows=meaningfulScheduleRows(t?.schedule?.rows||[]);
+    const scheduleBody=scheduleRows.map(r=>`<tr><td>${escapeHtml(translateScheduleEvent(r.event))}</td><td>${escapeHtml(formatDateTime(r.dateTime)||"")}${cpSchedulePublicDescription(r)?` • ${escapeHtml(cpSchedulePublicDescription(r))}`:""}</td></tr>`).join("");
+    schedule=`<div class="cp-exact-schedule"><div class="cp-exact-schedule-title">Schedule</div>${scheduleRows.length?`<table>${scheduleBody}</table>`:""}</div>`;
+  }
+  const fontName=["Calibri","Arial","Segoe UI","Tahoma","Verdana","Times New Roman"].includes(String(options?.fontFamily||""))?String(options.fontFamily):"Calibri";const fontCss=fontName==="Arial"?"Arial,Helvetica,sans-serif":fontName==="Segoe UI"?"&quot;Segoe UI&quot;,Tahoma,Arial,sans-serif":fontName==="Tahoma"?"Tahoma,Arial,sans-serif":fontName==="Verdana"?"Verdana,Arial,sans-serif":fontName==="Times New Roman"?"&quot;Times New Roman&quot;,Times,serif":"Calibri,Arial,sans-serif";const boldClass=options?.bold?" cp-pairings-bold":"";return `<div class="print-doc cp-exact-report cp-pairings-exact-report${boldClass}" style="font-family:${fontCss}">${pairingsExportCompactHeader()}<table class="cp-exact-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>${schedule}</div>`;
+}
+function peTextFit(value,width,align="left"){
+  let s=String(value??"").replace(/\s+/g," ").trim();
+  if(s.length>width)s=width>1?s.slice(0,width-1)+"…":s.slice(0,width);
+  return align==="right"?s.padStart(width," "):align==="center"?s.padStart(s.length+Math.floor((width-s.length)/2)," ").padEnd(width," "):s.padEnd(width," ");
+}
+function pairingsExportTextColumns(options){
+  const cols=[{key:"board",label:"Bo.",w:4,a:"right"},{key:"whiteSNo",label:"SNo.",w:5,a:"right"}];
+  if(options.title)cols.push({key:"whiteTitle",label:"",w:5,a:"left"});
+  cols.push({key:"whiteName",label:"White",w:28,a:"left"});
+  if(options.federation)cols.push({key:"whiteFed",label:"FED",w:4,a:"left"});
+  if(options.rating)cols.push({key:"whiteRating",label:"Rtg",w:5,a:"right"});
+  if(options.fideId)cols.push({key:"whiteFide",label:"FIDE ID",w:10,a:"right"});
+  if(options.points)cols.push({key:"whitePoints",label:"Pts",w:4,a:"center"});
+  if(options.resultMode!=="none")cols.push({key:"result",label:"Res.",w:7,a:"center"});
+  if(options.points)cols.push({key:"blackPoints",label:"Pts",w:4,a:"center"});
+  if(options.fideId)cols.push({key:"blackFide",label:"FIDE ID",w:10,a:"right"});
+  if(options.rating)cols.push({key:"blackRating",label:"Rtg",w:5,a:"right"});
+  if(options.federation)cols.push({key:"blackFed",label:"FED",w:4,a:"left"});
+  cols.push({key:"blackName",label:"Black",w:28,a:"left"},{key:"blackSNo",label:"SNo.",w:5,a:"right"});
+  return cols;
+}
+function buildPairingsReadableText(options){
+  const t=getCurrentTournament(),rows=buildLivePairingsRows(),cols=pairingsExportTextColumns(options),out=[];
+  out.push(String(data.currentTournament||""));
+  out.push("");
+  out.push(cpExactPairingsRoundLine());
+  out.push("");
+  const header=cols.map(c=>peTextFit(c.label,c.w,c.a)).join(" ");
+  out.push(header);
+  rows.forEach(r=>out.push(cols.map(c=>peTextFit(pairingsExportClassicValue(r,c.key,options),c.w,c.a)).join(" ")));
+  if(options.includeSchedule){
+    out.push("","Schedule");
+    const scheduleRows=meaningfulScheduleRows(t?.schedule?.rows||[]);
+    scheduleRows.forEach(r=>out.push(`${translateScheduleEvent(r.event)}  ${formatDateTime(r.dateTime)||""}${cpSchedulePublicDescription(r)?" • "+cpSchedulePublicDescription(r):""}`));
+  }
+  return out.join("\r\n")+"\r\n";
+}
+function updatePairingsExportPreview(){
+  const box=document.getElementById("pairingsExportPreview");if(!box)return;
+  const options=readPairingsExportControls(),rows=buildLivePairingsRows().slice(0,4),cols=pairingsExportClassicColumns(options);
+  const head=cols.map(c=>`<th class="${c.cls}">${escapeHtml(c.label)}</th>`).join("");
+  const body=rows.map(r=>`<tr>${cols.map(c=>`<td class="${c.cls}">${c.key==="result"?pairingsExportClassicValue(r,c.key,options,{html:true}):escapeHtml(String(pairingsExportClassicValue(r,c.key,options)||""))}</td>`).join("")}</tr>`).join("");
+  const typography=pairingsExportTypographyAttrs(options);box.innerHTML=`<div class="cp-pairings-exact-report${typography.cls}" style="${typography.style}"><table class="cp-exact-table" style="margin-top:5px"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+}
+async function runPairingsExport(){const options=readPairingsExportControls();savePairingsExportOptions(options);closePairingsExportDialog();if(pairingsExportTarget==="txt"){const text=withExportLanguage(()=>buildPairingsReadableText(options));exportTextFile(text,`Pairings_R${getSelectedPairingRoundNumber()||""}`);return;}const report=document.getElementById("screenPrintReport");report.innerHTML=withExportLanguage(()=>buildPairingsReadableHtml(options));document.title=`${data.currentTournament} - ${cpExactPairingsRoundLine()}`;setTimeout(()=>window.print(),30);}
+function printPairingsTxt(){openPairingsExportDialog("txt");}
+
 /* =========================================================
    TXT EXPORT
 ========================================================= */
@@ -18358,109 +18924,51 @@ function buildPrintReport(kind){
   };
 
   if(kind==="players"){
-    const players=[...t.players].sort((a,b)=>{ const nA = Number(a.pairingNumber||a.pairingNo)||999999; const nB = Number(b.pairingNumber||b.pairingNo)||999999; if(nA!==nB) return nA-nB; return b.rating - a.rating; });
-    const rated=players.filter(p=>Number(p.rating)>0);
-    const avg=rated.length?Math.round(rated.reduce((sum,p)=>sum+Number(p.rating||0),0)/rated.length):0;
-    const top=rated.length?Math.max(...rated.map(p=>Number(p.rating||0))):0;
-    const absentCount=players.filter(p=>getPlayerAttendance(p)==="absent").length;
-    const presentCount=players.length-absentCount;
-    const rows=players.map((p,i)=>`<tr class="${getPlayerAttendance(p)==="absent"?"absent-row":""}">
-      <td class="design-rank">${i+1}</td><td><b>${escapeHtml(p.name)}</b>${getPlayerAttendance(p)==="absent"?`<span class="presence-badge absent">🔴 ${escapeHtml(bg?"Отсъства":"Absent")}</span>`:`<span class="presence-badge present">🟢 ${escapeHtml(bg?"Наличен":"Present")}</span>`}</td>
-      <td class="design-rating">${p.rating||0}</td><td class="design-fed">${escapeHtml(p.fed||"")}</td>
-      <td>${escapeHtml(p.fideId==="-"?"":p.fideId)}</td><td>${escapeHtml(p.birth==="-"?"":p.birth)}</td></tr>`).join("");
-    const extra=`<span class="design-badge">👥 ${players.length} ${escapeHtml(bg?"участници":"players")}</span>`+
-                `<span class="design-badge">🟢 ${presentCount}</span><span class="design-badge">🔴 ${absentCount}</span>`+
-                (top?`<span class="design-badge">⭐ Top ${top}</span>`:"")+(avg?`<span class="design-badge">📊 Avg ${avg}</span>`:"");
-    return hero("♟️",bg?"СТАРТОВ СПИСЪК / УЧАСТНИЦИ":"STARTING RANK LIST / PARTICIPANTS",extra)+`
-      <div class="design-section-title">♟️ ${escapeHtml(T("playersTitle"))}</div>
-      <table class="design-player-table"><thead><tr><th>#</th><th>${escapeHtml(bg?"Име":"Name")}</th><th>Rtg</th><th>FED</th><th>FIDE ID</th><th>${escapeHtml(bg?"Роден":"Birth")}</th></tr></thead><tbody>${rows}</tbody></table>
-      <div class="design-summary">♜ ${escapeHtml(bg?"Списъкът е подреден по рейтинг в низходящ ред.":"List sorted by rating in descending order.")}</div>`+footer;
+    const players=[...(typeof getActiveRegistrationPlayers==="function"?getActiveRegistrationPlayers(t):(t.players||[]))]
+      .sort((a,b)=>{const nA=Number(a.pairingNumber||a.pairingNo)||999999,nB=Number(b.pairingNumber||b.pairingNo)||999999;return nA-nB||String(a.name||"").localeCompare(String(b.name||""));});
+    const rows=players.map((p,i)=>{
+      const sno=Number(p.pairingNumber||p.pairingNo)||i+1;
+      const title=normalizePlayerTitle(p.title)||"";
+      return `<tr><td class="x-sno">${sno}</td><td class="x-title">${escapeHtml(title)}</td><td class="x-name">${escapeHtml(p.name||"")}</td><td class="x-rating">${Number(p.rating)||0}</td><td class="x-fed">${escapeHtml(String(p.fed||"").toUpperCase())}</td></tr>`;
+    }).join("");
+    return `<div class="print-doc cp-exact-report">
+      <div class="cp-exact-tournament">${escapeHtml(data.currentTournament||"")}</div>
+      <div class="cp-exact-report-title">Starting Rank List</div>
+      <table class="cp-exact-table"><thead><tr><th class="x-sno">SNo.</th><th class="x-title"></th><th class="x-name">Name</th><th class="x-rating">IRtg</th><th class="x-fed">FED</th></tr></thead><tbody>${rows}</tbody></table>
+    </div>`;
   }
 
   if(kind==="pairings"){
-    const results=t.pairings.results==="YES";
-    const live=buildLivePairingsRows();
-    const rows=live.map(r=>`<tr>
-      <td class="design-rank">${escapeHtml(r.board)}</td>
-      <td><b>${escapeHtml(r.white||"—")}</b></td>
-      <td class="design-rating">${r.whiteRating||""}</td>
-      <td style="text-align:center;font-weight:bold">${escapeHtml(r.result||"-")}</td>
-      <td><b>${escapeHtml(r.black||"—")}</b></td>
-      <td class="design-rating">${r.blackRating||""}</td>
-    </tr>`).join("");
-    const subtitle=bg?(results?"ЖРЕБИЙ И РЕЗУЛТАТИ":"ЖРЕБИЙ"):(results?"PAIRINGS & RESULTS":"PAIRINGS");
-    return `<div class="print-doc">
-      <div class="design-hero">
-        <div class="design-hero-title">🏆 ${escapeHtml(data.currentTournament)}</div>
-        <div class="design-hero-sub">🔀 ${escapeHtml(subtitle)} • ${escapeHtml(pairingsRoundLabel())}</div>
-        ${t.pairings?.showScheduleOnPrint?pairingProgramHtml():""}
-      </div>
-      <div class="design-section-title">🔀 ${escapeHtml(bg?"Жребий по дъски":"Pairings by board")}</div>
-      ${live.length?`<table class="design-player-table"><thead><tr>
-        <th>Bo.</th><th>White</th><th>Rtg</th><th>Result</th><th>Black</th><th>Rtg</th>
-      </tr></thead><tbody>${rows}</tbody></table>`:
-      `<div class="print-pre">${escapeHtml(bg?"Няма въведени дъски за този кръг.":"No boards entered for this round.")}</div>`}
-      ${footer}`;
+    return buildPairingsReadableHtml(getPairingsExportOptions());
   }
 
   if(kind==="standings"){
-    const st=refreshFinalStandings();
-    const ties=st.tieList;
-    const bg=getLanguage()==="bg";
-
-    const heads=ties.map((tb,i)=>
-      `<th class="standings-tb-head" title="${escapeAttribute(tieBreakDisplayLabel(tb))}">${escapeHtml(shortTieBreakLabel(tb))}</th>`
-    ).join("");
-
-    const rows=st.players.map((p,i)=>`
-      <tr>
-        <td class="standings-rank">${i+1}</td>
-        <td class="standings-name">${escapeHtml(p.name)}</td>
-        <td class="standings-fed">${escapeHtml(p.fed||"")}</td>
-        <td class="standings-num">${p.rating||0}</td>
-        <td class="standings-points">${Number(p.score||0).toFixed(1)}</td>
-        ${ties.map(tb=>`<td class="standings-num">${escapeHtml(formatStandingTie(p,tb))}</td>`).join("")}
-      </tr>`).join("");
-
-    const legend=ties.length
-      ? `<div class="standings-print-legend">
-          <b>${escapeHtml(bg?"Тайбрейк приоритет":"Tie-break priority")}:</b>
-          ${ties.map((tb,i)=>`<span>${i+1}. ${escapeHtml(shortTieBreakLabel(tb))} = ${escapeHtml(tieBreakDisplayLabel(tb))}</span>`).join("")}
-        </div>`
-      : "";
-
-    return `
-      <div class="print-doc standings-print-doc">
-        <div class="standings-print-head">
-          <div class="standings-print-title">${escapeHtml(data.currentTournament)}</div>
-          <div class="standings-print-subtitle">${escapeHtml(bg?"КРАЙНО КЛАСИРАНЕ":"FINAL STANDINGS")}</div>
-          <div class="standings-print-meta">
-            ${escapeHtml(bg?"Кръгове":"Rounds")}: <b>${st.completed}</b>
-            &nbsp; • &nbsp;
-            ${escapeHtml(bg?"Участници":"Players")}: <b>${st.players.length}</b>
-          </div>
-        </div>
-
-        <table class="standings-print-table">
-          <thead>
-            <tr>
-              <th class="standings-rank">#</th>
-              <th class="standings-name">${escapeHtml(bg?"Име":"Name")}</th>
-              <th class="standings-fed">FED</th>
-              <th class="standings-num">Rtg</th>
-              <th class="standings-points">Pts</th>
-              ${heads}
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-
-        ${legend}
-
-        <div class="standings-print-footer">
-          Tournament Manager & Publisher
-        </div>
-      </div>`;
+    const st=refreshFinalStandings(),ties=st.tieList||[];
+    const declared=Number(t.settings?.rounds)||Number(t.regulations?.rounds)||0;
+    const reportTitle=(declared&&st.completed>=declared)?"Final ranking":`Ranking after Round ${st.completed}`;
+    const heads=ties.map(tb=>`<th class="x-center">${escapeHtml(cpExactTieBreakLabel(tb))}</th>`).join("");
+    const rows=st.players.map((p,i)=>{
+      const sno=Number(p.pairingNumber||p.pairingNo)||"";
+      const title=normalizePlayerTitle(p.title)||"";
+      const score=cpExactExportPoints(p.score||0);
+      return `<tr>
+        <td class="x-num">${i+1}</td>
+        <td class="x-sno">${sno}</td>
+        <td class="x-title">${escapeHtml(title)}</td>
+        <td class="x-name">${escapeHtml(p.name||"")}</td>
+        <td class="x-rating">${Number(p.rating)||0}</td>
+        <td class="x-fed">${escapeHtml(String(p.fed||"").toUpperCase())}</td>
+        <td class="x-points">${escapeHtml(score)}</td>
+        ${ties.map(tb=>`<td class="x-center">${escapeHtml(cpExactExportNumber(formatStandingTie(p,tb)))}</td>`).join("")}
+      </tr>`;
+    }).join("");
+    return `<div class="print-doc cp-exact-report">
+      <div class="cp-exact-tournament">${escapeHtml(data.currentTournament||"")}</div>
+      <div class="cp-exact-report-title">${escapeHtml(reportTitle)}</div>
+      <table class="cp-exact-table"><thead><tr>
+        <th class="x-num">Rank</th><th class="x-sno">SNo.</th><th class="x-title"></th><th class="x-name">Name</th><th class="x-rating">Rtg</th><th class="x-fed">FED</th><th class="x-points">Pts</th>${heads}
+      </tr></thead><tbody>${rows}</tbody></table>
+    </div>`;
   }
 
   if(kind==="program"){
@@ -19642,7 +20150,11 @@ async function setPlayerNextRoundStatus(key,status){
   }else if(status==="exclude"){
     if(player && getPlayerAttendance(player)==="absent") player.attendance="present";
     configurePlayerExclusion(key); return;
-  }else if(status==="PAB"||status==="F"||status==="H"||status==="Z"){
+  }else if(status==="PAB"){
+    await appAlert("PAB is assigned only by the pairing engine when the number of active players is odd. It cannot be assigned manually.","Pairing-Allocated Bye","warning");
+    renderNextRoundPlayerManager();
+    return;
+  }else if(status==="F"||status==="H"||status==="Z"){
     if(player && getPlayerAttendance(player)==="absent") player.attendance="present";
     configurePlayerBye(key,status); return;
   }
@@ -19725,7 +20237,9 @@ function hasPlayerStatusChangesForRound(round){
   const r=Number(round);
   const byes=e.manualByes?.[String(r)]||{};
   for(let i=0;i<t.players.length;i++){
-    const p=t.players[i],key=playerKey(p,i);
+    const p=t.players[i];
+    if(isPlayerRegistrationDeleted(p)) continue;
+    const key=playerKey(p,i);
     if(isPlayerSyncedAbsent(key)) return true;
     if(isPlayerExcludedForRound(key,r)) return true;
     if(byes[key]) return true;
@@ -19899,6 +20413,7 @@ function renderNextRoundPlayerManager(){
     container.classList.toggle("next-round-collapsed",!!e.playerStatusCollapsed);
   }
   const players=t.players.map((p,i)=>({...p,_i:i,_key:playerKey(p,i)}))
+    .filter(p=>!isPlayerRegistrationDeleted(p))
     .sort((a,b)=>(Number(b.rating)||0)-(Number(a.rating)||0)||a.name.localeCompare(b.name));
   const latestGenerated=getLatestGeneratedRoundForTournament(t);
   let pabPoints=1;
@@ -19926,11 +20441,8 @@ function renderNextRoundPlayerManager(){
     tr.dataset.hasExclude=hasExclude?"1":"0"; tr.dataset.hasPab=hasPab?"1":"0"; tr.dataset.hasFull=hasFull?"1":"0"; tr.dataset.hasHalf=hasHalf?"1":"0"; tr.dataset.hasZero=hasZero?"1":"0";
     const notes=[];
     if(joinRound>1) notes.push(`<span class="next-round-note-badge join">Starts R${joinRound}</span>`);
-    const latestBoards=latestGenerated>0 ? (t.pairings?.liveBoards?.[String(latestGenerated)]||[]) : [];
-    const canLatePab=latestGenerated>0 && joinRound===latestGenerated+1 &&
-      !latestBoards.some(board=>board?.whiteKey===p._key||board?.blackKey===p._key);
-    if(canLatePab){
-      notes.push(`<button type="button" class="pairings-filter-btn" onclick="event.stopPropagation();offerExistingPostPairLateEntryPab('${escapeAttribute(p._key)}')">Late Entry BYE R${latestGenerated}</button>`);
+    if(latestGenerated>0 && joinRound===latestGenerated+1){
+      notes.push(`<span class="next-round-note-badge join" title="FIDE default: zero points for rounds missed before admission, unless tournament regulations explicitly state otherwise.">Late Entry • previous rounds 0 pts</span>`);
     }
     if(attendanceAbsent) notes.push(`<span class="next-round-note-badge exclude">✕ Absent — Not Paired until reactivated</span>`);
     if(exclusionSummary) notes.push(`<span class="next-round-note-badge exclude">🚫 ${escapeHtml(exclusionSummary)}</span>`);
@@ -19944,9 +20456,8 @@ function renderNextRoundPlayerManager(){
           ${waiting?`<option value="waiting" selected disabled>Starts Round ${joinRound}</option>`:""}
           <option value="active"${status==="active"?" selected":""}>Active / Present — plays normally</option>
           <option value="exclude"${status==="exclude"?" selected":""}>Excluded — not paired</option>
-          <option value="PAB"${status==="PAB"?" selected":""}>PAB — ${pabPoints.toFixed(1)} pt</option>
-          <option value="F"${status==="F"?" selected":""}>1 BYE — 1.0 pt</option>
-          <option value="H"${status==="H"?" selected":""}>½ BYE — 0.5 pt</option>
+          <option value="F"${status==="F"?" selected":""}>Admin 1 BYE — 1.0 pt (only if regulations allow)</option>
+          <option value="H"${status==="H"?" selected":""}>Admin ½ BYE — 0.5 pt (only if regulations allow)</option>
           <option value="Z"${status==="Z"?" selected":""}>0 BYE — 0 pt</option>
         </select></td>
       <td><input class="${fixed?"next-round-fixed":""}" type="number" min="1" step="1" ${waiting||attendanceAbsent?"disabled":""} value="${fixed||""}" placeholder="${attendanceAbsent?"Absent":waiting?`R${joinRound}`:"Auto"}" onchange="setPlayerFixedBoard('${escapeAttribute(p._key)}',this.value)"></td>
@@ -19976,7 +20487,7 @@ function getExpectedPairingKeys(round){
   const {rows}=tournamentState();
   const byes=getManualByesForRound(round);
   return rows.filter(row=>
-    Number(round)>=Number(row.joinedFromRound||1) &&
+    isPlayerEligibleForRound(row.key,round) &&
     !isPlayerSyncedAbsent(row.key) &&
     !isPlayerExcludedForRound(row.key,round) &&
     !byes[row.key]
@@ -20380,7 +20891,7 @@ function generateLocalSwissFallback(round){
   const byes=getManualByesForRound(round);
 
   let active=state.rows.filter(row=>{
-    if(Number(round)<Number(row.joinedFromRound||1)) return false;
+    if(!isPlayerEligibleForRound(row.key,round)) return false;
     if(isPlayerSyncedAbsent(row.key)) return false;
     if(isPlayerExcludedForRound(row.key,round)) return false;
     if(byes[row.key]) return false;
@@ -21402,7 +21913,7 @@ async function requestLocalGacruxPairs(next,initialColor){
   const nextByes=getManualByesForRound(next);
   const controlled=new Set();
   rows.forEach(row=>{
-    if(Number(next)<Number(row.joinedFromRound||1) || isPlayerSyncedAbsent(row.key) || isPlayerExcludedForRound(row.key,next) || nextByes[row.key]) controlled.add(row.key);
+    if(!isPlayerEligibleForRound(row.key,next) || isPlayerSyncedAbsent(row.key) || isPlayerExcludedForRound(row.key,next) || nextByes[row.key]) controlled.add(row.key);
   });
   const unpaired=rows.filter(row=>controlled.has(row.key)).map(row=>Number(row.id)).filter(Number.isInteger);
   const expectedKeys=getExpectedPairingKeys(next);
@@ -24020,18 +24531,14 @@ document.getElementById("firstTournamentName").addEventListener("keydown",e=>{if
 document.addEventListener("keydown",e=>{
   if(e.key==="Escape"){closeRatingModal();closeEditPlayerModal();closeExcludeRoundsModal();closePairingSuccessModal()}
   if(e.key==="Delete"&&document.getElementById("registration").classList.contains("active")&&selectedPlayerIndexes.size){
+    // CP-BETA17-REGISTRATION-DELETE-MODAL-SAFETY: never delete selected
+    // participants behind an open dialog.
+    if(getTopmostVisibleDialog()) return;
     const tag=(document.activeElement?.tagName||"").toUpperCase();
     if(!["INPUT","TEXTAREA","SELECT"].includes(tag)){
       e.preventDefault();
-      // Point-fix 1.03.21: keyboard Delete has its own synchronous tournament-
-      // start guard. Do not rely only on the async delete routine/button state.
-      if(isPlayerDeletionLocked()){
-        updatePlayerDeletionAvailability();
-        setStatus(getLanguage()==="bg"
-          ? "Изтриването на състезатели е заключено след старта на турнира. Използвайте Exclude."
-          : "Player deletion is locked after tournament start. Use Exclude.");
-        return;
-      }
+      // beta.25: keyboard Delete uses the same safe anytime-delete workflow
+      // as the button. Post-start deletion is non-destructive and preserves history.
       deleteSelectedPlayers();
     }
   }
@@ -29006,18 +29513,52 @@ function buildPairingEngineTRF(initialColor="w"){
     const players=Array.isArray(t.players)?t.players:[];
     if(!players.length) errors.push("The Starting List is empty. Add at least one player before TRF export.");
 
-    const numbered=players.map((player,index)=>({player,index,no:Number(player?.pairingNumber||player?.pairingNo)}));
-    const used=new Set();
-    let numberingOkay=numbered.length>0;
-    for(const row of numbered){
-      if(!Number.isInteger(row.no)||row.no<1||row.no>9999||used.has(row.no)) numberingOkay=false;
-      else used.add(row.no);
-    }
-    if(numberingOkay){
-      for(let no=1;no<=numbered.length;no++) if(!used.has(no)){ numberingOkay=false; break; }
-    }
-    if(!numberingOkay && numbered.length){
-      errors.push("Starting Rank / TPN must be unique and consecutive from 1 to N. Use Resort Starting List before exporting; TRF Starting List export will not renumber players automatically.");
+    let numbered=players.map((player,index)=>({player,index,no:Number(player?.pairingNumber||player?.pairingNo)}));
+    const validConsecutiveNumbering=rows=>{
+      if(!rows.length) return false;
+      const used=new Set();
+      for(const row of rows){
+        if(!Number.isInteger(row.no)||row.no<1||row.no>9999||used.has(row.no)) return false;
+        used.add(row.no);
+      }
+      for(let no=1;no<=rows.length;no++) if(!used.has(no)) return false;
+      return true;
+    };
+
+    let derivedNumbers=false;
+    let numberingOkay=validConsecutiveNumbering(numbered);
+    const latest=typeof getLatestGeneratedRoundForTournament==="function"
+      ? Number(getLatestGeneratedRoundForTournament(t))||0
+      : (typeof getLatestGeneratedRound==="function"?Number(getLatestGeneratedRound())||0:0);
+    const workflow=typeof getRegistrationWorkflowState==="function" ? getRegistrationWorkflowState(t) : null;
+    const pendingPreRoundResort=latest===0 && !!(workflow?.needsResort||workflow?.firstRoundNeedsResort||workflow?.needsRankCorrectionResort);
+
+    // A Starting List is specifically a Round-0 transfer. A freshly entered
+    // roster can legitimately have no persisted TPN yet. Derive the export
+    // numbering from the exact same FIDE initial-order routine used by Resort,
+    // but do it on shadow player objects so export never mutates tournament
+    // state and never bypasses the real Resort gate before pairing.
+    if(numbered.length && latest===0 && (!numberingOkay || pendingPreRoundResort)){
+      if(typeof assignFideInitialPairingNumbers!=="function"){
+        errors.push("Starting Rank / TPN is not ready and the FIDE initial-rank sorter is unavailable.");
+      }else{
+        const shadowPlayers=players.map((player,index)=>({...player,__cpExportOriginalIndex:index}));
+        const shadowTournament={settings:{...(t.settings||{})},players:shadowPlayers};
+        assignFideInitialPairingNumbers(shadowTournament);
+        numbered=shadowPlayers.map(shadow=>({
+          player:players[shadow.__cpExportOriginalIndex],
+          index:shadow.__cpExportOriginalIndex,
+          no:Number(shadow.pairingNumber)
+        }));
+        numberingOkay=validConsecutiveNumbering(numbered);
+        derivedNumbers=numberingOkay;
+        if(!numberingOkay) errors.push("Starting Rank / TPN could not be derived safely for the Starting List export.");
+        else warnings.push("Starting Rank / TPN was derived for this Round-0 export only. If the Registration workflow still shows Resort required, use Resort Starting List before generating a pairing.");
+      }
+    }else if(!numberingOkay && numbered.length){
+      // After pairing history exists, never invent or renumber TPNs inside an
+      // export. Historical identities must be repaired explicitly instead.
+      errors.push("Starting Rank / TPN must be unique and consecutive from 1 to N. Existing pairing history prevents export-only renumbering.");
     }
 
     const fideOwners=new Map();
@@ -29051,7 +29592,7 @@ function buildPairingEngineTRF(initialColor="w"){
     // are intentionally not validated here because they are intentionally not
     // serialized by this Starting List exporter. This prevents a player-list
     // transfer from importing tournament dates/setup as fixed tournament data.
-    return {t,players:numbered.sort((a,b)=>a.no-b.no),errors,warnings};
+    return {t,players:numbered.sort((a,b)=>a.no-b.no),errors,warnings,derivedNumbers};
   }
 
   function cpBuildTRFStartingList(prevalidated=null){
@@ -29139,7 +29680,7 @@ function buildPairingEngineTRF(initialColor="w"){
       const saved=await window.cpSaveTextToTournamentTRF(fileName,result.text);
       if(result.warnings.length) console.warn("TRF26 Starting List warnings:",result.warnings);
       if(typeof setStatus==="function") setStatus(
-        `TRF26 Starting List exported: ${result.players} players • TRF transfer profile • tournament dates/setup excluded • 0 rounds • pairings/results excluded${result.warnings.length?` • ${result.warnings.length} warning(s)`:""} • ${saved?.browserDownload?"browser Downloads":(saved?.path||"tournament TRF folder")}.`
+        `TRF26 Starting List exported: ${result.players} players • TRF transfer profile • tournament dates/setup excluded • 0 rounds • pairings/results excluded${check.derivedNumbers?" • Starting Rank derived for export only":""}${result.warnings.length?` • ${result.warnings.length} warning(s)`:""} • ${saved?.browserDownload?"browser Downloads":(saved?.path||"tournament TRF folder")}.`
       );
     }catch(err){
       const message=err?.message||String(err);
@@ -29337,6 +29878,7 @@ function buildPairingEngineTRF(initialColor="w"){
   window.__cpSwissManagerEditable={build:cpBuildSwissManagerEditableTournament,export:cpExportSwissManagerEditableTournament};
 })();
 </script>
+<!-- CP-BETA29-TRF-EXPORT-RELIABILITY -->
 <!-- CP-TRF26-STARTING-LIST-EXPORT-END -->
 
 
@@ -30505,8 +31047,8 @@ ${ties.length?ties.map((x,i)=>`${i+1}. ${tieBreakDisplayLabel(x)}`).join("\n"):"
   window.pairingsMenuPlayers=()=>cpPairingsRun(()=>{showAllNextRoundPlayers();document.getElementById("nextRoundManager")?.scrollIntoView({block:"start"});});
   window.pairingsMenuResort=()=>cpPairingsRun(()=>resortStartingList());
   window.pairingsMenuImportResults=()=>cpPairingsRun(()=>{const input=document.getElementById("trfResultsImportFile");if(input){input.value="";input.click();}});
-  window.pairingsMenuTxt=()=>cpPairingsRun(()=>printPairingsTxt());
-  window.pairingsMenuPdf=()=>cpPairingsRun(()=>printReport("pairings"));
+  window.pairingsMenuTxt=()=>cpPairingsRun(()=>openPairingsExportDialog("txt"));
+  window.pairingsMenuPdf=()=>cpPairingsRun(()=>openPairingsExportDialog("pdf"));
   window.pairingsMenuDgt=()=>cpPairingsRun(()=>openDgtPgnExportModal());
   window.pairingsMenuClearResults=()=>cpPairingsRun(()=>resetCurrentRoundResults());
   window.pairingsMenuDeleteRound=()=>cpPairingsRun(()=>deleteCurrentRound());
@@ -33164,6 +33706,224 @@ body .window .cp-date-control>button.cp-date-trigger svg{width:15px;height:15px;
 })();
 </script>
 <!-- CP-TIEBREAK-CHECKER-10381-END -->
+
+
+<!-- CP-BETA12-SMART-SCHEDULE-REPAIR-START -->
+<style id="cpBeta12SmartScheduleRepairStyle">
+  #generateSmartScheduleBtn{font-weight:bold}
+</style>
+<script id="cpBeta12SmartScheduleRepair">
+(function(){
+  "use strict";
+
+  if(window.__cpBeta12SmartScheduleRepairInstalled) return;
+  window.__cpBeta12SmartScheduleRepairInstalled=true;
+
+  const PATCH_VERSION="1.06.00-beta.12";
+
+  function setSmartScheduleButtonUi(){
+    const buttons=[...document.querySelectorAll('button')].filter(button=>/generateRoundRows\s*\(/.test(String(button.getAttribute('onclick')||'')));
+    for(const button of buttons){
+      if(!button.id) button.id="generateSmartScheduleBtn";
+      if(button.textContent.trim()==="Generate Schedule") button.textContent="Generate Smart Schedule";
+      button.type="button";
+      button.title="Build smart round dates/times from Tournament Setup. If automatic profiling cannot be used, Chess-Publisher still creates editable round rows.";
+      button.dataset.smartScheduleRepair=PATCH_VERSION;
+    }
+  }
+
+  function hasExplicitClock(value){
+    return /(?:T|\s)\d{2}:\d{2}/.test(String(value||""));
+  }
+
+  function strictMillis(value,requireTime){
+    try{
+      if(typeof cpStrictLocalDateTimeMillis==="function"){
+        const parsed=cpStrictLocalDateTimeMillis(value,requireTime);
+        if(Number.isFinite(parsed)) return parsed;
+      }
+    }catch(_){ }
+    const fallback=Date.parse(String(value||""));
+    return Number.isFinite(fallback) && (!requireTime || hasExplicitClock(value)) ? fallback : NaN;
+  }
+
+  function atDayTime(date,hour,minute=0){
+    return new Date(date.getFullYear(),date.getMonth(),date.getDate(),hour,minute,0,0);
+  }
+
+  function flexibleTournamentBoundary(value,kind,profile){
+    const raw=String(value||"").trim();
+    let ms=strictMillis(raw,true);
+    if(Number.isFinite(ms)) return ms;
+
+    ms=strictMillis(raw,false);
+    if(!Number.isFinite(ms)) return NaN;
+
+    const date=new Date(ms);
+    if(kind==="start"){
+      return atDayTime(date,Number(profile?.dailyStartHour)||9,0).getTime();
+    }
+    return atDayTime(date,Number(profile?.dailyEndHour)||20,0).getTime();
+  }
+
+  function tournamentFacts(tournament){
+    try{
+      if(typeof cpSmartScheduleTournamentFacts==="function") return cpSmartScheduleTournamentFacts(tournament);
+    }catch(_){ }
+    const settings=tournament?.settings||{};
+    return {
+      timeControl:String(settings.timeControl||""),
+      startDate:String(settings.startDate||""),
+      endDate:String(settings.endDate||""),
+      rounds:Math.max(0,parseInt(settings.rounds,10)||0),
+      tournamentFormat:String(settings.tournamentFormat||""),
+      pairingSystem:String(settings.pairingSystem||""),
+      registeredPlayerCount:Array.isArray(tournament?.players)?tournament.players.length:0,
+      source:"Tournament Setup"
+    };
+  }
+
+  function simpleRoundRows(rounds){
+    const rows=[];
+    for(let round=1;round<=rounds;round++){
+      let event=`Round ${round}`;
+      try{ if(typeof scheduleRoundEvent==="function") event=scheduleRoundEvent(round); }catch(_){ }
+      rows.push({event,description:""});
+    }
+    return rows;
+  }
+
+  function writeGeneratedRows(rows){
+    const body=document.getElementById("scheduleBody");
+    if(body && typeof addScheduleRow==="function"){
+      body.innerHTML="";
+      rows.forEach(values=>addScheduleRow(values,{deferRefresh:true,fastEvent:true}));
+      try{ if(typeof renumberScheduleRows==="function") renumberScheduleRows(); }catch(_){ }
+      try{ if(typeof refreshScheduleEventOptions==="function") refreshScheduleEventOptions(); }catch(_){ }
+      try{ if(typeof saveAll==="function") saveAll(); else if(typeof saveData==="function") saveData(); }catch(err){ console.warn("Smart Schedule save warning:",err); }
+      return true;
+    }
+
+    const tournament=typeof getCurrentTournament==="function" ? getCurrentTournament() : null;
+    if(tournament){
+      tournament.schedule=tournament.schedule||{};
+      tournament.schedule.rows=rows.map((row,index)=>({
+        no:String(index+1),
+        dateTime:String(row.dateTime||""),
+        event:String(row.event||`Round ${index+1}`),
+        description:String(row.description||"")
+      }));
+      try{ if(typeof saveData==="function") saveData(); }catch(_){ }
+      try{ if(typeof renderSchedule==="function") renderSchedule(); }catch(_){ }
+      return true;
+    }
+
+    return false;
+  }
+
+  function status(message){
+    try{ if(typeof setStatus==="function") setStatus(message); }catch(_){ }
+  }
+
+  async function confirmReplaceIfNeeded(){
+    const body=document.getElementById("scheduleBody");
+    if(!body || !body.children.length) return true;
+    try{
+      if(typeof appConfirm==="function") return !!(await appConfirm("Replace current program?","Tournament Schedule","warning"));
+    }catch(_){ }
+    return confirm("Replace current program?");
+  }
+
+  async function repairedGenerateRoundRows(){
+    // Keep the original source of truth: first collect current Tournament Setup fields.
+    try{ if(typeof saveAll==="function") saveAll(); }catch(err){ console.warn("Pre-generation save warning:",err); }
+
+    const tournament=typeof getCurrentTournament==="function" ? getCurrentTournament() : null;
+    if(!tournament){
+      try{ await appAlert("Open or create a tournament first.","Tournament Schedule","warning"); }catch(_){ }
+      return;
+    }
+
+    const facts=tournamentFacts(tournament);
+    const rounds=Math.max(0,parseInt(facts.rounds,10)||0);
+    if(rounds<=0){
+      try{ await appAlert("Enter number of rounds in Tournament Setup.","Tournament Schedule","warning"); }catch(_){ }
+      return;
+    }
+
+    if(!(await confirmReplaceIfNeeded())) return;
+
+    let profile=null;
+    try{ profile=typeof cpSmartScheduleProfile==="function" ? cpSmartScheduleProfile(tournament) : null; }catch(err){ profile={ok:false,reason:err?.message||String(err)}; }
+
+    const startMs=flexibleTournamentBoundary(facts.startDate,"start",profile);
+    const endMs=flexibleTournamentBoundary(facts.endDate,"end",profile);
+    const datesValid=Number.isFinite(startMs)&&Number.isFinite(endMs)&&endMs>=startMs;
+
+    let rows=[];
+    let message="";
+
+    if(datesValid && profile?.ok && typeof cpBuildSmartRoundSchedule==="function"){
+      try{
+        const smart=cpBuildSmartRoundSchedule(rounds,new Date(startMs),new Date(endMs),profile);
+        if(smart?.ok && Array.isArray(smart.rows) && smart.rows.length){
+          rows=smart.rows;
+          const usedProfile=smart.profile||profile;
+          const compactText=smart.adaptive
+            ? ` · adaptive compact slot ${usedProfile.roundSlotMinutes} min`
+            : "";
+          const dateOnlyText=(!hasExplicitClock(facts.startDate)||!hasExplicitClock(facts.endDate))
+            ? " · date-only boundary normalized"
+            : "";
+          message=`Smart Schedule generated: ${profile.formatLabel||"Tournament"} · ${profile.profileName} · ${profile.raw} · ${rounds} rounds / ${smart.usedDays||"?"} day(s)${compactText}${dateOnlyText}.`;
+        }else{
+          const reason=smart?.message || "The selected Tournament Start/End window cannot fit all rounds.";
+          rows=simpleRoundRows(rounds);
+          message=`Smart Schedule could not place automatic times. Editable round rows were created. ${reason}`;
+          try{ await appAlert(message,"Smart Schedule fallback","warning"); }catch(_){ }
+        }
+      }catch(err){
+        rows=simpleRoundRows(rounds);
+        message=`Smart Schedule repair fallback created editable round rows. Automatic timing failed: ${err?.message||err}`;
+        console.warn("Smart Schedule automatic generation failed:",err);
+        try{ await appAlert(message,"Smart Schedule fallback","warning"); }catch(_){ }
+      }
+    }else{
+      rows=simpleRoundRows(rounds);
+      if(!datesValid){
+        message="Round rows generated. Enter Tournament Start/End date and time to let Smart Schedule place automatic times.";
+      }else{
+        message=`Round rows generated. Time Control could not be profiled safely${profile?.reason?`: ${profile.reason}`:"."}`;
+      }
+    }
+
+    if(!rows.length) rows=simpleRoundRows(rounds);
+    const written=writeGeneratedRows(rows);
+    if(!written){
+      try{ await appAlert("Schedule table is not available. Open Tournament Schedule and try again.","Tournament Schedule","warning"); }catch(_){ }
+      return;
+    }
+    status(message);
+  }
+
+  function install(){
+    setSmartScheduleButtonUi();
+    const original=window.generateRoundRows;
+    if(typeof original==="function" && !window.__cpBeta12GenerateRoundRowsOriginal){
+      window.__cpBeta12GenerateRoundRowsOriginal=original;
+    }
+    window.generateRoundRows=repairedGenerateRoundRows;
+  }
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",install,{once:true});
+  }else{
+    install();
+  }
+})();
+</script>
+<!-- CP-BETA12-SMART-SCHEDULE-REPAIR-END -->
+
 <!-- cpProductionWeb cpLinuxWebDev Chess-Publisher Online & Cloud Pull Changes Sync Now -->
 <script src="/web/browser-dev-host.js"></script>
 <script src="/web/fide-browser-adapter.js"></script>

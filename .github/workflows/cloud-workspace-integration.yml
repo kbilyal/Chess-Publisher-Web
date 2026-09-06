@@ -51,6 +51,9 @@ jobs:
       - name: Recovered browser function regression
         run: npm run test:recovered-web-functions
 
+      - name: Desktop beta34 Web parity regression
+        run: npm run test:desktop-beta34-web-parity
+
       - name: Transaction regression
         run: npm run test:transactions
 
@@ -75,6 +78,7 @@ jobs:
           test -f src/cloud/OnlineCloudTabV2.tsx
           test -f src/cloud/tests/runOnlineCloudBeta5BrowserTests.ts
           test -f src/cloud/tests/runCloudRoundtripTests.ts
+          test -f src/cloud/tests/runDesktopBeta34WebParityTests.ts
           test -f cloudrun.ts
           grep -q "OnlineCloudProvider" src/main.tsx
           grep -q "classifyThreeWay" src/cloud/onlineCloudSync.ts

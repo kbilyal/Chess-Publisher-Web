@@ -6,7 +6,8 @@
   "use strict";
 
   const DEFAULT_BASE_URL="https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev";
-  const DEFAULT_CLIENT_VERSION="1.06.00-beta.6";
+  const DEFAULT_CLIENT_VERSION="1.06.00-beta.34";
+  const DEFAULT_REQUEST_TIMEOUT_MS=45000;
 
   class CloudWorkspaceApiError extends Error{
     constructor(message,details={}){
@@ -33,24 +34,61 @@
     const baseUrl=normalizeBaseUrl(options.baseUrl||DEFAULT_BASE_URL);
     const fetchImpl=options.fetchImpl||options.fetch||(typeof fetch==="function"?fetch.bind(globalThis):null);
     const clientVersion=text(options.clientVersion)||DEFAULT_CLIENT_VERSION;
+    const requestTimeoutMs=Number.isFinite(Number(options.timeoutMs))&&Number(options.timeoutMs)>0?Number(options.timeoutMs):DEFAULT_REQUEST_TIMEOUT_MS;
     if(typeof fetchImpl!=="function")throw new Error("A fetch implementation is required for Cloud Workspace.");
 
     async function request(path,init={}){
       const headers=new Headers(init.headers||{});
       headers.set("Accept","application/json");
-      headers.set("X-Client-Version",clientVersion);
+      // Browser/WebView compatibility: Organizer authentication and revision
+      // guards are carried by Authorization/X-Expected-Revision. Do not add the
+      // optional X-Client-Version header because cross-origin Worker preflight
+      // may reject it before the authenticated request reaches the Hub.
       let body=init.body;
       if(body!==undefined&&body!==null&&typeof body!=="string"){
         headers.set("Content-Type","application/json");
         body=JSON.stringify(body);
       }
       let response;
+      let raw="";
+      const controller=typeof AbortController!=="undefined"?new AbortController():null;
+      let timer=null;
+      let timedOut=false;
+      const timeoutPromise=new Promise((_,reject)=>{
+        timer=setTimeout(()=>{
+          timedOut=true;
+          try{controller?.abort();}catch(_){}
+          reject(new CloudWorkspaceApiError("Cloud Workspace request timed out.",{code:"timeout"}));
+        },requestTimeoutMs);
+      });
       try{
-        response=await fetchImpl(`${baseUrl}${path}`,{...init,headers,body,cache:"no-store"});
+        [response,raw]=await Promise.race([
+          (async()=>{
+            const loopbackDesktop=typeof location!=="undefined"&&/^(?:127\.0\.0\.1|localhost)$/i.test(String(location.hostname||""));
+            let r;
+            if(loopbackDesktop){
+              const forwardedHeaders={};
+              headers.forEach((value,key)=>{forwardedHeaders[key]=value;});
+              r=await fetchImpl("/cloud-proxy",{
+                method:"POST",
+                headers:{"Content-Type":"application/json","Accept":"application/json"},
+                body:JSON.stringify({method:String(init.method||"GET").toUpperCase(),path,headers:forwardedHeaders,body:body??null}),
+                cache:"no-store",
+                ...(controller?{signal:controller.signal}:{})
+              });
+            }else{
+              r=await fetchImpl(`${baseUrl}${path}`,{...init,headers,body,cache:"no-store",...(controller?{signal:controller.signal}:{})});
+            }
+            return [r,await r.text()];
+          })(),
+          timeoutPromise
+        ]);
       }catch(error){
+        if(error instanceof CloudWorkspaceApiError)throw error;
+        if(timedOut||error?.name==="AbortError")throw new CloudWorkspaceApiError("Cloud Workspace request timed out.",{code:"timeout"});
         throw new CloudWorkspaceApiError("Cloud Workspace is unavailable.",{code:"network_error",response:{message:text(error?.message)}});
-      }
-      const raw=await response.text();
+      }finally{if(timer!==null)clearTimeout(timer);}
+
       let payload=null;
       if(raw){try{payload=JSON.parse(raw);}catch{payload={raw};}}
       if(!response.ok){
@@ -127,5 +165,5 @@
     });
   }
 
-  return Object.freeze({DEFAULT_BASE_URL,DEFAULT_CLIENT_VERSION,CloudWorkspaceApiError,createClient});
+  return Object.freeze({DEFAULT_BASE_URL,DEFAULT_CLIENT_VERSION,DEFAULT_REQUEST_TIMEOUT_MS,CloudWorkspaceApiError,createClient});
 });
