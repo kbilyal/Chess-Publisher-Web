@@ -20,6 +20,7 @@ Every accepted change must preserve all previously validated behavior.
 - Production routes may not silently fall back to mock/sample/prototype implementations.
 - High-risk changes require failure-injection tests, not only happy-path tests.
 - The desktop beta.34 parity gate must keep the protected Chess-Results and Online Hub production files byte-identical unless a separately approved task explicitly changes those systems.
+- Web alignment must preserve the autosave capture revision guard so `saveAll()` inside a checkpoint cannot create a second persistence revision or Cloud-sync feedback loop.
 
 ## Future required suites
 Add dedicated commands for:
