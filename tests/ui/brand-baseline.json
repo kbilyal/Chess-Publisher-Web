@@ -1,5 +1,5 @@
 {
-  "baseCommit": "d0ff861afd6452a18f37631ebe60216e45bb7e66",
+  "baseCommit": "d74d47ea4440fb0a23f653cdd04ac081fcbdf0d1",
   "htmlSha256": "c9ad45390908b7e1b7f96b58a85cc79537d0b22b022cf07ed4258833cba33eb7",
   "scripts": {
     "production-web/browser-dev-host.js": "a7b4affb46aabecbb8cf878044c90c8ea4ddf4f17f5f237281b1477e6cd102a9",
@@ -10,7 +10,7 @@
     "production-web/web/chess-results-browser-adapter.js": "05a8abb2d256c961a26430a752d940d9fa7045689de27c192c6032933cb3fa34",
     "production-web/web/cloud-tournaments-shortcut.js": "b1b0def8575272b29d66ef5bb3fa3d44e0d49850ee0e7f643866a4759aef2603",
     "production-web/web/fide-browser-adapter.js": "c659e38d29e20a1b0b57845e6fea04be188999ad61a7642f05ac641770caace5",
-    "production-web/web/linux-native-engine-adapter.js": "afe87036003ad054187df0eab8269082cbebef49eea4aad87471b4d968dcd35a",
+    "production-web/web/linux-native-engine-adapter.js": "b08f4931ef56891759920d3a8b0661e9a31cd89a29f26db497e751587dbac792",
     "production-web/web/player-registration-enhancements.js": "88cab519ac0e93eacd719732e93f53a9bb1650526723c7e479a98c63db0beff9",
     "production-web/web/tournament-setup-enhancements.js": "78cc51ab1e3ad5b2821bf4a499d947596ba2d0cfaf790710e84114ec97d278a6",
     "production-web/webview/CloudWorkspaceAdapter.js": "85488b0800575451b797dca9955fcca10582cf169ad9d56ccc294655de0078ad",
