@@ -7,9 +7,13 @@
   host.nativePairing=false;
   host.nativeTieBreak=false;
   host.nativePairingChecker=false;
-  host.nativeService="same-origin";
+  host.nativeService="cloudflare-python-worker";
   window.__cpWebLinuxDevHost=host;
-  const BACKEND_UNAVAILABLE="Engine backend not connected. Gacrux and checker operations are Desktop only until a verified native server is connected.";
+
+  const ORGANIZER_SECRET_KEY="organizer-primary";
+  const ENGINE_PREFIX="/api/engine";
+  const BACKEND_UNAVAILABLE="Chess-Publisher Web engine is unavailable. Pairing was not generated.";
+  const nativeFetch=typeof window.fetch==="function"?window.fetch.bind(window):null;
 
   function showBackendStatus(message=BACKEND_UNAVAILABLE){
     host.nativeError=message;
@@ -23,34 +27,79 @@
     }catch(_){ }
   }
 
-  async function jsonRequest(path,options){
+  function showBackendReady(capabilities){
+    host.nativeError="";
+    document.documentElement.dataset.cpLinuxNativePairing="ready";
+    try{
+      if(typeof window.isRoundRobinFormat==="function"&&window.isRoundRobinFormat())return;
+      const version=String(capabilities?.pairing?.version||"1.9.57");
+      const status=document.getElementById("gacruxStatus");
+      if(status)status.textContent=`Gacrux ${version} Web engine ready`;
+      const button=document.getElementById("btnGenerateGacrux");
+      if(button)button.title=`Generate with authenticated Gacrux ${version} Web engine`;
+    }catch(_){ }
+  }
+
+  async function organizerToken(){
+    for(let attempt=0;attempt<30;attempt++){
+      try{
+        if(typeof window.cpNativeHubSecretGet==="function"){
+          const token=String(await window.cpNativeHubSecretGet(ORGANIZER_SECRET_KEY)||"").trim();
+          if(token)return token;
+        }
+      }catch(_){ }
+      if(attempt<29)await new Promise(resolve=>setTimeout(resolve,50));
+    }
+    try{
+      for(const key of ["cpweb.organizerToken.remembered","cpstudio.organizerToken.remembered","cpweb.organizerToken.session","cpstudio.organizerToken.session"]){
+        const store=key.includes(".session")?sessionStorage:localStorage;
+        const token=String(store.getItem(key)||"").trim();
+        if(token)return token;
+      }
+    }catch(_){ }
+    return "";
+  }
+
+  async function engineFetch(path,options={}){
+    if(!nativeFetch)throw new Error(BACKEND_UNAVAILABLE);
+    const token=await organizerToken();
+    if(!token)throw new Error("Organizer Token is required before using the Web pairing/checker engine.");
+    const headers=new Headers(options.headers||{});
+    headers.set("Authorization",`Bearer ${token}`);
+    headers.set("Accept","application/json");
     let response;
-    try{response=await fetch(path,{cache:"no-store",...options});}
-    catch(_){throw new Error(BACKEND_UNAVAILABLE);}
+    try{
+      response=await nativeFetch(path,{cache:"no-store",...options,headers});
+    }catch(_){
+      throw new Error(BACKEND_UNAVAILABLE);
+    }
+    return response;
+  }
+
+  async function jsonRequest(path,options={}){
+    const response=await engineFetch(path,options);
     const payload=await response.json().catch(()=>({}));
-    if(response.status===404)throw new Error(BACKEND_UNAVAILABLE);
-    if(!response.ok||!payload.ok)throw new Error(payload.error||payload.message||`Native service HTTP ${response.status}`);
+    if(!response.ok||payload.ok===false){
+      throw new Error(payload.message||payload.error||`Web engine HTTP ${response.status}`);
+    }
     return payload;
   }
 
-  async function refreshCapabilities({preparePairing=false}={}){
-    let capabilities=await jsonRequest("/native/capabilities");
-    if(preparePairing&&!capabilities.pairing?.ready){
-      await jsonRequest("/pairing-engine/install",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
-      capabilities=await jsonRequest("/native/capabilities");
-    }
+  async function refreshCapabilities(){
+    const capabilities=await jsonRequest(`${ENGINE_PREFIX}/capabilities`,{method:"GET"});
     host.nativePairing=Boolean(capabilities.pairing?.ready);
     host.nativeTieBreak=Boolean(capabilities.tieBreak?.ready);
     host.nativePairingChecker=Boolean(capabilities.independentPairingChecker?.ready);
     host.capabilities=capabilities;
-    document.documentElement.dataset.cpLinuxNativePairing=host.nativePairing?"ready":"unavailable";
+    if(host.nativePairing)showBackendReady(capabilities);
+    else showBackendStatus(capabilities.pairing?.message||BACKEND_UNAVAILABLE);
     return capabilities;
   }
 
-  async function requestLinuxGacruxPairs(next,initialColor){
-    const capabilities=await refreshCapabilities({preparePairing:true});
+  async function requestWebGacruxPairs(next,initialColor){
+    const capabilities=await refreshCapabilities();
     if(!capabilities.pairing?.ready){
-      throw new Error(capabilities.pairing?.message||"Verified Linux Gacrux pairing engine is unavailable.");
+      throw new Error(capabilities.pairing?.message||"Verified Gacrux Web pairing engine is unavailable.");
     }
     const tournament=getCurrentTournament();
     const totalRounds=parseInt(tournament?.settings?.rounds)||7;
@@ -67,7 +116,7 @@
     const trf=buildPairingEngineTRF(initialColor);
     let payload;
     try{
-      payload=await jsonRequest("/pair",{
+      payload=await jsonRequest(`${ENGINE_PREFIX}/pair`,{
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({trf,round:Number(next),rounds:totalRounds,topColor:initialColor==="b"?"B":"W",unpaired})
@@ -98,24 +147,56 @@
     return boards;
   }
 
+  if(nativeFetch){
+    const routeMap=new Map([
+      ["/pair",`${ENGINE_PREFIX}/pair`],
+      ["/native/capabilities",`${ENGINE_PREFIX}/capabilities`],
+      ["/pairing-checker/status",`${ENGINE_PREFIX}/pairing-checker/status`],
+      ["/pairing-checker/install",`${ENGINE_PREFIX}/pairing-checker/install`],
+      ["/tiebreak-checker/status",`${ENGINE_PREFIX}/tiebreak-checker/status`],
+      ["/tiebreak-checker/install",`${ENGINE_PREFIX}/tiebreak-checker/install`],
+      ["/tiebreak-checker/check",`${ENGINE_PREFIX}/tiebreak-checker/check`],
+      ["/trf26-exchange/check",`${ENGINE_PREFIX}/trf26-exchange/check`]
+    ]);
+    const previousFetch=window.fetch.bind(window);
+    window.fetch=async function cpWebEngineRouteFetch(input,init){
+      let url;
+      try{url=new URL(input instanceof Request?input.url:String(input),location.href);}catch{return previousFetch(input,init);}
+      if(url.origin!==location.origin||!routeMap.has(url.pathname))return previousFetch(input,init);
+      const mapped=routeMap.get(url.pathname);
+      const options={...init};
+      if(input instanceof Request){
+        const headers=new Headers(input.headers);
+        if(init?.headers)new Headers(init.headers).forEach((value,key)=>headers.set(key,value));
+        options.headers=headers;
+        if(options.body===undefined&&!["GET","HEAD"].includes(input.method))options.body=await input.clone().text();
+        if(!options.method)options.method=input.method;
+      }
+      return engineFetch(mapped,options);
+    };
+  }
+
   if(typeof window.requestLocalGacruxPairs==="function"){
-    window.requestLocalGacruxPairs=requestLinuxGacruxPairs;
+    window.requestLocalGacruxPairs=requestWebGacruxPairs;
   }else{
-    console.error("Linux native adapter could not find the protected Gacrux request function.");
+    console.error("Web engine adapter could not find the protected Gacrux request function.");
   }
 
   const updatePanel=window.updateGacruxPanel;
   if(typeof updatePanel==="function"){
     window.updateGacruxPanel=function(){
       const result=updatePanel.apply(this,arguments);
-      if(!host.nativePairing&&host.nativeError)showBackendStatus(host.nativeError);
+      if(host.nativePairing&&host.capabilities)showBackendReady(host.capabilities);
+      else if(host.nativeError)showBackendStatus(host.nativeError);
       return result;
     };
   }
 
   window.cpRefreshLinuxNativeCapabilities=refreshCapabilities;
-  refreshCapabilities({preparePairing:true}).catch(error=>{
+  window.cpWebEngineRequest=jsonRequest;
+
+  setTimeout(()=>refreshCapabilities().catch(error=>{
     showBackendStatus(error?.message||BACKEND_UNAVAILABLE);
-    console.error("Linux native engine preparation failed:",error);
-  });
+    console.info("Web engine will retry after Organizer Token authentication.");
+  }),250);
 })();
