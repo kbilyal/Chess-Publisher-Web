@@ -28,7 +28,7 @@ permissions:
 
 jobs:
   validate:
-    name: Gacrux 1.9.57 Web engine parity and Worker dry-run
+    name: Gacrux 1.9.57 Web engine parity and Worker runtime
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -89,6 +89,42 @@ jobs:
           uv sync
           uv run pywrangler deploy --dry-run --outdir ../../.web-engine-dry-run
           test -d ../../.web-engine-dry-run
+
+      - name: Cloudflare Python Worker local runtime smoke
+        working-directory: workers/web-engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/chess-publisher-web-engine-dev.log"
+          uv run pywrangler dev --port 8790 >"$log" 2>&1 &
+          worker_pid=$!
+          trap 'kill "$worker_pid" 2>/dev/null || true' EXIT
+
+          ready=0
+          for attempt in {1..40}; do
+            if curl --fail --silent http://127.0.0.1:8790/api/engine/health | grep -q '1.9.57'; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [[ "$ready" != "1" ]]; then
+            cat "$log"
+            echo 'Local Python Worker did not become healthy.' >&2
+            exit 1
+          fi
+
+          unauth_code=$(curl --silent --output "$RUNNER_TEMP/engine-unauth.json" --write-out '%{http_code}' \
+            -H 'Origin: https://web.chess-publisher.org' \
+            http://127.0.0.1:8790/api/engine/capabilities)
+          test "$unauth_code" = "401"
+          grep -q 'organizer_auth_required' "$RUNNER_TEMP/engine-unauth.json"
+
+          origin_code=$(curl --silent --output "$RUNNER_TEMP/engine-origin.json" --write-out '%{http_code}' \
+            -H 'Origin: https://example.invalid' \
+            http://127.0.0.1:8790/api/engine/capabilities)
+          test "$origin_code" = "403"
+          grep -q 'origin_not_allowed' "$RUNNER_TEMP/engine-origin.json"
 
   deploy:
     name: Deploy authenticated Web engine route
