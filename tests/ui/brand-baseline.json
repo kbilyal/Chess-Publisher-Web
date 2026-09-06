@@ -8,7 +8,7 @@
     "production-web/hub/client/hub-snapshot.js": "d980c520d74a71e66b3a3aa2a54e5ed626ea3618c53159145f9e48b445effac9",
     "production-web/web/browser-dev-host.js": "a7b4affb46aabecbb8cf878044c90c8ea4ddf4f17f5f237281b1477e6cd102a9",
     "production-web/web/chess-results-browser-adapter.js": "05a8abb2d256c961a26430a752d940d9fa7045689de27c192c6032933cb3fa34",
-    "production-web/web/cloud-tournaments-shortcut.js": "6d5a2b4a2da66197fc3911e1d63f38222b4174ed31da06d2e4d464cc101a860c",
+    "production-web/web/cloud-tournaments-shortcut.js": "b1b0def8575272b29d66ef5bb3fa3d44e0d49850ee0e7f643866a4759aef2603",
     "production-web/web/fide-browser-adapter.js": "c659e38d29e20a1b0b57845e6fea04be188999ad61a7642f05ac641770caace5",
     "production-web/web/linux-native-engine-adapter.js": "afe87036003ad054187df0eab8269082cbebef49eea4aad87471b4d968dcd35a",
     "production-web/web/player-registration-enhancements.js": "88cab519ac0e93eacd719732e93f53a9bb1650526723c7e479a98c63db0beff9",
