@@ -7,13 +7,14 @@
   host.nativePairing=false;
   host.nativeTieBreak=false;
   host.nativePairingChecker=false;
-  host.nativeService="cloudflare-python-worker-direct";
+  host.nativeService="cloudflare-python-worker-custom-domain";
   window.__cpWebLinuxDevHost=host;
 
   const ORGANIZER_SECRET_KEY="organizer-primary";
   const CANONICAL_WEB_ORIGIN="https://web.chess-publisher.org";
+  const CUSTOM_ENGINE_BASE="https://engine.chess-publisher.org";
   const DIRECT_ENGINE_BASE="https://chess-publisher-web-engine.kyamranbilyal.workers.dev";
-  const ENGINE_BASE=location.origin===CANONICAL_WEB_ORIGIN?location.origin:DIRECT_ENGINE_BASE;
+  const ENGINE_BASE=location.origin===CANONICAL_WEB_ORIGIN?CUSTOM_ENGINE_BASE:DIRECT_ENGINE_BASE;
   const ENGINE_PREFIX=`${ENGINE_BASE}/api/engine`;
   const BACKEND_UNAVAILABLE="Chess-Publisher Web engine is unavailable. Pairing was not generated.";
   const nativeFetch=typeof window.fetch==="function"?window.fetch.bind(window):null;
@@ -70,16 +71,34 @@
     const headers=new Headers(options.headers||{});
     headers.set("Authorization",`Bearer ${token}`);
     headers.set("Accept","application/json");
-    let response;
+    const requestOptions={cache:"no-store",mode:"cors",credentials:"omit",...options,headers};
+    const primary=String(path);
     try{
-      response=await nativeFetch(path,{cache:"no-store",mode:"cors",credentials:"omit",...options,headers});
-    }catch(error){
-      const detail=String(error?.message||error||"network request failed").trim();
-      host.nativeTransportError={origin:location.origin,endpoint:String(path),detail};
+      const response=await nativeFetch(primary,requestOptions);
+      host.nativeTransportError=null;
+      return response;
+    }catch(primaryError){
+      const canFallback=location.origin===CANONICAL_WEB_ORIGIN&&primary.startsWith(CUSTOM_ENGINE_BASE);
+      if(canFallback){
+        const fallback=primary.replace(CUSTOM_ENGINE_BASE,DIRECT_ENGINE_BASE);
+        try{
+          const response=await nativeFetch(fallback,requestOptions);
+          host.nativeTransportError={origin:location.origin,primary,primaryDetail:String(primaryError?.message||primaryError||"network request failed"),fallback,usedFallback:true};
+          console.warn("Chess-Publisher Web engine custom-domain transport failed; direct Worker fallback succeeded",host.nativeTransportError);
+          return response;
+        }catch(fallbackError){
+          const primaryDetail=String(primaryError?.message||primaryError||"network request failed").trim();
+          const fallbackDetail=String(fallbackError?.message||fallbackError||"network request failed").trim();
+          host.nativeTransportError={origin:location.origin,primary,primaryDetail,fallback,fallbackDetail,usedFallback:false};
+          console.warn("Chess-Publisher Web engine transports failed",host.nativeTransportError);
+          throw new Error(`${BACKEND_UNAVAILABLE} Transport: custom=${primaryDetail}; direct=${fallbackDetail}`);
+        }
+      }
+      const detail=String(primaryError?.message||primaryError||"network request failed").trim();
+      host.nativeTransportError={origin:location.origin,endpoint:primary,detail};
       console.warn("Chess-Publisher Web engine transport failed",host.nativeTransportError);
       throw new Error(`${BACKEND_UNAVAILABLE} Transport: ${detail}`);
     }
-    return response;
   }
 
   async function jsonRequest(path,options={}){
