@@ -138,6 +138,7 @@ jobs:
           test -f production-web/web/chess-results-browser-adapter.js
           test -f production-web/web/tournament-setup-enhancements.js
           test -f production-web/web/cloud-tournaments-shortcut.js
+          test -f production-web/web/brand-overhaul.css
           test -f production-web/hub/client/hub-snapshot.js
           test -f production-web/hub/client/hub-api-client.js
           test -f production-web/webview/HubAdapter.js
@@ -149,6 +150,7 @@ jobs:
           grep -q '/web/browser-dev-host.js' production-web/index.html
           grep -q '/web/linux-native-engine-adapter.js' production-web/index.html
           grep -q '/web/chess-results-browser-adapter.js' production-web/index.html
+          grep -q '/web/brand-overhaul.css?v=20260906-1' production-web/index.html
           rm -rf dist
           mkdir -p dist
           cp -R production-web/. dist/
@@ -160,6 +162,7 @@ jobs:
           sha = os.environ['GITHUB_SHA']
           for src in ('/web/browser-dev-host.js', '/web/linux-native-engine-adapter.js', '/web/chess-results-browser-adapter.js'):
               text = text.replace(src, f'{src}?v={sha}')
+          text = text.replace('/web/brand-overhaul.css?v=20260906-1', f'/web/brand-overhaul.css?v={sha}')
           shortcut = f'<script src="/web/cloud-tournaments-shortcut.js?v={sha}"></script>'
           if shortcut not in text:
               text = text.replace('</body>', f'{shortcut}\n</body>')
@@ -192,6 +195,7 @@ jobs:
           test -f dist/web/chess-results-browser-adapter.js
           test -f dist/web/tournament-setup-enhancements.js
           test -f dist/web/cloud-tournaments-shortcut.js
+          test -f dist/web/brand-overhaul.css
           test -f dist/hub/client/hub-snapshot.js
           test -f dist/hub/client/hub-api-client.js
           test -f dist/webview/HubAdapter.js
@@ -210,6 +214,8 @@ jobs:
           grep -q "/web/linux-native-engine-adapter.js?v=${GITHUB_SHA}" dist/index.html
           grep -q "/web/chess-results-browser-adapter.js?v=${GITHUB_SHA}" dist/index.html
           grep -q "/web/cloud-tournaments-shortcut.js?v=${GITHUB_SHA}" dist/index.html
+          grep -q "/web/brand-overhaul.css?v=${GITHUB_SHA}" dist/index.html
+          grep -q 'Stable Reliable UI v5' dist/web/brand-overhaul.css
           grep -q 'chess-publisher-web-engine.kyamranbilyal.workers.dev' dist/web/linux-native-engine-adapter.js
           grep -q 'desktopContract(operation,result)' dist/web/chess-results-browser-adapter.js
           grep -q 'canDelete:result?.canDelete===true||result?.verifiedOwner===true' dist/web/chess-results-browser-adapter.js
