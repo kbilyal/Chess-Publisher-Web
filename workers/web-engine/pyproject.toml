@@ -1,0 +1,15 @@
+[project]
+name = "chess-publisher-web-engine"
+version = "1.0.0"
+description = "Authenticated Gacrux 1.9.57 Web engine for Chess-Publisher"
+requires-python = ">=3.13"
+dependencies = [
+  "aiohttp>=3.11,<4",
+  "networkx>=3.6,<4"
+]
+
+[dependency-groups]
+dev = [
+  "workers-py",
+  "workers-runtime-sdk"
+]
