@@ -15,7 +15,10 @@ const entry = read('workers/web-engine/src/entry.py');
 const runtime = read('workers/web-engine/src/engine_runtime.py');
 const wrangler = read('workers/web-engine/wrangler.toml');
 
-assert(adapter.includes('const ENGINE_PREFIX="/api/engine"'), 'browser adapter targets the production Web engine route');
+assert(adapter.includes('const ENGINE_BASE="https://chess-publisher-web-engine.kyamranbilyal.workers.dev"'), 'browser adapter targets the directly reachable production Worker');
+assert(adapter.includes('const ENGINE_PREFIX=`${ENGINE_BASE}/api/engine`'), 'browser engine API prefix is built from the direct Worker origin');
+assert(adapter.includes('mode:"cors"') && adapter.includes('credentials:"omit"'), 'browser engine transport uses explicit credential-free CORS plus bearer auth');
+assert(!adapter.includes('const ENGINE_PREFIX="/api/engine"'), 'browser engine no longer depends on the GitHub Pages same-origin route');
 assert(adapter.includes('Authorization') && adapter.includes('organizer-primary'), 'browser engine requests use the shared Organizer Token');
 assert(adapter.includes('${ENGINE_PREFIX}/pair'), 'browser pairing path is routed to the Web engine Worker');
 assert(adapter.includes('${ENGINE_PREFIX}/tiebreak-checker/check'), 'desktop tie-break checker path is routed to the Web engine Worker');
@@ -34,7 +37,7 @@ assert(runtime.includes('Gacrux deterministic verification failed'), 'Worker fai
 assert(runtime.includes('"state": "unavailable"') && runtime.includes('"checker": "bbpPairings"'), 'optional BBP status is reported truthfully instead of being faked');
 
 assert(wrangler.includes('name = "chess-publisher-web-engine"'), 'Web engine has an isolated Worker deployment');
-assert(wrangler.includes('pattern = "web.chess-publisher.org/api/engine/*"'), 'Worker route is restricted to the Web engine path');
+assert(wrangler.includes('workers_dev = true'), 'direct workers.dev endpoint remains enabled');
 assert(wrangler.includes('compatibility_flags = ["python_workers"]'), 'Cloudflare Python Worker runtime is enabled');
 
 const protectedHashes: Record<string, string> = {
