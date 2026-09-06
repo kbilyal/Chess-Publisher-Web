@@ -6,12 +6,13 @@ const root = join(process.cwd(), "production-web");
 const index = readFileSync(join(root, "index.html"), "utf8");
 const shell = index.replace(/<!-- cpProductionWeb .*?<\/body>/s, "</body>");
 const expectedShell = "f51355b1a449870be6ed69d1bb941c19a9d8d2bdf3c8f91da845b4bc1275f310";
+const actualShell = createHash("sha256").update(shell).digest("hex");
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
-assert(createHash("sha256").update(shell).digest("hex") === expectedShell, "desktop beta.34 reference shell checksum changed");
+assert(actualShell === expectedShell, `desktop beta.34 reference shell checksum changed: actual=${actualShell}`);
 for (const marker of ["cpProductionWeb", "cpLinuxWebDev", "Chess-Publisher", "Online & Cloud", "Pull Changes", "Sync Now"]) {
   assert(index.includes(marker), `missing production marker: ${marker}`);
 }
