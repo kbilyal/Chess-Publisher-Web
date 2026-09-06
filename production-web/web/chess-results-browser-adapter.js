@@ -112,6 +112,17 @@
     return result;
   }
 
+  function desktopContract(operation,result){
+    if(operation!=="delete-authorize")return result;
+    const adminUrl=text(result?.adminUrl||result?.url);
+    return {
+      ...result,
+      canDelete:result?.canDelete===true||result?.verifiedOwner===true,
+      adminUrl,
+      alreadyDeleted:result?.alreadyDeleted===true
+    };
+  }
+
   async function recoverOwnership(key,payload,token){
     const cloudId=cloudTournamentId(payload);
     if(!cloudId){
@@ -150,7 +161,7 @@
     const resultKey=String(result.key||key||"").trim();
     if((operation==="create"||operation==="claim")&&/^\d+$/.test(resultKey)&&result.ownershipProof)saveProof(resultKey,result.ownershipProof);
     if(operation==="unlink"&&result.canUnlink&&/^\d+$/.test(resultKey))removeProof(resultKey);
-    return result;
+    return desktopContract(operation,result);
   }
 
   window.chessResultsLocalJson=request;
