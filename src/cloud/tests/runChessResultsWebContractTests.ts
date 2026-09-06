@@ -21,12 +21,26 @@ const localStorage = storage({
   'cp:chess-results:ownership:1488203': 'signed-owner-proof',
 });
 const sessionStorage = storage();
+const tournament: any = {
+  chessResults: { key: '1488203', mode: 'real', federation: 'BUL', clientId: 'client-1488203' },
+  // Reproduce the browser failure: a stale Web/UI value says Test although the
+  // already-assigned TNR is permanently bound to Real.
+  settings: { tnr: '1488203', tournamentType: 'test' },
+  cloud: { cloudTournamentId: 'cloud-tournament-1488203' },
+};
+const tournamentTypeElement: any = {
+  id: 'tournamentType',
+  value: 'test',
+  title: '',
+  attributes: new Map<string, string>(),
+  setAttribute(name: string, value: string) { this.attributes.set(name, String(value)); },
+};
 const documentStub = {
   readyState: 'complete',
   visibilityState: 'visible',
   addEventListener() {},
   querySelector() { return null; },
-  getElementById() { return null; },
+  getElementById(id: string) { return id === 'tournamentType' ? tournamentTypeElement : null; },
 };
 class ElementStub {}
 
@@ -64,14 +78,25 @@ context.location = { origin: 'https://web.chess-publisher.org', protocol: 'https
 context.window.location = context.location;
 context.window.addEventListener = () => {};
 context.window.cpNativeHubSecretGet = async () => 'organizer-token';
-context.window.getCurrentTournament = () => ({
-  chessResults: { key: '1488203', clientId: 'client-1488203' },
-  settings: { tnr: '1488203' },
-  cloud: { cloudTournamentId: 'cloud-tournament-1488203' },
-});
+context.window.getCurrentTournament = () => tournament;
+// This mirrors the critical desktop saveAll behavior: it copies the current DOM
+// Tournament Type into tournament.settings before Publish performs its mode guard.
+context.window.saveAll = () => {
+  tournament.settings.tournamentType = String(tournamentTypeElement.value || 'real');
+};
 
 vm.runInNewContext(adapter, context, { filename: 'chess-results-browser-adapter.js' });
 assert.equal(typeof context.window.chessResultsLocalJson, 'function', 'browser adapter did not install chessResultsLocalJson');
+
+// TNR 1488203 is already Real. Web must repair the stale Test selector before
+// desktop saveAll can persist it, otherwise Publish aborts with the reproduced
+// “Tournament type changed after TNR ... Restore Real tournament” error.
+context.window.saveAll();
+assert.equal(tournament.settings.tournamentType, 'real', 'linked Real TNR must remain authoritative across Web saveAll');
+assert.equal(tournamentTypeElement.value, 'real', 'Web Tournament Type selector must be restored to the assigned TNR mode');
+assert.equal(context.window.__cpChessResultsLastModeLock?.key, '1488203', 'mode-lock diagnostic must identify the linked TNR');
+assert.equal(context.window.__cpChessResultsLastModeLock?.mode, 'real', 'mode-lock diagnostic must preserve the assigned Real mode');
+assert.equal(context.window.__cpChessResultsBrowserAdapter?.linkedTnrModeLock, true, 'browser adapter must declare linked-TNR mode locking');
 
 const deleteAuth = await context.window.chessResultsLocalJson('/chessresults/delete-authorize', {
   key: '1488203',
@@ -84,6 +109,14 @@ assert.equal(deleteAuth.alreadyDeleted, false, 'missing alreadyDeleted must norm
 assert.equal(calls.length, 1, 'delete-authorize should reuse the saved ownership proof without an unnecessary claim request');
 assert.equal(calls[0].body.ownershipProof, 'signed-owner-proof', 'delete-authorize must send the saved organizer-scoped ownership proof');
 assert.match(calls[0].init.headers.Authorization, /^Bearer organizer-token$/, 'delete-authorize must use the Organizer Token');
+
+// Reset Tournament is the explicit identity boundary. Once it clears key+mode,
+// the user is allowed to select another Real/Test type and request a fresh TNR.
+tournament.chessResults.key = '';
+tournament.chessResults.mode = '';
+tournamentTypeElement.value = 'test';
+context.window.saveAll();
+assert.equal(tournament.settings.tournamentType, 'test', 'Tournament Type must become editable again after Reset clears TNR identity');
 
 for (const marker of [
   'Pin Board / Remarks',
@@ -99,6 +132,8 @@ for (const marker of [
 assert(adapter.includes('desktopContract(operation,result)'), 'desktop compatibility mapper is not active');
 assert(adapter.includes('canDelete:result?.canDelete===true||result?.verifiedOwner===true'), 'delete-authorize canDelete compatibility mapping missing');
 assert(adapter.includes('adminUrl'), 'delete-authorize adminUrl compatibility mapping missing');
+assert(adapter.includes('enforceLinkedTnrMode("saveAll")'), 'linked TNR mode must be repaired before desktop saveAll');
+assert(adapter.includes('linkedTnrModeAuthority:"chessResults.mode-until-reset"'), 'linked TNR mode authority declaration missing');
 assert(!/AES_KEY|AES_IV/.test(adapter), 'Chess-Results bridge secrets must not enter browser adapter');
 
-console.log('Chess-Results Web compatibility: delete-authorize + Pin Board / Remarks PASS');
+console.log('Chess-Results Web compatibility: TNR mode-lock + delete-authorize + Pin Board / Remarks PASS');
