@@ -22,6 +22,10 @@ TIEBREAK_RULES = "2026-03-01"
 MAX_REQUEST_BYTES = 25 * 1024 * 1024
 PAIRING_METHOD_RECORD = "192 FIDE_DUTCH_2025"
 _DUTCH_METHOD_CODES = {"FIDE_DUTCH_2017", "FIDE_DUTCH_2025", "FIDE_DUTCH"}
+_PAIRING_PHASE_LABELS = {
+    "do_checker": "pairing computation",
+    "apply_result": "pairing result serialization",
+}
 
 
 class EngineRuntimeError(RuntimeError):
@@ -193,6 +197,7 @@ def _run_common_main(class_name: str, argv: list[str], output_path: Path) -> tup
             instance = engine_class()
             if class_name == "pairingchecker":
                 upstream_read_command_line = instance.read_command_line
+                upstream_do_command = instance.do_command
 
                 def read_command_line_with_worker_dutch_lock():
                     result = upstream_read_command_line()
@@ -205,7 +210,24 @@ def _run_common_main(class_name: str, argv: list[str], output_path: Path) -> tup
                     instance.params["method"] = ["dutch"]
                     return result
 
+                def do_command_with_worker_diagnostics(command, errcode, errtxt):
+                    phase = getattr(command, "__name__", "")
+                    if phase not in _PAIRING_PHASE_LABELS:
+                        return upstream_do_command(command, errcode, errtxt)
+                    try:
+                        return command()
+                    except EngineRuntimeError:
+                        raise
+                    except Exception as exc:
+                        label = _PAIRING_PHASE_LABELS[phase]
+                        detail = str(exc).strip()
+                        reason = f"{type(exc).__name__}: {detail}" if detail else type(exc).__name__
+                        raise EngineRuntimeError(
+                            f"Gacrux {GACRUX_VERSION} {label} failed: {reason}"
+                        ) from exc
+
                 instance.read_command_line = read_command_line_with_worker_dutch_lock
+                instance.do_command = do_command_with_worker_diagnostics
             try:
                 returned = instance.common_main()
                 code = int(returned or 0)
