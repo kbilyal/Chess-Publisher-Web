@@ -39,14 +39,15 @@ assert(hub.includes('window.chrome?.webview||window.__cpBrowserHostBridge'), 'Hu
 const engine = read('production-web/web/linux-native-engine-adapter.js');
 assert(
   engine.includes('https://web.chess-publisher.org') &&
+  engine.includes('https://engine.chess-publisher.org') &&
   engine.includes('https://chess-publisher-web-engine.kyamranbilyal.workers.dev') &&
-  engine.includes('location.origin===CANONICAL_WEB_ORIGIN?location.origin:DIRECT_ENGINE_BASE') &&
+  engine.includes('location.origin===CANONICAL_WEB_ORIGIN?CUSTOM_ENGINE_BASE:DIRECT_ENGINE_BASE') &&
   engine.includes('${ENGINE_PREFIX}/capabilities') &&
   engine.includes('${ENGINE_PREFIX}/pair'),
-  'verified production same-origin Web engine wiring missing'
+  'verified first-party Web engine wiring with direct fallback missing'
 );
 assert(engine.includes('Web engine is unavailable') && engine.includes('Pairing was not generated'), 'Web engine fail-closed message missing');
-assert(engine.includes('nativeTransportError'), 'Web engine transport diagnostics missing');
+assert(engine.includes('nativeTransportError') && engine.includes('usedFallback:true'), 'Web engine transport/fallback diagnostics missing');
 assert(!engine.includes('operations are Desktop only'), 'obsolete Desktop-only Web pairing blocker returned');
 assert(!engine.includes('/api/prototype') && !engine.includes('generateLocalSwissFallback'), 'browser adapter contains a synthetic pairing fallback');
 
