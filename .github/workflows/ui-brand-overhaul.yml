@@ -4,6 +4,7 @@ on:
     paths:
       - 'production-web/index.html'
       - 'production-web/web/brand-overhaul.css'
+      - 'production-web/web/cloud-tournaments-shortcut.js'
       - 'tests/ui/**'
       - '.github/workflows/ui-brand-overhaul.yml'
   workflow_dispatch:
@@ -20,6 +21,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: node tests/ui/brand-overhaul.test.mjs
+      - run: node tests/ui/login-screen-persistence.test.mjs
       - run: npm run lint
       - run: npm run build
       - run: npm run test:production-web-beta7
