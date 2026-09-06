@@ -28,7 +28,7 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Start real Vite app
         run: |
-          npm run dev -- --host 127.0.0.1 --port 4173 > /tmp/cpv6-vite.log 2>&1 &
+          npx vite --host 127.0.0.1 --port 4173 > /tmp/cpv6-vite.log 2>&1 &
           for i in {1..60}; do
             if curl -fsS http://127.0.0.1:4173 >/dev/null; then exit 0; fi
             sleep 1
@@ -39,7 +39,7 @@ jobs:
         run: |
           mkdir -p ui-v6-preview
           cat > /tmp/capture-ui-v6.mjs <<'EOF'
-          import { chromium } from process.cwd() + '/node_modules/playwright/index.mjs';
+          import { chromium } from 'playwright';
           const browser = await chromium.launch({ headless: true });
           const base = 'http://127.0.0.1:4173';
 
