@@ -17,9 +17,9 @@ const wrangler = read('workers/web-engine/wrangler.toml');
 
 assert(adapter.includes('const ENGINE_PREFIX="/api/engine"'), 'browser adapter targets the production Web engine route');
 assert(adapter.includes('Authorization') && adapter.includes('organizer-primary'), 'browser engine requests use the shared Organizer Token');
-assert(adapter.includes('/api/engine/pair'), 'browser pairing path is routed to the Web engine Worker');
-assert(adapter.includes('/api/engine/tiebreak-checker/check'), 'desktop tie-break checker path is routed to the Web engine Worker');
-assert(adapter.includes('/api/engine/trf26-exchange/check'), 'TRF26 exchange checker path is routed to the Web engine Worker');
+assert(adapter.includes('${ENGINE_PREFIX}/pair'), 'browser pairing path is routed to the Web engine Worker');
+assert(adapter.includes('${ENGINE_PREFIX}/tiebreak-checker/check'), 'desktop tie-break checker path is routed to the Web engine Worker');
+assert(adapter.includes('${ENGINE_PREFIX}/trf26-exchange/check'), 'TRF26 exchange checker path is routed to the Web engine Worker');
 assert(!adapter.includes('operations are Desktop only'), 'production pairing adapter no longer hard-blocks browser pairing as Desktop-only');
 assert(!adapter.includes('/api/prototype') && !adapter.includes('generateLocalSwissFallback'), 'no prototype/synthetic pairing fallback is present');
 
