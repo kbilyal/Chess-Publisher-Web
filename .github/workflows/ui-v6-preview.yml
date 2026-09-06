@@ -38,7 +38,7 @@ jobs:
       - name: Capture desktop and mobile Tournament Setup
         run: |
           mkdir -p ui-v6-preview
-          cat > /tmp/capture-ui-v6.mjs <<'EOF'
+          cat > capture-ui-v6.mjs <<'EOF'
           import { chromium } from 'playwright';
           const browser = await chromium.launch({ headless: true });
           const base = 'http://127.0.0.1:4173';
@@ -58,7 +58,7 @@ jobs:
 
           await browser.close();
           EOF
-          node /tmp/capture-ui-v6.mjs
+          node capture-ui-v6.mjs
       - uses: actions/upload-artifact@v4
         with:
           name: ui-v6-real-browser-preview
