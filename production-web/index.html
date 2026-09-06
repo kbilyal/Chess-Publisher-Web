@@ -7538,7 +7538,7 @@ function bindEvents(){
   });
 }
 function saveData(){
-  cpStateRevision++;
+  if(!cpAutosaveCaptureSync) cpStateRevision++;
   try{
     localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
   }catch(err){

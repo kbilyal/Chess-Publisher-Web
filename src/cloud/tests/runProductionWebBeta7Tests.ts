@@ -5,7 +5,7 @@ import { join } from "node:path";
 const root = join(process.cwd(), "production-web");
 const index = readFileSync(join(root, "index.html"), "utf8");
 const shell = index.replace(/<!-- cpProductionWeb .*?<\/body>/s, "</body>");
-const expectedShell = "14120b9458b61971313c32d046d4e0452b1a93e8dc4c4d98b11f1ab74ca0f000";
+const expectedShell = "436f9e5c95f55a0163fb8c3256fadb0cd723ceec5054f2df1bb94f2dfece8f51";
 const actualShell = createHash("sha256").update(shell).digest("hex");
 
 function assert(condition: unknown, message: string): asserts condition {
