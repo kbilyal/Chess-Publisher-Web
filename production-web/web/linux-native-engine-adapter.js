@@ -7,11 +7,12 @@
   host.nativePairing=false;
   host.nativeTieBreak=false;
   host.nativePairingChecker=false;
-  host.nativeService="cloudflare-python-worker";
+  host.nativeService="cloudflare-python-worker-direct";
   window.__cpWebLinuxDevHost=host;
 
   const ORGANIZER_SECRET_KEY="organizer-primary";
-  const ENGINE_PREFIX="/api/engine";
+  const ENGINE_BASE="https://chess-publisher-web-engine.kyamranbilyal.workers.dev";
+  const ENGINE_PREFIX=`${ENGINE_BASE}/api/engine`;
   const BACKEND_UNAVAILABLE="Chess-Publisher Web engine is unavailable. Pairing was not generated.";
   const nativeFetch=typeof window.fetch==="function"?window.fetch.bind(window):null;
 
@@ -69,7 +70,7 @@
     headers.set("Accept","application/json");
     let response;
     try{
-      response=await nativeFetch(path,{cache:"no-store",...options,headers});
+      response=await nativeFetch(path,{cache:"no-store",mode:"cors",credentials:"omit",...options,headers});
     }catch(_){
       throw new Error(BACKEND_UNAVAILABLE);
     }
