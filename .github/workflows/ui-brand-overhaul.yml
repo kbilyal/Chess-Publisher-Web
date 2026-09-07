@@ -5,6 +5,7 @@ on:
       - 'production-web/index.html'
       - 'production-web/web/brand-overhaul.css'
       - 'production-web/web/ui-v6-production.css'
+      - 'production-web/web/ui-v6-cascade-lock.css'
       - 'production-web/web/ui-v6-production.js'
       - 'production-web/web/cloud-tournaments-shortcut.js'
       - 'src/App.tsx'
