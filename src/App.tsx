@@ -1,201 +1,401 @@
-import React, { useState, useEffect } from 'react';
-import { CheckCircle2, Users, LayoutGrid, Award, Globe2, Cloud, ArrowRight, Info, Trophy } from 'lucide-react';
-import { Tournament, TabType } from './types';
-import { INITIAL_TOURNAMENT_DATA, createInitialEmptyTournament } from './data/initialData';
-import { Header } from './components/Header';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ArrowLeft,
+  CheckCircle2,
+  Cloud,
+  ExternalLink,
+  Globe2,
+  RefreshCw,
+  Send,
+  Settings2,
+  ShieldCheck,
+  Smartphone,
+  Users,
+  WifiOff
+} from 'lucide-react';
+import { Tournament } from './types';
+import { createInitialEmptyTournament } from './data/initialData';
 import { TournamentSetupTab } from './components/TournamentSetupTab';
 import { PlayersTab } from './components/PlayersTab';
-import { PairingsTab } from './components/PairingsTab';
-import { StandingsTab } from './components/StandingsTab';
-import { TieBreaksTab } from './components/TieBreaksTab';
-import { ScheduleTab } from './components/ScheduleTab';
-import { ChessResultsTab } from './components/ChessResultsTab';
-import { ExportTrfTab } from './components/ExportTrfTab';
-import { OnlineCloudTab } from './components/OnlineCloudTab';
-import { PlayerHistoryModal } from './components/PlayerHistoryModal';
 import { TieBreakSettingsModal } from './components/TieBreakSettingsModal';
-import { TestRunnerModal } from './components/TestRunnerModal';
-import { PrintDocumentModal, PrintDocType } from './components/PrintDocumentModal';
 import { ResortStartingListModal } from './components/ResortStartingListModal';
-import { ResetTournamentModal } from './components/ResetTournamentModal';
-import { defaultTransactionManager } from './transactions/TransactionManager';
-import { executeUndoReset } from './transactions/resetWorkflow';
+import { useOnlineCloud } from './cloud/OnlineCloudProvider';
+import { chessResultsApi } from './chessResults/api';
+import { buildChessResultsXml } from './chessResults/publication';
 
 const STORAGE_KEY = 'fide_tournament_manager_v2';
-type AppTab = TabType | 'onlinecloud';
+type CompanionTab = 'setup' | 'players' | 'publish';
+type BusyAction = 'sync' | 'pull' | 'hub' | 'cr-test' | 'cr-publish' | 'cr-admin' | null;
+
+const isTnr = (value: unknown) => /^\d+$/.test(String(value || '').trim());
+const newClientId = () => globalThis.crypto?.randomUUID?.() || `cp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+function readTournament(): Tournament {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (error) {
+    console.error('Could not read synchronized tournament state.', error);
+  }
+  return createInitialEmptyTournament('Tournament');
+}
 
 export default function App() {
-  const [tournament, setTournament] = useState<Tournament>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.error('Failed to parse saved tournament data from localStorage:', e);
-    }
-    return INITIAL_TOURNAMENT_DATA;
-  });
+  const cloud = useOnlineCloud();
+  const [tournament, setTournament] = useState<Tournament>(readTournament);
+  const [activeTab, setActiveTab] = useState<CompanionTab>('setup');
+  const [busy, setBusy] = useState<BusyAction>(null);
+  const [message, setMessage] = useState('');
+  const [messageKind, setMessageKind] = useState<'ok' | 'warn' | 'error'>('ok');
+  const [tieBreakSettings, setTieBreakSettings] = useState<string | null>(null);
+  const [showResort, setShowResort] = useState(false);
+  const tournamentRef = useRef(tournament);
 
-  const [activeTab, setActiveTab] = useState<AppTab>('pairings');
-  const [selectedPlayerIdForHistory, setSelectedPlayerIdForHistory] = useState<number | null>(null);
-  const [selectedTieBreakForSettings, setSelectedTieBreakForSettings] = useState<string | null>(null);
-  const [showTestRunner, setShowTestRunner] = useState(false);
-  const [selectedPrintDoc, setSelectedPrintDoc] = useState<{ docType: PrintDocType; round?: number } | null>(null);
-  const [showResortModal, setShowResortModal] = useState(false);
-  const [showResetModal, setShowResetModal] = useState(false);
-  const [hasUndoSnapshot, setHasUndoSnapshot] = useState(false);
-
+  useEffect(() => { tournamentRef.current = tournament; }, [tournament]);
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(tournament));
-    } catch (e) {
-      console.error('Failed to save tournament state:', e);
-    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(tournament));
   }, [tournament]);
 
-  const handleResortStartingList = () => setShowResortModal(true);
-  const handleOpenResetModal = () => setShowResetModal(true);
+  // Desktop may have changed the same Cloud tournament while this browser was
+  // in the background. Re-check when the user returns; the existing three-way
+  // sync policy remains authoritative and never silently overwrites conflicts.
+  useEffect(() => {
+    const onFocus = () => {
+      if (cloud.busy || cloud.conflict || cloud.cloudDirty) return;
+      void cloud.pullChanges(tournamentRef.current);
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [cloud]);
 
-  const handleUndoReset = async () => {
+  const updateTournament = (updater: (previous: Tournament) => Tournament) => {
+    setTournament(previous => updater(previous));
+  };
+
+  const displayName = tournament.name?.trim() || 'Tournament';
+  const cloudRevision = Number(cloud.activeCloud?.revision || (tournament as any)?.cloud?.baseRevision || 0);
+  const publicHubUrl = String((tournament as any)?.online?.publicPageUrl || '').trim();
+  const tnr = String(tournament.chessResults?.key || tournament.settings?.tnr || '').trim();
+
+  const setupProgress = useMemo(() => {
+    const required = [
+      tournament.name,
+      tournament.settings.country,
+      tournament.settings.city,
+      tournament.settings.startDate,
+      tournament.settings.rounds,
+      tournament.settings.timeControl,
+      tournament.settings.tournamentFormat
+    ];
+    return Math.round((required.filter(value => String(value || '').trim()).length / required.length) * 100);
+  }, [tournament]);
+
+  const setNotice = (kind: 'ok' | 'warn' | 'error', text: string) => {
+    setMessageKind(kind);
+    setMessage(text);
+  };
+
+  const syncNow = async () => {
+    setBusy('sync');
+    setMessage('');
     try {
-      const result = await executeUndoReset(defaultTransactionManager);
-      setTournament(result.tournament);
-      setHasUndoSnapshot(false);
-      setActiveTab('pairings');
-    } catch (err: any) {
-      alert(`Undo failed: ${err.message || String(err)}`);
+      await cloud.syncNow(tournamentRef.current);
+      setNotice('ok', 'Tournament synchronized with the desktop/cloud workspace.');
+    } catch (error: any) {
+      setNotice('error', error?.message || 'Synchronization failed.');
+    } finally {
+      setBusy(null);
     }
   };
 
-  const handleLoadSampleTournament = () => setShowResetModal(true);
-  const handleCreateNewTournament = () => setShowResetModal(true);
-
-  const handleExportPortableJson = () => {
-    const jsonStr = JSON.stringify(tournament, null, 2);
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    const safeName = (tournament.name || 'tournament').replace(/[^a-z0-9_-]/gi, '_').toLowerCase();
-    a.href = url;
-    a.download = `${safeName}_portable_backup.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  const pullDesktopChanges = async () => {
+    setBusy('pull');
+    setMessage('');
+    try {
+      await cloud.pullChanges(tournamentRef.current);
+      setNotice('ok', 'Latest desktop/cloud revision checked.');
+    } catch (error: any) {
+      setNotice('error', error?.message || 'Could not check the latest revision.');
+    } finally {
+      setBusy(null);
+    }
   };
 
-  const handleImportPortableJson = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const parsed = JSON.parse(event.target?.result as string);
-        if (!parsed.settings || !parsed.players) throw new Error('Invalid tournament JSON structure.');
-        setTournament(parsed);
-        alert(`Successfully imported tournament "${parsed.name}" with ${parsed.players.length} players!`);
-        setActiveTab('pairings');
-      } catch (err: any) {
-        alert('Failed to load JSON backup: ' + (err.message || String(err)));
+  const publishHub = async () => {
+    setBusy('hub');
+    setMessage('');
+    try {
+      await cloud.syncNow(tournamentRef.current);
+      await cloud.publishOnline(tournamentRef.current);
+      setNotice('ok', 'Published to Chess-Publisher Online Hub.');
+    } catch (error: any) {
+      setNotice('error', error?.message || 'Online Hub publication failed.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const testChessResults = async () => {
+    setBusy('cr-test');
+    setMessage('');
+    try {
+      const result = await chessResultsApi.test();
+      setNotice('ok', result?.sidVerified ? 'Chess-Results bridge verified.' : 'Chess-Results bridge is reachable.');
+    } catch (error: any) {
+      setNotice('error', error?.message || 'Chess-Results bridge test failed.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const publishChessResults = async () => {
+    setBusy('cr-publish');
+    setMessage('');
+    try {
+      // Always sync the full private tournament first so Web and desktop retain
+      // one shared authoritative object before an external publication occurs.
+      await cloud.syncNow(tournamentRef.current);
+      const current = tournamentRef.current;
+      const initial = buildChessResultsXml(current);
+      let key = String(current.chessResults?.key || '').trim();
+      let next = current;
+
+      if (!isTnr(key)) {
+        const clientId = current.chessResults?.clientId || newClientId();
+        const created = await chessResultsApi.create({
+          tournament: current.name || '',
+          federation: initial.federation,
+          mode: current.settings.tournamentType,
+          clientId
+        });
+        key = String(created?.key || '').trim();
+        if (!isTnr(key)) throw new Error('Chess-Results returned an invalid TNR.');
+        next = {
+          ...current,
+          settings: { ...current.settings, tnr: key },
+          chessResults: {
+            ...current.chessResults,
+            clientId,
+            key,
+            mode: current.settings.tournamentType,
+            federation: initial.federation,
+            createdAt: current.chessResults?.createdAt || new Date().toISOString(),
+            freshTnrRequired: false,
+            lastError: '',
+            uploadStatus: 'TNR assigned — preparing upload'
+          }
+        };
+        setTournament(next);
+        tournamentRef.current = next;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
+
+      const publication = buildChessResultsXml(next, { requireKey: true, key });
+      await chessResultsApi.publish({ key, xml: publication.xml });
+      const now = new Date().toISOString();
+      const published: Tournament = {
+        ...next,
+        settings: { ...next.settings, tnr: key },
+        chessResults: {
+          ...next.chessResults,
+          key,
+          lastUpload: now,
+          lastError: '',
+          uploadStatus: 'Published / synced',
+          publishCount: (next.chessResults?.publishCount || 0) + 1,
+          activityLog: [
+            { at: now, type: 'ok' as const, message: `Published TNR ${key}: ${publication.players} players.` },
+            ...(next.chessResults?.activityLog || [])
+          ].slice(0, 120)
+        }
+      };
+      setTournament(published);
+      tournamentRef.current = published;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(published));
+      await cloud.syncNow(published);
+      setNotice('ok', `Chess-Results TNR ${key} published and synchronized.`);
+    } catch (error: any) {
+      setNotice('error', error?.message || 'Chess-Results publication failed.');
+    } finally {
+      setBusy(null);
+    }
   };
 
-  const setupChecks = [
-    Boolean(tournament.name?.trim()),
-    Boolean(tournament.settings.country?.trim()),
-    Boolean(tournament.settings.chiefArbiter?.trim()),
-    Boolean(tournament.settings.city?.trim()),
-    Boolean(tournament.settings.startDate),
-    Boolean(tournament.settings.endDate),
-    Boolean(tournament.settings.timeControl),
-    Boolean(tournament.settings.tournamentFormat)
+  const openChessResultsAdmin = async () => {
+    if (!isTnr(tnr)) return;
+    setBusy('cr-admin');
+    try {
+      const result = await chessResultsApi.adminLink({ key: tnr, section: 'admin' });
+      if (!result?.url) throw new Error('Authenticated Chess-Results admin URL was not returned.');
+      window.open(result.url, '_blank', 'noopener,noreferrer');
+    } catch (error: any) {
+      setNotice('error', error?.message || 'Could not open Chess-Results admin.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const leaveTournament = async () => {
+    if (!cloud.conflict) {
+      try { await cloud.syncNow(tournamentRef.current); } catch { /* list remains available */ }
+    }
+    await cloud.returnToCloudList();
+  };
+
+  const nav = [
+    { id: 'setup' as const, label: 'Setup', icon: Settings2, detail: 'Tournament settings' },
+    { id: 'players' as const, label: 'Players', icon: Users, detail: `${tournament.players.length} registered` },
+    { id: 'publish' as const, label: 'Publish', icon: Send, detail: 'Hub & Chess-Results' }
   ];
-  const setupDone = setupChecks.filter(Boolean).length;
-  const setupProgress = Math.round((setupDone / setupChecks.length) * 100);
 
   return (
-    <div className="cpv6-app" data-active-tab={activeTab}>
-      <Header
-        tournament={tournament}
-        activeTab={activeTab}
-        onSelectTab={setActiveTab}
-        onOpenTestRunner={() => setShowTestRunner(true)}
-        onLoadSampleTournament={handleLoadSampleTournament}
-        onCreateNewTournament={handleCreateNewTournament}
-        onOpenResetTournament={handleOpenResetModal}
-        onUndoReset={handleUndoReset}
-        canUndoReset={hasUndoSnapshot || defaultTransactionManager.getUndoResetSnapshot() !== null}
-        onExportPortableJson={handleExportPortableJson}
-        onImportPortableJson={handleImportPortableJson}
-      />
-
-      <main className="cpv6-main">
-        <div className="cpv6-main-inner">
-          <div className={`cpv6-workspace ${activeTab === 'setup' ? 'cpv6-workspace-setup' : ''}`}>
-            <div className="cpv6-primary-pane">
-              {activeTab === 'setup' && <TournamentSetupTab tournament={tournament} onUpdateTournament={setTournament} onOpenTieBreakSettings={name => setSelectedTieBreakForSettings(name)} />}
-              {activeTab === 'players' && <PlayersTab tournament={tournament} onUpdateTournament={setTournament} onResortStartingList={handleResortStartingList} />}
-              {activeTab === 'pairings' && <PairingsTab tournament={tournament} onUpdateTournament={setTournament} onOpenPlayerHistory={id => setSelectedPlayerIdForHistory(id)} onOpenPrintModal={(docType, round) => setSelectedPrintDoc({ docType, round })} />}
-              {activeTab === 'standings' && <StandingsTab tournament={tournament} onOpenPlayerHistory={id => setSelectedPlayerIdForHistory(id)} onOpenTieBreakSettings={name => setSelectedTieBreakForSettings(name)} onOpenPrintModal={docType => setSelectedPrintDoc({ docType })} />}
-              {activeTab === 'tiebreaks' && <TieBreaksTab tournament={tournament} onUpdateTournament={setTournament} onNavigateToStandings={() => setActiveTab('standings')} />}
-              {activeTab === 'schedule' && <ScheduleTab tournament={tournament} onUpdateTournament={setTournament} />}
-              {activeTab === 'chessresults' && <ChessResultsTab tournament={tournament} onUpdateTournament={setTournament} />}
-              {activeTab === 'onlinecloud' && <OnlineCloudTab tournament={tournament} />}
-              {activeTab === 'export' && (
-                <ExportTrfTab tournament={tournament} onImportTournament={imported => { setTournament(imported); setActiveTab('pairings'); }} onOpenPrintModal={(docType, round) => setSelectedPrintDoc({ docType, round })} />
-              )}
-            </div>
-
-            {activeTab === 'setup' && (
-              <aside className="cpv6-setup-rail" aria-label="Tournament setup overview">
-                <section className="cpv6-hero-card">
-                  <div className="cpv6-hero-mark"><Trophy className="w-7 h-7" /></div>
-                  <div>
-                    <strong>Create. Manage. Publish.</strong>
-                    <span>From the first player to the final report.</span>
-                  </div>
-                </section>
-
-                <section className="cpv6-overview-card">
-                  <div className="cpv6-card-heading">Tournament Progress</div>
-                  <div className="cpv6-progress-row">
-                    <div className="cpv6-progress-ring" style={{ '--cpv6-progress': `${setupProgress * 3.6}deg` } as React.CSSProperties}>
-                      <span>{setupProgress}%</span>
-                    </div>
-                    <div className="cpv6-progress-steps">
-                      <span className="is-done"><CheckCircle2 className="w-4 h-4" /> Setup</span>
-                      <span className={tournament.players.length > 0 ? 'is-done' : ''}><Users className="w-4 h-4" /> Players</span>
-                      <span><LayoutGrid className="w-4 h-4" /> Pairings</span>
-                      <span><Award className="w-4 h-4" /> Results</span>
-                    </div>
-                  </div>
-                  <div className="cpv6-progress-copy">{setupDone} of {setupChecks.length} essential setup fields are complete.</div>
-                </section>
-
-                <section className="cpv6-overview-card cpv6-quick-actions">
-                  <div className="cpv6-card-heading">Quick Actions</div>
-                  <button type="button" onClick={() => setActiveTab('players')}><Users className="w-4 h-4" /><span>Open Player List</span><ArrowRight className="w-4 h-4" /></button>
-                  <button type="button" onClick={() => setActiveTab('pairings')}><LayoutGrid className="w-4 h-4" /><span>Go to Pairings</span><ArrowRight className="w-4 h-4" /></button>
-                  <button type="button" onClick={() => setActiveTab('standings')}><Award className="w-4 h-4" /><span>View Standings</span><ArrowRight className="w-4 h-4" /></button>
-                  <button type="button" onClick={() => setActiveTab('chessresults')}><Globe2 className="w-4 h-4" /><span>Chess-Results</span><ArrowRight className="w-4 h-4" /></button>
-                  <button type="button" onClick={() => setActiveTab('onlinecloud')}><Cloud className="w-4 h-4" /><span>Online & Cloud</span><ArrowRight className="w-4 h-4" /></button>
-                </section>
-
-                <section className="cpv6-info-strip"><Info className="w-4 h-4" /><span>UI-only redesign. Tournament rules and calculation engines are unchanged.</span></section>
-              </aside>
-            )}
-          </div>
+    <div className="companion-shell" data-companion-version="1">
+      <aside className="companion-sidebar">
+        <div className="companion-brand">
+          <div className="companion-brand-mark">CP</div>
+          <div><strong>Chess-Publisher</strong><span>Web Companion</span></div>
         </div>
+
+        <button className="companion-tournament-switch" type="button" onClick={leaveTournament}>
+          <ArrowLeft size={16} />
+          <span><small>My tournaments</small><strong>{displayName}</strong></span>
+        </button>
+
+        <nav className="companion-nav" aria-label="Tournament workspace">
+          {nav.map(item => {
+            const Icon = item.icon;
+            return (
+              <button key={item.id} className={activeTab === item.id ? 'is-active' : ''} onClick={() => setActiveTab(item.id)} type="button">
+                <Icon size={19} />
+                <span><strong>{item.label}</strong><small>{item.detail}</small></span>
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="companion-sidebar-status">
+          <div className={`companion-sync-dot ${cloud.conflict ? 'is-warn' : cloud.statusKind === 'offline' ? 'is-offline' : 'is-ok'}`} />
+          <div><strong>{cloud.conflict ? 'Sync conflict' : cloud.status}</strong><span>Cloud revision {cloudRevision || '—'}</span></div>
+        </div>
+      </aside>
+
+      <header className="companion-topbar">
+        <div className="companion-title-block">
+          <span>{activeTab === 'setup' ? 'Tournament Setup' : activeTab === 'players' ? 'Player Registration' : 'Publish Tournament'}</span>
+          <strong>{displayName}</strong>
+        </div>
+        <div className="companion-top-actions">
+          <button type="button" className="companion-button secondary" onClick={pullDesktopChanges} disabled={busy !== null || cloud.busy}>
+            <RefreshCw size={16} className={busy === 'pull' ? 'spin' : ''} /> Check updates
+          </button>
+          <button type="button" className="companion-button primary" onClick={syncNow} disabled={busy !== null || cloud.busy || cloud.conflict}>
+            <Cloud size={16} /> {busy === 'sync' ? 'Syncing…' : 'Sync now'}
+          </button>
+        </div>
+      </header>
+
+      <main className="companion-main">
+        {cloud.conflict && (
+          <div className="companion-alert warn">
+            <WifiOff size={18} />
+            <div><strong>Desktop and Web changed the same tournament.</strong><span>No data was overwritten. Use Check updates to resolve through the existing three-way sync workflow.</span></div>
+          </div>
+        )}
+        {message && (
+          <div className={`companion-alert ${messageKind}`}>
+            {messageKind === 'ok' ? <CheckCircle2 size={18} /> : <WifiOff size={18} />}
+            <span>{message}</span>
+          </div>
+        )}
+
+        {activeTab === 'setup' && (
+          <div className="companion-content-frame">
+            <div className="companion-section-head">
+              <div><span className="companion-eyebrow">SETUP</span><h1>Tournament setup</h1><p>Only tournament metadata is edited here. Pairing, TRF and desktop engines remain untouched.</p></div>
+              <div className="companion-progress"><strong>{setupProgress}%</strong><span>complete</span></div>
+            </div>
+            <TournamentSetupTab tournament={tournament} onUpdateTournament={updateTournament} onOpenTieBreakSettings={setTieBreakSettings} />
+          </div>
+        )}
+
+        {activeTab === 'players' && (
+          <div className="companion-content-frame">
+            <div className="companion-section-head">
+              <div><span className="companion-eyebrow">REGISTRATION</span><h1>Players</h1><p>Register and maintain the same player list used by the desktop tournament.</p></div>
+              <div className="companion-counter"><strong>{tournament.players.length}</strong><span>players</span></div>
+            </div>
+            <PlayersTab tournament={tournament} onUpdateTournament={updateTournament} onResortStartingList={() => setShowResort(true)} />
+          </div>
+        )}
+
+        {activeTab === 'publish' && (
+          <div className="companion-publish-grid">
+            <section className="companion-publish-card">
+              <div className="companion-publish-icon hub"><Cloud size={23} /></div>
+              <div className="companion-card-copy">
+                <span className="companion-eyebrow">CHESS-PUBLISHER</span>
+                <h2>Online Hub</h2>
+                <p>Publish the current synchronized tournament to the public Hub. The private Cloud Workspace remains the source of truth.</p>
+              </div>
+              <div className="companion-card-stats">
+                <span><small>Players</small><strong>{tournament.players.length}</strong></span>
+                <span><small>Cloud revision</small><strong>r{cloudRevision || 0}</strong></span>
+                <span><small>Public</small><strong>{publicHubUrl ? 'Linked' : 'Not yet'}</strong></span>
+              </div>
+              <div className="companion-card-actions">
+                <button type="button" className="companion-button primary wide" onClick={publishHub} disabled={busy !== null || cloud.busy || cloud.conflict}>
+                  <Send size={17} /> {busy === 'hub' ? 'Publishing…' : publicHubUrl ? 'Update Online Hub' : 'Publish Online Hub'}
+                </button>
+                {publicHubUrl && <button type="button" className="companion-button secondary" onClick={() => cloud.openPublicPage(tournament)}><ExternalLink size={16} /> Open Hub page</button>}
+              </div>
+            </section>
+
+            <section className="companion-publish-card">
+              <div className="companion-publish-icon chessresults"><Globe2 size={23} /></div>
+              <div className="companion-card-copy">
+                <span className="companion-eyebrow">CHESS-RESULTS</span>
+                <h2>Chess-Results</h2>
+                <p>Secure server-side publication. Organizer Token authentication is reused; bridge secrets never enter the browser.</p>
+              </div>
+              <div className="companion-card-stats">
+                <span><small>TNR</small><strong>{isTnr(tnr) ? tnr : 'Automatic'}</strong></span>
+                <span><small>Players</small><strong>{tournament.players.length}</strong></span>
+                <span><small>Status</small><strong>{tournament.chessResults?.lastUpload ? 'Published' : 'Ready'}</strong></span>
+              </div>
+              <div className="companion-card-actions">
+                <button type="button" className="companion-button primary wide" onClick={publishChessResults} disabled={busy !== null || cloud.busy || cloud.conflict}>
+                  <Send size={17} /> {busy === 'cr-publish' ? 'Publishing…' : isTnr(tnr) ? 'Update Chess-Results' : 'Publish to Chess-Results'}
+                </button>
+                <button type="button" className="companion-button secondary" onClick={testChessResults} disabled={busy !== null}><ShieldCheck size={16} /> Test bridge</button>
+                {isTnr(tnr) && <>
+                  <a className="companion-button secondary" href={`https://chess-results.com/tnr${encodeURIComponent(tnr)}.aspx?lan=1`} target="_blank" rel="noreferrer"><ExternalLink size={16} /> Public page</a>
+                  <button type="button" className="companion-button secondary" onClick={openChessResultsAdmin} disabled={busy !== null}><Globe2 size={16} /> Admin</button>
+                </>}
+              </div>
+            </section>
+
+            <section className="companion-sync-card">
+              <div><Smartphone size={20} /><span><strong>One tournament, every device</strong><small>Desktop and Web use the same private Cloud tournament identity and revision history.</small></span></div>
+              <button type="button" className="companion-button secondary" onClick={pullDesktopChanges} disabled={busy !== null || cloud.busy}><RefreshCw size={16} /> Check latest desktop revision</button>
+            </section>
+          </div>
+        )}
       </main>
 
-      {selectedPrintDoc !== null && <PrintDocumentModal tournament={tournament} initialDocType={selectedPrintDoc.docType} initialRound={selectedPrintDoc.round} onClose={() => setSelectedPrintDoc(null)} />}
-      {selectedPlayerIdForHistory !== null && <PlayerHistoryModal tournament={tournament} playerId={selectedPlayerIdForHistory} onClose={() => setSelectedPlayerIdForHistory(null)} />}
-      {selectedTieBreakForSettings !== null && <TieBreakSettingsModal tournament={tournament} tieBreakName={selectedTieBreakForSettings} onClose={() => setSelectedTieBreakForSettings(null)} onUpdateTournament={setTournament} />}
-      {showTestRunner && <TestRunnerModal onClose={() => setShowTestRunner(false)} />}
-      {showResortModal && <ResortStartingListModal isOpen={showResortModal} onClose={() => setShowResortModal(false)} tournament={tournament} onCommit={resorted => { setTournament(resorted); setShowResortModal(false); }} />}
-      {showResetModal && <ResetTournamentModal isOpen={showResetModal} onClose={() => setShowResetModal(false)} tournament={tournament} onCommit={resetTournament => { setTournament(resetTournament); setHasUndoSnapshot(true); setShowResetModal(false); setActiveTab('setup'); }} />}
+      <nav className="companion-mobile-nav" aria-label="Mobile tournament navigation">
+        {nav.map(item => {
+          const Icon = item.icon;
+          return <button key={item.id} type="button" className={activeTab === item.id ? 'is-active' : ''} onClick={() => setActiveTab(item.id)}><Icon size={21} /><span>{item.label}</span></button>;
+        })}
+        <button type="button" onClick={leaveTournament}><ArrowLeft size={21} /><span>Tournaments</span></button>
+      </nav>
+
+      {tieBreakSettings !== null && (
+        <TieBreakSettingsModal tournament={tournament} tieBreakName={tieBreakSettings} onClose={() => setTieBreakSettings(null)} onUpdateTournament={updateTournament} />
+      )}
+      {showResort && (
+        <ResortStartingListModal isOpen={showResort} onClose={() => setShowResort(false)} tournament={tournament} onCommit={next => { setTournament(next); setShowResort(false); }} />
+      )}
     </div>
   );
 }
