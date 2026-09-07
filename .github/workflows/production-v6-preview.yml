@@ -55,7 +55,7 @@ jobs:
           done
           cat /tmp/cpv6-production.log
           exit 1
-      - name: Capture canonical production shell desktop and mobile
+      - name: Verify mobile tab interaction and capture production shell
         run: |
           mkdir -p production-v6-screens
           cat > capture-production-v6.mjs <<'EOF'
@@ -80,7 +80,7 @@ jobs:
             const setup = page.getByText('Tournament Setup', { exact: true });
             if (await setup.count()) {
               await setup.first().click();
-              await page.waitForTimeout(500);
+              await page.waitForTimeout(300);
             }
             await page.evaluate(() => {
               const login = document.querySelector('#cpBeta7Start');
@@ -93,15 +93,55 @@ jobs:
             });
           }
 
+          async function assertMobileTabTap(page, label) {
+            const tab = page.locator('#appWindow > .tabs > .tab').filter({ hasText: label }).first();
+            if (!(await tab.count())) throw new Error(`Missing mobile tab: ${label}`);
+            await tab.scrollIntoViewIfNeeded();
+            const box = await tab.boundingBox();
+            if (!box) throw new Error(`No mobile tab bounds: ${label}`);
+            // Tap the icon area deliberately. Before the fix the injected icon child
+            // could become event.target and the legacy tab switcher would ignore it.
+            await page.mouse.click(box.x + box.width / 2, box.y + 12);
+            await page.waitForTimeout(250);
+            const active = await tab.evaluate(node => node.classList.contains('active') || node.getAttribute('aria-selected') === 'true');
+            if (!active) throw new Error(`Mobile tab tap did not activate ${label}`);
+          }
+
+          async function assertMobileLabelsContained(page) {
+            const problems = await page.locator('#appWindow > .tabs > .tab').evaluateAll(tabs => tabs.map(tab => {
+              const style = getComputedStyle(tab);
+              const after = getComputedStyle(tab, '::after');
+              return {
+                label: (tab.textContent || '').trim(),
+                mobileLabel: tab.dataset.cpv6MobileLabel || '',
+                clientWidth: tab.clientWidth,
+                scrollWidth: tab.scrollWidth,
+                overflow: style.overflow,
+                afterContent: after.content
+              };
+            }).filter(item => !item.mobileLabel || item.scrollWidth > item.clientWidth + 2 || item.afterContent === 'none' || item.afterContent === 'normal'));
+            if (problems.length) throw new Error(`Mobile tab label overflow/metadata failure: ${JSON.stringify(problems)}`);
+          }
+
           const desktop = await browser.newPage({ viewport: { width: 1728, height: 1000 }, deviceScaleFactor: 1 });
           await exposeApp(desktop);
           await desktop.screenshot({ path: 'production-v6-screens/desktop-production-shell.png', fullPage: false });
 
           const mobile = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
           await exposeApp(mobile);
+          await assertMobileLabelsContained(mobile);
+          await assertMobileTabTap(mobile, 'Pairings');
+          await assertMobileTabTap(mobile, 'Tournament Setup');
           await mobile.screenshot({ path: 'production-v6-screens/mobile-production-shell.png', fullPage: false });
 
+          const narrow = await browser.newPage({ viewport: { width: 360, height: 800 }, deviceScaleFactor: 1 });
+          await exposeApp(narrow);
+          await assertMobileLabelsContained(narrow);
+          await assertMobileTabTap(narrow, 'Lists & Players');
+          await assertMobileTabTap(narrow, 'Pairings');
+
           await browser.close();
+          console.log('PASS real mobile tab taps and compact labels at 390px and 360px');
           EOF
           node capture-production-v6.mjs
       - uses: actions/upload-artifact@v4
