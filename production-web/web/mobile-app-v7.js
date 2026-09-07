@@ -104,6 +104,32 @@
     delete tabs.dataset.cpMobileLegacyIsolated;
   }
 
+  /* UI v6 marks the Setup page with a presentation class that can force
+   * display:block even after another legacy page becomes active. On phones we
+   * restore the shell invariant: inactive pages are not rendered. This changes
+   * presentation only; active classes and tournament state remain untouched. */
+  function syncVisiblePageGuard() {
+    const pages = document.querySelectorAll('#appWindow > .content > .page');
+    pages.forEach(page => {
+      if (media.matches) {
+        if (page.classList.contains('active')) {
+          if (page.dataset.cpMobileInactiveGuard === '1') {
+            page.style.removeProperty('display');
+            delete page.dataset.cpMobileInactiveGuard;
+          }
+        } else {
+          page.style.setProperty('display', 'none', 'important');
+          page.dataset.cpMobileInactiveGuard = '1';
+        }
+        return;
+      }
+      if (page.dataset.cpMobileInactiveGuard === '1') {
+        page.style.removeProperty('display');
+        delete page.dataset.cpMobileInactiveGuard;
+      }
+    });
+  }
+
   function currentItem() {
     return ALL.find(item => isItemActive(item)) || PRIMARY[0];
   }
@@ -147,15 +173,13 @@
         try {
           window.showTab(legacyId, tab);
           if (navigationSettled(item, tab)) return true;
-        } catch { /* continue to the untouched button handler fallback */ }
+        } catch { /* continue to untouched button-handler fallback */ }
       }
     }
-
     try {
       tab.click();
       if (navigationSettled(item, tab)) return true;
     } catch { /* verify below without changing tournament state */ }
-
     return navigationSettled(item, tab);
   }
 
@@ -176,13 +200,15 @@
 
     window.setTimeout(() => {
       isolateLegacyTabsForPhone();
+      syncVisiblePageGuard();
 
-      // A tab highlight without its matching page is a visual navigation bug.
-      // Retry only through the original tab handler; never toggle page classes here.
+      // A tab highlight without its matching page is a navigation failure.
+      // Retry only through the original handler; never toggle active classes.
       if (!navigationSettled(item, tab) && !isDisabled(tab)) {
         try { tab.click(); } catch { /* original shell remains authoritative */ }
       }
 
+      syncVisiblePageGuard();
       activated = navigationSettled(item, tab);
       syncState();
       if (!activated && !isDisabled(tab)) {
@@ -309,6 +335,7 @@
     if (!tab) return;
     window.setTimeout(() => {
       isolateLegacyTabsForPhone();
+      syncVisiblePageGuard();
       syncState();
     }, 30);
   }
@@ -316,6 +343,7 @@
   function handleViewportChange() {
     ensureShell();
     isolateLegacyTabsForPhone();
+    syncVisiblePageGuard();
     if (!media.matches) closeMore();
     syncState();
   }
@@ -323,6 +351,7 @@
   function start() {
     ensureShell();
     isolateLegacyTabsForPhone();
+    syncVisiblePageGuard();
     syncState();
     document.addEventListener('click', onLegacyNavigation, false);
     document.addEventListener('keydown', event => {
@@ -330,11 +359,12 @@
     });
     media.addEventListener?.('change', handleViewportChange);
 
-    // Existing tournament flow changes which sections are enabled. Mirror that
-    // state in the app nav without wrapping any tournament function.
+    // Existing tournament flow changes section availability and UI v6 may
+    // refresh presentation classes. Mirror state without wrapping core logic.
     window.setInterval(() => {
       if (media.matches) {
         isolateLegacyTabsForPhone();
+        syncVisiblePageGuard();
         syncState();
       }
     }, 900);
