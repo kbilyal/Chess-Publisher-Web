@@ -251,10 +251,12 @@
     PRIMARY.forEach(item => {
       const button = $(`[data-cp-mobile-key="${item.key}"]`);
       const tab = resolveTab(item);
+      const locked = isDisabled(tab);
       button?.classList.toggle('is-active', item.key === current.key);
-      button?.classList.toggle('is-disabled', isDisabled(tab));
+      button?.classList.toggle('is-disabled', locked);
       button?.setAttribute('aria-current', item.key === current.key ? 'page' : 'false');
-      button?.setAttribute('aria-disabled', isDisabled(tab) ? 'true' : 'false');
+      button?.setAttribute('aria-label', locked ? `${item.label}, currently locked. Tap for details.` : item.label);
+      button?.removeAttribute('aria-disabled');
     });
 
     const moreButton = $('#cpMobileMoreButton');
@@ -264,9 +266,11 @@
     MORE.forEach(item => {
       const button = $(`[data-cp-mobile-more-key="${item.key}"]`);
       const tab = resolveTab(item);
+      const locked = isDisabled(tab);
       button?.classList.toggle('is-active', item.key === current.key);
-      button?.classList.toggle('is-disabled', isDisabled(tab));
-      button?.setAttribute('aria-disabled', isDisabled(tab) ? 'true' : 'false');
+      button?.classList.toggle('is-disabled', locked);
+      button?.setAttribute('aria-label', locked ? `${item.label}, currently locked. Tap for details.` : item.label);
+      button?.removeAttribute('aria-disabled');
     });
   }
 
