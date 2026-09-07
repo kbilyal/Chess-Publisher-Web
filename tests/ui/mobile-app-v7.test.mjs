@@ -2,15 +2,15 @@ import fs from 'node:fs';
 
 const cssPath = 'production-web/web/mobile-app-v7.css';
 const jsPath = 'production-web/web/mobile-app-v7.js';
-const deployPath = '.github/workflows/deploy-web.yml';
+const bridgePath = 'production-web/web/ui-v6-production.js';
 
-for (const path of [cssPath, jsPath, deployPath]) {
+for (const path of [cssPath, jsPath, bridgePath]) {
   if (!fs.existsSync(path)) throw new Error(`Missing ${path}`);
 }
 
 const css = fs.readFileSync(cssPath, 'utf8');
 const js = fs.readFileSync(jsPath, 'utf8');
-const deploy = fs.readFileSync(deployPath, 'utf8');
+const bridge = fs.readFileSync(bridgePath, 'utf8');
 
 const requireText = (source, needle, message) => {
   if (!source.includes(needle)) throw new Error(message || `Missing marker: ${needle}`);
@@ -50,9 +50,8 @@ for (const pattern of forbiddenLogic) {
   if (pattern.test(js)) throw new Error(`Mobile presentation crosses protected logic boundary: ${pattern}`);
 }
 
-requireText(deploy, 'production-web/web/mobile-app-v7.css', 'Deploy workflow does not require mobile app CSS.');
-requireText(deploy, 'production-web/web/mobile-app-v7.js', 'Deploy workflow does not require mobile app JS.');
-requireText(deploy, '/web/mobile-app-v7.css?v=${GITHUB_SHA}', 'Deploy artifact does not verify cache-busted mobile CSS.');
-requireText(deploy, '/web/mobile-app-v7.js?v=${GITHUB_SHA}', 'Deploy artifact does not verify cache-busted mobile JS.');
+requireText(bridge, 'Mobile App v7 is intentionally a separate presentation module', 'Production bridge does not load Mobile App v7.');
+requireText(bridge, 'link.href = `/web/mobile-app-v7.css${query}`', 'Cache-busted Mobile App v7 CSS loading is missing.');
+requireText(bridge, 'script.src = `/web/mobile-app-v7.js${query}`', 'Cache-busted Mobile App v7 JS loading is missing.');
 
 console.log('PASS Mobile App v7 presentation contract: five-slot app navigation, More sheet, disabled-state feedback, DGT excluded, protected logic untouched.');
