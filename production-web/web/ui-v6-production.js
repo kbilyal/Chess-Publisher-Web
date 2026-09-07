@@ -25,8 +25,7 @@
     ['chess-results', '◎', 'Chess-Results'],
     ['online', '☁', 'Online & Cloud'],
     ['cloud', '☁', 'Online & Cloud'],
-    ['export', '▤', 'Export & Print'],
-    ['dgt', '♟', 'DGT']
+    ['export', '▤', 'Export & Print']
   ];
 
   function findTab(label) {
@@ -63,6 +62,22 @@
   function hasStarted(data = tournament()) {
     const round = Number(data?.currentRound || data?.round || data?.state?.currentRound || 0);
     return round > 0 || Boolean(data?.started || data?.status === 'started');
+  }
+
+  function applyWebFeatureGates() {
+    // DGT Boards is a desktop/native hardware function. Keep every underlying
+    // desktop implementation untouched, but never expose or restore it in Web UI.
+    const dgt = $('#tabDgt') || $$('.tabs .tab').find(tab => norm(tab.textContent).startsWith('dgt'));
+    if (!dgt) return;
+    const wasActive = dgt.classList.contains('active') || dgt.getAttribute('aria-selected') === 'true';
+    dgt.hidden = true;
+    dgt.setAttribute('aria-hidden', 'true');
+    dgt.dataset.cpWebDesktopOnly = '1';
+    dgt.style.setProperty('display', 'none', 'important');
+    if (wasActive) {
+      const setup = findTab('tournament setup');
+      if (setup && !setup.classList.contains('active')) setup.click();
+    }
   }
 
   function ensureSidebarChrome() {
@@ -266,6 +281,7 @@
   }
 
   function refreshPresentation() {
+    applyWebFeatureGates();
     ensureSidebarChrome();
     updateSidebarChrome();
     syncActiveNav();
