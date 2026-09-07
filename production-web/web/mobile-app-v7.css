@@ -1,4 +1,4 @@
-/* Chess-Publisher Web · Mobile App v7 · September 2026
+/* Chess-Publisher Web · Mobile App v7 · Visual Bug Hunt v7.1 · September 2026
  * Mobile-only presentation. Existing tournament logic and legacy tab handlers stay authoritative.
  */
 
@@ -18,6 +18,7 @@
     --cpm-border: #e2e7ef;
     --cpm-blue: #1877f2;
     --cpm-nav-height: 64px;
+    --cpm-status-height: 22px;
   }
 
   html[data-cp-production-web="1"] body {
@@ -29,9 +30,9 @@
     background: var(--cpm-bg) !important;
   }
 
-  /* The original tabs remain in the DOM and keep their original handlers.
-   * They are moved off-canvas so the mobile app navigation can be the only
-   * touch surface. Desktop/tablet presentation is unaffected.
+  /* Keep the original tabs alive for their exact handlers, but make them a
+   * zero-interaction surface on phones. JS repeats these dimensions inline so
+   * older cascade layers cannot push them back over the app navigation.
    */
   html[data-cp-production-web="1"] #appWindow > .tabs {
     position: fixed !important;
@@ -54,30 +55,101 @@
     pointer-events: none !important;
   }
 
+  /* One-line app header. All original controls remain reachable, but the
+   * desktop-looking window chrome no longer wraps into a second mobile row.
+   */
   html[data-cp-production-web="1"] #appWindow > .titlebar {
-    min-height: 54px !important;
-    height: 54px !important;
-    padding: 0 10px !important;
-    background: rgba(255,255,255,.98) !important;
+    box-sizing: border-box !important;
+    min-height: calc(48px + env(safe-area-inset-top)) !important;
+    height: calc(48px + env(safe-area-inset-top)) !important;
+    padding: env(safe-area-inset-top) 6px 0 8px !important;
+    display: flex !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+    gap: 5px !important;
+    overflow: hidden !important;
+    background: rgba(255,255,255,.985) !important;
     border-bottom: 1px solid var(--cpm-border) !important;
     box-shadow: none !important;
   }
 
   html[data-cp-production-web="1"] #windowDocumentTitle {
+    min-width: 0 !important;
+    flex: 1 1 72px !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
     white-space: nowrap !important;
-    font-size: 14px !important;
+    color: var(--cpm-text) !important;
+    font-size: 12px !important;
+    font-weight: 800 !important;
   }
 
   html[data-cp-production-web="1"] #windowDocumentTitle::before {
-    content: "Chess-Publisher · " !important;
+    content: "CP · " !important;
+    color: #43bdca !important;
   }
 
+  html[data-cp-production-web="1"] .window-controls {
+    min-width: 0 !important;
+    flex: 0 0 auto !important;
+    margin-left: auto !important;
+    display: flex !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+    gap: 3px !important;
+  }
+
+  html[data-cp-production-web="1"] .autosave-switch {
+    flex: 0 0 auto !important;
+    gap: 3px !important;
+    color: #66758a !important;
+    font-size: 9px !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+  }
+
+  html[data-cp-production-web="1"] .window-controls button {
+    box-sizing: border-box !important;
+    min-width: 28px !important;
+    width: 28px !important;
+    min-height: 28px !important;
+    height: 28px !important;
+    padding: 0 !important;
+    border: 1px solid #d9e2ec !important;
+    border-radius: 8px !important;
+    background: #f8fafc !important;
+    color: #334155 !important;
+    box-shadow: none !important;
+    font-size: 11px !important;
+  }
+
+  html[data-cp-production-web="1"] .window-controls .titlebar-save {
+    min-width: 56px !important;
+    width: 56px !important;
+    padding: 0 6px !important;
+    background: #fff !important;
+    border-color: #cdd8e5 !important;
+    color: #17233a !important;
+    font-size: 10px !important;
+  }
+
+  html[data-cp-production-web="1"] .titlebar .save-indicator {
+    max-width: 58px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    padding: 3px 5px !important;
+    font-size: 8.5px !important;
+  }
+
+  /* Compact utility row: keep Files/Pairings/etc. available without allowing
+   * it to dominate the phone viewport. */
   html[data-cp-production-web="1"] #classicMenuBar {
-    min-height: 44px !important;
-    padding: 5px 7px !important;
-    gap: 5px !important;
+    box-sizing: border-box !important;
+    min-height: 38px !important;
+    height: 38px !important;
+    padding: 4px 6px !important;
+    gap: 4px !important;
     overflow-x: auto !important;
     overflow-y: hidden !important;
     white-space: nowrap !important;
@@ -92,17 +164,26 @@
 
   html[data-cp-production-web="1"] #classicMenuBar button,
   html[data-cp-production-web="1"] #classicMenuBar .menu-item {
-    min-height: 34px !important;
-    border-radius: 17px !important;
-    padding: 5px 10px !important;
-    font-size: 11px !important;
+    min-height: 30px !important;
+    height: 30px !important;
+    border-radius: 15px !important;
+    padding: 4px 9px !important;
+    font-size: 10px !important;
+  }
+
+  html[data-cp-production-web="1"] #classicMenuBar .current-file-label {
+    max-width: 38vw !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    font-size: 9px !important;
   }
 
   html[data-cp-production-web="1"] #appWindow > .content {
     min-height: 0 !important;
-    padding-bottom: calc(var(--cpm-nav-height) + env(safe-area-inset-bottom) + 8px) !important;
+    padding-bottom: 8px !important;
     background: var(--cpm-bg) !important;
-    scroll-padding-bottom: calc(var(--cpm-nav-height) + 20px) !important;
+    scroll-padding-bottom: 16px !important;
     -webkit-overflow-scrolling: touch;
   }
 
@@ -114,11 +195,12 @@
   html[data-cp-production-web="1"] .button-cluster,
   html[data-cp-production-web="1"] .table-frame,
   html[data-cp-production-web="1"] .crxml-panel,
-  html[data-cp-production-web="1"] .cp-beta7-panel {
+  html[data-cp-production-web="1"] .cp-beta7-panel,
+  html[data-cp-production-web="1"] #webSetupReview {
     margin-bottom: 9px !important;
-    border: 0 !important;
+    border: 1px solid #e1e7ef !important;
     border-radius: 12px !important;
-    box-shadow: 0 1px 2px rgba(15,23,42,.08), 0 5px 18px rgba(15,23,42,.035) !important;
+    box-shadow: 0 1px 2px rgba(15,23,42,.07), 0 5px 16px rgba(15,23,42,.03) !important;
     background: #fff !important;
   }
 
@@ -127,9 +209,43 @@
   }
 
   html[data-cp-production-web="1"] .group-title {
-    min-height: 32px !important;
-    margin-bottom: 10px !important;
+    min-height: 30px !important;
+    margin-bottom: 9px !important;
+    font-size: 12.5px !important;
+  }
+
+  /* Setup review was visually breaking into uneven inline fragments at 360px. */
+  html[data-cp-production-web="1"] #webSetupReview {
+    box-sizing: border-box !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    gap: 8px !important;
+    align-items: center !important;
+    padding: 10px !important;
+  }
+
+  html[data-cp-production-web="1"] #webSetupReview > b {
+    min-width: 0 !important;
     font-size: 13px !important;
+  }
+
+  html[data-cp-production-web="1"] #webSetupReviewBadge {
+    justify-self: end !important;
+    white-space: nowrap !important;
+  }
+
+  html[data-cp-production-web="1"] #webSetupReviewSummary {
+    grid-column: 1 / -1 !important;
+    color: var(--cpm-text) !important;
+    line-height: 1.35 !important;
+  }
+
+  html[data-cp-production-web="1"] #webSetupReviewNext,
+  html[data-cp-production-web="1"] #webSetupOpenPlayers {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    min-height: 40px !important;
+    margin: 0 !important;
   }
 
   html[data-cp-production-web="1"] input:not([type="checkbox"]):not([type="radio"]),
@@ -138,22 +254,40 @@
     box-sizing: border-box !important;
     width: 100% !important;
     max-width: 100% !important;
-    min-height: 44px !important;
+    min-height: 42px !important;
     font-size: 16px !important;
   }
 
   html[data-cp-production-web="1"] textarea {
-    min-height: 88px !important;
+    min-height: 86px !important;
   }
 
   html[data-cp-production-web="1"] button:not(.cp-mobile-nav-item):not(.cp-mobile-more-item):not(.cp-mobile-more-close) {
-    min-height: 42px;
+    min-height: 40px;
   }
 
+  /* Preserve the original status information and keep it above the fixed app
+   * nav instead of letting the bottom bar cover it. */
   html[data-cp-production-web="1"] .statusbar {
-    font-size: 9px !important;
-    min-height: 24px !important;
+    box-sizing: border-box !important;
+    flex: 0 0 var(--cpm-status-height) !important;
+    min-height: var(--cpm-status-height) !important;
+    height: var(--cpm-status-height) !important;
+    margin: 0 4px calc(var(--cpm-nav-height) + env(safe-area-inset-bottom)) !important;
+    gap: 2px !important;
     overflow: hidden !important;
+    background: #fff !important;
+    font-size: 8.5px !important;
+  }
+
+  html[data-cp-production-web="1"] .status-panel {
+    min-width: 0 !important;
+    min-height: var(--cpm-status-height) !important;
+    height: var(--cpm-status-height) !important;
+    padding: 3px 5px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
   }
 
   /* Facebook-style fixed bottom navigation: four primary workspaces + More. */
@@ -213,7 +347,7 @@
   }
 
   .cp-mobile-nav-item.is-disabled {
-    color: #b0b8c4;
+    color: #aab4c2;
   }
 
   .cp-mobile-nav-icon {
@@ -234,7 +368,7 @@
     white-space: nowrap;
     text-align: center;
     font-size: 9.5px;
-    font-weight: 700;
+    font-weight: 750;
     line-height: 1.05;
     pointer-events: none;
   }
@@ -262,7 +396,7 @@
     right: 8px;
     bottom: calc(8px + env(safe-area-inset-bottom));
     display: block;
-    max-height: min(70dvh, 560px);
+    max-height: min(72dvh, 560px);
     padding: 8px 10px 12px;
     box-sizing: border-box;
     overflow: auto;
@@ -348,7 +482,7 @@
   }
 
   .cp-mobile-more-item.is-disabled {
-    opacity: .48;
+    opacity: .52;
   }
 
   .cp-mobile-more-icon {
@@ -373,8 +507,8 @@
   .cp-mobile-more-copy small {
     margin-top: 2px;
     color: var(--cpm-muted);
-    font-size: 10px;
-    line-height: 1.2;
+    font-size: 10.5px;
+    line-height: 1.25;
   }
 
   .cp-mobile-more-arrow {
@@ -387,17 +521,17 @@
     position: fixed;
     z-index: 2147483003;
     left: 50%;
-    bottom: calc(var(--cpm-nav-height) + env(safe-area-inset-bottom) + 14px);
+    bottom: calc(var(--cpm-nav-height) + var(--cpm-status-height) + env(safe-area-inset-bottom) + 12px);
     display: block;
     width: max-content;
     max-width: calc(100vw - 28px);
-    padding: 9px 12px;
+    padding: 8px 11px;
     box-sizing: border-box;
     border-radius: 10px;
     background: rgba(24,31,43,.94);
     color: #fff;
     box-shadow: 0 8px 24px rgba(0,0,0,.22);
-    font-size: 11px;
+    font-size: 10.5px;
     line-height: 1.25;
     text-align: center;
     transform: translate(-50%, 10px);
@@ -418,6 +552,20 @@
   }
   .cp-mobile-nav-icon {
     font-size: 19px;
+  }
+  html[data-cp-production-web="1"] #windowDocumentTitle {
+    font-size: 11.5px !important;
+  }
+  html[data-cp-production-web="1"] .autosave-switch {
+    font-size: 8.5px !important;
+  }
+  html[data-cp-production-web="1"] .window-controls button {
+    min-width: 27px !important;
+    width: 27px !important;
+  }
+  html[data-cp-production-web="1"] .window-controls .titlebar-save {
+    min-width: 52px !important;
+    width: 52px !important;
   }
 }
 
