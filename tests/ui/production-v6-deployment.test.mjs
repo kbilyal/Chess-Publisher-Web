@@ -52,6 +52,18 @@ requireText(js, 'tab.dataset.cpv6MobileLabel = shortLabel', 'Mobile compact labe
 requireText(js, 'span.dataset.cpv6Icon = icon', 'Presentation icon metadata is missing.');
 requireText(js, "span.textContent = ''", 'Presentation icon must not alter the original tab textContent.');
 
+// DGT is intentionally desktop/native only. The Web presentation layer must
+// suppress the legacy DGT tab while leaving every underlying desktop function intact.
+requireText(js, 'function applyWebFeatureGates()', 'Web-only feature gate is missing.');
+requireText(js, "$('#tabDgt')", 'DGT Web feature gate must target the existing legacy DGT tab.');
+requireText(js, 'dgt.hidden = true', 'DGT Boards must be hidden in the Web interface.');
+requireText(js, "dgt.dataset.cpWebDesktopOnly = '1'", 'DGT Boards must be explicitly marked desktop-only in Web.');
+requireText(js, "dgt.style.setProperty('display', 'none', 'important')", 'DGT Boards Web tab must remain hidden against legacy CSS.');
+requireText(js, "applyWebFeatureGates();", 'DGT Web feature gate must execute on every presentation refresh.');
+if (js.includes("['dgt', '♟', 'DGT']")) {
+  throw new Error('DGT Boards must not be part of the Web navigation metadata.');
+}
+
 if (/span\.textContent\s*=\s*icon/.test(js)) {
   throw new Error('Presentation icon text must not alter legacy tab labels.');
 }
