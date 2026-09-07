@@ -104,11 +104,19 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
     setMessage(text);
   };
 
+  const adoptSynchronizedTournament = () => {
+    const synchronized = readTournament();
+    setTournament(synchronized);
+    tournamentRef.current = synchronized;
+    return synchronized;
+  };
+
   const syncNow = async () => {
     setBusy('sync');
     setMessage('');
     try {
       await cloud.syncNow(tournamentRef.current);
+      adoptSynchronizedTournament();
       setNotice('ok', 'Tournament synchronized with the desktop/cloud workspace.');
     } catch (error: any) {
       setNotice('error', error?.message || 'Synchronization failed.');
@@ -122,6 +130,7 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
     setMessage('');
     try {
       await cloud.pullChanges(tournamentRef.current);
+      adoptSynchronizedTournament();
       setNotice('ok', 'Latest desktop/cloud revision checked.');
     } catch (error: any) {
       setNotice('error', error?.message || 'Could not check the latest revision.');
@@ -135,7 +144,9 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
     setMessage('');
     try {
       await cloud.syncNow(tournamentRef.current);
-      await cloud.publishOnline(tournamentRef.current);
+      const synchronized = adoptSynchronizedTournament();
+      await cloud.publishOnline(synchronized);
+      adoptSynchronizedTournament();
       setNotice('ok', 'Published to Chess-Publisher Online Hub.');
     } catch (error: any) {
       setNotice('error', error?.message || 'Online Hub publication failed.');
@@ -162,7 +173,7 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
     setMessage('');
     try {
       await cloud.syncNow(tournamentRef.current);
-      const current = tournamentRef.current;
+      const current = adoptSynchronizedTournament();
       const initial = buildChessResultsXml(current);
       let key = String(current.chessResults?.key || '').trim();
       let next = current;
@@ -220,6 +231,7 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
       tournamentRef.current = published;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(published));
       await cloud.syncNow(published);
+      adoptSynchronizedTournament();
       setNotice('ok', `Chess-Results TNR ${key} published and synchronized.`);
     } catch (error: any) {
       setNotice('error', error?.message || 'Chess-Results publication failed.');
@@ -252,8 +264,10 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
   const nav = [
     { id: 'setup' as const, label: 'Setup', icon: Settings2, detail: 'Tournament settings' },
     { id: 'players' as const, label: 'Players', icon: Users, detail: `${tournament.players.length} registered` },
-    { id: 'publish' as const, label: 'Publish', icon: Send, detail: 'Hub & Chess-Results' }
+    { id: 'publish' as const, label: 'Publish', icon: Send, detail: '2 publication targets' }
   ];
+
+  const publishBlocked = busy !== null || cloud.busy || cloud.conflict;
 
   return (
     <div className="companion-shell" data-companion-version="1">
@@ -336,50 +350,93 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
         )}
 
         {activeTab === 'publish' && (
-          <div className="companion-publish-grid">
-            <section className="companion-publish-card">
-              <div className="companion-publish-icon hub"><Cloud size={23} /></div>
-              <div className="companion-card-copy">
-                <span className="companion-eyebrow">CHESS-PUBLISHER</span>
-                <h2>Online Hub</h2>
-                <p>Publish the current synchronized tournament to the public Hub. The private Cloud Workspace remains the source of truth.</p>
+          <div className="companion-publish-stack">
+            <section className="companion-publish-command-panel">
+              <div className="companion-publish-command-head">
+                <div>
+                  <span className="companion-eyebrow">PUBLISH</span>
+                  <h1>Choose where to publish</h1>
+                  <p>Both actions first synchronize the tournament with the same Desktop/Cloud record, then publish that synchronized revision.</p>
+                </div>
+                <div className="companion-publish-revision">r{cloudRevision || 0}</div>
               </div>
-              <div className="companion-card-stats">
-                <span><small>Players</small><strong>{tournament.players.length}</strong></span>
-                <span><small>Cloud revision</small><strong>r{cloudRevision || 0}</strong></span>
-                <span><small>Public</small><strong>{publicHubUrl ? 'Linked' : 'Not yet'}</strong></span>
-              </div>
-              <div className="companion-card-actions">
-                <button type="button" className="companion-button primary wide" onClick={publishHub} disabled={busy !== null || cloud.busy || cloud.conflict}>
-                  <Send size={17} /> {busy === 'hub' ? 'Publishing…' : publicHubUrl ? 'Update Online Hub' : 'Publish Online Hub'}
+
+              <div className="companion-publish-command-grid">
+                <button
+                  type="button"
+                  data-publish-target="chess-results"
+                  className="companion-publish-command chessresults"
+                  onClick={publishChessResults}
+                  disabled={publishBlocked}
+                >
+                  <span className="companion-publish-command-icon"><Globe2 size={24} /></span>
+                  <span className="companion-publish-command-copy">
+                    <small>CHESS-RESULTS</small>
+                    <strong>{busy === 'cr-publish' ? 'Publishing…' : 'Publish to Chess-Results'}</strong>
+                    <em>{isTnr(tnr) ? `TNR ${tnr} · update existing tournament` : 'Create TNR automatically and publish'}</em>
+                  </span>
+                  <Send size={19} className="companion-publish-command-arrow" />
                 </button>
-                {publicHubUrl && <button type="button" className="companion-button secondary" onClick={() => cloud.openPublicPage(tournament)}><ExternalLink size={16} /> Open Hub page</button>}
+
+                <button
+                  type="button"
+                  data-publish-target="online-hub"
+                  className="companion-publish-command hub"
+                  onClick={publishHub}
+                  disabled={publishBlocked}
+                >
+                  <span className="companion-publish-command-icon"><Cloud size={24} /></span>
+                  <span className="companion-publish-command-copy">
+                    <small>CHESS-PUBLISHER</small>
+                    <strong>{busy === 'hub' ? 'Publishing…' : 'Publish to Online Hub'}</strong>
+                    <em>{publicHubUrl ? 'Update the existing public Hub tournament' : 'Create the public Hub tournament'}</em>
+                  </span>
+                  <Send size={19} className="companion-publish-command-arrow" />
+                </button>
               </div>
             </section>
 
-            <section className="companion-publish-card">
-              <div className="companion-publish-icon chessresults"><Globe2 size={23} /></div>
-              <div className="companion-card-copy">
-                <span className="companion-eyebrow">CHESS-RESULTS</span>
-                <h2>Chess-Results</h2>
-                <p>Secure server-side publication. Organizer Token authentication is reused; bridge secrets never enter the browser.</p>
-              </div>
-              <div className="companion-card-stats">
-                <span><small>TNR</small><strong>{isTnr(tnr) ? tnr : 'Automatic'}</strong></span>
-                <span><small>Players</small><strong>{tournament.players.length}</strong></span>
-                <span><small>Status</small><strong>{tournament.chessResults?.lastUpload ? 'Published' : 'Ready'}</strong></span>
-              </div>
-              <div className="companion-card-actions">
-                <button type="button" className="companion-button primary wide" onClick={publishChessResults} disabled={busy !== null || cloud.busy || cloud.conflict}>
-                  <Send size={17} /> {busy === 'cr-publish' ? 'Publishing…' : isTnr(tnr) ? 'Update Chess-Results' : 'Publish to Chess-Results'}
-                </button>
-                <button type="button" className="companion-button secondary" onClick={testChessResults} disabled={busy !== null}><ShieldCheck size={16} /> Test bridge</button>
-                {isTnr(tnr) && <>
-                  <a className="companion-button secondary" href={`https://chess-results.com/tnr${encodeURIComponent(tnr)}.aspx?lan=1`} target="_blank" rel="noreferrer"><ExternalLink size={16} /> Public page</a>
-                  <button type="button" className="companion-button secondary" onClick={openChessResultsAdmin} disabled={busy !== null}><Globe2 size={16} /> Admin</button>
-                </>}
-              </div>
-            </section>
+            <div className="companion-publish-details-grid">
+              <section className="companion-publish-card">
+                <div className="companion-publish-icon chessresults"><Globe2 size={23} /></div>
+                <div className="companion-card-copy">
+                  <span className="companion-eyebrow">CHESS-RESULTS STATUS</span>
+                  <h2>{isTnr(tnr) ? `TNR ${tnr}` : 'Not published yet'}</h2>
+                  <p>Secure server-side publication. Bridge credentials and AES material never enter the browser.</p>
+                </div>
+                <div className="companion-card-stats">
+                  <span><small>TNR</small><strong>{isTnr(tnr) ? tnr : 'Automatic'}</strong></span>
+                  <span><small>Players</small><strong>{tournament.players.length}</strong></span>
+                  <span><small>Status</small><strong>{tournament.chessResults?.lastUpload ? 'Published' : 'Ready'}</strong></span>
+                </div>
+                <div className="companion-card-actions">
+                  <button type="button" className="companion-button secondary" onClick={testChessResults} disabled={busy !== null}><ShieldCheck size={16} /> Test bridge</button>
+                  {isTnr(tnr) && <>
+                    <a className="companion-button secondary" href={`https://chess-results.com/tnr${encodeURIComponent(tnr)}.aspx?lan=1`} target="_blank" rel="noreferrer"><ExternalLink size={16} /> Public page</a>
+                    <button type="button" className="companion-button secondary" onClick={openChessResultsAdmin} disabled={busy !== null}><Globe2 size={16} /> Admin</button>
+                  </>}
+                </div>
+              </section>
+
+              <section className="companion-publish-card">
+                <div className="companion-publish-icon hub"><Cloud size={23} /></div>
+                <div className="companion-card-copy">
+                  <span className="companion-eyebrow">ONLINE HUB STATUS</span>
+                  <h2>{publicHubUrl ? 'Public tournament linked' : 'Not published yet'}</h2>
+                  <p>The public Hub is a publication target. Private Cloud Workspace remains the Desktop ↔ Web source of truth.</p>
+                </div>
+                <div className="companion-card-stats">
+                  <span><small>Players</small><strong>{tournament.players.length}</strong></span>
+                  <span><small>Cloud revision</small><strong>r{cloudRevision || 0}</strong></span>
+                  <span><small>Public</small><strong>{publicHubUrl ? 'Linked' : 'Ready'}</strong></span>
+                </div>
+                <div className="companion-card-actions">
+                  {publicHubUrl
+                    ? <button type="button" className="companion-button secondary" onClick={() => cloud.openPublicPage(tournament)}><ExternalLink size={16} /> Open Hub page</button>
+                    : <span className="companion-publish-ready-note"><CheckCircle2 size={15} /> Ready for first Hub publication</span>}
+                </div>
+              </section>
+            </div>
 
             <section className="companion-sync-card">
               <div><Smartphone size={20} /><span><strong>One tournament, every device</strong><small>Desktop and Web use the same private Cloud tournament identity and revision history.</small></span></div>
