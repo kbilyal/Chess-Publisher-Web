@@ -1,16 +1,16 @@
 import initSqlJs, { Database } from 'sql.js';
-import sqlWasmUrl from 'sql.js/dist/sql-wasm.wasm?url';
 import { FidePlayerRecord } from '../server/fide/types';
 import { generateTransliterationVariants } from '../server/fide/transliteration';
 
 const DATABASE_URL = '/fide/fide_ratings.sqlite';
+const SQL_WASM_URL = '/vendor/sql-wasm.wasm';
 let databasePromise: Promise<Database> | null = null;
 
 async function database() {
   if (!databasePromise) {
     databasePromise = (async () => {
       const [SQL, response] = await Promise.all([
-        initSqlJs({ locateFile: () => sqlWasmUrl }),
+        initSqlJs({ locateFile: () => SQL_WASM_URL }),
         fetch(DATABASE_URL, { cache: 'force-cache' })
       ]);
       if (!response.ok) throw new Error(`FIDE database HTTP ${response.status}`);
