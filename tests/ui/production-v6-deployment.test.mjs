@@ -3,15 +3,19 @@ import fs from 'node:fs';
 const cssPath = 'production-web/web/ui-v6-production.css';
 const lockPath = 'production-web/web/ui-v6-cascade-lock.css';
 const jsPath = 'production-web/web/ui-v6-production.js';
+const mobileCssPath = 'production-web/web/mobile-app-v7.css';
+const mobileJsPath = 'production-web/web/mobile-app-v7.js';
 const deployPath = '.github/workflows/deploy-web.yml';
 
-for (const path of [cssPath, lockPath, jsPath, deployPath]) {
+for (const path of [cssPath, lockPath, jsPath, mobileCssPath, mobileJsPath, deployPath]) {
   if (!fs.existsSync(path)) throw new Error(`Missing ${path}`);
 }
 
 const css = fs.readFileSync(cssPath, 'utf8');
 const lock = fs.readFileSync(lockPath, 'utf8');
 const js = fs.readFileSync(jsPath, 'utf8');
+const mobileCss = fs.readFileSync(mobileCssPath, 'utf8');
+const mobileJs = fs.readFileSync(mobileJsPath, 'utf8');
 const deploy = fs.readFileSync(deployPath, 'utf8');
 
 const requireText = (source, needle, message) => {
@@ -64,6 +68,27 @@ if (js.includes("['dgt', '♟', 'DGT']")) {
   throw new Error('DGT Boards must not be part of the Web navigation metadata.');
 }
 
+// Mobile App v7 loads through the already cache-busted production v6 script,
+// so desktop deployment architecture does not need a second injection path.
+requireText(js, 'Mobile App v7 is intentionally a separate presentation module', 'Mobile App v7 loader is missing from production UI bridge.');
+requireText(js, '/web/mobile-app-v7.css${query}', 'Mobile App v7 CSS loader is missing.');
+requireText(js, '/web/mobile-app-v7.js${query}', 'Mobile App v7 JS loader is missing.');
+requireText(mobileCss, 'Mobile App v7', 'Mobile App v7 CSS identity is missing.');
+requireText(mobileCss, 'grid-template-columns: repeat(5, minmax(0, 1fr))', 'Mobile App v7 five-slot navigation is missing.');
+requireText(mobileCss, '.cp-mobile-more-sheet', 'Mobile App v7 More sheet is missing.');
+requireText(mobileCss, 'left: -10000px !important', 'Legacy phone tab strip is not moved off-canvas.');
+requireText(mobileJs, "root.dataset.cpMobileApp = '7'", 'Mobile App v7 runtime marker is missing.');
+requireText(mobileJs, "label: 'Setup'", 'Mobile App v7 Setup navigation is missing.');
+requireText(mobileJs, "label: 'Players'", 'Mobile App v7 Players navigation is missing.');
+requireText(mobileJs, "label: 'Pairings'", 'Mobile App v7 Pairings navigation is missing.');
+requireText(mobileJs, "label: 'Standings'", 'Mobile App v7 Standings navigation is missing.');
+requireText(mobileJs, "label: 'Online & Cloud'", 'Mobile App v7 Online & Cloud navigation is missing.');
+requireText(mobileJs, 'window.showTab(legacyId, tab)', 'Mobile App v7 must delegate to the existing showTab implementation.');
+requireText(mobileJs, 'tab.click()', 'Mobile App v7 existing-tab fallback is missing.');
+if (/tabDgt|DGT Boards|label:\s*['"]DGT/i.test(mobileJs)) {
+  throw new Error('DGT must not appear in Mobile App v7.');
+}
+
 if (/span\.textContent\s*=\s*icon/.test(js)) {
   throw new Error('Presentation icon text must not alter legacy tab labels.');
 }
@@ -71,12 +96,12 @@ if (/span\.textContent\s*=\s*icon/.test(js)) {
 const forbiddenJs = [
   /\.remove\s*\(/,
   /\.innerHTML\s*=\s*['"`]\s*<[^>]*class=["'][^"']*tab/,
-  /window\.showTab\s*=/,
+  /window\.showTab\s*=(?!=)/,
   /window\.(?:generate|pair|pairings|exportTRF|exportTrf|chessResults|cloudSync)\w*\s*=/i,
   /Gacrux|bbpPairings|pairingchecker\.py/
 ];
 for (const pattern of forbiddenJs) {
-  if (pattern.test(js)) throw new Error(`Presentation bridge crosses protected boundary: ${pattern}`);
+  if (pattern.test(js) || pattern.test(mobileJs)) throw new Error(`Presentation bridge crosses protected boundary: ${pattern}`);
 }
 
 const forbiddenFunctionalHide = [
@@ -98,4 +123,4 @@ requireText(deploy, '/web/ui-v6-production.js?v=${GITHUB_SHA}', 'Deploy artifact
 requireText(deploy, 'cp -R production-web/. dist/', 'Canonical production-web source must remain the deployment base.');
 requireText(deploy, "! grep -q 'src/main.tsx' dist/index.html", 'Deploy boundary must continue blocking raw Vite source entry.');
 
-console.log('PASS production UI v6 deployment contract');
+console.log('PASS production UI v6 + Mobile App v7 deployment contract');
