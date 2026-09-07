@@ -13,9 +13,11 @@
   const ORGANIZER_SECRET_KEY="organizer-primary";
   const CANONICAL_WEB_ORIGIN="https://web.chess-publisher.org";
   const CUSTOM_ENGINE_BASE="https://engine.chess-publisher.org";
+  const ENGINE_RELAY_BASE="https://chess-publisher-chess-results.kyamranbilyal.workers.dev";
   const DIRECT_ENGINE_BASE="https://chess-publisher-web-engine.kyamranbilyal.workers.dev";
   const ENGINE_BASE=location.origin===CANONICAL_WEB_ORIGIN?CUSTOM_ENGINE_BASE:DIRECT_ENGINE_BASE;
   const ENGINE_PREFIX=`${ENGINE_BASE}/api/engine`;
+  const ENGINE_RELAY_PREFIX=`${ENGINE_RELAY_BASE}/api/engine-relay`;
   const BACKEND_UNAVAILABLE="Chess-Publisher Web engine is unavailable. Pairing was not generated.";
   const nativeFetch=typeof window.fetch==="function"?window.fetch.bind(window):null;
 
@@ -64,6 +66,15 @@
     return "";
   }
 
+  function transportDetail(error){
+    return String(error?.message||error||"network request failed").trim();
+  }
+
+  function relayUrl(primary){
+    const prefix=`${CUSTOM_ENGINE_BASE}/api/engine`;
+    return primary.startsWith(prefix)?primary.replace(prefix,ENGINE_RELAY_PREFIX):"";
+  }
+
   async function engineFetch(path,options={}){
     if(!nativeFetch)throw new Error(BACKEND_UNAVAILABLE);
     const token=await organizerToken();
@@ -80,21 +91,45 @@
     }catch(primaryError){
       const canFallback=location.origin===CANONICAL_WEB_ORIGIN&&primary.startsWith(CUSTOM_ENGINE_BASE);
       if(canFallback){
+        const primaryDetail=transportDetail(primaryError);
+        const relay=relayUrl(primary);
+        let relayError=null;
+        if(relay){
+          try{
+            const response=await nativeFetch(relay,requestOptions);
+            if(response.status===404||response.status===405)throw new Error(`HTTP ${response.status}`);
+            host.nativeTransportError={origin:location.origin,primary,primaryDetail,relay,usedRelay:true,usedFallback:true};
+            console.warn("Chess-Publisher Web engine custom-domain transport failed; authenticated service relay succeeded",host.nativeTransportError);
+            return response;
+          }catch(error){
+            relayError=error;
+          }
+        }
+
         const fallback=primary.replace(CUSTOM_ENGINE_BASE,DIRECT_ENGINE_BASE);
         try{
           const response=await nativeFetch(fallback,requestOptions);
-          host.nativeTransportError={origin:location.origin,primary,primaryDetail:String(primaryError?.message||primaryError||"network request failed"),fallback,usedFallback:true};
-          console.warn("Chess-Publisher Web engine custom-domain transport failed; direct Worker fallback succeeded",host.nativeTransportError);
+          host.nativeTransportError={
+            origin:location.origin,
+            primary,
+            primaryDetail,
+            relay,
+            relayDetail:relayError?transportDetail(relayError):"not attempted",
+            fallback,
+            usedRelay:false,
+            usedFallback:true
+          };
+          console.warn("Chess-Publisher Web engine custom-domain and relay transports failed; direct Worker fallback succeeded",host.nativeTransportError);
           return response;
         }catch(fallbackError){
-          const primaryDetail=String(primaryError?.message||primaryError||"network request failed").trim();
-          const fallbackDetail=String(fallbackError?.message||fallbackError||"network request failed").trim();
-          host.nativeTransportError={origin:location.origin,primary,primaryDetail,fallback,fallbackDetail,usedFallback:false};
+          const relayDetail=relayError?transportDetail(relayError):"not attempted";
+          const fallbackDetail=transportDetail(fallbackError);
+          host.nativeTransportError={origin:location.origin,primary,primaryDetail,relay,relayDetail,fallback,fallbackDetail,usedRelay:false,usedFallback:false};
           console.warn("Chess-Publisher Web engine transports failed",host.nativeTransportError);
-          throw new Error(`${BACKEND_UNAVAILABLE} Transport: custom=${primaryDetail}; direct=${fallbackDetail}`);
+          throw new Error(`${BACKEND_UNAVAILABLE} Transport: custom=${primaryDetail}; relay=${relayDetail}; direct=${fallbackDetail}`);
         }
       }
-      const detail=String(primaryError?.message||primaryError||"network request failed").trim();
+      const detail=transportDetail(primaryError);
       host.nativeTransportError={origin:location.origin,endpoint:primary,detail};
       console.warn("Chess-Publisher Web engine transport failed",host.nativeTransportError);
       throw new Error(`${BACKEND_UNAVAILABLE} Transport: ${detail}`);
