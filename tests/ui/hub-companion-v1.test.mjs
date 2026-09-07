@@ -3,11 +3,13 @@ import fs from 'node:fs';
 
 const app = fs.readFileSync('src/App.tsx', 'utf8');
 const workspace = fs.readFileSync('src/companion/CompanionWorkspace.tsx', 'utf8');
+const setup = fs.readFileSync('src/companion/CompanionSetup.tsx', 'utf8');
 const registration = fs.readFileSync('src/companion/CompanionRegistration.tsx', 'utf8');
 const main = fs.readFileSync('src/main.tsx', 'utf8');
 const css = fs.readFileSync('src/companion.css', 'utf8');
 const publishCss = fs.readFileSync('src/companion-publish-v2.css', 'utf8');
 const registrationCss = fs.readFileSync('src/companion-registration.css', 'utf8');
+const setupCss = fs.readFileSync('src/companion-setup.css', 'utf8');
 const sync = fs.readFileSync('src/cloud/onlineCloudSync.ts', 'utf8');
 const cloudApi = fs.readFileSync('src/cloud/cloudWorkspaceApi.ts', 'utf8');
 const hubApi = fs.readFileSync('src/cloud/hubApi.ts', 'utf8');
@@ -20,7 +22,8 @@ has(app, 'useOnlineCloud()', 'Production App must obtain the authoritative Cloud
 has(app, '<CompanionWorkspace cloud={cloud}', 'Production App must delegate presentation to the focused Companion workspace.');
 
 has(workspace, "type CompanionTab = 'setup' | 'players' | 'publish'", 'Web Companion must expose only Setup, Players and Publish workspaces.');
-has(workspace, '<TournamentSetupTab', 'Tournament Setup must remain available.');
+has(workspace, '<CompanionSetup', 'Focused Tournament Setup workspace must remain available.');
+lacks(workspace, '<TournamentSetupTab', 'Desktop Tournament Setup workspace must not be embedded in the focused Web Companion.');
 has(workspace, '<CompanionRegistration', 'Focused Player Registration workspace must remain available.');
 lacks(workspace, '<PlayersTab', 'Desktop Players workspace must not be embedded in the focused Web Companion.');
 has(workspace, 'publishChessResults', 'Chess-Results publication must remain available.');
@@ -30,6 +33,13 @@ has(workspace, 'cloud.pullChanges', 'Desktop changes must be pullable into Web.'
 has(workspace, "window.addEventListener('focus'", 'Returning to the browser must trigger a desktop/cloud revision check.');
 has(workspace, 'companion-mobile-nav', 'Mobile must use a dedicated app navigation surface.');
 has(workspace, '>Tournaments</span>', 'Mobile must provide a direct return to synchronized tournament list.');
+
+has(setup, "updateSetting('country'", 'Focused setup must edit the tournament federation on the same Tournament object.');
+has(setup, 'changeFormat', 'Focused setup must preserve tournament format/pairing-system linkage.');
+has(setup, 'changeTimeControlPreset', 'Focused setup must preserve time-control/rating-type linkage.');
+has(setup, 'generalRegistrationDeadline', 'Focused setup must retain registration timing metadata.');
+has(setup, 'chiefArbiter', 'Focused setup must retain official tournament staff metadata.');
+has(setup, 'Additional regulations', 'Focused setup must retain public regulations text.');
 
 has(registration, '/api/fide/search', 'Registration must retain FIDE search.');
 has(registration, 'executeRegisterPlayerTransaction', 'Registration must reuse protected player registration transactions.');
@@ -57,6 +67,7 @@ for (const removedView of [
 has(main, "import './companion.css';", 'Companion responsive design must be loaded.');
 has(main, "import './companion-publish-v2.css';", 'Two-target publication design must be loaded.');
 has(main, "import './companion-registration.css';", 'Focused registration design must be loaded.');
+has(main, "import './companion-setup.css';", 'Focused setup design must be loaded.');
 lacks(main, "ui-v6-approved.css", 'Legacy UI v6 shell must not be loaded by the new React Companion.');
 
 has(css, '--cp-sidebar: 248px', 'Desktop Companion sidebar is missing.');
@@ -70,6 +81,9 @@ has(publishCss, 'touch-action: manipulation', 'Mobile publication buttons must b
 has(registrationCss, '@media (max-width: 640px)', 'Registration must have a dedicated phone layout.');
 has(registrationCss, 'grid-template-areas:', 'Registration rows must reflow instead of horizontally overflowing on phones.');
 has(registrationCss, 'font-size: 16px', 'Mobile registration inputs must avoid browser zoom and remain finger-friendly.');
+has(setupCss, '@media (max-width: 640px)', 'Setup must have a dedicated phone layout.');
+has(setupCss, 'grid-template-columns: 1fr', 'Setup fields must collapse to one column on phones.');
+has(setupCss, 'font-size: 16px', 'Mobile setup inputs must avoid browser zoom and remain finger-friendly.');
 
 has(sync, 'Desktop beta.4 contract', 'Shared Desktop/Web tournament identity contract must remain present.');
 has(sync, "export type ThreeWayDecision = 'equal' | 'cloud-only' | 'local-only' | 'conflict'", 'Three-way sync conflict protection must remain authoritative.');
@@ -81,4 +95,4 @@ has(cloudApi, "'X-Expected-Revision'", 'Cloud optimistic revision guard is missi
 has(hubApi, 'publishOwnedTournament', 'Organizer-owned Online Hub publication API is missing.');
 has(chessApi, '/api/chess-results/', 'Chess-Results must remain behind the server-side product API.');
 
-console.log('PASS Hub Companion v1 contract: Setup + focused Registration + exactly two guarded publication targets, shared Desktop identity, responsive mobile/desktop shell and secure publication paths.');
+console.log('PASS Hub Companion v1 contract: focused Setup + Registration + exactly two guarded publication targets, shared Desktop identity, responsive mobile/desktop shell and secure publication paths.');
