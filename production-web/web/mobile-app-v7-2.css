@@ -1,0 +1,100 @@
+/* Chess-Publisher Web · Mobile App v7.2 visual polish · September 2026
+ * Presentation-only overrides. Existing tournament handlers and data stay authoritative.
+ */
+
+@media (max-width: 768px) {
+  /* Legacy brand-overhaul adds a 42px gradient marker before every active page.
+   * It reads as a stray line in the app layout, so remove it only on phones. */
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #appWindow > .content > .page.active::before {
+    content: none !important;
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: none !important;
+  }
+
+  /* Mobile app bar: show a stable product title instead of the long desktop
+   * document/window caption. The tournament name remains in the utility row. */
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #windowDocumentTitle {
+    font-size: 0 !important;
+    line-height: 1 !important;
+    min-width: 94px !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #windowDocumentTitle::before {
+    content: "Chess-Publisher" !important;
+    color: #17233a !important;
+    font-size: 12.5px !important;
+    font-weight: 850 !important;
+    letter-spacing: -.015em !important;
+  }
+
+  /* Minimize/maximize/close are desktop-window chrome and are not useful in a
+   * browser app. Keep the real Save action and Autosave control visible. */
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .window-controls button:not(.titlebar-save) {
+    display: none !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .window-controls .titlebar-save {
+    min-width: 58px !important;
+    width: 58px !important;
+    min-height: 32px !important;
+    height: 32px !important;
+    border-radius: 9px !important;
+    font-size: 10.5px !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .autosave-switch {
+    font-size: 9px !important;
+  }
+
+  /* Data grids should scroll inside their own card rather than being clipped by
+   * the page-level overflow guard. This preserves every column on small phones. */
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .table-frame,
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .table-wrap,
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .table-container {
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .table-frame > table,
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .table-wrap > table,
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .table-container > table {
+    width: max-content !important;
+    min-width: 100% !important;
+    max-width: none !important;
+  }
+
+  /* Keep modal/dialog surfaces within the visual viewport and above bottom nav. */
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] dialog {
+    box-sizing: border-box !important;
+    max-width: calc(100vw - 16px) !important;
+    max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+  }
+
+  /* Avoid generic desktop hover/active transforms shifting touch controls. */
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .cp-mobile-nav-item:active,
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .cp-mobile-more-item:active {
+    transform: none !important;
+  }
+}
+
+@media (max-width: 340px) {
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #windowDocumentTitle {
+    min-width: 84px !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #windowDocumentTitle::before {
+    font-size: 11.5px !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .window-controls .titlebar-save {
+    min-width: 52px !important;
+    width: 52px !important;
+  }
+}
