@@ -9,6 +9,7 @@ import {
   executeRegisterPlayerTransaction,
   isStartingRankLocked
 } from '../transactions/playerWorkflow';
+import { searchFideBrowserDatabase } from './fideBrowserDatabase';
 
 interface Props {
   tournament: Tournament;
@@ -19,6 +20,21 @@ type Notice = { kind: 'ok' | 'warn' | 'error'; text: string } | null;
 
 const ratingFor = (record: FidePlayerRecord, type: 'Standard' | 'Rapid' | 'Blitz') =>
   type === 'Rapid' ? Number(record.ratingRapid || 0) : type === 'Blitz' ? Number(record.ratingBlitz || 0) : Number(record.ratingStandard || 0);
+
+async function searchFidePlayers(query: string, ratingType: 'Standard' | 'Rapid' | 'Blitz') {
+  try {
+    const response = await fetch(`/api/fide/search?limit=20&tournamentType=${encodeURIComponent(ratingType)}&filterRating=all&q=${encodeURIComponent(query)}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const payload = await response.json();
+    if (Array.isArray(payload?.players)) return { players: payload.players as FidePlayerRecord[], source: 'service' as const };
+  } catch {
+    // Static production is intentionally allowed to fall through to the same
+    // official SQLite database shipped with the Web artifact. This keeps
+    // registration functional without introducing a second player-data source.
+  }
+  const players = await searchFideBrowserDatabase(query, ratingType, 20);
+  return { players, source: 'static-db' as const };
+}
 
 export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTournament }) => {
   const [query, setQuery] = useState('');
@@ -51,11 +67,10 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
     setSearching(true);
     debounceRef.current = window.setTimeout(async () => {
       try {
-        const response = await fetch(`/api/fide/search?limit=20&tournamentType=${encodeURIComponent(ratingType)}&filterRating=all&q=${encodeURIComponent(q)}`);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const payload = await response.json();
-        setResults(Array.isArray(payload?.players) ? payload.players : []);
-        if (!payload?.players?.length) setNotice({ kind: 'warn', text: 'No FIDE players found. You can add the player manually.' });
+        const result = await searchFidePlayers(q, ratingType);
+        setResults(result.players);
+        if (!result.players.length) setNotice({ kind: 'warn', text: 'No FIDE players found. You can add the player manually.' });
+        else if (result.source === 'static-db') setNotice({ kind: 'ok', text: 'FIDE search is using the locally cached official rating database.' });
       } catch {
         setResults([]);
         setNotice({ kind: 'warn', text: 'FIDE search is unavailable. Manual registration remains available.' });
