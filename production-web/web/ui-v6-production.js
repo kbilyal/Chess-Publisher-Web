@@ -103,13 +103,19 @@
     }
 
     $$('.tabs .tab').forEach(tab => {
-      if (tab.querySelector('.cpv6-prod-tab-icon')) return;
-      const [, icon] = tabMeta(tab);
-      const span = document.createElement('span');
-      span.className = 'cpv6-prod-tab-icon';
-      span.setAttribute('aria-hidden', 'true');
-      span.textContent = icon;
-      tab.prepend(span);
+      const [, icon, shortLabel] = tabMeta(tab);
+      tab.dataset.cpv6MobileLabel = shortLabel;
+      let span = tab.querySelector('.cpv6-prod-tab-icon');
+      if (!span) {
+        span = document.createElement('span');
+        span.className = 'cpv6-prod-tab-icon';
+        span.setAttribute('aria-hidden', 'true');
+        tab.prepend(span);
+      }
+      // Keep the real tab textContent unchanged so every legacy tab handler keeps
+      // receiving exactly the same label as before the UI presentation layer.
+      span.dataset.cpv6Icon = icon;
+      span.textContent = '';
     });
   }
 
