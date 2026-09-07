@@ -35,6 +35,10 @@ requireText(js, 'window.showTab(legacyId, tab)', 'Mobile navigation must delegat
 requireText(js, 'tab.click()', 'Existing tab button fallback is missing.');
 requireText(js, 'friendlyDisabledMessage', 'Disabled tournament stages need user feedback.');
 requireText(js, 'Add players first. Pairings will unlock automatically.', 'Pairings disabled feedback is missing.');
+requireText(js, 'normalizeEscapedDialogText', 'Escaped newline cleanup for mobile dialogs is missing.');
+requireText(js, 'NodeFilter.SHOW_TEXT', 'Mobile dialog cleanup must sanitize rendered text nodes only.');
+requireText(js, "style.setProperty('white-space', 'pre-line')", 'Cleaned mobile dialog line breaks are not rendered as paragraphs.');
+requireText(js, 'watchDialogText();', 'Mobile dialog cleanup observer is not started.');
 
 if (/tabDgt|DGT Boards|label:\s*['"]DGT/i.test(js)) {
   throw new Error('DGT must not appear in the Web mobile navigation.');
@@ -54,4 +58,4 @@ requireText(bridge, 'Mobile App v7 is intentionally a separate presentation modu
 requireText(bridge, 'link.href = `/web/mobile-app-v7.css${query}`', 'Cache-busted Mobile App v7 CSS loading is missing.');
 requireText(bridge, 'script.src = `/web/mobile-app-v7.js${query}`', 'Cache-busted Mobile App v7 JS loading is missing.');
 
-console.log('PASS Mobile App v7 presentation contract: five-slot app navigation, More sheet, disabled-state feedback, DGT excluded, protected logic untouched.');
+console.log('PASS Mobile App v7 presentation contract: five-slot app navigation, More sheet, disabled-state feedback, dialog text cleanup, DGT excluded, protected logic untouched.');
