@@ -15,11 +15,10 @@ import {
 } from 'lucide-react';
 import { Tournament } from '../types';
 import { createInitialEmptyTournament } from '../data/initialData';
-import { TournamentSetupTab } from '../components/TournamentSetupTab';
-import { TieBreakSettingsModal } from '../components/TieBreakSettingsModal';
 import { chessResultsApi } from '../chessResults/api';
 import { buildChessResultsXml } from '../chessResults/publication';
 import { CompanionRegistration } from './CompanionRegistration';
+import { CompanionSetup } from './CompanionSetup';
 
 const STORAGE_KEY = 'fide_tournament_manager_v2';
 type CompanionTab = 'setup' | 'players' | 'publish';
@@ -58,7 +57,6 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
   const [busy, setBusy] = useState<BusyAction>(null);
   const [message, setMessage] = useState('');
   const [messageKind, setMessageKind] = useState<'ok' | 'warn' | 'error'>('ok');
-  const [tieBreakSettings, setTieBreakSettings] = useState<string | null>(null);
   const tournamentRef = useRef(tournament);
 
   useEffect(() => { tournamentRef.current = tournament; }, [tournament]);
@@ -260,7 +258,7 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
   };
 
   const nav = [
-    { id: 'setup' as const, label: 'Setup', icon: Settings2, detail: 'Tournament settings' },
+    { id: 'setup' as const, label: 'Setup', icon: Settings2, detail: `${setupProgress}% complete` },
     { id: 'players' as const, label: 'Players', icon: Users, detail: `${tournament.players.length} registered` },
     { id: 'publish' as const, label: 'Publish', icon: Send, detail: '2 publication targets' }
   ];
@@ -328,12 +326,8 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
         )}
 
         {activeTab === 'setup' && (
-          <div className="companion-content-frame">
-            <div className="companion-section-head">
-              <div><span className="companion-eyebrow">SETUP</span><h1>Tournament setup</h1><p>Only tournament metadata is edited here. Pairing, TRF and desktop engines remain untouched.</p></div>
-              <div className="companion-progress"><strong>{setupProgress}%</strong><span>complete</span></div>
-            </div>
-            <TournamentSetupTab tournament={tournament} onUpdateTournament={updateTournament} onOpenTieBreakSettings={setTieBreakSettings} />
+          <div className="companion-content-frame companion-setup-frame">
+            <CompanionSetup tournament={tournament} onUpdateTournament={updateTournament} />
           </div>
         )}
 
@@ -451,10 +445,6 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
         })}
         <button type="button" onClick={leaveTournament}><ArrowLeft size={21} /><span>Tournaments</span></button>
       </nav>
-
-      {tieBreakSettings !== null && (
-        <TieBreakSettingsModal tournament={tournament} tieBreakName={tieBreakSettings} onClose={() => setTieBreakSettings(null)} onUpdateTournament={updateTournament} />
-      )}
     </div>
   );
 }
