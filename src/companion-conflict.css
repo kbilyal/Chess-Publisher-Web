@@ -1,0 +1,57 @@
+/* Companion conflict UX: keep the safety gate visible and actionable on phone.
+ * Logic lives in companionCloudActions.ts; this file is presentation only. */
+
+.companion-conflict-alert {
+  align-items: center;
+}
+
+.companion-conflict-copy {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.companion-conflict-action {
+  flex: 0 0 auto;
+  margin-left: auto;
+  border-color: #dec477;
+  color: #6f5312;
+  background: #fffdf6;
+}
+
+.companion-conflict-action:hover:not(:disabled) {
+  border-color: #c9a947;
+  background: #fff9e8;
+}
+
+@media (max-width: 768px) {
+  .companion-conflict-alert {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr);
+    align-items: start;
+    gap: 8px 10px;
+    padding: 13px;
+  }
+
+  .companion-conflict-copy {
+    display: grid;
+    gap: 4px;
+  }
+
+  .companion-conflict-copy strong {
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .companion-conflict-copy span {
+    font-size: 10px;
+    line-height: 1.5;
+  }
+
+  .companion-conflict-action {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-height: 46px;
+    margin: 3px 0 0;
+    touch-action: manipulation;
+  }
+}
