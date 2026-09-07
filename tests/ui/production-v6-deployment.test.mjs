@@ -31,6 +31,9 @@ requireText(lock, '#appWindow > .tabs::before', 'Legacy workspace pseudo-label c
 requireText(lock, 'content: none !important', 'Legacy workspace pseudo-label can still render.');
 requireText(lock, 'html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #appWindow > .titlebar', 'Production shell titlebar is not locked to v6.');
 requireText(lock, 'grid-template-columns: 252px minmax(0, 1fr)', 'Desktop shell grid is not locked to approved v6 width.');
+requireText(lock, '@media (min-width: 769px) and (max-width: 1099px)', 'Compact desktop breakpoint must keep the left navigation rail.');
+requireText(lock, 'grid-template-columns: 232px minmax(0, 1fr)', 'Compact desktop shell must retain a usable left navigation rail.');
+requireText(lock, '.cpv6-prod-sidebar-footer', 'Compact desktop sidebar chrome restoration is missing.');
 requireText(lock, 'background: rgba(255,255,255,.98)', 'Mobile shell is not locked to the approved white surface.');
 requireText(lock, '#appWindow > .tabs > .tab > *', 'Mobile tab child hit-target protection is missing.');
 requireText(lock, 'pointer-events: none !important', 'Mobile tab children can still intercept taps.');
