@@ -4,11 +4,11 @@ on:
     paths:
       - 'src/App.tsx'
       - 'src/companion/**'
-      - 'src/components/TournamentSetupTab.tsx'
       - 'src/index.css'
       - 'src/companion.css'
       - 'src/companion-publish-v2.css'
       - 'src/companion-registration.css'
+      - 'src/companion-setup.css'
       - 'src/main.tsx'
       - 'tests/ui/hub-companion-v1.test.mjs'
       - '.github/workflows/ui-v6-preview.yml'
@@ -53,14 +53,16 @@ jobs:
           import './src/companion.css';
           import './src/companion-publish-v2.css';
           import './src/companion-registration.css';
+          import './src/companion-setup.css';
 
           const tournament: any = createInitialEmptyTournament('Desktop Sync · Rhodopes Open 2026');
           tournament.settings.country = 'BUL';
           tournament.settings.city = 'Kardzhali';
-          tournament.settings.startDate = '2026-10-10';
-          tournament.settings.endDate = '2026-10-11';
+          tournament.settings.startDate = '2026-10-10T09:00';
+          tournament.settings.endDate = '2026-10-11T18:00';
           tournament.settings.rounds = '7';
           tournament.settings.timeControl = '15+5';
+          tournament.settings.timeControlPreset = '15+5';
           tournament.settings.tournamentType = 'test';
           tournament.cloud = { schemaVersion: 4, internalId: 'hub-preview-1', cloudTournamentId: 'cloud-preview-1', baseRevision: 12 };
           tournament.online = { hubTournamentId: 'hub-preview-1', publicSlug: 'rhodopes-open', publicPageUrl: 'https://chess-publisher.org/tournaments?id=rhodopes-open', revision: 4 };
@@ -84,7 +86,7 @@ jobs:
           done
           cat /tmp/cp-companion-vite.log
           exit 1
-      - name: Verify desktop/mobile registration and two publish actions
+      - name: Verify desktop/mobile Setup, Registration and two publish actions
         run: |
           mkdir -p hub-companion-preview
           cat > capture-companion.mjs <<'EOF'
@@ -103,13 +105,20 @@ jobs:
             return page;
           }
 
-          async function verifyPublish(page, label) {
-            const targets = page.locator('[data-publish-target]');
-            if (await targets.count() !== 2) throw new Error(`${label}: expected exactly two primary publish buttons.`);
-            if (!await page.locator('[data-publish-target="chess-results"]').isVisible()) throw new Error(`${label}: Chess-Results publish button missing.`);
-            if (!await page.locator('[data-publish-target="online-hub"]').isVisible()) throw new Error(`${label}: Online Hub publish button missing.`);
-            if (!await page.getByText('Publish to Chess-Results', { exact: true }).count()) throw new Error(`${label}: Chess-Results label missing.`);
-            if (!await page.getByText('Publish to Online Hub', { exact: true }).count()) throw new Error(`${label}: Online Hub label missing.`);
+          async function assertNoOverflow(page, label) {
+            const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+            if (overflow > 1) throw new Error(`${label}: horizontal overflow ${overflow}px.`);
+          }
+
+          async function verifySetup(page, label) {
+            if (!await page.getByText('TOURNAMENT SETUP', { exact: true }).count()) throw new Error(`${label}: focused Setup surface missing.`);
+            const city = page.getByLabel('City *');
+            if (!await city.count()) throw new Error(`${label}: City field missing.`);
+            await city.fill('Nedelino');
+            if (await city.inputValue() !== 'Nedelino') throw new Error(`${label}: Setup edit failed.`);
+            if (!await page.getByLabel('Format *').count()) throw new Error(`${label}: tournament format control missing.`);
+            if (!await page.getByLabel('Time control *').count()) throw new Error(`${label}: time-control control missing.`);
+            await assertNoOverflow(page, `${label} setup`);
           }
 
           async function verifyRegistration(page, label) {
@@ -119,7 +128,6 @@ jobs:
             await page.getByRole('button', { name: /Manual player/ }).click();
             const form = page.locator('.companion-manual-form');
             await form.locator('input').nth(0).fill('Preview New Player');
-            await form.locator('input').nth(1).fill('');
             await form.locator('input').nth(2).fill('BUL');
             await form.locator('input').nth(3).fill('1760');
             await page.getByRole('button', { name: /Register player/ }).click();
@@ -127,10 +135,23 @@ jobs:
             if (!await page.getByText('Preview New Player', { exact: true }).count()) throw new Error(`${label}: manual registration did not reach roster.`);
             const after = await page.locator('.companion-roster-row').count();
             if (after !== before + 1) throw new Error(`${label}: roster count did not increase after registration.`);
+            await assertNoOverflow(page, `${label} registration`);
+          }
+
+          async function verifyPublish(page, label) {
+            const targets = page.locator('[data-publish-target]');
+            if (await targets.count() !== 2) throw new Error(`${label}: expected exactly two primary publish buttons.`);
+            if (!await page.locator('[data-publish-target="chess-results"]').isVisible()) throw new Error(`${label}: Chess-Results publish button missing.`);
+            if (!await page.locator('[data-publish-target="online-hub"]').isVisible()) throw new Error(`${label}: Online Hub publish button missing.`);
+            if (!await page.getByText('Publish to Chess-Results', { exact: true }).count()) throw new Error(`${label}: Chess-Results label missing.`);
+            if (!await page.getByText('Publish to Online Hub', { exact: true }).count()) throw new Error(`${label}: Online Hub label missing.`);
+            await assertNoOverflow(page, `${label} publish`);
           }
 
           const desktop = await open({ width: 1440, height: 960 });
           if (!await desktop.locator('.companion-sidebar').isVisible()) throw new Error('Desktop sidebar is not visible.');
+          await verifySetup(desktop, 'desktop');
+          await desktop.screenshot({ path: 'hub-companion-preview/desktop-setup.png', fullPage: true });
           await desktop.getByRole('button', { name: /Players/ }).first().click();
           await desktop.waitForTimeout(200);
           await verifyRegistration(desktop, 'desktop');
@@ -147,17 +168,15 @@ jobs:
             if (!await nav.isVisible()) throw new Error(`Mobile bottom navigation missing at ${width}px.`);
             const labels = await nav.locator('button span').allTextContents();
             if (labels.join('|') !== 'Setup|Players|Publish|Tournaments') throw new Error(`Unexpected mobile navigation: ${labels.join('|')}`);
+            await verifySetup(page, name);
+            await page.screenshot({ path: `hub-companion-preview/${name}-setup.png`, fullPage: true });
             await nav.getByRole('button', { name: /Players/ }).click();
             await page.waitForTimeout(180);
             await verifyRegistration(page, name);
-            const registrationOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-            if (registrationOverflow > 1) throw new Error(`${name}: registration horizontal overflow ${registrationOverflow}px.`);
             await page.screenshot({ path: `hub-companion-preview/${name}-registration.png`, fullPage: true });
             await nav.getByRole('button', { name: /Publish/ }).click();
             await page.waitForTimeout(180);
             await verifyPublish(page, name);
-            const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-            if (overflow > 1) throw new Error(`Horizontal overflow ${overflow}px at ${width}px.`);
             await page.screenshot({ path: `hub-companion-preview/${name}-publish.png`, fullPage: true });
           }
           await browser.close();
