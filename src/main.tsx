@@ -7,6 +7,7 @@ import './index.css';
 import './companion.css';
 import './companion-publish-v2.css';
 import './companion-registration.css';
+import './companion-setup.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
