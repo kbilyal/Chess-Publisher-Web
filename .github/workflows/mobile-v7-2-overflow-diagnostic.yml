@@ -62,25 +62,35 @@ jobs:
           });
           await page.waitForFunction(()=>document.documentElement.dataset.cpMobileVisualHunt==='7.2');
           await page.waitForTimeout(350);
-          const report=await page.evaluate(()=>{
-            const active=document.querySelector('#appWindow > .content > .page.active');
-            const ar=active.getBoundingClientRect();
-            const rows=[];
-            for(const el of active.querySelectorAll('*')){
-              const cs=getComputedStyle(el); if(cs.display==='none'||cs.visibility==='hidden') continue;
-              const r=el.getBoundingClientRect();
-              const overflowRight=r.right-ar.right;
-              const internal=el.scrollWidth-el.clientWidth;
-              if(overflowRight>1 || internal>20){
-                rows.push({tag:el.tagName,id:el.id||'',cls:String(el.className||'').slice(0,120),text:(el.textContent||'').trim().replace(/\s+/g,' ').slice(0,90),left:Math.round(r.left),right:Math.round(r.right),width:Math.round(r.width),client:el.clientWidth,scroll:el.scrollWidth,overflowRight:Math.round(overflowRight),overflowX:cs.overflowX,whiteSpace:cs.whiteSpace,minWidth:cs.minWidth,widthCss:cs.width});
+
+          async function report(label) {
+            const result=await page.evaluate(()=>{
+              const active=document.querySelector('#appWindow > .content > .page.active');
+              const ar=active.getBoundingClientRect();
+              const rows=[];
+              for(const el of active.querySelectorAll('*')){
+                const cs=getComputedStyle(el); if(cs.display==='none'||cs.visibility==='hidden') continue;
+                const r=el.getBoundingClientRect();
+                const overflowRight=r.right-ar.right;
+                const overflowLeft=ar.left-r.left;
+                const internal=el.scrollWidth-el.clientWidth;
+                if(overflowRight>1 || overflowLeft>1 || internal>20){
+                  rows.push({tag:el.tagName,id:el.id||'',cls:String(el.className||'').slice(0,140),text:(el.textContent||'').trim().replace(/\s+/g,' ').slice(0,110),left:Math.round(r.left),right:Math.round(r.right),width:Math.round(r.width),client:el.clientWidth,scroll:el.scrollWidth,overflowRight:Math.round(overflowRight),overflowLeft:Math.round(overflowLeft),overflowX:cs.overflowX,whiteSpace:cs.whiteSpace,minWidth:cs.minWidth,widthCss:cs.width,maxWidth:cs.maxWidth});
+                }
               }
-            }
-            return {active:{id:active.id,client:active.clientWidth,scroll:active.scrollWidth,left:ar.left,right:ar.right}, offenders:rows.sort((a,b)=>Math.max(b.overflowRight,b.scroll-b.client)-Math.max(a.overflowRight,a.scroll-a.client)).slice(0,30)};
-          });
-          console.log('MOBILE_320_OVERFLOW_REPORT='+JSON.stringify(report));
-          await page.screenshot({path:'diag-out/320-overflow.png',fullPage:false});
+              return {active:{id:active.id,client:active.clientWidth,scroll:active.scrollWidth,left:ar.left,right:ar.right},offenders:rows.sort((a,b)=>Math.max(b.overflowRight,b.overflowLeft,b.scroll-b.client)-Math.max(a.overflowRight,a.overflowLeft,a.scroll-a.client)).slice(0,40)};
+            });
+            console.log(`MOBILE_320_${label}_OVERFLOW_REPORT=`+JSON.stringify(result));
+            await page.screenshot({path:`diag-out/320-${label.toLowerCase()}.png`,fullPage:false});
+            return result.active.scroll>result.active.client+1;
+          }
+
+          const setupBad=await report('SETUP');
+          await page.locator('#cpMobileAppNav .cp-mobile-nav-item').filter({hasText:'Players'}).first().click();
+          await page.waitForTimeout(250);
+          const playersBad=await report('PLAYERS');
           await browser.close();
-          if(report.active.scroll>report.active.client+1) process.exitCode=2;
+          if(setupBad||playersBad) process.exitCode=2;
           EOF
           node diag.mjs
       - uses: actions/upload-artifact@v4
