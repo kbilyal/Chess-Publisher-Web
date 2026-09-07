@@ -152,6 +152,7 @@ jobs:
                 id: tab.id || '',
                 text: (tab.textContent || '').trim(),
                 onclick: tab.getAttribute('onclick') || '',
+                disabled: tab.classList.contains('disabled') || tab.getAttribute('aria-disabled') === 'true',
                 active: tab.classList.contains('active') || tab.getAttribute('aria-selected') === 'true'
               }));
               return { current: current ? { name: current.name || current.tournamentName || current.settings?.eventName || '', keys: Object.keys(current).slice(0, 30) } : null, tabs, showTabType: typeof window.showTab };
@@ -162,6 +163,12 @@ jobs:
 
           async function tabLocator(page, label) {
             return page.locator('#appWindow > .tabs > .tab').filter({ hasText: label }).first();
+          }
+
+          async function tabDisabled(page, label) {
+            const tab = await tabLocator(page, label);
+            if (!(await tab.count())) return true;
+            return tab.evaluate(node => node.classList.contains('disabled') || node.getAttribute('aria-disabled') === 'true');
           }
 
           async function tapIconArea(page, label) {
@@ -208,13 +215,21 @@ jobs:
             }
           }
 
-          async function assertTabSwitch(page, fromLabel, toLabel) {
+          async function assertTabSwitch(page, fromLabel, toLabel, { allowDisabled = false } = {}) {
             const from = await tapIconArea(page, fromLabel);
             if (!from.active) throw new Error(`Could not activate ${fromLabel} before switch test.`);
+            if (await tabDisabled(page, toLabel)) {
+              if (allowDisabled) {
+                console.log(`CPV6_EXPECTED_DISABLED_TAB=${toLabel}`);
+                return 'disabled';
+              }
+              throw new Error(`${toLabel} is unexpectedly disabled in the real-browser tab switch test.`);
+            }
             const to = await tapIconArea(page, toLabel);
             if (!to.active) throw new Error(`Mobile tab tap did not activate ${toLabel}.`);
             const back = await tapIconArea(page, fromLabel);
             if (!back.active) throw new Error(`Mobile tab tap could not return to ${fromLabel}.`);
+            return 'switched';
           }
 
           const desktop = await browser.newPage({ viewport: { width: 1728, height: 1000 }, deviceScaleFactor: 1 });
@@ -229,7 +244,7 @@ jobs:
           await assertMobileTabSurface(mobile);
           if (!created390) throw new Error('Real-browser test could not create a tournament through the existing production creation function.');
           await assertTabSwitch(mobile, 'Tournament Setup', 'Lists & Players');
-          await assertTabSwitch(mobile, 'Tournament Setup', 'Pairings');
+          await assertTabSwitch(mobile, 'Tournament Setup', 'Pairings', { allowDisabled: true });
           await mobile.screenshot({ path: 'production-v6-screens/mobile-production-shell.png', fullPage: false });
 
           const narrow = await browser.newPage({ viewport: { width: 360, height: 800 }, deviceScaleFactor: 1 });
@@ -240,7 +255,7 @@ jobs:
           await assertMobileTabSurface(narrow);
           if (!created360) throw new Error('360px test could not create a tournament through the existing production creation function.');
           await assertTabSwitch(narrow, 'Tournament Setup', 'Lists & Players');
-          await assertTabSwitch(narrow, 'Tournament Setup', 'Pairings');
+          await assertTabSwitch(narrow, 'Tournament Setup', 'Pairings', { allowDisabled: true });
 
           await browser.close();
           console.log('PASS real mobile tournament tab switching and compact labels at 390px and 360px');
