@@ -40,6 +40,8 @@ jobs:
       - run: npm ci
       - name: Companion architecture contract
         run: node tests/ui/hub-companion-v1.test.mjs
+      - name: Organizer login and My Tournaments wiring
+        run: node tests/ui/companion-cloud-screens.test.mjs
       - name: TypeScript
         run: npm run lint
       - name: Explicit TRF16 and TRF26 regression
