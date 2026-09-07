@@ -1,12 +1,68 @@
 import ownershipWorker from './ownership-worker.js';
 
 const text = value => String(value ?? '').trim();
+const ENGINE_RELAY_PREFIX = '/api/engine-relay/';
+const ENGINE_RELAY_ROUTES = new Set([
+  'health',
+  'capabilities',
+  'pair',
+  'pairing-checker/status',
+  'pairing-checker/install',
+  'tiebreak-checker/status',
+  'tiebreak-checker/install',
+  'tiebreak-checker/check',
+  'trf26-exchange/check',
+]);
 
-function json(body, status = 200) {
+function json(body, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store',
+      ...extraHeaders,
+    },
   });
+}
+
+function engineRelayCors(request, env) {
+  const origin = text(request.headers.get('Origin'));
+  const allowed = text(env.WEB_ORIGIN);
+  if (!allowed || origin !== allowed) return { 'Vary': 'Origin' };
+  return {
+    'Access-Control-Allow-Origin': allowed,
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Vary': 'Origin',
+  };
+}
+
+async function engineRelay(request, env, url) {
+  const headers = engineRelayCors(request, env);
+  const origin = text(request.headers.get('Origin'));
+  const allowed = text(env.WEB_ORIGIN);
+  if (!allowed) return json({ ok: false, error: 'relay_origin_not_configured', message: 'WEB_ORIGIN is not configured.' }, 500, headers);
+  if (origin !== allowed) return json({ ok: false, error: 'relay_origin_not_allowed', message: 'This origin is not allowed to use the Web engine relay.' }, 403, headers);
+
+  const suffix = url.pathname.slice(ENGINE_RELAY_PREFIX.length).replace(/^\/+|\/+$/g, '');
+  if (!ENGINE_RELAY_ROUTES.has(suffix)) return json({ ok: false, error: 'relay_route_not_allowed' }, 404, headers);
+  if (!['GET', 'POST', 'OPTIONS'].includes(request.method)) return json({ ok: false, error: 'relay_method_not_allowed' }, 405, headers);
+  if (!env.WEB_ENGINE_SERVICE || typeof env.WEB_ENGINE_SERVICE.fetch !== 'function') {
+    return json({ ok: false, error: 'engine_relay_unavailable', message: 'Web engine relay is temporarily unavailable.' }, 503, headers);
+  }
+
+  const target = new URL(`https://engine.internal/api/engine/${suffix}`);
+  target.search = url.search;
+  const body = request.method === 'GET' || request.method === 'HEAD' || request.method === 'OPTIONS'
+    ? undefined
+    : await request.arrayBuffer();
+  const forwarded = new Request(target.toString(), {
+    method: request.method,
+    headers: request.headers,
+    body,
+    redirect: 'manual',
+  });
+  return env.WEB_ENGINE_SERVICE.fetch(forwarded);
 }
 
 function decodeProofPayload(proof) {
@@ -37,6 +93,8 @@ function smokeRequest(request, pathname, key, ownershipProof) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (url.pathname.startsWith(ENGINE_RELAY_PREFIX)) return engineRelay(request, env, url);
+
     const isUploadSmoke = request.method === 'POST' && /\/api\/chess-results\/upload-smoke\/?$/i.test(url.pathname);
     const isPublishSmoke = request.method === 'POST' && /\/api\/chess-results\/publish-smoke\/?$/i.test(url.pathname);
     if (isUploadSmoke || isPublishSmoke) {
