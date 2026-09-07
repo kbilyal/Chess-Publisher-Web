@@ -1,0 +1,263 @@
+/* Chess-Publisher Web · Mobile App v7.2 visual polish · September 2026
+ * Presentation-only overrides. Existing tournament handlers and data stay authoritative.
+ */
+
+@media (max-width: 768px) {
+  /* Legacy brand-overhaul adds a 42px gradient marker before every active page.
+   * It reads as a stray line in the app layout, so remove it only on phones. */
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #appWindow > .content > .page.active::before {
+    content: none !important;
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: none !important;
+  }
+
+  /* Mobile app bar: show a stable product title instead of the long desktop
+   * document/window caption. The tournament name remains in the utility row. */
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #windowDocumentTitle {
+    font-size: 0 !important;
+    line-height: 1 !important;
+    min-width: 94px !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #windowDocumentTitle::before {
+    content: "Chess-Publisher" !important;
+    color: #17233a !important;
+    font-size: 12.5px !important;
+    font-weight: 850 !important;
+    letter-spacing: -.015em !important;
+  }
+
+  /* Minimize/maximize/close are desktop-window chrome and are not useful in a
+   * browser app. Keep the real Save action and Autosave control visible. */
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .window-controls button:not(.titlebar-save) {
+    display: none !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .window-controls .titlebar-save {
+    min-width: 58px !important;
+    width: 58px !important;
+    min-height: 32px !important;
+    height: 32px !important;
+    border-radius: 9px !important;
+    font-size: 10.5px !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .autosave-switch {
+    font-size: 9px !important;
+  }
+
+  /* Bottom labels must own the full grid slot. Older generic button/span rules
+   * could shrink the text box at 320px even though the nav item itself fit. */
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #cpMobileAppNav .cp-mobile-nav-label {
+    box-sizing: border-box !important;
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    text-align: center !important;
+    line-height: 1.05 !important;
+  }
+
+  /* Tournament Rules: collapse the old desktop four-column layout and compact
+   * tie-break rows into one reliable phone column. */
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .setup-rules-box,
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .form-grid-4.setup-rules-grid {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .form-grid-4.setup-rules-grid {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .form-grid-4.setup-rules-grid > * {
+    box-sizing: border-box !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    grid-column: 1 !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .tie-break-add-row.setup-tiebreak-add-compact {
+    box-sizing: border-box !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 7px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #tieBreakAddSelect,
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .tie-break-add-row.setup-tiebreak-add-compact .tie-break-add-btn {
+    box-sizing: border-box !important;
+    grid-column: 1 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .pab-points-control.setup-pab-compact {
+    box-sizing: border-box !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 6px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .pab-points-control.setup-pab-compact > * {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  /* Players / Registration previously retained an 850px desktop minimum width.
+   * Collapse the two desktop panes to stacked cards; wide result tables scroll
+   * inside their own card rather than widening the entire page. */
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration .registration-lists {
+    box-sizing: border-box !important;
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration .registration-lists > .groupbox,
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration .groupbox {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration .group-title,
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration .fide-results-title,
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration #fideResults,
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration .starting-rank-tools,
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration .table-frame {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration .fide-results-title {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 6px !important;
+    white-space: normal !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration .fide-font-controls {
+    display: inline-flex !important;
+    flex: 0 0 auto !important;
+    margin-left: auto !important;
+    max-width: 100% !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration #fideResults {
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration .starting-rank-tools {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    align-items: stretch !important;
+    gap: 7px !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration .starting-rank-tools > *,
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration #startingRankResortState,
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration #resortStartingListBtn,
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration #exportTrfStartingListBtn {
+    box-sizing: border-box !important;
+    grid-column: 1 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    white-space: normal !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration #startingRankResortState {
+    display: block !important;
+    text-align: center !important;
+  }
+
+  /* Data grids should scroll inside their own card rather than being clipped by
+   * the page-level overflow guard. This preserves every column on small phones. */
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .table-frame,
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .table-wrap,
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .table-container {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .table-frame > table,
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .table-wrap > table,
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .table-container > table {
+    width: max-content !important;
+    min-width: 100% !important;
+    max-width: none !important;
+  }
+
+  /* Keep modal/dialog surfaces within the visual viewport and above bottom nav. */
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] dialog {
+    box-sizing: border-box !important;
+    max-width: calc(100vw - 16px) !important;
+    max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+  }
+
+  /* Avoid generic desktop hover/active transforms shifting touch controls. */
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .cp-mobile-nav-item:active,
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .cp-mobile-more-item:active {
+    transform: none !important;
+  }
+}
+
+@media (max-width: 340px) {
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #windowDocumentTitle {
+    min-width: 84px !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #windowDocumentTitle::before {
+    font-size: 11.5px !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .window-controls .titlebar-save {
+    min-width: 52px !important;
+    width: 52px !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #cpMobileAppNav .cp-mobile-nav-label {
+    font-size: 7.5px !important;
+    font-weight: 800 !important;
+    letter-spacing: -.03em !important;
+  }
+}

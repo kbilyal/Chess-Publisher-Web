@@ -1,0 +1,258 @@
+name: Mobile v7.2 exhaustive visual sweep
+
+on:
+  pull_request:
+    paths:
+      - 'production-web/web/mobile-app-v7.css'
+      - 'production-web/web/mobile-app-v7-2.css'
+      - 'production-web/web/mobile-app-v7.js'
+      - '.github/workflows/mobile-v7-2-visual-sweep.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mobile-visual-sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Assemble exact production shell
+        run: |
+          rm -rf mobile-v72-preview mobile-v72-screens
+          mkdir -p mobile-v72-preview mobile-v72-screens
+          cp -R production-web/. mobile-v72-preview/
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('mobile-v72-preview/index.html')
+          text = p.read_text(encoding='utf-8')
+          style = '<link rel="stylesheet" href="/web/ui-v6-production.css?v=preview">'
+          lock = '<link rel="stylesheet" href="/web/ui-v6-cascade-lock.css?v=preview">'
+          script = '<script src="/web/ui-v6-production.js?v=preview"></script>'
+          if style not in text:
+              text = text.replace('</head>', style + '\n' + lock + '\n</head>')
+          elif lock not in text:
+              text = text.replace('</head>', lock + '\n</head>')
+          if script not in text:
+              text = text.replace('</body>', script + '\n</body>')
+          p.write_text(text, encoding='utf-8')
+          PY
+      - name: Start preview
+        run: |
+          python3 -m http.server 4175 --directory mobile-v72-preview > /tmp/cpv72.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4175 >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/cpv72.log
+          exit 1
+      - name: Sweep phone widths and all mobile sections
+        run: |
+          cat > mobile-v72-sweep.mjs <<'EOF'
+          import { chromium } from 'playwright';
+          const browser = await chromium.launch({ headless: true });
+          const base = 'http://127.0.0.1:4175';
+
+          async function expose(page) {
+            await page.goto(base, { waitUntil: 'networkidle' });
+            await page.waitForTimeout(850);
+            await page.evaluate(() => {
+              const login = document.querySelector('#cpBeta7Start');
+              if (login) login.style.setProperty('display', 'none', 'important');
+              const app = document.querySelector('#appWindow');
+              if (app) {
+                app.classList.remove('cp-beta7-app-hidden');
+                app.style.removeProperty('display');
+                app.style.removeProperty('visibility');
+              }
+              document.querySelectorAll('.cp-beta7-app-hidden').forEach(node => node.classList.remove('cp-beta7-app-hidden'));
+            });
+            await page.waitForFunction(() => document.documentElement.dataset.cpMobileVisualHunt === '7.2');
+            await page.waitForFunction(() => Boolean(document.querySelector('link[data-cp-mobile-app-v72]')));
+            await page.waitForTimeout(180);
+          }
+
+          async function ensureTournament(page) {
+            const exists = await page.evaluate(() => {
+              try { return Boolean(window.getCurrentTournament?.()); } catch { return false; }
+            });
+            if (exists) return;
+            await page.evaluate(() => {
+              const screen = document.querySelector('#createScreen');
+              if (screen) screen.style.removeProperty('display');
+              const name = document.querySelector('#firstTournamentName');
+              if (name) {
+                name.value = 'Mobile v7.2 Visual Sweep';
+                name.dispatchEvent(new Event('input', { bubbles: true }));
+                name.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+              if (typeof window.createFirstTournament === 'function') window.createFirstTournament();
+            });
+            await page.waitForTimeout(450);
+          }
+
+          async function assertPhoneChrome(page, label) {
+            const state = await page.evaluate(() => {
+              const root = document.documentElement;
+              const nav = document.querySelector('#cpMobileAppNav');
+              const legacy = document.querySelector('#appWindow > .tabs');
+              const active = document.querySelector('#appWindow > .content > .page.active');
+              const before = active ? getComputedStyle(active, '::before') : null;
+              const title = document.querySelector('#windowDocumentTitle');
+              const titleBefore = title ? getComputedStyle(title, '::before') : null;
+              const controls = Array.from(document.querySelectorAll('.window-controls button')).map(button => ({
+                text: (button.textContent || '').trim(),
+                cls: button.className,
+                display: getComputedStyle(button).display,
+                width: button.getBoundingClientRect().width
+              }));
+              const page = active?.getBoundingClientRect();
+              return {
+                width: innerWidth,
+                docWidth: root.scrollWidth,
+                navDisplay: nav ? getComputedStyle(nav).display : 'missing',
+                navButtons: nav?.querySelectorAll('.cp-mobile-nav-item').length || 0,
+                legacyOpacity: legacy ? getComputedStyle(legacy).opacity : '',
+                legacyPointer: legacy ? getComputedStyle(legacy).pointerEvents : '',
+                legacyWidth: legacy?.getBoundingClientRect().width || 0,
+                activePages: document.querySelectorAll('#appWindow > .content > .page.active').length,
+                activePageRight: page?.right || 0,
+                beforeDisplay: before?.display || '',
+                beforeContent: before?.content || '',
+                beforeWidth: before?.width || '',
+                titleFont: title ? getComputedStyle(title).fontSize : '',
+                titlePseudo: titleBefore?.content || '',
+                controls,
+                activeScrollWidth: active?.scrollWidth || 0,
+                activeClientWidth: active?.clientWidth || 0
+              };
+            });
+            if (state.docWidth > state.width + 1) throw new Error(`${label}: document horizontal overflow ${JSON.stringify(state)}`);
+            if (state.navDisplay === 'none' || state.navDisplay === 'missing' || state.navButtons !== 5) throw new Error(`${label}: app navigation missing ${JSON.stringify(state)}`);
+            if (state.legacyOpacity !== '0' || state.legacyPointer !== 'none' || state.legacyWidth > 2) throw new Error(`${label}: legacy tab strip leaked ${JSON.stringify(state)}`);
+            if (state.activePages !== 1) throw new Error(`${label}: expected one active page ${JSON.stringify(state)}`);
+            if (state.activePageRight > state.width + 1) throw new Error(`${label}: active page escapes viewport ${JSON.stringify(state)}`);
+            if (state.beforeDisplay !== 'none' && state.beforeContent !== 'none') throw new Error(`${label}: legacy active-page accent still visible ${JSON.stringify(state)}`);
+            if (!state.titlePseudo.includes('Chess-Publisher')) throw new Error(`${label}: mobile app title patch missing ${JSON.stringify(state)}`);
+            const visibleControls = state.controls.filter(item => item.display !== 'none');
+            if (visibleControls.length !== 1 || !visibleControls[0].cls.includes('titlebar-save')) throw new Error(`${label}: desktop window buttons still visible ${JSON.stringify(state)}`);
+            if (state.activeScrollWidth > state.activeClientWidth + 1) throw new Error(`${label}: page-level horizontal clipping ${JSON.stringify(state)}`);
+          }
+
+          async function assertBottomNavLabels(page, label) {
+            const bad = await page.locator('#cpMobileAppNav .cp-mobile-nav-item').evaluateAll(nodes => nodes.map(node => {
+              const box = node.getBoundingClientRect();
+              const labelNode = node.querySelector('.cp-mobile-nav-label');
+              return { text: labelNode?.textContent || '', width: box.width, client: labelNode?.clientWidth || 0, scroll: labelNode?.scrollWidth || 0 };
+            }).filter(item => item.width < 50 || item.scroll > item.client + 2));
+            if (bad.length) throw new Error(`${label}: bottom-nav label overlap ${JSON.stringify(bad)}`);
+          }
+
+          async function activeSnapshot(page) {
+            return page.evaluate(() => ({
+              tab: Array.from(document.querySelectorAll('#appWindow > .tabs > .tab')).find(node => node.classList.contains('active') || node.getAttribute('aria-selected') === 'true')?.id || '',
+              pages: Array.from(document.querySelectorAll('#appWindow > .content > .page.active')).map(node => node.id)
+            }));
+          }
+
+          async function tapPrimary(page, label) {
+            const button = page.locator('#cpMobileAppNav .cp-mobile-nav-item').filter({ hasText: label }).first();
+            await button.click();
+            await page.waitForTimeout(180);
+            return activeSnapshot(page);
+          }
+
+          async function openMore(page) {
+            await page.locator('#cpMobileMoreButton').click();
+            await page.waitForTimeout(120);
+            const geometry = await page.locator('#cpMobileMoreSheet').evaluate(node => {
+              const r = node.getBoundingClientRect();
+              const items = Array.from(node.querySelectorAll('.cp-mobile-more-item')).map(item => {
+                const b = item.getBoundingClientRect();
+                return { width: b.width, height: b.height, right: b.right, bottom: b.bottom };
+              });
+              return { left:r.left, right:r.right, top:r.top, bottom:r.bottom, width:innerWidth, height:innerHeight, items };
+            });
+            if (geometry.left < -1 || geometry.right > geometry.width + 1 || geometry.top < -1 || geometry.bottom > geometry.height + 1) throw new Error(`More sheet escapes viewport: ${JSON.stringify(geometry)}`);
+            if (geometry.items.some(item => item.width < 240 || item.height < 48 || item.right > geometry.width + 1)) throw new Error(`More touch target geometry bad: ${JSON.stringify(geometry)}`);
+          }
+
+          const phoneCases = [
+            ['320x568', 320, 568],
+            ['360x800', 360, 800],
+            ['390x844', 390, 844],
+            ['412x915', 412, 915],
+            ['430x932', 430, 932],
+            ['768x1024', 768, 1024]
+          ];
+
+          for (const [name, width, height] of phoneCases) {
+            const page = await browser.newPage({ viewport: { width, height } });
+            await expose(page);
+            await ensureTournament(page);
+            await assertPhoneChrome(page, name);
+            await assertBottomNavLabels(page, name);
+            await page.screenshot({ path: `mobile-v72-screens/${name}-setup.png`, fullPage: false });
+            const players = await tapPrimary(page, 'Players');
+            if (players.tab !== 'tabRegistration' || players.pages.length !== 1 || players.pages[0] !== 'registration') throw new Error(`${name}: Players navigation mismatch ${JSON.stringify(players)}`);
+            await assertPhoneChrome(page, `${name} Players`);
+            if (name === '320x568' || name === '430x932') await page.screenshot({ path: `mobile-v72-screens/${name}-players.png`, fullPage: false });
+            await tapPrimary(page, 'Setup');
+            await openMore(page);
+            if (name === '390x844') await page.screenshot({ path: 'mobile-v72-screens/390x844-more.png', fullPage: false });
+            await page.locator('#cpMobileMoreBackdrop').click();
+            await page.close();
+          }
+
+          const allMore = await browser.newPage({ viewport: { width: 390, height: 844 } });
+          await expose(allMore);
+          await ensureTournament(allMore);
+          for (const label of ['Schedule', 'Chess-Results', 'Online & Cloud', 'Export & Print']) {
+            await openMore(allMore);
+            const item = allMore.locator('#cpMobileMoreSheet .cp-mobile-more-item').filter({ hasText: label }).first();
+            const disabled = await item.evaluate(node => node.classList.contains('is-disabled'));
+            await item.click();
+            await allMore.waitForTimeout(220);
+            if (!disabled) {
+              const snap = await activeSnapshot(allMore);
+              if (snap.pages.length !== 1) throw new Error(`${label}: expected exactly one active page ${JSON.stringify(snap)}`);
+              await assertPhoneChrome(allMore, label);
+              await allMore.screenshot({ path: `mobile-v72-screens/390-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.png`, fullPage: false });
+            }
+          }
+          await allMore.close();
+
+          const boundary = await browser.newPage({ viewport: { width: 769, height: 1024 } });
+          await expose(boundary);
+          await ensureTournament(boundary);
+          const boundaryState = await boundary.evaluate(() => ({
+            mobileDisplay: getComputedStyle(document.querySelector('#cpMobileAppNav')).display,
+            sidebarWidth: document.querySelector('#appWindow > .tabs').getBoundingClientRect().width,
+            sidebarLeft: document.querySelector('#appWindow > .tabs').getBoundingClientRect().left,
+            visibleWindowButtons: Array.from(document.querySelectorAll('.window-controls button')).filter(node => getComputedStyle(node).display !== 'none').length
+          }));
+          if (boundaryState.mobileDisplay !== 'none' || boundaryState.sidebarWidth < 180 || boundaryState.sidebarLeft < -10) throw new Error(`769px desktop boundary failed: ${JSON.stringify(boundaryState)}`);
+          if (boundaryState.visibleWindowButtons < 2) throw new Error(`769px desktop chrome was accidentally hidden: ${JSON.stringify(boundaryState)}`);
+          await boundary.screenshot({ path: 'mobile-v72-screens/769-desktop-boundary.png', fullPage: false });
+          await boundary.close();
+
+          await browser.close();
+          console.log('PASS Mobile v7.2 exhaustive visual sweep: 320/360/390/412/430/768 phone + 769 desktop boundary + all More sections');
+          EOF
+          node mobile-v72-sweep.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mobile-v7-2-visual-sweep
+          path: mobile-v72-screens/*.png
+          if-no-files-found: error
+          retention-days: 7

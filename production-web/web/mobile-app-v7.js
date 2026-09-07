@@ -1,4 +1,4 @@
-/* Chess-Publisher Web · Mobile App v7 · Visual Bug Hunt v7.1 · September 2026
+/* Chess-Publisher Web · Mobile App v7 · Visual Bug Hunt v7.2 · September 2026
  * Phone-only navigation facade. Original production handlers remain authoritative.
  */
 (() => {
@@ -6,7 +6,19 @@
 
   const root = document.documentElement;
   root.dataset.cpMobileApp = '7';
-  root.dataset.cpMobileVisualHunt = '7.1';
+  root.dataset.cpMobileVisualHunt = '7.2';
+
+  /* Load the small v7.2 presentation patch with the exact same cache-busting
+   * query as this script. No tournament/data handler is replaced. */
+  const currentScriptSrc = document.currentScript?.src || '';
+  const assetQuery = currentScriptSrc.includes('?') ? currentScriptSrc.slice(currentScriptSrc.indexOf('?')) : '?v=20260907-mobile72';
+  if (!document.querySelector('link[data-cp-mobile-app-v72]')) {
+    const visualPatch = document.createElement('link');
+    visualPatch.rel = 'stylesheet';
+    visualPatch.href = `/web/mobile-app-v7-2.css${assetQuery}`;
+    visualPatch.dataset.cpMobileAppV72 = '1';
+    document.head.appendChild(visualPatch);
+  }
 
   const media = window.matchMedia('(max-width: 768px)');
   const $ = (selector, scope = document) => scope.querySelector(selector);
