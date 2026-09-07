@@ -5,10 +5,10 @@ on:
       - 'src/App.tsx'
       - 'src/companion/**'
       - 'src/components/TournamentSetupTab.tsx'
-      - 'src/components/PlayersTab.tsx'
       - 'src/index.css'
       - 'src/companion.css'
       - 'src/companion-publish-v2.css'
+      - 'src/companion-registration.css'
       - 'src/main.tsx'
       - 'tests/ui/hub-companion-v1.test.mjs'
       - '.github/workflows/ui-v6-preview.yml'
@@ -52,6 +52,7 @@ jobs:
           import './src/index.css';
           import './src/companion.css';
           import './src/companion-publish-v2.css';
+          import './src/companion-registration.css';
 
           const tournament: any = createInitialEmptyTournament('Desktop Sync · Rhodopes Open 2026');
           tournament.settings.country = 'BUL';
@@ -83,7 +84,7 @@ jobs:
           done
           cat /tmp/cp-companion-vite.log
           exit 1
-      - name: Verify desktop and mobile Companion navigation and two publish actions
+      - name: Verify desktop/mobile registration and two publish actions
         run: |
           mkdir -p hub-companion-preview
           cat > capture-companion.mjs <<'EOF'
@@ -111,11 +112,29 @@ jobs:
             if (!await page.getByText('Publish to Online Hub', { exact: true }).count()) throw new Error(`${label}: Online Hub label missing.`);
           }
 
+          async function verifyRegistration(page, label) {
+            if (!await page.getByRole('heading', { name: 'Player registration' }).count()) throw new Error(`${label}: focused registration heading missing.`);
+            if (!await page.getByPlaceholder('Name or FIDE ID').isVisible()) throw new Error(`${label}: FIDE search field missing.`);
+            const before = await page.locator('.companion-roster-row').count();
+            await page.getByRole('button', { name: /Manual player/ }).click();
+            const form = page.locator('.companion-manual-form');
+            await form.locator('input').nth(0).fill('Preview New Player');
+            await form.locator('input').nth(1).fill('');
+            await form.locator('input').nth(2).fill('BUL');
+            await form.locator('input').nth(3).fill('1760');
+            await page.getByRole('button', { name: /Register player/ }).click();
+            await page.waitForTimeout(180);
+            if (!await page.getByText('Preview New Player', { exact: true }).count()) throw new Error(`${label}: manual registration did not reach roster.`);
+            const after = await page.locator('.companion-roster-row').count();
+            if (after !== before + 1) throw new Error(`${label}: roster count did not increase after registration.`);
+          }
+
           const desktop = await open({ width: 1440, height: 960 });
           if (!await desktop.locator('.companion-sidebar').isVisible()) throw new Error('Desktop sidebar is not visible.');
           await desktop.getByRole('button', { name: /Players/ }).first().click();
           await desktop.waitForTimeout(200);
-          if (!await desktop.getByRole('heading', { name: 'Players' }).count()) throw new Error('Desktop Players navigation failed.');
+          await verifyRegistration(desktop, 'desktop');
+          await desktop.screenshot({ path: 'hub-companion-preview/desktop-registration.png', fullPage: true });
           await desktop.getByRole('button', { name: /Publish/ }).first().click();
           await desktop.waitForTimeout(200);
           await verifyPublish(desktop, 'desktop');
@@ -130,7 +149,10 @@ jobs:
             if (labels.join('|') !== 'Setup|Players|Publish|Tournaments') throw new Error(`Unexpected mobile navigation: ${labels.join('|')}`);
             await nav.getByRole('button', { name: /Players/ }).click();
             await page.waitForTimeout(180);
-            if (!await page.getByRole('heading', { name: 'Players' }).count()) throw new Error(`Players tap failed at ${width}px.`);
+            await verifyRegistration(page, name);
+            const registrationOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+            if (registrationOverflow > 1) throw new Error(`${name}: registration horizontal overflow ${registrationOverflow}px.`);
+            await page.screenshot({ path: `hub-companion-preview/${name}-registration.png`, fullPage: true });
             await nav.getByRole('button', { name: /Publish/ }).click();
             await page.waitForTimeout(180);
             await verifyPublish(page, name);
