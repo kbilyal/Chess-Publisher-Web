@@ -65,13 +65,13 @@
     window.clearTimeout(toastTimer);
     node.textContent = message;
     node.classList.add('is-visible');
-    toastTimer = window.setTimeout(() => node.classList.remove('is-visible'), 2300);
+    toastTimer = window.setTimeout(() => node.classList.toggle('is-visible', false), 2300);
   }
 
   function closeMore() {
-    $('#cpMobileMoreBackdrop')?.classList.remove('is-open');
+    $('#cpMobileMoreBackdrop')?.classList.toggle('is-open', false);
     const sheet = $('#cpMobileMoreSheet');
-    sheet?.classList.remove('is-open');
+    sheet?.classList.toggle('is-open', false);
     sheet?.setAttribute('aria-hidden', 'true');
     $('#cpMobileMoreButton')?.setAttribute('aria-expanded', 'false');
   }
