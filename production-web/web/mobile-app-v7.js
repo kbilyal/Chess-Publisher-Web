@@ -131,7 +131,7 @@
     window.clearTimeout(toastTimer);
     toastTimer = 0;
     if (!node) return;
-    node.classList.remove('is-visible');
+    node.classList.toggle('is-visible', false);
     node.textContent = '';
   }
 
