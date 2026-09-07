@@ -175,7 +175,8 @@
   }
 
   html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #cpMobileAppNav .cp-mobile-nav-label {
-    font-size: 8.6px !important;
-    letter-spacing: -.02em !important;
+    font-size: 7.5px !important;
+    font-weight: 800 !important;
+    letter-spacing: -.03em !important;
   }
 }
