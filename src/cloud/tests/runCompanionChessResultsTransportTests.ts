@@ -9,13 +9,34 @@ function storage(seed: Record<string, string> = {}) {
   };
 }
 
-const calls: Array<{ url: string; init: RequestInit }> = [];
+type Call = { url: string; init: RequestInit; body: any };
+const calls: Call[] = [];
+const tournament = {
+  name: 'Desktop synced tournament',
+  cloud: { cloudTournamentId: 'cloud-123', internalId: 'desktop-local-123' },
+  chessResults: { key: '1492376', clientId: 'cr-client-123' },
+  settings: { tnr: '1492376' }
+};
+
 (globalThis as any).window = { location: { hostname: 'web.chess-publisher.org' } };
 (globalThis as any).sessionStorage = storage({ 'cpstudio.organizerToken.session': 'test-organizer-token' });
-(globalThis as any).localStorage = storage();
+(globalThis as any).localStorage = storage({ fide_tournament_manager_v2: JSON.stringify(tournament) });
 (globalThis as any).fetch = async (url: string, init: RequestInit = {}) => {
-  calls.push({ url: String(url), init });
-  return new Response(JSON.stringify({ ok: true, sidVerified: true }), {
+  const parsedBody = init.body ? JSON.parse(String(init.body)) : {};
+  calls.push({ url: String(url), init, body: parsedBody });
+  const operation = String(url).split('/').pop();
+  const payload = operation === 'claim'
+    ? { ok: true, key: parsedBody.key, ownershipProof: `auto-continuity-${parsedBody.key}` }
+    : operation === 'create'
+      ? { ok: true, key: '1555001', ownershipProof: 'created-continuity-1555001', federation: 'XXX', mode: 'test' }
+      : operation === 'admin-link'
+        ? { ok: true, key: parsedBody.key, url: 'https://chess-results.com/admin-test' }
+        : operation === 'unlink'
+          ? { ok: true, key: parsedBody.key, canUnlink: true }
+          : operation === 'publish'
+            ? { ok: true, key: parsedBody.key, uploaded: true }
+            : { ok: true, sidVerified: true };
+  return new Response(JSON.stringify(payload), {
     status: 200,
     headers: { 'Content-Type': 'application/json' }
   });
@@ -31,6 +52,30 @@ assert.equal(productionHeaders.get('Authorization'), 'Bearer test-organizer-toke
 assert.equal(productionHeaders.get('Content-Type'), 'application/json');
 assert.equal(calls[0].init.method, 'POST');
 
+calls.length = 0;
+await chessResultsApi.publish({ key: '1492376', xml: '<chessresults />' });
+assert.equal(calls.length, 2, 'Existing Desktop TNR must transparently recover continuity before first Web publish.');
+assert.equal(calls[0].url, `${REMOTE_CHESS_RESULTS_API_PREFIX}claim`);
+assert.equal(calls[0].body.key, '1492376');
+assert.equal(calls[0].body.cloudTournamentId, 'cloud-123', 'Automatic continuity must use the synchronized Desktop/Cloud tournament identity.');
+assert.equal(calls[0].body.clientId, 'cr-client-123');
+assert.equal(calls[1].url, `${REMOTE_CHESS_RESULTS_API_PREFIX}publish`);
+assert.equal(calls[1].body.ownershipProof, 'auto-continuity-1492376', 'Recovered continuity must be supplied internally to the protected Worker contract.');
+assert.equal(calls[1].body.cloudTournamentId, 'cloud-123');
+
+calls.length = 0;
+await chessResultsApi.adminLink({ key: '1492376', section: 'admin' });
+assert.equal(calls.length, 1, 'Recovered TNR continuity should remain transiently cached for the current authenticated session.');
+assert.equal(calls[0].url, `${REMOTE_CHESS_RESULTS_API_PREFIX}admin-link`);
+assert.equal(calls[0].body.ownershipProof, 'auto-continuity-1492376');
+
+calls.length = 0;
+const created = await chessResultsApi.create({ tournament: 'Test tournament', federation: 'BUL', mode: 'test', clientId: 'new-client' });
+assert.equal(created.key, '1555001');
+await chessResultsApi.publish({ key: '1555001', xml: '<chessresults />' });
+assert.equal(calls.filter(call => call.url.endsWith('/claim')).length, 0, 'A newly created TNR must use the transient continuity returned by GETKEY without a separate ownership step.');
+assert.equal(calls.at(-1)?.body.ownershipProof, 'created-continuity-1555001');
+
 (globalThis as any).window.location.hostname = 'localhost';
 calls.length = 0;
 await chessResultsApi.test();
@@ -45,4 +90,4 @@ await assert.rejects(
   'Chess-Results publication must fail closed without an authenticated Organizer Token.'
 );
 
-console.log('PASS Companion Chess-Results transport: production Worker routing + Organizer Token auth + local /api route + fail-closed token guard.');
+console.log('PASS Companion Chess-Results transport: Organizer Token auth + automatic Desktop/Cloud TNR continuity + no user-facing ownership step + local route + fail-closed token guard.');
