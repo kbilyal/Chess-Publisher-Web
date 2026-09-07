@@ -40,6 +40,7 @@ export type CompanionCloud = {
 
 const isTnr = (value: unknown) => /^\d+$/.test(String(value || '').trim());
 const newClientId = () => globalThis.crypto?.randomUUID?.() || `cp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+const isSourceIdMismatch = (error: unknown) => /source[\s-]*id[\s\S]*not valid/i.test(String((error as any)?.message || error || ''));
 
 function readTournament(): Tournament {
   try {
@@ -57,6 +58,7 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
   const [busy, setBusy] = useState<BusyAction>(null);
   const [message, setMessage] = useState('');
   const [messageKind, setMessageKind] = useState<'ok' | 'warn' | 'error'>('ok');
+  const [sourceMismatchTnr, setSourceMismatchTnr] = useState('');
   const tournamentRef = useRef(tournament);
 
   useEffect(() => { tournamentRef.current = tournament; }, [tournament]);
@@ -107,6 +109,12 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
     setTournament(synchronized);
     tournamentRef.current = synchronized;
     return synchronized;
+  };
+
+  const persistTournament = (next: Tournament) => {
+    setTournament(next);
+    tournamentRef.current = next;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   };
 
   const syncNow = async () => {
@@ -166,15 +174,88 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
     }
   };
 
-  const publishChessResults = async () => {
+  const createFreshChessResultsTnr = async () => {
+    const oldKey = sourceMismatchTnr || tnr;
+    if (!isTnr(oldKey)) return;
     setBusy('cr-publish');
     setMessage('');
     try {
       await cloud.syncNow(tournamentRef.current);
       const current = adoptSynchronizedTournament();
       const initial = buildChessResultsXml(current);
+      const clientId = current.chessResults?.clientId || newClientId();
+      const created = await chessResultsApi.create({
+        tournament: current.name || '',
+        federation: initial.federation,
+        mode: current.settings.tournamentType,
+        clientId
+      });
+      const freshKey = String(created?.key || '').trim();
+      if (!isTnr(freshKey)) throw new Error('Chess-Results returned an invalid replacement TNR.');
+
+      const prepared: Tournament = {
+        ...current,
+        settings: { ...current.settings, tnr: freshKey },
+        chessResults: {
+          ...current.chessResults,
+          sourceId: Number(created?.sourceId || 21),
+          clientId,
+          key: freshKey,
+          mode: current.settings.tournamentType,
+          federation: String(created?.federation || initial.federation),
+          createdAt: new Date().toISOString(),
+          freshTnrRequired: false,
+          lastError: '',
+          uploadStatus: 'New Chess-Publisher TNR assigned — preparing upload'
+        }
+      };
+
+      // GETKEY keys must be saved immediately, before the first upload attempt.
+      persistTournament(prepared);
+
+      const publication = buildChessResultsXml(prepared, { requireKey: true, key: freshKey });
+      await chessResultsApi.publish({ key: freshKey, xml: publication.xml });
+      const now = new Date().toISOString();
+      const published: Tournament = {
+        ...prepared,
+        chessResults: {
+          ...prepared.chessResults,
+          key: freshKey,
+          lastUpload: now,
+          lastError: '',
+          uploadStatus: 'Published / synced',
+          publishCount: (prepared.chessResults?.publishCount || 0) + 1,
+          activityLog: [
+            { at: now, type: 'ok' as const, message: `Replaced incompatible TNR ${oldKey} with Chess-Publisher TNR ${freshKey}.` },
+            { at: now, type: 'ok' as const, message: `Published TNR ${freshKey}: ${publication.players} players.` },
+            ...(prepared.chessResults?.activityLog || [])
+          ].slice(0, 120)
+        }
+      };
+      persistTournament(published);
+      await cloud.syncNow(published);
+      adoptSynchronizedTournament();
+      setSourceMismatchTnr('');
+      setNotice('ok', `New Chess-Publisher TNR ${freshKey} created, published and synchronized.`);
+    } catch (error: any) {
+      setNotice('error', error?.message || 'Could not create a new Chess-Publisher TNR.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const publishChessResults = async () => {
+    setBusy('cr-publish');
+    setMessage('');
+    setSourceMismatchTnr('');
+    let attemptedKey = '';
+    try {
+      await cloud.syncNow(tournamentRef.current);
+      const current = adoptSynchronizedTournament();
+      const initial = buildChessResultsXml(current);
       let key = String(current.chessResults?.key || '').trim();
       let next = current;
+      attemptedKey = key;
 
       if (!isTnr(key)) {
         const clientId = current.chessResults?.clientId || newClientId();
@@ -185,25 +266,25 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
           clientId
         });
         key = String(created?.key || '').trim();
+        attemptedKey = key;
         if (!isTnr(key)) throw new Error('Chess-Results returned an invalid TNR.');
         next = {
           ...current,
           settings: { ...current.settings, tnr: key },
           chessResults: {
             ...current.chessResults,
+            sourceId: Number(created?.sourceId || 21),
             clientId,
             key,
             mode: current.settings.tournamentType,
-            federation: initial.federation,
+            federation: String(created?.federation || initial.federation),
             createdAt: current.chessResults?.createdAt || new Date().toISOString(),
             freshTnrRequired: false,
             lastError: '',
             uploadStatus: 'TNR assigned — preparing upload'
           }
         };
-        setTournament(next);
-        tournamentRef.current = next;
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        persistTournament(next);
       }
 
       const publication = buildChessResultsXml(next, { requireKey: true, key });
@@ -214,6 +295,7 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
         settings: { ...next.settings, tnr: key },
         chessResults: {
           ...next.chessResults,
+          sourceId: 21,
           key,
           lastUpload: now,
           lastError: '',
@@ -225,14 +307,17 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
           ].slice(0, 120)
         }
       };
-      setTournament(published);
-      tournamentRef.current = published;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(published));
+      persistTournament(published);
       await cloud.syncNow(published);
       adoptSynchronizedTournament();
       setNotice('ok', `Chess-Results TNR ${key} published and synchronized.`);
     } catch (error: any) {
-      setNotice('error', error?.message || 'Chess-Results publication failed.');
+      if (isSourceIdMismatch(error) && isTnr(attemptedKey)) {
+        setSourceMismatchTnr(attemptedKey);
+        setMessage('');
+      } else {
+        setNotice('error', error?.message || 'Chess-Results publication failed.');
+      }
     } finally {
       setBusy(null);
     }
@@ -340,6 +425,23 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
           <div className={`companion-alert ${messageKind}`}>
             {messageKind === 'ok' ? <CheckCircle2 size={18} /> : <WifiOff size={18} />}
             <span>{message}</span>
+          </div>
+        )}
+        {sourceMismatchTnr && activeTab === 'publish' && (
+          <div className="companion-alert warn companion-conflict-alert" data-chess-results-source-recovery>
+            <ShieldCheck size={18} />
+            <div className="companion-conflict-copy">
+              <strong>TNR {sourceMismatchTnr} cannot be updated from Chess-Publisher.</strong>
+              <span>This tournament key belongs to a different Chess-Results program source. Chess-Publisher Source 21 is fixed by the official interface. Create a new Chess-Publisher TNR to continue without changing the Desktop/Cloud tournament itself.</span>
+            </div>
+            <button
+              type="button"
+              className="companion-button secondary companion-conflict-action"
+              onClick={createFreshChessResultsTnr}
+              disabled={busy !== null || cloud.busy || cloud.conflict}
+            >
+              <RefreshCw size={16} className={busy === 'cr-publish' ? 'spin' : ''} /> {busy === 'cr-publish' ? 'Creating…' : 'Create new Chess-Publisher TNR'}
+            </button>
           </div>
         )}
 
