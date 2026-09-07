@@ -4,6 +4,8 @@ on:
     paths:
       - 'production-web/index.html'
       - 'production-web/web/brand-overhaul.css'
+      - 'production-web/web/ui-v6-production.css'
+      - 'production-web/web/ui-v6-production.js'
       - 'production-web/web/cloud-tournaments-shortcut.js'
       - 'src/App.tsx'
       - 'src/components/Header.tsx'
@@ -31,6 +33,7 @@ jobs:
       - run: node tests/ui/masterpiece-v3.test.mjs
       - run: node tests/ui/stable-reliable-v5.test.mjs
       - run: node tests/ui/v6-approved-layout.test.mjs
+      - run: node tests/ui/production-v6-deployment.test.mjs
       - run: node tests/ui/login-screen-persistence.test.mjs
       - run: npm run lint
       - run: npm run build
