@@ -5,6 +5,7 @@ import App from './App.tsx';
 import {OnlineCloudProvider} from './cloud/OnlineCloudProvider';
 import './index.css';
 import './companion.css';
+import './companion-publish-v2.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
