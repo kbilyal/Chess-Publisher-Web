@@ -80,37 +80,81 @@ jobs:
             const setup = page.getByText('Tournament Setup', { exact: true });
             if (await setup.count()) {
               await setup.first().click();
-              await page.waitForTimeout(300);
+              await page.waitForTimeout(250);
             }
+          }
+
+          async function ensureTestTournament(page) {
+            const before = await page.evaluate(() => {
+              try { return typeof window.getCurrentTournament === 'function' ? window.getCurrentTournament() : null; } catch { return null; }
+            });
+            if (before) return true;
+
+            const probe = await page.evaluate(() => {
+              const describe = value => value && typeof value === 'object' ? { keys: Object.keys(value).slice(0, 40), name: value.name || value.tournamentName || value.settings?.eventName || '' } : { type: typeof value };
+              let emptyResult = null;
+              try {
+                if (typeof window.createEmptyTournament === 'function') emptyResult = describe(window.createEmptyTournament());
+              } catch (error) { emptyResult = { error: String(error) }; }
+              let current = null;
+              try { current = typeof window.getCurrentTournament === 'function' ? window.getCurrentTournament() : null; } catch {}
+              return { emptyResult, currentAfterEmpty: current ? describe(current) : null };
+            });
+            console.log(`CPV6_CREATE_EMPTY_PROBE=${JSON.stringify(probe)}`);
+
+            let current = await page.evaluate(() => {
+              try { return typeof window.getCurrentTournament === 'function' ? window.getCurrentTournament() : null; } catch { return null; }
+            });
+            if (current) return true;
+
+            const createInputs = await page.evaluate(() => Array.from(document.querySelectorAll('#createScreen input, #createScreen select, #createScreen textarea')).map(node => ({
+              tag: node.tagName,
+              id: node.id || '',
+              name: node.name || '',
+              type: node.type || '',
+              placeholder: node.placeholder || '',
+              value: node.value || ''
+            })));
+            console.log(`CPV6_CREATE_INPUTS=${JSON.stringify(createInputs)}`);
+
             await page.evaluate(() => {
-              const login = document.querySelector('#cpBeta7Start');
-              if (login) login.style.setProperty('display', 'none', 'important');
-              const app = document.querySelector('#appWindow');
-              if (app) {
-                app.classList.remove('cp-beta7-app-hidden');
-                app.style.removeProperty('display');
+              const screen = document.querySelector('#createScreen');
+              if (screen) screen.style.removeProperty('display');
+              const fields = Array.from(document.querySelectorAll('#createScreen input, #createScreen textarea'));
+              for (const field of fields) {
+                const key = `${field.id || ''} ${field.name || ''} ${field.placeholder || ''}`.toLowerCase();
+                if (field.type === 'text' && !field.value) field.value = key.includes('name') ? 'UI Mobile Regression Test' : 'Test';
+                if (field.type === 'number' && !field.value) field.value = key.includes('round') ? '7' : '1';
+                if (field.type === 'date' && !field.value) field.value = '2026-09-07';
+                field.dispatchEvent(new Event('input', { bubbles: true }));
+                field.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+              try {
+                if (typeof window.createFirstTournament === 'function') window.createFirstTournament();
+              } catch (error) {
+                console.log('CPV6_CREATE_FIRST_ERROR', String(error));
               }
             });
+            await page.waitForTimeout(500);
+
+            current = await page.evaluate(() => {
+              try { return typeof window.getCurrentTournament === 'function' ? window.getCurrentTournament() : null; } catch { return null; }
+            });
+            console.log(`CPV6_TEST_TOURNAMENT_CREATED=${Boolean(current)}`);
+            return Boolean(current);
           }
 
           async function diagnostics(page, tag) {
             const data = await page.evaluate(() => {
               let current = null;
               try { current = typeof window.getCurrentTournament === 'function' ? window.getCurrentTournament() : null; } catch {}
-              const globals = Object.keys(window)
-                .filter(key => /(tournament|create|new|open|showtab)/i.test(key) && typeof window[key] === 'function')
-                .sort();
-              const controls = Array.from(document.querySelectorAll('button,[role="button"],input[type="button"]'))
-                .map(node => ({ id: node.id || '', text: (node.textContent || node.value || '').trim(), onclick: node.getAttribute('onclick') || '' }))
-                .filter(item => /(new|create|open|tournament)/i.test(`${item.id} ${item.text} ${item.onclick}`))
-                .slice(0, 80);
               const tabs = Array.from(document.querySelectorAll('#appWindow > .tabs > .tab')).map(tab => ({
                 id: tab.id || '',
                 text: (tab.textContent || '').trim(),
                 onclick: tab.getAttribute('onclick') || '',
                 active: tab.classList.contains('active') || tab.getAttribute('aria-selected') === 'true'
               }));
-              return { current: current ? { name: current.name || current.tournamentName || current.settings?.eventName || '', keys: Object.keys(current).slice(0, 30) } : null, globals, controls, tabs, showTabType: typeof window.showTab };
+              return { current: current ? { name: current.name || current.tournamentName || current.settings?.eventName || '', keys: Object.keys(current).slice(0, 30) } : null, tabs, showTabType: typeof window.showTab };
             });
             console.log(`CPV6_DIAGNOSTICS_${tag}=${JSON.stringify(data)}`);
             return data;
@@ -159,26 +203,18 @@ jobs:
               return { position: style.position, bottom: style.bottom, zIndex: style.zIndex, overflowX: style.overflowX };
             });
             console.log(`CPV6_MOBILE_TABS_STYLE=${JSON.stringify(tabsStyle)}`);
-            if (tabsStyle.position === 'sticky' || tabsStyle.bottom !== 'auto') {
-              throw new Error(`Legacy sticky mobile tab layer still active: ${JSON.stringify(tabsStyle)}`);
+            if (tabsStyle.position === 'sticky' || tabsStyle.position === 'fixed') {
+              throw new Error(`Legacy sticky/fixed mobile tab layer still active: ${JSON.stringify(tabsStyle)}`);
             }
           }
 
-          async function assertAtLeastOneRealSwitch(page) {
-            const candidates = ['Online & Cloud', 'Chess-Results', 'DGT', 'Schedule', 'Standings', 'Lists & Players', 'Pairings'];
-            const initial = await page.locator('#appWindow > .tabs > .tab.active').first().textContent().catch(() => '');
-            const attempts = [];
-            for (const label of candidates) {
-              const result = await tapIconArea(page, label);
-              attempts.push({ label, ...result });
-              if (result.active) {
-                const setupBack = await tapIconArea(page, 'Tournament Setup');
-                if (!setupBack.active) throw new Error('Mobile tab navigation switched away but could not return to Tournament Setup.');
-                console.log(`CPV6_MOBILE_SWITCH_PASS=${JSON.stringify({ initial, switchedTo: label, attempts })}`);
-                return label;
-              }
-            }
-            throw new Error(`No real mobile tab could be activated from the production shell: ${JSON.stringify(attempts)}`);
+          async function assertTabSwitch(page, fromLabel, toLabel) {
+            const from = await tapIconArea(page, fromLabel);
+            if (!from.active) throw new Error(`Could not activate ${fromLabel} before switch test.`);
+            const to = await tapIconArea(page, toLabel);
+            if (!to.active) throw new Error(`Mobile tab tap did not activate ${toLabel}.`);
+            const back = await tapIconArea(page, fromLabel);
+            if (!back.active) throw new Error(`Mobile tab tap could not return to ${fromLabel}.`);
           }
 
           const desktop = await browser.newPage({ viewport: { width: 1728, height: 1000 }, deviceScaleFactor: 1 });
@@ -187,29 +223,27 @@ jobs:
 
           const mobile = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
           await exposeApp(mobile);
-          const mobileDiag = await diagnostics(mobile, '390');
+          const created390 = await ensureTestTournament(mobile);
+          await diagnostics(mobile, '390');
           await assertMobileLabelsContained(mobile);
           await assertMobileTabSurface(mobile);
-          const switched = await assertAtLeastOneRealSwitch(mobile);
-          if (mobileDiag.current) {
-            const pairings = await tapIconArea(mobile, 'Pairings');
-            if (!pairings.active) throw new Error('With an open tournament, mobile Pairings must activate.');
-            const setup = await tapIconArea(mobile, 'Tournament Setup');
-            if (!setup.active) throw new Error('Could not return from Pairings to Tournament Setup.');
-          } else {
-            console.log(`CPV6_PAIRINGS_SKIPPED_NO_TOURNAMENT=true; validated real switch via ${switched}`);
-          }
+          if (!created390) throw new Error('Real-browser test could not create a tournament through the existing production creation function.');
+          await assertTabSwitch(mobile, 'Tournament Setup', 'Lists & Players');
+          await assertTabSwitch(mobile, 'Tournament Setup', 'Pairings');
           await mobile.screenshot({ path: 'production-v6-screens/mobile-production-shell.png', fullPage: false });
 
           const narrow = await browser.newPage({ viewport: { width: 360, height: 800 }, deviceScaleFactor: 1 });
           await exposeApp(narrow);
+          const created360 = await ensureTestTournament(narrow);
           await diagnostics(narrow, '360');
           await assertMobileLabelsContained(narrow);
           await assertMobileTabSurface(narrow);
-          await assertAtLeastOneRealSwitch(narrow);
+          if (!created360) throw new Error('360px test could not create a tournament through the existing production creation function.');
+          await assertTabSwitch(narrow, 'Tournament Setup', 'Lists & Players');
+          await assertTabSwitch(narrow, 'Tournament Setup', 'Pairings');
 
           await browser.close();
-          console.log('PASS real mobile touch routing, tab switching and compact labels at 390px and 360px');
+          console.log('PASS real mobile tournament tab switching and compact labels at 390px and 360px');
           EOF
           node capture-production-v6.mjs
       - uses: actions/upload-artifact@v4
