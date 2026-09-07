@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const app = fs.readFileSync('src/App.tsx', 'utf8');
+const workspace = fs.readFileSync('src/companion/CompanionWorkspace.tsx', 'utf8');
 const main = fs.readFileSync('src/main.tsx', 'utf8');
 const css = fs.readFileSync('src/companion.css', 'utf8');
 const sync = fs.readFileSync('src/cloud/onlineCloudSync.ts', 'utf8');
@@ -12,25 +13,28 @@ const chessApi = fs.readFileSync('src/chessResults/api.ts', 'utf8');
 const has = (source, marker, message) => assert.ok(source.includes(marker), message || `Missing ${marker}`);
 const lacks = (source, marker, message) => assert.ok(!source.includes(marker), message || `Forbidden ${marker}`);
 
-has(app, "type CompanionTab = 'setup' | 'players' | 'publish'", 'Web Companion must expose only Setup, Players and Publish workspaces.');
-has(app, '<TournamentSetupTab', 'Tournament Setup must remain available.');
-has(app, '<PlayersTab', 'Player Registration must remain available.');
-has(app, 'publishChessResults', 'Chess-Results publication must remain available.');
-has(app, 'cloud.publishOnline', 'Online Hub publication must remain available.');
-has(app, 'cloud.syncNow', 'Web edits must synchronize through the private Cloud Workspace.');
-has(app, 'cloud.pullChanges', 'Desktop changes must be pullable into Web.');
-has(app, 'window.addEventListener(\'focus\'', 'Returning to the browser must trigger a desktop/cloud revision check.');
-has(app, 'companion-mobile-nav', 'Mobile must use a dedicated app navigation surface.');
-has(app, '>Tournaments</span>', 'Mobile must provide a direct return to synchronized tournament list.');
+has(app, 'useOnlineCloud()', 'Production App must obtain the authoritative Cloud workspace context.');
+has(app, '<CompanionWorkspace cloud={cloud}', 'Production App must delegate presentation to the focused Companion workspace.');
+
+has(workspace, "type CompanionTab = 'setup' | 'players' | 'publish'", 'Web Companion must expose only Setup, Players and Publish workspaces.');
+has(workspace, '<TournamentSetupTab', 'Tournament Setup must remain available.');
+has(workspace, '<PlayersTab', 'Player Registration must remain available.');
+has(workspace, 'publishChessResults', 'Chess-Results publication must remain available.');
+has(workspace, 'cloud.publishOnline', 'Online Hub publication must remain available.');
+has(workspace, 'cloud.syncNow', 'Web edits must synchronize through the private Cloud Workspace.');
+has(workspace, 'cloud.pullChanges', 'Desktop changes must be pullable into Web.');
+has(workspace, "window.addEventListener('focus'", 'Returning to the browser must trigger a desktop/cloud revision check.');
+has(workspace, 'companion-mobile-nav', 'Mobile must use a dedicated app navigation surface.');
+has(workspace, '>Tournaments</span>', 'Mobile must provide a direct return to synchronized tournament list.');
 
 for (const removedView of [
-  "./components/PairingsTab",
-  "./components/StandingsTab",
-  "./components/TieBreaksTab",
-  "./components/ScheduleTab",
-  "./components/ExportTrfTab",
+  "../components/PairingsTab",
+  "../components/StandingsTab",
+  "../components/TieBreaksTab",
+  "../components/ScheduleTab",
+  "../components/ExportTrfTab",
   "DGT"
-]) lacks(app, removedView, `Desktop-only workspace leaked into the Web Companion: ${removedView}`);
+]) lacks(workspace, removedView, `Desktop-only workspace leaked into the Web Companion: ${removedView}`);
 
 has(main, "import './companion.css';", 'Companion responsive design must be loaded.');
 lacks(main, "ui-v6-approved.css", 'Legacy UI v6 shell must not be loaded by the new React Companion.');
