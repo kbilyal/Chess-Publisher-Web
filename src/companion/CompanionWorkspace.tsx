@@ -16,11 +16,10 @@ import {
 import { Tournament } from '../types';
 import { createInitialEmptyTournament } from '../data/initialData';
 import { TournamentSetupTab } from '../components/TournamentSetupTab';
-import { PlayersTab } from '../components/PlayersTab';
 import { TieBreakSettingsModal } from '../components/TieBreakSettingsModal';
-import { ResortStartingListModal } from '../components/ResortStartingListModal';
 import { chessResultsApi } from '../chessResults/api';
 import { buildChessResultsXml } from '../chessResults/publication';
+import { CompanionRegistration } from './CompanionRegistration';
 
 const STORAGE_KEY = 'fide_tournament_manager_v2';
 type CompanionTab = 'setup' | 'players' | 'publish';
@@ -60,7 +59,6 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
   const [message, setMessage] = useState('');
   const [messageKind, setMessageKind] = useState<'ok' | 'warn' | 'error'>('ok');
   const [tieBreakSettings, setTieBreakSettings] = useState<string | null>(null);
-  const [showResort, setShowResort] = useState(false);
   const tournamentRef = useRef(tournament);
 
   useEffect(() => { tournamentRef.current = tournament; }, [tournament]);
@@ -340,12 +338,12 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
         )}
 
         {activeTab === 'players' && (
-          <div className="companion-content-frame">
+          <div className="companion-content-frame companion-registration-frame">
             <div className="companion-section-head">
-              <div><span className="companion-eyebrow">REGISTRATION</span><h1>Players</h1><p>Register and maintain the same player list used by the desktop tournament.</p></div>
+              <div><span className="companion-eyebrow">REGISTRATION</span><h1>Player registration</h1><p>Fast FIDE search, manual registration and roster maintenance for the same synchronized Desktop tournament.</p></div>
               <div className="companion-counter"><strong>{tournament.players.length}</strong><span>players</span></div>
             </div>
-            <PlayersTab tournament={tournament} onUpdateTournament={updateTournament} onResortStartingList={() => setShowResort(true)} />
+            <CompanionRegistration tournament={tournament} onUpdateTournament={updateTournament} />
           </div>
         )}
 
@@ -456,9 +454,6 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
 
       {tieBreakSettings !== null && (
         <TieBreakSettingsModal tournament={tournament} tieBreakName={tieBreakSettings} onClose={() => setTieBreakSettings(null)} onUpdateTournament={updateTournament} />
-      )}
-      {showResort && (
-        <ResortStartingListModal isOpen={showResort} onClose={() => setShowResort(false)} tournament={tournament} onCommit={next => { setTournament(next); setShowResort(false); }} />
       )}
     </div>
   );
