@@ -1,0 +1,258 @@
+/* Publication v2: exactly two primary publication actions.
+ * Chess-Results and Chess-Publisher Online Hub remain independent targets
+ * derived from the same synchronized private tournament revision.
+ */
+
+.companion-publish-stack {
+  display: grid;
+  gap: 15px;
+}
+
+.companion-publish-command-panel {
+  padding: 22px;
+  border: 1px solid var(--cp-line);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 12px 34px rgba(15,23,42,.045);
+}
+
+.companion-publish-command-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.companion-publish-command-head h1 {
+  margin: 4px 0 6px;
+  color: #111c2e;
+  font-size: 22px;
+  line-height: 1.12;
+  font-weight: 850;
+  letter-spacing: -.035em;
+}
+
+.companion-publish-command-head p {
+  max-width: 760px;
+  margin: 0;
+  color: var(--cp-muted);
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.companion-publish-revision {
+  min-width: 58px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #dbe5f0;
+  border-radius: 11px;
+  background: #f7faff;
+  color: #315b8f;
+  font: 800 11px/1 "JetBrains Mono", monospace;
+}
+
+.companion-publish-command-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.companion-publish-command {
+  min-width: 0;
+  min-height: 112px;
+  padding: 16px 17px;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 13px;
+  border: 1px solid #d6e2ef;
+  border-radius: 15px;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 130ms ease, border-color 130ms ease, box-shadow 130ms ease, background 130ms ease;
+}
+
+.companion-publish-command:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(15,23,42,.08);
+}
+
+.companion-publish-command:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.companion-publish-command:disabled {
+  cursor: not-allowed;
+  opacity: .5;
+}
+
+.companion-publish-command.chessresults {
+  border-color: #c7dcf6;
+  background: linear-gradient(145deg, #f7fbff, #eef6ff);
+  color: #164f91;
+}
+
+.companion-publish-command.chessresults:hover:not(:disabled) {
+  border-color: #80afe7;
+  background: linear-gradient(145deg, #f4f9ff, #e9f3ff);
+}
+
+.companion-publish-command.hub {
+  border-color: #c6e7e9;
+  background: linear-gradient(145deg, #f7fdfd, #edfafa);
+  color: #176a72;
+}
+
+.companion-publish-command.hub:hover:not(:disabled) {
+  border-color: #82c9cf;
+  background: linear-gradient(145deg, #f4fcfc, #e7f8f9);
+}
+
+.companion-publish-command-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  color: #fff;
+}
+
+.companion-publish-command.chessresults .companion-publish-command-icon {
+  background: linear-gradient(145deg, #1769e0, #2c7ee7);
+  box-shadow: 0 9px 20px rgba(23,105,224,.19);
+}
+
+.companion-publish-command.hub .companion-publish-command-icon {
+  background: linear-gradient(145deg, #16818a, #35aeb8);
+  box-shadow: 0 9px 20px rgba(22,129,138,.18);
+}
+
+.companion-publish-command-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.companion-publish-command-copy small,
+.companion-publish-command-copy strong,
+.companion-publish-command-copy em {
+  display: block;
+  min-width: 0;
+}
+
+.companion-publish-command-copy small {
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+
+.companion-publish-command-copy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #132139;
+  font-size: 14px;
+  font-weight: 850;
+  letter-spacing: -.02em;
+}
+
+.companion-publish-command-copy em {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #6e7b8d;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 650;
+}
+
+.companion-publish-command-arrow {
+  justify-self: end;
+  opacity: .7;
+}
+
+.companion-publish-details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 15px;
+}
+
+.companion-publish-ready-note {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #27704a;
+  font-size: 9px;
+  font-weight: 750;
+}
+
+@media (max-width: 900px) {
+  .companion-publish-command-grid,
+  .companion-publish-details-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .companion-publish-command-panel {
+    padding: 15px;
+    border-radius: 14px;
+  }
+
+  .companion-publish-command-head {
+    align-items: flex-start;
+    margin-bottom: 14px;
+  }
+
+  .companion-publish-command-head h1 {
+    font-size: 19px;
+  }
+
+  .companion-publish-command {
+    min-height: 104px;
+    grid-template-columns: 44px minmax(0, 1fr) 20px;
+    gap: 11px;
+    padding: 13px;
+    touch-action: manipulation;
+  }
+
+  .companion-publish-command-icon {
+    width: 44px;
+    height: 44px;
+  }
+
+  .companion-publish-command-copy strong {
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 420px) {
+  .companion-publish-command-head {
+    gap: 10px;
+  }
+
+  .companion-publish-revision {
+    min-width: 48px;
+  }
+
+  .companion-publish-command {
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+
+  .companion-publish-command-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .companion-publish-command-arrow {
+    display: none;
+  }
+
+  .companion-publish-command-copy em {
+    white-space: normal;
+    line-height: 1.35;
+  }
+}
