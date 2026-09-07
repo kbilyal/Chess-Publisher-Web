@@ -41,7 +41,7 @@ if (/tabDgt|DGT Boards|label:\s*['"]DGT/i.test(js)) {
 }
 
 const forbiddenLogic = [
-  /window\.showTab\s*=/,
+  /window\.showTab\s*=(?!=)/,
   /executePairing|generatePairings|pairingchecker|Gacrux|bbpPairings/i,
   /exportTRF|exportTrf/i,
   /window\.(?:saveAll|cloudSync|chessResults)\w*\s*=/i
