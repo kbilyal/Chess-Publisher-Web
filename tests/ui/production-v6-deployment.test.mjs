@@ -114,13 +114,18 @@ for (const pattern of forbiddenFunctionalHide) {
   if (pattern.test(css) || pattern.test(lock)) throw new Error(`Production v6 hides an existing functional control: ${pattern}`);
 }
 
-requireText(deploy, 'production-web/web/ui-v6-production.css', 'Deploy gate does not require production v6 CSS.');
-requireText(deploy, 'production-web/web/ui-v6-cascade-lock.css', 'Deploy gate does not require the production v6 cascade lock.');
-requireText(deploy, 'production-web/web/ui-v6-production.js', 'Deploy gate does not require production v6 JS.');
-requireText(deploy, '/web/ui-v6-production.css?v=${GITHUB_SHA}', 'Deploy artifact does not verify cache-busted v6 CSS.');
-requireText(deploy, '/web/ui-v6-cascade-lock.css?v=${GITHUB_SHA}', 'Deploy artifact does not verify cache-busted v6 cascade lock.');
-requireText(deploy, '/web/ui-v6-production.js?v=${GITHUB_SHA}', 'Deploy artifact does not verify cache-busted v6 JS.');
-requireText(deploy, 'cp -R production-web/. dist/', 'Canonical production-web source must remain the deployment base.');
+// UI v6 / Mobile App v7 are retained as the exact legacy rollback surface.
+// The active Pages deployment intentionally switched to the validated Vite
+// Companion; the test therefore protects rollback integrity instead of forcing
+// the retired shell to remain the live deployment source.
+requireText(deploy, 'Preserve legacy production shell as rollback artifact', 'Deployment no longer preserves the v6 legacy rollback shell.');
+requireText(deploy, 'name: chess-publisher-web-legacy-production-rollback', 'Legacy v6 rollback artifact identity is missing.');
+requireText(deploy, 'path: production-web', 'Legacy v6 rollback source is not archived.');
+requireText(deploy, 'Build clean Vite Companion production artifact', 'Active deployment does not build the validated Companion.');
+requireText(deploy, "source: 'vite-dist'", 'Active deployment identity is not the Vite Companion.');
 requireText(deploy, "! grep -q 'src/main.tsx' dist/index.html", 'Deploy boundary must continue blocking raw Vite source entry.');
+if (deploy.includes('cp -R production-web/. dist/')) {
+  throw new Error('Legacy production-web must not remain the active Pages artifact after the Companion switch.');
+}
 
-console.log('PASS production UI v6 + Mobile App v7 deployment contract');
+console.log('PASS legacy production UI v6 + Mobile App v7 rollback integrity and Companion deployment boundary');
