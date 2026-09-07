@@ -126,6 +126,15 @@
     return `${item.label} is not available at this stage of the tournament.`;
   }
 
+  function dismissToast() {
+    const node = $('#cpMobileToast');
+    window.clearTimeout(toastTimer);
+    toastTimer = 0;
+    if (!node) return;
+    node.classList.remove('is-visible');
+    node.textContent = '';
+  }
+
   function toast(message) {
     const node = $('#cpMobileToast');
     if (!node) return;
@@ -144,6 +153,7 @@
 
   function openMore() {
     if (!media.matches) return;
+    dismissToast();
     syncState();
     $('#cpMobileMoreBackdrop')?.classList.add('is-open');
     $('#cpMobileMoreSheet')?.classList.add('is-open');
@@ -169,6 +179,7 @@
 
   function activate(item) {
     if (!media.matches || !item) return false;
+    dismissToast();
     const tab = resolveTab(item);
     if (!tab) {
       toast(`${item.label} is not available in this Web workspace.`);
@@ -297,7 +308,10 @@
     ensureShell();
     isolateLegacyTabsForPhone();
     syncVisiblePageGuard();
-    if (!media.matches) closeMore();
+    if (!media.matches) {
+      closeMore();
+      dismissToast();
+    }
     syncState();
   }
 
@@ -315,7 +329,12 @@
         syncState();
       }, 30);
     }, false);
-    document.addEventListener('keydown', event => { if (event.key === 'Escape') closeMore(); });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape') {
+        closeMore();
+        dismissToast();
+      }
+    });
     media.addEventListener?.('change', handleViewportChange);
     window.setInterval(() => {
       if (!media.matches) return;
