@@ -1,4 +1,4 @@
-/* Chess-Publisher Web · Mobile App v7 · September 2026
+/* Chess-Publisher Web · Mobile App v7 · Visual Bug Hunt v7.1 · September 2026
  * Mobile-only navigation facade. It never replaces showTab or tournament logic;
  * every navigation action delegates to the existing production tab/button.
  */
@@ -7,11 +7,11 @@
 
   const root = document.documentElement;
   root.dataset.cpMobileApp = '7';
+  root.dataset.cpMobileVisualHunt = '7.1';
 
   const MOBILE_QUERY = '(max-width: 768px)';
   const media = window.matchMedia(MOBILE_QUERY);
   const $ = (selector, scope = document) => scope.querySelector(selector);
-  const clean = value => value == null ? '' : String(value).trim();
 
   const PRIMARY = [
     { key: 'main', label: 'Setup', icon: '⌂', tabIds: ['tabMain'], legacyIds: ['main'] },
@@ -38,6 +38,14 @@
     return null;
   }
 
+  function resolvePage(item) {
+    for (const id of item.legacyIds || []) {
+      const node = document.getElementById(id);
+      if (node && node.classList.contains('page')) return node;
+    }
+    return null;
+  }
+
   function isDisabled(tab) {
     if (!tab) return true;
     return tab.disabled === true ||
@@ -47,6 +55,18 @@
 
   function isActive(tab) {
     return Boolean(tab && (tab.classList.contains('active') || tab.getAttribute('aria-selected') === 'true'));
+  }
+
+  function isItemActive(item) {
+    const page = resolvePage(item);
+    if (page) return page.classList.contains('active');
+    return isActive(resolveTab(item));
+  }
+
+  function navigationSettled(item, tab) {
+    if (!isActive(tab)) return false;
+    const page = resolvePage(item);
+    return !page || page.classList.contains('active');
   }
 
   function isolateLegacyTabsForPhone() {
@@ -85,7 +105,7 @@
   }
 
   function currentItem() {
-    return ALL.find(item => isActive(resolveTab(item))) || PRIMARY[0];
+    return ALL.find(item => isItemActive(item)) || PRIMARY[0];
   }
 
   function friendlyDisabledMessage(item) {
@@ -121,6 +141,24 @@
     $('#cpMobileMoreButton')?.setAttribute('aria-expanded', 'true');
   }
 
+  function invokeExistingNavigation(item, tab) {
+    if (typeof window.showTab === 'function') {
+      for (const legacyId of item.legacyIds || []) {
+        try {
+          window.showTab(legacyId, tab);
+          if (navigationSettled(item, tab)) return true;
+        } catch { /* continue to the untouched button handler fallback */ }
+      }
+    }
+
+    try {
+      tab.click();
+      if (navigationSettled(item, tab)) return true;
+    } catch { /* verify below without changing tournament state */ }
+
+    return navigationSettled(item, tab);
+  }
+
   function activate(item) {
     if (!media.matches || !item) return false;
     const tab = resolveTab(item);
@@ -134,37 +172,28 @@
     }
 
     closeMore();
-
-    let activated = false;
-    if (typeof window.showTab === 'function') {
-      for (const legacyId of item.legacyIds || []) {
-        try {
-          window.showTab(legacyId, tab);
-          if (isActive(tab)) {
-            activated = true;
-            break;
-          }
-        } catch { /* use the untouched button handler fallback */ }
-      }
-    }
-
-    if (!activated) {
-      try {
-        tab.click();
-        activated = isActive(tab);
-      } catch { /* keep current page and show feedback below */ }
-    }
+    let activated = invokeExistingNavigation(item, tab);
 
     window.setTimeout(() => {
       isolateLegacyTabsForPhone();
-      syncState();
-      const nowActive = isActive(tab);
-      if (!nowActive && !isDisabled(tab)) {
-        toast(`${item.label} could not be opened. The current tournament state may not allow it yet.`);
+
+      // A tab highlight without its matching page is a visual navigation bug.
+      // Retry only through the original tab handler; never toggle page classes here.
+      if (!navigationSettled(item, tab) && !isDisabled(tab)) {
+        try { tab.click(); } catch { /* original shell remains authoritative */ }
       }
+
+      activated = navigationSettled(item, tab);
+      syncState();
+      if (!activated && !isDisabled(tab)) {
+        toast(`${item.label} could not be opened. Please try again.`);
+        return;
+      }
+
       const content = $('#appWindow > .content');
-      if (nowActive && content) content.scrollTop = 0;
-    }, 40);
+      if (content) content.scrollTop = 0;
+      resolvePage(item)?.scrollTo?.({ top: 0, left: 0, behavior: 'auto' });
+    }, 60);
 
     return activated;
   }
@@ -301,9 +330,8 @@
     });
     media.addEventListener?.('change', handleViewportChange);
 
-    // Some sections are enabled/disabled by the existing tournament flow after
-    // registration or results changes. Reflect that state without wrapping or
-    // replacing any production function.
+    // Existing tournament flow changes which sections are enabled. Mirror that
+    // state in the app nav without wrapping any tournament function.
     window.setInterval(() => {
       if (media.matches) {
         isolateLegacyTabsForPhone();
