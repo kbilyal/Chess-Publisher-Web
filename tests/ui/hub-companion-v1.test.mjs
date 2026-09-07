@@ -90,6 +90,15 @@ has(workspace, 'already exists on the Hub', 'Missing local Hub metadata must exp
 has(workspace, 'const current = adoptSynchronizedTournament()', 'Chess-Results must publish the synchronized Desktop/Cloud tournament revision, not stale browser state.');
 has(workspace, 'const synchronized = adoptSynchronizedTournament()', 'Online Hub must publish the synchronized Desktop/Cloud tournament revision.');
 
+has(workspace, 'isSourceIdMismatch', 'Chess-Results source mismatch must be recognized explicitly instead of surfacing the raw bridge error.');
+has(workspace, 'data-chess-results-source-recovery', 'Incompatible external TNR must expose a dedicated recovery action.');
+has(workspace, 'Create new Chess-Publisher TNR', 'Source mismatch recovery must require an explicit one-tap new-TNR action.');
+has(workspace, 'Chess-Publisher Source 21 is fixed by the official interface.', 'Recovery UI must keep the assigned Chess-Publisher source fixed rather than changing the bridge source.');
+has(workspace, 'sourceId: Number(created?.sourceId || 21)', 'Fresh GETKEY assignment must record Chess-Publisher Source 21 in the synchronized tournament.');
+has(workspace, 'GETKEY keys must be saved immediately', 'A newly issued replacement TNR must be persisted before the first upload attempt.');
+has(workspace, 'Replaced incompatible TNR ${oldKey} with Chess-Publisher TNR ${freshKey}.', 'Replacement must leave an audit trail instead of silently discarding the previous TNR.');
+lacks(workspace.toLowerCase(), 'swiss-manager', 'The Web Companion must not leak another program name in source-mismatch recovery UI or code.');
+
 for (const removedView of [
   '../components/PairingsTab',
   '../components/StandingsTab',
@@ -140,4 +149,4 @@ has(cloudApi, "'X-Expected-Revision'", 'Cloud optimistic revision guard is missi
 has(hubApi, 'publishOwnedTournament', 'Organizer-owned Online Hub publication API is missing.');
 has(chessApi, '/api/chess-results/', 'Chess-Results must remain behind the server-side product API.');
 
-console.log('PASS Hub Companion v1 contract: focused Setup + Registration + My Tournaments + exactly two guarded publication targets, safe Desktop/Web conflict merge, recoverable public Hub page action, browser FIDE fallback and responsive mobile/desktop shell.');
+console.log('PASS Hub Companion v1 contract: focused Setup + Registration + My Tournaments + exactly two guarded publication targets, safe Desktop/Web conflict merge, source-safe Chess-Results TNR recovery, recoverable public Hub page action, browser FIDE fallback and responsive mobile/desktop shell.');
