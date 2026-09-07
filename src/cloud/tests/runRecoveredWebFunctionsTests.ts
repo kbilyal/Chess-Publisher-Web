@@ -76,9 +76,15 @@ for (const marker of ['cpProductionWeb', 'cpLinuxWebDev', 'Create New Tournament
   assert(index.includes(marker), `missing production/beta.7 marker: ${marker}`);
 }
 
+// The recovered desktop-aligned Web shell remains byte/regression protected as
+// the rollback source, but Pages now intentionally publishes the focused Vite
+// Companion validated by the new production candidate gate.
 const workflow = read('.github/workflows/deploy-web.yml');
-assert(workflow.includes('cp -R production-web/. dist/'), 'Pages workflow no longer assembles from production-web');
-assert(workflow.includes("source: 'production-web'"), 'build-info source is no longer production-web');
+assert(workflow.includes('Build clean Vite Companion production artifact'), 'Pages workflow does not build the validated Vite Companion');
+assert(workflow.includes("source: 'vite-dist'"), 'Pages build-info source is not the Vite Companion');
+assert(workflow.includes('Preserve legacy production shell as rollback artifact'), 'legacy production-web rollback archive is missing');
+assert(workflow.includes('path: production-web'), 'legacy production-web rollback source is not archived');
+assert(!workflow.includes('cp -R production-web/. dist/'), 'Pages workflow still publishes the legacy production-web shell');
 assert(!workflow.includes('vite build --outDir production-web'), 'workflow overwrites production-web with a generated UI');
 
-console.log('Recovered last-night Web functions regression: PASS');
+console.log('Recovered last-night Web functions regression: PASS — legacy shell is preserved intact as rollback while Pages deploys the validated Companion.');
