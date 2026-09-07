@@ -1,0 +1,106 @@
+name: Companion login and My Tournaments preview
+on:
+  pull_request:
+    paths:
+      - 'src/companion/CompanionCloudScreens.tsx'
+      - 'src/companion-cloud.css'
+      - 'src/cloud/OnlineCloudProviderV2.tsx'
+      - 'src/main.tsx'
+      - 'tests/ui/companion-cloud-screens.test.mjs'
+      - '.github/workflows/companion-entry-preview.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  entry-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: node tests/ui/companion-cloud-screens.test.mjs
+      - run: npm run lint
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Create isolated entry screen preview
+        run: |
+          cat > preview-entry.html <<'EOF'
+          <!doctype html>
+          <html lang="en">
+            <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Companion entry preview</title></head>
+            <body><div id="root"></div><script type="module" src="/preview-entry.tsx"></script></body>
+          </html>
+          EOF
+          cat > preview-entry.tsx <<'EOF'
+          import React from 'react';
+          import { createRoot } from 'react-dom/client';
+          import { CompanionLoginScreen, CompanionTournamentSelectScreen } from './src/companion/CompanionCloudScreens.tsx';
+          import { createInitialEmptyTournament } from './src/data/initialData.ts';
+          import './src/index.css';
+          import './src/companion-cloud.css';
+
+          const params = new URLSearchParams(location.search);
+          const screen = params.get('screen') || 'login';
+          const local = createInitialEmptyTournament('Local · Rhodopes Open 2026');
+          const tournaments = [
+            { id: 'cloud-rhodopes-2026', localKey: 'cp:rhodopes-2026', name: 'Rhodopes Open 2026', revision: 14 },
+            { id: 'cloud-nedelino-2026', localKey: 'cp:nedelino-2026', name: 'Nedelino Memorial 2026', revision: 9 },
+            { id: 'cloud-zlatograd-2026', localKey: 'cp:zlatograd-2026', name: 'Zlatograd Rapid 2026', revision: 6 }
+          ];
+
+          createRoot(document.getElementById('root')!).render(screen === 'select'
+            ? <CompanionTournamentSelectScreen organizerName="Organizer Preview" tournaments={tournaments} localTournament={local} busy={false} status="Connected" statusKind="ok" onRefresh={() => {}} onSignOut={() => {}} onOpen={() => {}} onContinueLocal={() => {}} />
+            : <CompanionLoginScreen tokenInput="" rememberToken={false} busy={false} status="Organizer Token required" statusKind="warn" onTokenInput={() => {}} onRememberToken={() => {}} onConnect={() => {}} />
+          );
+          EOF
+      - name: Start Vite preview target
+        run: |
+          npx vite --host 127.0.0.1 --port 4177 > /tmp/cp-entry-vite.log 2>&1 &
+          for i in {1..45}; do
+            if curl -fsS 'http://127.0.0.1:4177/preview-entry.html?screen=login' >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/cp-entry-vite.log
+          exit 1
+      - name: Verify desktop and mobile entry screens
+        run: |
+          mkdir -p companion-entry-preview
+          cat > verify-entry.mjs <<'EOF'
+          import { chromium } from 'playwright';
+          const browser = await chromium.launch({ headless: true });
+          for (const [width, height, label] of [[1440, 960, 'desktop'], [390, 844, 'mobile-390']]) {
+            for (const screen of ['login', 'select']) {
+              const page = await browser.newPage({ viewport: { width, height } });
+              const errors = [];
+              page.on('pageerror', error => errors.push(error.message));
+              await page.goto(`http://127.0.0.1:4177/preview-entry.html?screen=${screen}`, { waitUntil: 'networkidle' });
+              if (screen === 'login') {
+                if (!await page.getByText('Continue your desktop tournaments anywhere.').isVisible()) throw new Error(`${label}: login heading missing.`);
+                if (!await page.getByText('Organizer Token', { exact: true }).isVisible()) throw new Error(`${label}: Organizer Token field missing.`);
+              } else {
+                if (!await page.getByRole('heading', { name: 'My tournaments' }).isVisible()) throw new Error(`${label}: My tournaments heading missing.`);
+                if (await page.locator('.companion-tournament-tile').count() !== 3) throw new Error(`${label}: cloud tournament cards missing.`);
+                if (!await page.getByText('Local · Rhodopes Open 2026').isVisible()) throw new Error(`${label}: local continuation missing.`);
+              }
+              const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+              if (overflow > 1) throw new Error(`${label}/${screen}: horizontal overflow ${overflow}px.`);
+              if (errors.length) throw new Error(errors.join('\n'));
+              await page.screenshot({ path: `companion-entry-preview/${label}-${screen}.png`, fullPage: true });
+              await page.close();
+            }
+          }
+          await browser.close();
+          EOF
+          node verify-entry.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: companion-login-my-tournaments-preview
+          path: companion-entry-preview/*.png
+          if-no-files-found: error
+          retention-days: 7
