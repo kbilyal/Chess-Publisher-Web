@@ -386,6 +386,18 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
                   <Send size={19} className="companion-publish-command-arrow" />
                 </button>
               </div>
+
+              <div className="companion-publish-quick-actions" data-hub-public-page-action>
+                <button
+                  type="button"
+                  className="companion-button secondary"
+                  onClick={() => cloud.openPublicPage(tournament)}
+                  disabled={!publicHubUrl || busy !== null || cloud.busy}
+                >
+                  <ExternalLink size={16} /> Open public Hub page
+                </button>
+                <span>{publicHubUrl ? 'View the tournament exactly as visitors see it on Chess-Publisher Hub.' : 'Available after the first Online Hub publication.'}</span>
+              </div>
             </section>
 
             <div className="companion-publish-details-grid">
@@ -424,7 +436,7 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
                 </div>
                 <div className="companion-card-actions">
                   {publicHubUrl
-                    ? <button type="button" className="companion-button secondary" onClick={() => cloud.openPublicPage(tournament)}><ExternalLink size={16} /> Open Hub page</button>
+                    ? <button type="button" className="companion-button secondary" onClick={() => cloud.openPublicPage(tournament)}><ExternalLink size={16} /> Open public Hub page</button>
                     : <span className="companion-publish-ready-note"><CheckCircle2 size={15} /> Ready for first Hub publication</span>}
                 </div>
               </section>
