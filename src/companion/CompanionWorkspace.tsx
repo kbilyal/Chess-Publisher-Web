@@ -34,7 +34,7 @@ export type CompanionCloud = {
   syncNow: (tournament: Tournament) => Promise<void>;
   pullChanges: (tournament: Tournament) => Promise<void>;
   publishOnline: (tournament: Tournament) => Promise<void>;
-  openPublicPage: (tournament: Tournament) => void;
+  openPublicPage: (tournament: Tournament) => void | Promise<void>;
   returnToCloudList: () => Promise<void>;
 };
 
@@ -79,7 +79,9 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
 
   const displayName = tournament.name?.trim() || 'Tournament';
   const cloudRevision = Number(cloud.activeCloud?.revision || (tournament as any)?.cloud?.baseRevision || 0);
-  const publicHubUrl = String((tournament as any)?.online?.publicPageUrl || '').trim();
+  const publicHubSlug = String((tournament as any)?.online?.publicSlug || '').trim();
+  const publicHubUrl = String((tournament as any)?.online?.publicPageUrl || '').trim()
+    || (publicHubSlug ? `https://chess-publisher.org/tournaments?id=${encodeURIComponent(publicHubSlug)}` : '');
   const tnr = String(tournament.chessResults?.key || tournament.settings?.tnr || '').trim();
 
   const setupProgress = useMemo(() => {
@@ -127,7 +129,7 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
     try {
       await cloud.pullChanges(tournamentRef.current);
       adoptSynchronizedTournament();
-      setNotice('ok', 'Latest desktop/cloud revision checked.');
+      setNotice('ok', 'Desktop and Web revisions checked. Non-overlapping changes were merged safely when possible.');
     } catch (error: any) {
       setNotice('error', error?.message || 'Could not check the latest revision.');
     } finally {
@@ -250,6 +252,16 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
     }
   };
 
+  const openHubPage = async () => {
+    setMessage('');
+    try {
+      await cloud.openPublicPage(tournamentRef.current);
+      adoptSynchronizedTournament();
+    } catch (error: any) {
+      setNotice('error', error?.message || 'Could not open the public Hub page.');
+    }
+  };
+
   const leaveTournament = async () => {
     if (!cloud.conflict) {
       try { await cloud.syncNow(tournamentRef.current); } catch { /* list remains available */ }
@@ -313,9 +325,15 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
 
       <main className="companion-main">
         {cloud.conflict && (
-          <div className="companion-alert warn">
+          <div className="companion-alert warn companion-conflict-alert">
             <WifiOff size={18} />
-            <div><strong>Desktop and Web changed the same tournament.</strong><span>No data was overwritten. Use Check updates to resolve through the existing three-way sync workflow.</span></div>
+            <div className="companion-conflict-copy">
+              <strong>Desktop and Web both changed this tournament.</strong>
+              <span>Resolve safely merges non-overlapping changes. If the same field changed on both devices, nothing is overwritten.</span>
+            </div>
+            <button type="button" className="companion-button secondary companion-conflict-action" onClick={pullDesktopChanges} disabled={busy !== null || cloud.busy}>
+              <RefreshCw size={16} className={busy === 'pull' ? 'spin' : ''} /> {busy === 'pull' ? 'Resolving…' : 'Resolve safely'}
+            </button>
           </div>
         )}
         {message && (
@@ -381,7 +399,7 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
                   <span className="companion-publish-command-copy">
                     <small>CHESS-PUBLISHER</small>
                     <strong>{busy === 'hub' ? 'Publishing…' : 'Publish to Online Hub'}</strong>
-                    <em>{publicHubUrl ? 'Update the existing public Hub tournament' : 'Create the public Hub tournament'}</em>
+                    <em>{publicHubUrl ? 'Update the existing public Hub tournament' : 'Create or update the public Hub tournament'}</em>
                   </span>
                   <Send size={19} className="companion-publish-command-arrow" />
                 </button>
@@ -391,12 +409,12 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
                 <button
                   type="button"
                   className="companion-button secondary"
-                  onClick={() => cloud.openPublicPage(tournament)}
-                  disabled={!publicHubUrl || busy !== null || cloud.busy}
+                  onClick={openHubPage}
+                  disabled={busy !== null || cloud.busy}
                 >
                   <ExternalLink size={16} /> Open public Hub page
                 </button>
-                <span>{publicHubUrl ? 'View the tournament exactly as visitors see it on Chess-Publisher Hub.' : 'Available after the first Online Hub publication.'}</span>
+                <span>{publicHubUrl ? 'View the tournament exactly as visitors see it on Chess-Publisher Hub.' : 'If this tournament already exists on the Hub, the Web Companion will find and open it automatically.'}</span>
               </div>
             </section>
 
@@ -426,18 +444,16 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
                 <div className="companion-publish-icon hub"><Cloud size={23} /></div>
                 <div className="companion-card-copy">
                   <span className="companion-eyebrow">ONLINE HUB STATUS</span>
-                  <h2>{publicHubUrl ? 'Public tournament linked' : 'Not published yet'}</h2>
+                  <h2>{publicHubUrl ? 'Public tournament linked' : 'Hub link can be recovered automatically'}</h2>
                   <p>The public Hub is a publication target. Private Cloud Workspace remains the Desktop ↔ Web source of truth.</p>
                 </div>
                 <div className="companion-card-stats">
                   <span><small>Players</small><strong>{tournament.players.length}</strong></span>
                   <span><small>Cloud revision</small><strong>r{cloudRevision || 0}</strong></span>
-                  <span><small>Public</small><strong>{publicHubUrl ? 'Linked' : 'Ready'}</strong></span>
+                  <span><small>Public</small><strong>{publicHubUrl ? 'Linked' : 'Check Hub'}</strong></span>
                 </div>
                 <div className="companion-card-actions">
-                  {publicHubUrl
-                    ? <button type="button" className="companion-button secondary" onClick={() => cloud.openPublicPage(tournament)}><ExternalLink size={16} /> Open public Hub page</button>
-                    : <span className="companion-publish-ready-note"><CheckCircle2 size={15} /> Ready for first Hub publication</span>}
+                  <button type="button" className="companion-button secondary" onClick={openHubPage} disabled={busy !== null || cloud.busy}><ExternalLink size={16} /> Open public Hub page</button>
                 </div>
               </section>
             </div>
