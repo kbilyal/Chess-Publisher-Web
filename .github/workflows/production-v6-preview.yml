@@ -1,18 +1,20 @@
-name: Production UI v6 real-browser preview
+name: Production Web real-browser UI gate
 on:
   pull_request:
     paths:
       - 'production-web/web/ui-v6-production.css'
       - 'production-web/web/ui-v6-cascade-lock.css'
       - 'production-web/web/ui-v6-production.js'
+      - 'production-web/web/mobile-app-v7.css'
+      - 'production-web/web/mobile-app-v7.js'
       - 'tests/ui/production-v6-deployment.test.mjs'
-      - '.github/workflows/deploy-web.yml'
+      - 'tests/ui/mobile-app-v7.test.mjs'
       - '.github/workflows/production-v6-preview.yml'
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  preview-production-shell:
+  real-browser-ui:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,19 +23,22 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - run: node tests/ui/production-v6-deployment.test.mjs
+      - name: Static presentation contracts
+        run: |
+          node tests/ui/production-v6-deployment.test.mjs
+          node tests/ui/mobile-app-v7.test.mjs
       - name: Install Playwright Chromium
         run: |
           npm install --no-save playwright@1.55.0
           npx playwright install --with-deps chromium
-      - name: Assemble production shell with v6 presentation
+      - name: Assemble exact production shell
         run: |
-          rm -rf production-v6-preview
-          mkdir -p production-v6-preview
-          cp -R production-web/. production-v6-preview/
+          rm -rf production-v7-preview production-v7-screens
+          mkdir -p production-v7-preview production-v7-screens
+          cp -R production-web/. production-v7-preview/
           python - <<'PY'
           from pathlib import Path
-          p = Path('production-v6-preview/index.html')
+          p = Path('production-v7-preview/index.html')
           text = p.read_text(encoding='utf-8')
           style = '<link rel="stylesheet" href="/web/ui-v6-production.css?v=preview">'
           lock = '<link rel="stylesheet" href="/web/ui-v6-cascade-lock.css?v=preview">'
@@ -48,24 +53,23 @@ jobs:
           PY
       - name: Start exact production preview
         run: |
-          python3 -m http.server 4174 --directory production-v6-preview > /tmp/cpv6-production.log 2>&1 &
+          python3 -m http.server 4174 --directory production-v7-preview > /tmp/cpv7.log 2>&1 &
           for i in {1..30}; do
             if curl -fsS http://127.0.0.1:4174 >/dev/null; then exit 0; fi
             sleep 1
           done
-          cat /tmp/cpv6-production.log
+          cat /tmp/cpv7.log
           exit 1
-      - name: Verify mobile tab interaction and capture production shell
+      - name: Verify desktop and Facebook-style mobile navigation
         run: |
-          mkdir -p production-v6-screens
-          cat > capture-production-v6.mjs <<'EOF'
+          cat > capture-production-v7.mjs <<'EOF'
           import { chromium } from 'playwright';
           const browser = await chromium.launch({ headless: true });
           const base = 'http://127.0.0.1:4174';
 
           async function exposeApp(page) {
             await page.goto(base, { waitUntil: 'networkidle' });
-            await page.waitForTimeout(1200);
+            await page.waitForTimeout(900);
             await page.evaluate(() => {
               const login = document.querySelector('#cpBeta7Start');
               if (login) login.style.setProperty('display', 'none', 'important');
@@ -77,193 +81,129 @@ jobs:
               }
               document.querySelectorAll('.cp-beta7-app-hidden').forEach(node => node.classList.remove('cp-beta7-app-hidden'));
             });
-            const setup = page.getByText('Tournament Setup', { exact: true });
-            if (await setup.count()) {
-              await setup.first().click();
-              await page.waitForTimeout(250);
-            }
+            await page.waitForFunction(() => document.documentElement.dataset.cpMobileApp === '7');
+            await page.waitForTimeout(250);
           }
 
-          async function ensureTestTournament(page) {
-            const before = await page.evaluate(() => {
-              try { return typeof window.getCurrentTournament === 'function' ? window.getCurrentTournament() : null; } catch { return null; }
+          async function ensureTournament(page) {
+            const exists = await page.evaluate(() => {
+              try { return Boolean(window.getCurrentTournament?.()); } catch { return false; }
             });
-            if (before) return true;
-
-            const probe = await page.evaluate(() => {
-              const describe = value => value && typeof value === 'object' ? { keys: Object.keys(value).slice(0, 40), name: value.name || value.tournamentName || value.settings?.eventName || '' } : { type: typeof value };
-              let emptyResult = null;
-              try {
-                if (typeof window.createEmptyTournament === 'function') emptyResult = describe(window.createEmptyTournament());
-              } catch (error) { emptyResult = { error: String(error) }; }
-              let current = null;
-              try { current = typeof window.getCurrentTournament === 'function' ? window.getCurrentTournament() : null; } catch {}
-              return { emptyResult, currentAfterEmpty: current ? describe(current) : null };
-            });
-            console.log(`CPV6_CREATE_EMPTY_PROBE=${JSON.stringify(probe)}`);
-
-            let current = await page.evaluate(() => {
-              try { return typeof window.getCurrentTournament === 'function' ? window.getCurrentTournament() : null; } catch { return null; }
-            });
-            if (current) return true;
-
-            const createInputs = await page.evaluate(() => Array.from(document.querySelectorAll('#createScreen input, #createScreen select, #createScreen textarea')).map(node => ({
-              tag: node.tagName,
-              id: node.id || '',
-              name: node.name || '',
-              type: node.type || '',
-              placeholder: node.placeholder || '',
-              value: node.value || ''
-            })));
-            console.log(`CPV6_CREATE_INPUTS=${JSON.stringify(createInputs)}`);
-
+            if (exists) return;
             await page.evaluate(() => {
               const screen = document.querySelector('#createScreen');
               if (screen) screen.style.removeProperty('display');
-              const fields = Array.from(document.querySelectorAll('#createScreen input, #createScreen textarea'));
-              for (const field of fields) {
-                const key = `${field.id || ''} ${field.name || ''} ${field.placeholder || ''}`.toLowerCase();
-                if (field.type === 'text' && !field.value) field.value = key.includes('name') ? 'UI Mobile Regression Test' : 'Test';
-                if (field.type === 'number' && !field.value) field.value = key.includes('round') ? '7' : '1';
-                if (field.type === 'date' && !field.value) field.value = '2026-09-07';
-                field.dispatchEvent(new Event('input', { bubbles: true }));
-                field.dispatchEvent(new Event('change', { bubbles: true }));
+              const name = document.querySelector('#firstTournamentName');
+              if (name) {
+                name.value = 'Mobile App v7 Regression';
+                name.dispatchEvent(new Event('input', { bubbles: true }));
+                name.dispatchEvent(new Event('change', { bubbles: true }));
               }
-              try {
-                if (typeof window.createFirstTournament === 'function') window.createFirstTournament();
-              } catch (error) {
-                console.log('CPV6_CREATE_FIRST_ERROR', String(error));
-              }
+              if (typeof window.createFirstTournament === 'function') window.createFirstTournament();
             });
-            await page.waitForTimeout(500);
-
-            current = await page.evaluate(() => {
-              try { return typeof window.getCurrentTournament === 'function' ? window.getCurrentTournament() : null; } catch { return null; }
+            await page.waitForTimeout(450);
+            const created = await page.evaluate(() => {
+              try { return Boolean(window.getCurrentTournament?.()); } catch { return false; }
             });
-            console.log(`CPV6_TEST_TOURNAMENT_CREATED=${Boolean(current)}`);
-            return Boolean(current);
+            if (!created) throw new Error('Could not create test tournament through existing production creation flow.');
           }
 
-          async function diagnostics(page, tag) {
-            const data = await page.evaluate(() => {
-              let current = null;
-              try { current = typeof window.getCurrentTournament === 'function' ? window.getCurrentTournament() : null; } catch {}
-              const tabs = Array.from(document.querySelectorAll('#appWindow > .tabs > .tab')).map(tab => ({
-                id: tab.id || '',
-                text: (tab.textContent || '').trim(),
-                onclick: tab.getAttribute('onclick') || '',
-                disabled: tab.classList.contains('disabled') || tab.getAttribute('aria-disabled') === 'true',
-                active: tab.classList.contains('active') || tab.getAttribute('aria-selected') === 'true'
-              }));
-              return { current: current ? { name: current.name || current.tournamentName || current.settings?.eventName || '', keys: Object.keys(current).slice(0, 30) } : null, tabs, showTabType: typeof window.showTab };
+          async function activeLegacyId(page) {
+            return page.evaluate(() => {
+              const tab = Array.from(document.querySelectorAll('#appWindow > .tabs > .tab')).find(node => node.classList.contains('active') || node.getAttribute('aria-selected') === 'true');
+              return tab?.id || '';
             });
-            console.log(`CPV6_DIAGNOSTICS_${tag}=${JSON.stringify(data)}`);
-            return data;
           }
 
-          async function tabLocator(page, label) {
-            return page.locator('#appWindow > .tabs > .tab').filter({ hasText: label }).first();
-          }
-
-          async function tabDisabled(page, label) {
-            const tab = await tabLocator(page, label);
-            if (!(await tab.count())) return true;
-            return tab.evaluate(node => node.classList.contains('disabled') || node.getAttribute('aria-disabled') === 'true');
-          }
-
-          async function tapIconArea(page, label) {
-            const tab = await tabLocator(page, label);
-            if (!(await tab.count())) return { exists: false, active: false };
-            await tab.scrollIntoViewIfNeeded();
-            const box = await tab.boundingBox();
-            if (!box) throw new Error(`No mobile tab bounds: ${label}`);
-            const hit = await page.evaluate(({ x, y }) => {
-              const node = document.elementFromPoint(x, y);
-              return node ? { tag: node.tagName, id: node.id || '', cls: node.className || '', text: (node.textContent || '').trim() } : null;
-            }, { x: box.x + box.width / 2, y: box.y + 12 });
-            console.log(`CPV6_HIT_${label.replace(/\W+/g, '_')}=${JSON.stringify(hit)}`);
-            await page.mouse.click(box.x + box.width / 2, box.y + 12);
-            await page.waitForTimeout(300);
-            const active = await tab.evaluate(node => node.classList.contains('active') || node.getAttribute('aria-selected') === 'true');
-            return { exists: true, active };
-          }
-
-          async function assertMobileLabelsContained(page) {
-            const problems = await page.locator('#appWindow > .tabs > .tab').evaluateAll(tabs => tabs.map(tab => {
-              const style = getComputedStyle(tab);
-              const after = getComputedStyle(tab, '::after');
+          async function assertNoNavOverlap(page) {
+            const problems = await page.locator('#cpMobileAppNav .cp-mobile-nav-item').evaluateAll(nodes => nodes.map(node => {
+              const label = node.querySelector('.cp-mobile-nav-label');
+              const box = node.getBoundingClientRect();
               return {
-                label: (tab.textContent || '').trim(),
-                mobileLabel: tab.dataset.cpv6MobileLabel || '',
-                clientWidth: tab.clientWidth,
-                scrollWidth: tab.scrollWidth,
-                overflow: style.overflow,
-                afterContent: after.content
+                text: label?.textContent || '',
+                width: box.width,
+                labelClient: label?.clientWidth || 0,
+                labelScroll: label?.scrollWidth || 0
               };
-            }).filter(item => !item.mobileLabel || item.scrollWidth > item.clientWidth + 2 || item.afterContent === 'none' || item.afterContent === 'normal'));
-            if (problems.length) throw new Error(`Mobile tab label overflow/metadata failure: ${JSON.stringify(problems)}`);
+            }).filter(item => item.width < 50 || item.labelScroll > item.labelClient + 2));
+            if (problems.length) throw new Error(`Mobile nav overlap/overflow: ${JSON.stringify(problems)}`);
           }
 
-          async function assertMobileTabSurface(page) {
-            const tabsStyle = await page.locator('#appWindow > .tabs').evaluate(node => {
-              const style = getComputedStyle(node);
-              return { position: style.position, bottom: style.bottom, zIndex: style.zIndex, overflowX: style.overflowX };
-            });
-            console.log(`CPV6_MOBILE_TABS_STYLE=${JSON.stringify(tabsStyle)}`);
-            if (tabsStyle.position === 'sticky' || tabsStyle.position === 'fixed') {
-              throw new Error(`Legacy sticky/fixed mobile tab layer still active: ${JSON.stringify(tabsStyle)}`);
-            }
+          async function clickMobile(page, label) {
+            const button = page.locator('#cpMobileAppNav .cp-mobile-nav-item').filter({ hasText: label }).first();
+            if (!(await button.count())) throw new Error(`Missing mobile nav button: ${label}`);
+            await button.click();
+            await page.waitForTimeout(180);
           }
 
-          async function assertTabSwitch(page, fromLabel, toLabel, { allowDisabled = false } = {}) {
-            const from = await tapIconArea(page, fromLabel);
-            if (!from.active) throw new Error(`Could not activate ${fromLabel} before switch test.`);
-            if (await tabDisabled(page, toLabel)) {
-              if (allowDisabled) {
-                console.log(`CPV6_EXPECTED_DISABLED_TAB=${toLabel}`);
-                return 'disabled';
-              }
-              throw new Error(`${toLabel} is unexpectedly disabled in the real-browser tab switch test.`);
-            }
-            const to = await tapIconArea(page, toLabel);
-            if (!to.active) throw new Error(`Mobile tab tap did not activate ${toLabel}.`);
-            const back = await tapIconArea(page, fromLabel);
-            if (!back.active) throw new Error(`Mobile tab tap could not return to ${fromLabel}.`);
-            return 'switched';
-          }
-
-          const desktop = await browser.newPage({ viewport: { width: 1728, height: 1000 }, deviceScaleFactor: 1 });
+          const desktop = await browser.newPage({ viewport: { width: 1728, height: 1000 } });
           await exposeApp(desktop);
-          await desktop.screenshot({ path: 'production-v6-screens/desktop-production-shell.png', fullPage: false });
+          await ensureTournament(desktop);
+          const desktopState = await desktop.evaluate(() => ({
+            mobileDisplay: getComputedStyle(document.querySelector('#cpMobileAppNav')).display,
+            tabsLeft: document.querySelector('#appWindow > .tabs').getBoundingClientRect().left,
+            tabsWidth: document.querySelector('#appWindow > .tabs').getBoundingClientRect().width
+          }));
+          if (desktopState.mobileDisplay !== 'none') throw new Error(`Mobile nav leaked into desktop: ${JSON.stringify(desktopState)}`);
+          if (desktopState.tabsLeft < -100 || desktopState.tabsWidth < 180) throw new Error(`Desktop sidebar is not visible: ${JSON.stringify(desktopState)}`);
+          await desktop.screenshot({ path: 'production-v7-screens/desktop.png', fullPage: false });
 
-          const mobile = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
+          const mobile = await browser.newPage({ viewport: { width: 390, height: 844 } });
           await exposeApp(mobile);
-          const created390 = await ensureTestTournament(mobile);
-          await diagnostics(mobile, '390');
-          await assertMobileLabelsContained(mobile);
-          await assertMobileTabSurface(mobile);
-          if (!created390) throw new Error('Real-browser test could not create a tournament through the existing production creation function.');
-          await assertTabSwitch(mobile, 'Tournament Setup', 'Lists & Players');
-          await assertTabSwitch(mobile, 'Tournament Setup', 'Pairings', { allowDisabled: true });
-          await mobile.screenshot({ path: 'production-v6-screens/mobile-production-shell.png', fullPage: false });
+          await ensureTournament(mobile);
+          const mobileState = await mobile.evaluate(() => {
+            const nav = document.querySelector('#cpMobileAppNav');
+            const legacy = document.querySelector('#appWindow > .tabs');
+            return {
+              navDisplay: getComputedStyle(nav).display,
+              navButtons: nav.querySelectorAll('.cp-mobile-nav-item').length,
+              legacyLeft: legacy.getBoundingClientRect().left,
+              legacyOpacity: getComputedStyle(legacy).opacity,
+              dgtInMobileNav: /DGT/i.test(nav.textContent || '')
+            };
+          });
+          if (mobileState.navDisplay === 'none' || mobileState.navButtons !== 5) throw new Error(`Mobile app nav not rendered correctly: ${JSON.stringify(mobileState)}`);
+          if (mobileState.legacyLeft > -1000 || mobileState.legacyOpacity !== '0') throw new Error(`Legacy mobile tab strip still visible: ${JSON.stringify(mobileState)}`);
+          if (mobileState.dgtInMobileNav) throw new Error('DGT appeared in the mobile Web navigation.');
+          await assertNoNavOverlap(mobile);
 
-          const narrow = await browser.newPage({ viewport: { width: 360, height: 800 }, deviceScaleFactor: 1 });
+          await clickMobile(mobile, 'Players');
+          if (await activeLegacyId(mobile) !== 'tabRegistration') throw new Error('Players mobile navigation did not activate the existing registration tab.');
+          await clickMobile(mobile, 'Setup');
+          if (await activeLegacyId(mobile) !== 'tabMain') throw new Error('Setup mobile navigation did not return to Tournament Setup.');
+
+          const pairingsDisabled = await mobile.locator('#tabPairings').evaluate(node => node.classList.contains('disabled') || node.getAttribute('aria-disabled') === 'true');
+          await clickMobile(mobile, 'Pairings');
+          if (pairingsDisabled) {
+            const toastVisible = await mobile.locator('#cpMobileToast').evaluate(node => node.classList.contains('is-visible') && /Add players first/i.test(node.textContent || ''));
+            if (!toastVisible) throw new Error('Disabled Pairings did not explain why the section is unavailable.');
+          } else if (await activeLegacyId(mobile) !== 'tabPairings') {
+            throw new Error('Pairings mobile navigation did not activate the existing Pairings tab.');
+          }
+
+          await clickMobile(mobile, 'More');
+          const sheetOpen = await mobile.locator('#cpMobileMoreSheet').evaluate(node => node.classList.contains('is-open'));
+          if (!sheetOpen) throw new Error('More bottom sheet did not open.');
+          await mobile.locator('#cpMobileMoreSheet .cp-mobile-more-item').filter({ hasText: 'Schedule' }).click();
+          await mobile.waitForTimeout(180);
+          if (await activeLegacyId(mobile) !== 'tabSchedule') throw new Error('Schedule from More sheet did not activate the existing Schedule tab.');
+          await mobile.screenshot({ path: 'production-v7-screens/mobile-390.png', fullPage: false });
+
+          const narrow = await browser.newPage({ viewport: { width: 360, height: 800 } });
           await exposeApp(narrow);
-          const created360 = await ensureTestTournament(narrow);
-          await diagnostics(narrow, '360');
-          await assertMobileLabelsContained(narrow);
-          await assertMobileTabSurface(narrow);
-          if (!created360) throw new Error('360px test could not create a tournament through the existing production creation function.');
-          await assertTabSwitch(narrow, 'Tournament Setup', 'Lists & Players');
-          await assertTabSwitch(narrow, 'Tournament Setup', 'Pairings', { allowDisabled: true });
+          await ensureTournament(narrow);
+          await assertNoNavOverlap(narrow);
+          await clickMobile(narrow, 'Players');
+          if (await activeLegacyId(narrow) !== 'tabRegistration') throw new Error('360px Players navigation failed.');
+          await narrow.screenshot({ path: 'production-v7-screens/mobile-360.png', fullPage: false });
 
           await browser.close();
-          console.log('PASS real mobile tournament tab switching and compact labels at 390px and 360px');
+          console.log('PASS desktop sidebar + Mobile App v7 navigation at 390px and 360px');
           EOF
-          node capture-production-v6.mjs
+          node capture-production-v7.mjs
       - uses: actions/upload-artifact@v4
         with:
-          name: production-v6-real-browser-preview
-          path: production-v6-screens/*.png
+          name: production-mobile-app-v7-preview
+          path: production-v7-screens/*.png
           if-no-files-found: error
           retention-days: 7
