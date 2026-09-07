@@ -96,7 +96,7 @@ if (/span\.textContent\s*=\s*icon/.test(js)) {
 const forbiddenJs = [
   /\.remove\s*\(/,
   /\.innerHTML\s*=\s*['"`]\s*<[^>]*class=["'][^"']*tab/,
-  /window\.showTab\s*=/,
+  /window\.showTab\s*=(?!=)/,
   /window\.(?:generate|pair|pairings|exportTRF|exportTrf|chessResults|cloudSync)\w*\s*=/i,
   /Gacrux|bbpPairings|pairingchecker\.py/
 ];
