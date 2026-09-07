@@ -1,0 +1,92 @@
+name: Mobile v7.2 320px overflow diagnostic
+
+on:
+  pull_request:
+    paths:
+      - 'production-web/web/mobile-app-v7.css'
+      - 'production-web/web/mobile-app-v7-2.css'
+      - 'production-web/web/mobile-app-v7.js'
+      - '.github/workflows/mobile-v7-2-overflow-diagnostic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose-320:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Assemble preview
+        run: |
+          rm -rf diag-preview diag-out
+          mkdir -p diag-preview diag-out
+          cp -R production-web/. diag-preview/
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('diag-preview/index.html')
+          t=p.read_text(encoding='utf-8')
+          s='<link rel="stylesheet" href="/web/ui-v6-production.css?v=diag">'
+          l='<link rel="stylesheet" href="/web/ui-v6-cascade-lock.css?v=diag">'
+          j='<script src="/web/ui-v6-production.js?v=diag"></script>'
+          if s not in t: t=t.replace('</head>',s+'\n'+l+'\n</head>')
+          if j not in t: t=t.replace('</body>',j+'\n</body>')
+          p.write_text(t,encoding='utf-8')
+          PY
+          python3 -m http.server 4176 --directory diag-preview >/tmp/diag.log 2>&1 &
+          for i in {1..30}; do curl -fsS http://127.0.0.1:4176 >/dev/null && exit 0; sleep 1; done
+          cat /tmp/diag.log; exit 1
+      - name: Find overflow owners
+        run: |
+          cat > diag.mjs <<'EOF'
+          import { chromium } from 'playwright';
+          const browser=await chromium.launch({headless:true});
+          const page=await browser.newPage({viewport:{width:320,height:568}});
+          await page.goto('http://127.0.0.1:4176',{waitUntil:'networkidle'});
+          await page.waitForTimeout(850);
+          await page.evaluate(()=>{
+            const login=document.querySelector('#cpBeta7Start'); if(login) login.style.setProperty('display','none','important');
+            const app=document.querySelector('#appWindow'); if(app){app.classList.remove('cp-beta7-app-hidden');app.style.removeProperty('display');app.style.removeProperty('visibility');}
+            document.querySelectorAll('.cp-beta7-app-hidden').forEach(n=>n.classList.remove('cp-beta7-app-hidden'));
+            const screen=document.querySelector('#createScreen'); if(screen) screen.style.removeProperty('display');
+            const name=document.querySelector('#firstTournamentName'); if(name){name.value='320 Overflow Diagnostic';name.dispatchEvent(new Event('input',{bubbles:true}));name.dispatchEvent(new Event('change',{bubbles:true}));}
+            if(typeof window.createFirstTournament==='function' && !window.getCurrentTournament?.()) window.createFirstTournament();
+          });
+          await page.waitForFunction(()=>document.documentElement.dataset.cpMobileVisualHunt==='7.2');
+          await page.waitForTimeout(350);
+          const report=await page.evaluate(()=>{
+            const active=document.querySelector('#appWindow > .content > .page.active');
+            const ar=active.getBoundingClientRect();
+            const rows=[];
+            for(const el of active.querySelectorAll('*')){
+              const cs=getComputedStyle(el); if(cs.display==='none'||cs.visibility==='hidden') continue;
+              const r=el.getBoundingClientRect();
+              const overflowRight=r.right-ar.right;
+              const internal=el.scrollWidth-el.clientWidth;
+              if(overflowRight>1 || internal>20){
+                rows.push({tag:el.tagName,id:el.id||'',cls:String(el.className||'').slice(0,120),text:(el.textContent||'').trim().replace(/\s+/g,' ').slice(0,90),left:Math.round(r.left),right:Math.round(r.right),width:Math.round(r.width),client:el.clientWidth,scroll:el.scrollWidth,overflowRight:Math.round(overflowRight),overflowX:cs.overflowX,whiteSpace:cs.whiteSpace,minWidth:cs.minWidth,widthCss:cs.width});
+              }
+            }
+            return {active:{id:active.id,client:active.clientWidth,scroll:active.scrollWidth,left:ar.left,right:ar.right}, offenders:rows.sort((a,b)=>Math.max(b.overflowRight,b.scroll-b.client)-Math.max(a.overflowRight,a.scroll-a.client)).slice(0,30)};
+          });
+          console.log('MOBILE_320_OVERFLOW_REPORT='+JSON.stringify(report));
+          await page.screenshot({path:'diag-out/320-overflow.png',fullPage:false});
+          await browser.close();
+          if(report.active.scroll>report.active.client+1) process.exitCode=2;
+          EOF
+          node diag.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mobile-v7-2-320-overflow-diagnostic
+          path: diag-out/*.png
+          if-no-files-found: error
+          retention-days: 7
