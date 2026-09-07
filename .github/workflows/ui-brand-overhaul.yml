@@ -19,6 +19,10 @@ on:
       - 'src/main.tsx'
       - 'src/cloud/**'
       - 'src/chessResults/**'
+      - 'src/engine/trfParser.ts'
+      - 'src/server/tests/runTrfRegressionTests.ts'
+      - 'src/server/fixtures/data/*.trf'
+      - 'package.json'
       - 'tests/ui/**'
       - '.github/workflows/ui-brand-overhaul.yml'
       - '.github/workflows/deploy-web.yml'
@@ -48,6 +52,10 @@ jobs:
       # The root React app is intentionally no longer UI v6. Its replacement
       # contract is the focused Hub-first Companion gate below.
       - run: node tests/ui/hub-companion-v1.test.mjs
+
+      # Explicit protected-format gate: both TRF16 and TRF26 must still generate
+      # and parse correctly before any Companion deployment can be accepted.
+      - run: npm run test:trf
 
       - run: npm run lint
       - run: npm run build
