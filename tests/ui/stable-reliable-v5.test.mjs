@@ -30,10 +30,19 @@ assert(!shortcut.includes('upgradeWebShell'), 'production shortcut must not perf
 assert(!shortcut.includes('buildSetupCards'), 'production shortcut must not re-parent Tournament Setup fields');
 assert(!shortcut.includes('SHELL_READY_ATTR'), 'production shortcut must not gate first paint on a JS shell migration');
 
-assert(deploy.includes("text = text.replace('/web/brand-overhaul.css?v=20260906-1', f'/web/brand-overhaul.css?v={sha}')"),
-  'deployment must cache-bust the production UI stylesheet with the exact commit SHA');
-assert(deploy.includes('grep -q "/web/brand-overhaul.css?v=${GITHUB_SHA}" dist/index.html'),
-  'deployment must verify the cache-busted stylesheet URL');
+// UI v5 is no longer the active production artifact, but it remains the
+// explicit rollback shell. The deployment workflow must preserve that rollback
+// while publishing only the validated Vite Companion dist artifact.
+assert(deploy.includes('Preserve legacy production shell as rollback artifact'),
+  'deployment must retain the legacy stable UI as an explicit rollback artifact');
+assert(deploy.includes('name: chess-publisher-web-legacy-production-rollback'),
+  'deployment must archive the legacy production-web rollback package');
+assert(deploy.includes('Build clean Vite Companion production artifact'),
+  'deployment must build the new Companion instead of mutating the legacy shell');
+assert(deploy.includes("source: 'vite-dist'"),
+  'deployment identity must declare the Vite Companion as the active production source');
+assert(!deploy.includes('cp -R production-web/. dist/'),
+  'deployment must not publish the retired legacy shell as the active Pages artifact');
 
 let desktop='';
 let tablet='';
@@ -59,4 +68,4 @@ ast.walkDecls(decl=>{
   if(decl.prop==='pointer-events')assert.notEqual(decl.value,'none','stable UI must not disable controls');
 });
 
-console.log('Stable Reliable UI v5 PASS: CSS-only shell, responsive forms/data/dialogs, no runtime DOM migration, cache-safe deployment and preserved controls.');
+console.log('Stable Reliable UI v5 PASS: preserved rollback shell remains intact while production deployment is switched safely to the Vite Companion.');
