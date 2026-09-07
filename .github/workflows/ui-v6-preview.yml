@@ -8,6 +8,7 @@ on:
       - 'src/components/PlayersTab.tsx'
       - 'src/index.css'
       - 'src/companion.css'
+      - 'src/companion-publish-v2.css'
       - 'src/main.tsx'
       - 'tests/ui/hub-companion-v1.test.mjs'
       - '.github/workflows/ui-v6-preview.yml'
@@ -50,6 +51,7 @@ jobs:
           import { createInitialEmptyTournament } from './src/data/initialData.ts';
           import './src/index.css';
           import './src/companion.css';
+          import './src/companion-publish-v2.css';
 
           const tournament: any = createInitialEmptyTournament('Desktop Sync · Rhodopes Open 2026');
           tournament.settings.country = 'BUL';
@@ -81,7 +83,7 @@ jobs:
           done
           cat /tmp/cp-companion-vite.log
           exit 1
-      - name: Verify desktop and mobile Companion navigation
+      - name: Verify desktop and mobile Companion navigation and two publish actions
         run: |
           mkdir -p hub-companion-preview
           cat > capture-companion.mjs <<'EOF'
@@ -100,6 +102,15 @@ jobs:
             return page;
           }
 
+          async function verifyPublish(page, label) {
+            const targets = page.locator('[data-publish-target]');
+            if (await targets.count() !== 2) throw new Error(`${label}: expected exactly two primary publish buttons.`);
+            if (!await page.locator('[data-publish-target="chess-results"]').isVisible()) throw new Error(`${label}: Chess-Results publish button missing.`);
+            if (!await page.locator('[data-publish-target="online-hub"]').isVisible()) throw new Error(`${label}: Online Hub publish button missing.`);
+            if (!await page.getByText('Publish to Chess-Results', { exact: true }).count()) throw new Error(`${label}: Chess-Results label missing.`);
+            if (!await page.getByText('Publish to Online Hub', { exact: true }).count()) throw new Error(`${label}: Online Hub label missing.`);
+          }
+
           const desktop = await open({ width: 1440, height: 960 });
           if (!await desktop.locator('.companion-sidebar').isVisible()) throw new Error('Desktop sidebar is not visible.');
           await desktop.getByRole('button', { name: /Players/ }).first().click();
@@ -107,7 +118,7 @@ jobs:
           if (!await desktop.getByRole('heading', { name: 'Players' }).count()) throw new Error('Desktop Players navigation failed.');
           await desktop.getByRole('button', { name: /Publish/ }).first().click();
           await desktop.waitForTimeout(200);
-          if (!await desktop.getByRole('heading', { name: 'Online Hub' }).count()) throw new Error('Desktop Publish navigation failed.');
+          await verifyPublish(desktop, 'desktop');
           await desktop.screenshot({ path: 'hub-companion-preview/desktop-publish.png', fullPage: true });
 
           for (const [width, height, name] of [[390,844,'mobile-390'], [360,800,'mobile-360']]) {
@@ -122,7 +133,7 @@ jobs:
             if (!await page.getByRole('heading', { name: 'Players' }).count()) throw new Error(`Players tap failed at ${width}px.`);
             await nav.getByRole('button', { name: /Publish/ }).click();
             await page.waitForTimeout(180);
-            if (!await page.getByRole('heading', { name: 'Online Hub' }).count()) throw new Error(`Publish tap failed at ${width}px.`);
+            await verifyPublish(page, name);
             const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
             if (overflow > 1) throw new Error(`Horizontal overflow ${overflow}px at ${width}px.`);
             await page.screenshot({ path: `hub-companion-preview/${name}-publish.png`, fullPage: true });
