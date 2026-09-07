@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'production-web/web/ui-v6-production.css'
+      - 'production-web/web/ui-v6-cascade-lock.css'
       - 'production-web/web/ui-v6-production.js'
       - 'tests/ui/production-v6-deployment.test.mjs'
       - '.github/workflows/deploy-web.yml'
@@ -35,9 +36,12 @@ jobs:
           p = Path('production-v6-preview/index.html')
           text = p.read_text(encoding='utf-8')
           style = '<link rel="stylesheet" href="/web/ui-v6-production.css?v=preview">'
+          lock = '<link rel="stylesheet" href="/web/ui-v6-cascade-lock.css?v=preview">'
           script = '<script src="/web/ui-v6-production.js?v=preview"></script>'
           if style not in text:
-              text = text.replace('</head>', style + '\n</head>')
+              text = text.replace('</head>', style + '\n' + lock + '\n</head>')
+          elif lock not in text:
+              text = text.replace('</head>', lock + '\n</head>')
           if script not in text:
               text = text.replace('</body>', script + '\n</body>')
           p.write_text(text, encoding='utf-8')
