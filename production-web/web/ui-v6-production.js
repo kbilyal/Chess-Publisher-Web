@@ -118,7 +118,6 @@
     }
 
     $$('.tabs .tab').forEach(tab => {
-      if (tab.dataset.cpWebDesktopOnly === '1') return;
       const [, icon, shortLabel] = tabMeta(tab);
       tab.dataset.cpv6MobileLabel = shortLabel;
       let span = tab.querySelector('.cpv6-prod-tab-icon');
