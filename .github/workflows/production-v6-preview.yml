@@ -1,0 +1,108 @@
+name: Production UI v6 real-browser preview
+on:
+  pull_request:
+    paths:
+      - 'production-web/web/ui-v6-production.css'
+      - 'production-web/web/ui-v6-production.js'
+      - 'tests/ui/production-v6-deployment.test.mjs'
+      - '.github/workflows/deploy-web.yml'
+      - '.github/workflows/production-v6-preview.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  preview-production-shell:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: node tests/ui/production-v6-deployment.test.mjs
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Assemble production shell with v6 presentation
+        run: |
+          rm -rf production-v6-preview
+          mkdir -p production-v6-preview
+          cp -R production-web/. production-v6-preview/
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('production-v6-preview/index.html')
+          text = p.read_text(encoding='utf-8')
+          style = '<link rel="stylesheet" href="/web/ui-v6-production.css?v=preview">'
+          script = '<script src="/web/ui-v6-production.js?v=preview"></script>'
+          if style not in text:
+              text = text.replace('</head>', style + '\n</head>')
+          if script not in text:
+              text = text.replace('</body>', script + '\n</body>')
+          p.write_text(text, encoding='utf-8')
+          PY
+      - name: Start exact production preview
+        run: |
+          python3 -m http.server 4174 --directory production-v6-preview > /tmp/cpv6-production.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4174 >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/cpv6-production.log
+          exit 1
+      - name: Capture canonical production shell desktop and mobile
+        run: |
+          mkdir -p production-v6-screens
+          cat > capture-production-v6.mjs <<'EOF'
+          import { chromium } from 'playwright';
+          const browser = await chromium.launch({ headless: true });
+          const base = 'http://127.0.0.1:4174';
+
+          async function exposeApp(page) {
+            await page.goto(base, { waitUntil: 'networkidle' });
+            await page.waitForTimeout(1200);
+            await page.evaluate(() => {
+              const login = document.querySelector('#cpBeta7Start');
+              if (login) login.style.setProperty('display', 'none', 'important');
+              const app = document.querySelector('#appWindow');
+              if (app) {
+                app.classList.remove('cp-beta7-app-hidden');
+                app.style.removeProperty('display');
+                app.style.removeProperty('visibility');
+              }
+              document.querySelectorAll('.cp-beta7-app-hidden').forEach(node => node.classList.remove('cp-beta7-app-hidden'));
+            });
+            const setup = page.getByText('Tournament Setup', { exact: true });
+            if (await setup.count()) {
+              await setup.first().click();
+              await page.waitForTimeout(500);
+            }
+            await page.evaluate(() => {
+              const login = document.querySelector('#cpBeta7Start');
+              if (login) login.style.setProperty('display', 'none', 'important');
+              const app = document.querySelector('#appWindow');
+              if (app) {
+                app.classList.remove('cp-beta7-app-hidden');
+                app.style.removeProperty('display');
+              }
+            });
+          }
+
+          const desktop = await browser.newPage({ viewport: { width: 1728, height: 1000 }, deviceScaleFactor: 1 });
+          await exposeApp(desktop);
+          await desktop.screenshot({ path: 'production-v6-screens/desktop-production-shell.png', fullPage: false });
+
+          const mobile = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
+          await exposeApp(mobile);
+          await mobile.screenshot({ path: 'production-v6-screens/mobile-production-shell.png', fullPage: false });
+
+          await browser.close();
+          EOF
+          node capture-production-v6.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: production-v6-real-browser-preview
+          path: production-v6-screens/*.png
+          if-no-files-found: error
+          retention-days: 7
