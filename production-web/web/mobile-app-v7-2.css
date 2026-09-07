@@ -67,9 +67,8 @@
     line-height: 1.05 !important;
   }
 
-  /* 320px bug hunt: Tournament Rules used a desktop four-column grid and its
-   * tie-break/PAB compact rows kept fixed inner widths. Collapse that card into
-   * one predictable column so no control can extend behind the viewport. */
+  /* Tournament Rules: collapse the old desktop four-column layout and compact
+   * tie-break rows into one reliable phone column. */
   html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .setup-rules-box,
   html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .form-grid-4.setup-rules-grid {
     min-width: 0 !important;
@@ -126,11 +125,93 @@
     max-width: 100% !important;
   }
 
+  /* Players / Registration previously retained an 850px desktop minimum width.
+   * Collapse the two desktop panes to stacked cards; wide result tables scroll
+   * inside their own card rather than widening the entire page. */
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration .registration-lists {
+    box-sizing: border-box !important;
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration .registration-lists > .groupbox,
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration .groupbox {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration .group-title,
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration .fide-results-title,
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration #fideResults,
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration .starting-rank-tools,
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration .table-frame {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration .fide-results-title {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 6px !important;
+    white-space: normal !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration .fide-font-controls {
+    display: inline-flex !important;
+    flex: 0 0 auto !important;
+    margin-left: auto !important;
+    max-width: 100% !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration #fideResults {
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration .starting-rank-tools {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    align-items: stretch !important;
+    gap: 7px !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration .starting-rank-tools > *,
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration #startingRankResortState,
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration #resortStartingListBtn,
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration #exportTrfStartingListBtn {
+    box-sizing: border-box !important;
+    grid-column: 1 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    white-space: normal !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #registration #startingRankResortState {
+    display: block !important;
+    text-align: center !important;
+  }
+
   /* Data grids should scroll inside their own card rather than being clipped by
    * the page-level overflow guard. This preserves every column on small phones. */
   html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .table-frame,
   html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .table-wrap,
   html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .table-container {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    min-width: 0 !important;
     max-width: 100% !important;
     overflow-x: auto !important;
     overflow-y: visible !important;
