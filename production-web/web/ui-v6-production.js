@@ -160,6 +160,27 @@
     if (target) target.click();
   }
 
+  function legacyTabId(tab) {
+    const onclick = clean(tab?.getAttribute?.('onclick'));
+    const match = /showTab\(['"]([^'"]+)/.exec(onclick);
+    return clean(match?.[1]);
+  }
+
+  function ensureMobileTabActivation(tab) {
+    if (!tab || !window.matchMedia('(max-width: 1099px)').matches) return;
+    window.setTimeout(() => {
+      const active = tab.classList.contains('active') || tab.getAttribute('aria-selected') === 'true';
+      if (active || typeof window.showTab !== 'function') return;
+      const id = legacyTabId(tab);
+      if (!id) return;
+      try {
+        // Do not replace any tab handler. This is a mobile presentation fallback
+        // that invokes the exact existing shell function with the original tab node.
+        window.showTab(id, tab);
+      } catch { /* the underlying shell remains authoritative */ }
+    }, 0);
+  }
+
   function setupPage() {
     const mainTab = findTab('tournament setup');
     if (!mainTab) return null;
@@ -253,7 +274,11 @@
   }
 
   document.addEventListener('click', event => {
-    if (event.target.closest('.tabs .tab')) window.setTimeout(refreshPresentation, 0);
+    const tab = event.target.closest('.tabs .tab');
+    if (tab) {
+      ensureMobileTabActivation(tab);
+      window.setTimeout(refreshPresentation, 0);
+    }
   }, true);
   document.addEventListener('input', event => {
     if (event.target.closest('.page')) window.requestAnimationFrame(updateSetupProgress);
