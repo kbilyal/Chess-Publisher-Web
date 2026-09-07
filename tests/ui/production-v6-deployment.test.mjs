@@ -32,6 +32,12 @@ requireText(lock, 'content: none !important', 'Legacy workspace pseudo-label can
 requireText(lock, 'html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #appWindow > .titlebar', 'Production shell titlebar is not locked to v6.');
 requireText(lock, 'grid-template-columns: 252px minmax(0, 1fr)', 'Desktop shell grid is not locked to approved v6 width.');
 requireText(lock, 'background: rgba(255,255,255,.98)', 'Mobile shell is not locked to the approved white surface.');
+requireText(lock, '#appWindow > .tabs > .tab > *', 'Mobile tab child hit-target protection is missing.');
+requireText(lock, 'pointer-events: none !important', 'Mobile tab children can still intercept taps.');
+requireText(lock, 'touch-action: manipulation !important', 'Mobile tab touch behavior is not hardened.');
+requireText(lock, '.tab[data-cpv6-mobile-label]::after', 'Compact mobile tab label rendering is missing.');
+requireText(lock, 'font-size: 0 !important', 'Original long mobile labels are still painted under compact labels.');
+requireText(lock, 'content: attr(data-cpv6-mobile-label)', 'Mobile tab labels are not rendered from safe compact labels.');
 
 requireText(js, "root.dataset.cpUiV6Production = '1'", 'Production v6 root marker is missing.');
 requireText(js, 'cpv6-prod-brand', 'Production v6 sidebar brand bridge is missing.');
@@ -39,6 +45,13 @@ requireText(js, 'cpv6-prod-setup-rail', 'Production v6 setup overview bridge is 
 requireText(js, 'activateTabByText', 'Quick actions are not routed through the existing tab controls.');
 requireText(js, 'window.getCurrentTournament', 'UI bridge does not read the existing tournament through its public getter.');
 requireText(js, 'UI-only redesign. Tournament rules and calculation engines are unchanged.', 'Protected-engine presentation notice is missing.');
+requireText(js, 'tab.dataset.cpv6MobileLabel = shortLabel', 'Mobile compact label metadata is missing.');
+requireText(js, 'span.dataset.cpv6Icon = icon', 'Presentation icon metadata is missing.');
+requireText(js, "span.textContent = ''", 'Presentation icon must not alter the original tab textContent.');
+
+if (/span\.textContent\s*=\s*icon/.test(js)) {
+  throw new Error('Presentation icon text must not alter legacy tab labels.');
+}
 
 const forbiddenJs = [
   /\.remove\s*\(/,
