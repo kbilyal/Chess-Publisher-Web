@@ -14,6 +14,7 @@ on:
       - 'src/index.css'
       - 'src/companion.css'
       - 'src/companion-publish-v2.css'
+      - 'src/companion-registration.css'
       - 'src/main.tsx'
       - 'src/cloud/**'
       - 'src/chessResults/**'
