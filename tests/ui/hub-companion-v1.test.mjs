@@ -66,6 +66,10 @@ const publishTargets = [...workspace.matchAll(/data-publish-target="([^"]+)"/g)]
 assert.deepEqual(publishTargets, ['chess-results', 'online-hub'], 'Publish workspace must have exactly two primary publication targets: Chess-Results and Online Hub.');
 has(workspace, 'Publish to Chess-Results', 'Primary Chess-Results publication button is missing.');
 has(workspace, 'Publish to Online Hub', 'Primary Online Hub publication button is missing.');
+has(workspace, 'data-hub-public-page-action', 'Public Hub page quick action must be visible in the main Publish panel.');
+has(workspace, 'Open public Hub page', 'Open public Hub page action is missing.');
+has(workspace, 'cloud.openPublicPage(tournament)', 'Public Hub page action must reuse the authoritative Hub URL resolver.');
+has(workspace, 'Available after the first Online Hub publication.', 'Pre-publication Hub page state must be explained clearly.');
 has(workspace, 'const current = adoptSynchronizedTournament()', 'Chess-Results must publish the synchronized Desktop/Cloud tournament revision, not stale browser state.');
 has(workspace, 'const synchronized = adoptSynchronizedTournament()', 'Online Hub must publish the synchronized Desktop/Cloud tournament revision.');
 
@@ -94,6 +98,7 @@ has(cloudCss, '@media (max-width: 560px)', 'My Tournaments/login surfaces must h
 has(cloudCss, '.companion-tournament-grid { grid-template-columns:1fr;', 'My Tournaments cards must collapse to one column on mobile.');
 has(cloudCss, 'font-size:16px', 'Organizer Token input must avoid mobile browser zoom.');
 has(publishCss, 'grid-template-columns: repeat(2, minmax(0, 1fr))', 'Desktop publication actions must be presented as two equal primary targets.');
+has(publishCss, '.companion-publish-quick-actions', 'Public Hub quick action layout is missing.');
 has(publishCss, '@media (max-width: 900px)', 'Publication actions must collapse reliably on smaller screens.');
 has(publishCss, 'touch-action: manipulation', 'Mobile publication buttons must be touch hardened.');
 has(registrationCss, '@media (max-width: 640px)', 'Registration must have a dedicated phone layout.');
@@ -113,4 +118,4 @@ has(cloudApi, "'X-Expected-Revision'", 'Cloud optimistic revision guard is missi
 has(hubApi, 'publishOwnedTournament', 'Organizer-owned Online Hub publication API is missing.');
 has(chessApi, '/api/chess-results/', 'Chess-Results must remain behind the server-side product API.');
 
-console.log('PASS Hub Companion v1 contract: focused Setup + Registration + My Tournaments surfaces + exactly two guarded publication targets, shared Desktop identity, browser FIDE fallback and responsive mobile/desktop shell.');
+console.log('PASS Hub Companion v1 contract: focused Setup + Registration + My Tournaments surfaces + exactly two guarded publication targets, shared Desktop identity, public Hub page action, browser FIDE fallback and responsive mobile/desktop shell.');
