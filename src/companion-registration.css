@@ -1,0 +1,225 @@
+/* Hub-style player registration surface for the Web Companion. */
+.companion-registration {
+  padding: 18px;
+  display: grid;
+  gap: 14px;
+  background: #f7f9fc;
+}
+
+.companion-registration-card {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--cp-line);
+  border-radius: 15px;
+  background: #fff;
+}
+
+.companion-registration-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 13px;
+}
+.companion-registration-heading h2 { margin: 3px 0 4px; color: #142033; font-size: 17px; font-weight: 850; letter-spacing: -.025em; }
+.companion-registration-heading p { margin: 0; max-width: 620px; color: var(--cp-muted); font-size: 10px; line-height: 1.5; }
+
+.companion-registration-notice {
+  min-height: 42px;
+  padding: 9px 11px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #d5e7db;
+  border-radius: 10px;
+  background: #f1fbf5;
+  color: #276143;
+  font-size: 10px;
+  font-weight: 750;
+}
+.companion-registration-notice.warn { border-color: #ecdca9; background: #fff9ea; color: #7b5d17; }
+.companion-registration-notice.error { border-color: #efc8cf; background: #fff2f4; color: #a22d44; }
+
+.companion-searchbox {
+  min-height: 46px;
+  padding: 0 13px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid #d6e0eb;
+  border-radius: 12px;
+  background: #f9fbfd;
+  color: #6f7f94;
+}
+.companion-searchbox:focus-within { border-color: #8ab9f3; box-shadow: 0 0 0 3px rgba(23,105,224,.08); background: #fff; }
+.companion-searchbox input { min-width: 0; flex: 1; height: 44px; border: 0; outline: 0; background: transparent; color: #152137; font-size: 12px; }
+.companion-searchbox input::placeholder { color: #9ba8b8; }
+.companion-searchbox.small { min-height: 40px; margin-bottom: 10px; }
+.companion-searchbox.small input { height: 38px; font-size: 11px; }
+
+.companion-fide-results,
+.companion-roster-list {
+  margin-top: 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.companion-fide-row,
+.companion-roster-row {
+  min-width: 0;
+  min-height: 58px;
+  padding: 8px 9px;
+  display: grid;
+  grid-template-columns: 54px minmax(0,1fr) 92px auto;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid #e5ebf2;
+  border-radius: 11px;
+  background: #fff;
+}
+.companion-fide-row:hover,
+.companion-roster-row:hover { border-color: #d3dfec; background: #fbfdff; }
+.companion-roster-row { grid-template-columns: 54px minmax(0,1fr) 92px 120px 38px; }
+
+.companion-player-rank {
+  min-width: 0;
+  height: 34px;
+  padding: 0 6px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: #eef5ff;
+  color: #245ca4;
+  font: 800 10px/1 "JetBrains Mono", monospace;
+}
+.companion-player-main { min-width: 0; }
+.companion-player-main strong,
+.companion-player-main span,
+.companion-player-rating strong,
+.companion-player-rating span { display: block; }
+.companion-player-main strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #1a273a; font-size: 11px; font-weight: 820; }
+.companion-player-main span { margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #7b8798; font-size: 8.5px; font-weight: 650; }
+.companion-player-rating { text-align: right; }
+.companion-player-rating strong { color: #26364c; font: 800 11px/1 "JetBrains Mono", monospace; }
+.companion-player-rating span { margin-top: 4px; color: #8391a3; font-size: 8px; font-weight: 750; text-transform: uppercase; }
+
+.companion-button.compact { min-height: 34px; padding: 0 10px; font-size: 9px; }
+.companion-attendance {
+  width: 100%;
+  min-height: 34px;
+  padding: 0 8px;
+  border: 1px solid #d8e1eb;
+  border-radius: 8px;
+  background: #fff;
+  color: #354358;
+  font-size: 9px;
+  font-weight: 700;
+}
+.companion-icon-danger {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #efcfd5;
+  border-radius: 8px;
+  background: #fff;
+  color: #b83c53;
+  cursor: pointer;
+}
+.companion-icon-danger:hover { background: #fff4f6; }
+.companion-icon-danger:disabled { opacity: .45; cursor: not-allowed; }
+
+.companion-manual-form {
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid #dfe7f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+.companion-manual-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; }
+.companion-manual-grid label { display: grid; gap: 5px; min-width: 0; }
+.companion-manual-grid label > span { color: #64748b; font-size: 8.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .035em; }
+.companion-manual-grid input,
+.companion-manual-grid select {
+  width: 100%;
+  min-width: 0;
+  min-height: 39px;
+  padding: 0 9px;
+  border: 1px solid #d4dee9;
+  border-radius: 9px;
+  background: #fff;
+  color: #26354a;
+  font-size: 11px;
+}
+.companion-manual-actions { margin-top: 11px; display: flex; justify-content: flex-end; gap: 7px; }
+
+.companion-roster-count {
+  min-width: 68px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid #dce5ef;
+  border-radius: 10px;
+  background: #f7faff;
+  color: #315f98;
+}
+.companion-roster-count strong { font: 800 12px/1 "JetBrains Mono", monospace; }
+.companion-empty-roster { padding: 24px 12px; text-align: center; color: #8995a5; font-size: 10px; }
+
+@media (max-width: 900px) {
+  .companion-registration { padding: 12px; }
+  .companion-manual-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .companion-fide-row { grid-template-columns: 46px minmax(0,1fr) 74px auto; }
+  .companion-roster-row { grid-template-columns: 46px minmax(0,1fr) 72px 105px 36px; }
+}
+
+@media (max-width: 640px) {
+  .companion-registration { padding: 8px; gap: 8px; }
+  .companion-registration-card { padding: 12px; border-radius: 12px; }
+  .companion-registration-heading { align-items: stretch; flex-direction: column; gap: 9px; }
+  .companion-registration-heading .companion-button { width: 100%; }
+  .companion-registration-heading h2 { font-size: 15px; }
+  .companion-registration-heading p { font-size: 9px; }
+  .companion-searchbox { min-height: 48px; }
+  .companion-searchbox input { height: 46px; font-size: 16px; }
+  .companion-manual-grid { grid-template-columns: 1fr; }
+  .companion-manual-grid input,
+  .companion-manual-grid select { min-height: 44px; font-size: 16px; }
+  .companion-manual-actions { display: grid; grid-template-columns: 1fr 1fr; }
+
+  .companion-fide-row {
+    min-height: 66px;
+    grid-template-columns: 42px minmax(0,1fr) auto;
+    grid-template-areas:
+      "rank main add"
+      "rank rating add";
+    gap: 4px 8px;
+  }
+  .companion-fide-row .companion-player-rank { grid-area: rank; height: 44px; }
+  .companion-fide-row .companion-player-main { grid-area: main; }
+  .companion-fide-row .companion-player-rating { grid-area: rating; display: flex; align-items: center; gap: 6px; text-align: left; }
+  .companion-fide-row .companion-player-rating span { margin-top: 0; }
+  .companion-fide-row .companion-button { grid-area: add; min-width: 68px; min-height: 42px; }
+
+  .companion-roster-row {
+    min-height: 86px;
+    padding: 9px;
+    grid-template-columns: 42px minmax(0,1fr) 38px;
+    grid-template-areas:
+      "rank main remove"
+      "rank rating remove"
+      "status status status";
+    gap: 5px 8px;
+  }
+  .companion-roster-row .companion-player-rank { grid-area: rank; height: 46px; }
+  .companion-roster-row .companion-player-main { grid-area: main; }
+  .companion-roster-row .companion-player-rating { grid-area: rating; display: flex; gap: 6px; align-items: center; text-align: left; }
+  .companion-roster-row .companion-player-rating span { margin-top: 0; }
+  .companion-roster-row .companion-attendance { grid-area: status; min-height: 40px; font-size: 12px; }
+  .companion-roster-row .companion-icon-danger { grid-area: remove; width: 38px; height: 42px; }
+  .companion-player-main strong { font-size: 10.5px; }
+  .companion-player-main span { font-size: 8px; }
+  .companion-roster-count { display: none; }
+}
