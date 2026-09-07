@@ -50,6 +50,65 @@
     font-size: 9px !important;
   }
 
+  /* 320px bug hunt: Tournament Rules used a desktop four-column grid and its
+   * tie-break/PAB compact rows kept fixed inner widths. Collapse that card into
+   * one predictable column so no control can extend behind the viewport. */
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .setup-rules-box,
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .form-grid-4.setup-rules-grid {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .form-grid-4.setup-rules-grid {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .form-grid-4.setup-rules-grid > * {
+    box-sizing: border-box !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    grid-column: 1 !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .tie-break-add-row.setup-tiebreak-add-compact {
+    box-sizing: border-box !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 7px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #tieBreakAddSelect,
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .tie-break-add-row.setup-tiebreak-add-compact .tie-break-add-btn {
+    box-sizing: border-box !important;
+    grid-column: 1 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .pab-points-control.setup-pab-compact {
+    box-sizing: border-box !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 6px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .pab-points-control.setup-pab-compact > * {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
   /* Data grids should scroll inside their own card rather than being clipped by
    * the page-level overflow guard. This preserves every column on small phones. */
   html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .table-frame,
