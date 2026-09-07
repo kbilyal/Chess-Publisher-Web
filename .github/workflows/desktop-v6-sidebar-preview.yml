@@ -1,0 +1,146 @@
+name: Production UI v6 desktop sidebar preview
+on:
+  pull_request:
+    paths:
+      - 'production-web/web/ui-v6-cascade-lock.css'
+      - 'production-web/web/ui-v6-production.css'
+      - 'production-web/web/ui-v6-production.js'
+      - 'tests/ui/production-v6-deployment.test.mjs'
+      - '.github/workflows/desktop-v6-sidebar-preview.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  desktop-sidebar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: node tests/ui/production-v6-deployment.test.mjs
+      - name: Install Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Assemble exact production shell
+        run: |
+          rm -rf desktop-v6-preview
+          mkdir -p desktop-v6-preview
+          cp -R production-web/. desktop-v6-preview/
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('desktop-v6-preview/index.html')
+          text = p.read_text(encoding='utf-8')
+          style = '<link rel="stylesheet" href="/web/ui-v6-production.css?v=desktop-preview">'
+          lock = '<link rel="stylesheet" href="/web/ui-v6-cascade-lock.css?v=desktop-preview">'
+          script = '<script src="/web/ui-v6-production.js?v=desktop-preview"></script>'
+          if style not in text:
+              text = text.replace('</head>', style + '\n' + lock + '\n</head>')
+          elif lock not in text:
+              text = text.replace('</head>', lock + '\n</head>')
+          if script not in text:
+              text = text.replace('</body>', script + '\n</body>')
+          p.write_text(text, encoding='utf-8')
+          PY
+      - name: Start preview
+        run: |
+          python3 -m http.server 4175 --directory desktop-v6-preview > /tmp/cpv6-desktop.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4175 >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/cpv6-desktop.log
+          exit 1
+      - name: Verify desktop and mobile are distinct
+        run: |
+          mkdir -p desktop-v6-screens
+          cat > verify-desktop-v6.mjs <<'EOF'
+          import { chromium } from 'playwright';
+          const browser = await chromium.launch({ headless: true });
+          const base = 'http://127.0.0.1:4175';
+
+          async function expose(page) {
+            await page.goto(base, { waitUntil: 'networkidle' });
+            await page.waitForTimeout(1000);
+            await page.evaluate(() => {
+              const login = document.querySelector('#cpBeta7Start');
+              if (login) login.style.setProperty('display', 'none', 'important');
+              const app = document.querySelector('#appWindow');
+              if (app) {
+                app.classList.remove('cp-beta7-app-hidden');
+                app.style.removeProperty('display');
+                app.style.removeProperty('visibility');
+              }
+              document.querySelectorAll('.cp-beta7-app-hidden').forEach(node => node.classList.remove('cp-beta7-app-hidden'));
+            });
+          }
+
+          async function assertDesktop(width) {
+            const page = await browser.newPage({ viewport: { width, height: 800 }, deviceScaleFactor: 1 });
+            await expose(page);
+            const state = await page.evaluate(() => {
+              const app = document.querySelector('#appWindow');
+              const tabs = document.querySelector('#appWindow > .tabs');
+              const title = document.querySelector('#appWindow > .titlebar');
+              const brand = document.querySelector('.cpv6-prod-brand');
+              const tab = tabs?.querySelector('.tab');
+              const appStyle = getComputedStyle(app);
+              const tabsStyle = getComputedStyle(tabs);
+              const brandStyle = brand ? getComputedStyle(brand) : null;
+              const tabsBox = tabs?.getBoundingClientRect();
+              const titleBox = title?.getBoundingClientRect();
+              return {
+                appDisplay: appStyle.display,
+                columns: appStyle.gridTemplateColumns,
+                tabsDirection: tabsStyle.flexDirection,
+                tabsWidth: tabsBox?.width || 0,
+                titleX: titleBox?.x || 0,
+                brandDisplay: brandStyle?.display || 'missing',
+                firstTabText: (tab?.textContent || '').trim()
+              };
+            });
+            console.log(`CPV6_DESKTOP_${width}=${JSON.stringify(state)}`);
+            if (state.appDisplay !== 'grid') throw new Error(`${width}px must use desktop grid, got ${state.appDisplay}`);
+            if (state.tabsDirection !== 'column') throw new Error(`${width}px must use left vertical navigation.`);
+            if (state.tabsWidth < 220 || state.tabsWidth > 260) throw new Error(`${width}px left rail width is invalid: ${state.tabsWidth}`);
+            if (state.titleX < 220) throw new Error(`${width}px title/content did not move to the right of the sidebar.`);
+            if (state.brandDisplay === 'none' || state.brandDisplay === 'missing') throw new Error(`${width}px desktop sidebar brand is hidden.`);
+            await page.screenshot({ path: `desktop-v6-screens/desktop-${width}.png`, fullPage: false });
+            await page.close();
+          }
+
+          await assertDesktop(1024);
+          await assertDesktop(820);
+
+          const mobile = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
+          await expose(mobile);
+          const mobileState = await mobile.evaluate(() => {
+            const app = document.querySelector('#appWindow');
+            const tabs = document.querySelector('#appWindow > .tabs');
+            const brand = document.querySelector('.cpv6-prod-brand');
+            return {
+              appDisplay: getComputedStyle(app).display,
+              tabsDirection: getComputedStyle(tabs).flexDirection,
+              brandDisplay: brand ? getComputedStyle(brand).display : 'missing'
+            };
+          });
+          console.log(`CPV6_MOBILE_390=${JSON.stringify(mobileState)}`);
+          if (mobileState.appDisplay !== 'flex') throw new Error('390px must stay in mobile flex mode.');
+          if (mobileState.tabsDirection !== 'row') throw new Error('390px must keep horizontal mobile tabs.');
+          if (mobileState.brandDisplay !== 'none') throw new Error('390px must not show the desktop sidebar brand.');
+          await mobile.screenshot({ path: 'desktop-v6-screens/mobile-390.png', fullPage: false });
+          await mobile.close();
+
+          await browser.close();
+          console.log('PASS desktop left sidebar at 1024/820 and distinct mobile navigation at 390');
+          EOF
+          node verify-desktop-v6.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: production-v6-desktop-sidebar-preview
+          path: desktop-v6-screens/*.png
+          if-no-files-found: error
+          retention-days: 7
