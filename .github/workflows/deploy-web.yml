@@ -143,6 +143,7 @@ jobs:
           test -f production-web/web/cloud-tournaments-shortcut.js
           test -f production-web/web/brand-overhaul.css
           test -f production-web/web/ui-v6-production.css
+          test -f production-web/web/ui-v6-cascade-lock.css
           test -f production-web/web/ui-v6-production.js
           test -f production-web/hub/client/hub-snapshot.js
           test -f production-web/hub/client/hub-api-client.js
@@ -157,6 +158,7 @@ jobs:
           grep -q '/web/chess-results-browser-adapter.js' production-web/index.html
           grep -q '/web/brand-overhaul.css?v=20260906-1' production-web/index.html
           grep -q 'Production UI v6 approved target' production-web/web/ui-v6-production.css
+          grep -q 'UI v6 cascade lock' production-web/web/ui-v6-cascade-lock.css
           grep -q 'cpUiV6Production' production-web/web/ui-v6-production.js
           rm -rf dist
           mkdir -p dist
@@ -171,8 +173,11 @@ jobs:
               text = text.replace(src, f'{src}?v={sha}')
           text = text.replace('/web/brand-overhaul.css?v=20260906-1', f'/web/brand-overhaul.css?v={sha}')
           v6_style = f'<link rel="stylesheet" href="/web/ui-v6-production.css?v={sha}">'
+          v6_lock = f'<link rel="stylesheet" href="/web/ui-v6-cascade-lock.css?v={sha}">'
           if v6_style not in text:
-              text = text.replace('</head>', f'{v6_style}\n</head>')
+              text = text.replace('</head>', f'{v6_style}\n{v6_lock}\n</head>')
+          elif v6_lock not in text:
+              text = text.replace('</head>', f'{v6_lock}\n</head>')
           shortcut = f'<script src="/web/cloud-tournaments-shortcut.js?v={sha}"></script>'
           v6_script = f'<script src="/web/ui-v6-production.js?v={sha}"></script>'
           injections = []
@@ -213,6 +218,7 @@ jobs:
           test -f dist/web/cloud-tournaments-shortcut.js
           test -f dist/web/brand-overhaul.css
           test -f dist/web/ui-v6-production.css
+          test -f dist/web/ui-v6-cascade-lock.css
           test -f dist/web/ui-v6-production.js
           test -f dist/hub/client/hub-snapshot.js
           test -f dist/hub/client/hub-api-client.js
@@ -234,9 +240,11 @@ jobs:
           grep -q "/web/cloud-tournaments-shortcut.js?v=${GITHUB_SHA}" dist/index.html
           grep -q "/web/brand-overhaul.css?v=${GITHUB_SHA}" dist/index.html
           grep -q "/web/ui-v6-production.css?v=${GITHUB_SHA}" dist/index.html
+          grep -q "/web/ui-v6-cascade-lock.css?v=${GITHUB_SHA}" dist/index.html
           grep -q "/web/ui-v6-production.js?v=${GITHUB_SHA}" dist/index.html
           grep -q 'Stable Reliable UI v5' dist/web/brand-overhaul.css
           grep -q 'Production UI v6 approved target' dist/web/ui-v6-production.css
+          grep -q 'UI v6 cascade lock' dist/web/ui-v6-cascade-lock.css
           grep -q 'cpUiV6Production' dist/web/ui-v6-production.js
           grep -q 'chess-publisher-web-engine.kyamranbilyal.workers.dev' dist/web/linux-native-engine-adapter.js
           grep -q 'desktopContract(operation,result)' dist/web/chess-results-browser-adapter.js
