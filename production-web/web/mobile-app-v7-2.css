@@ -50,6 +50,23 @@
     font-size: 9px !important;
   }
 
+  /* Bottom labels must own the full grid slot. Older generic button/span rules
+   * could shrink the text box at 320px even though the nav item itself fit. */
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #cpMobileAppNav .cp-mobile-nav-label {
+    box-sizing: border-box !important;
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    text-align: center !important;
+    line-height: 1.05 !important;
+  }
+
   /* 320px bug hunt: Tournament Rules used a desktop four-column grid and its
    * tie-break/PAB compact rows kept fixed inner widths. Collapse that card into
    * one predictable column so no control can extend behind the viewport. */
@@ -155,5 +172,10 @@
   html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] .window-controls .titlebar-save {
     min-width: 52px !important;
     width: 52px !important;
+  }
+
+  html[data-cp-production-web="1"][data-cp-ui-v6-production="1"] #cpMobileAppNav .cp-mobile-nav-label {
+    font-size: 8.6px !important;
+    letter-spacing: -.02em !important;
   }
 }
