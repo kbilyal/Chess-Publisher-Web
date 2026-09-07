@@ -14,21 +14,33 @@ const adapter = read('production-web/web/linux-native-engine-adapter.js');
 const entry = read('workers/web-engine/src/entry.py');
 const runtime = read('workers/web-engine/src/engine_runtime.py');
 const wrangler = read('workers/web-engine/wrangler.toml');
+const relayWorker = read('workers/chess-results/smoke-worker.js');
+const relayWrangler = read('workers/chess-results/wrangler.toml');
 
 assert(adapter.includes('const CANONICAL_WEB_ORIGIN="https://web.chess-publisher.org"'), 'browser adapter identifies the canonical production Web origin');
 assert(adapter.includes('const CUSTOM_ENGINE_BASE="https://engine.chess-publisher.org"'), 'canonical Web engine uses a first-party Cloudflare custom domain');
+assert(adapter.includes('const ENGINE_RELAY_BASE="https://chess-publisher-chess-results.kyamranbilyal.workers.dev"'), 'browser engine has a deployed authenticated relay transport');
 assert(adapter.includes('const DIRECT_ENGINE_BASE="https://chess-publisher-web-engine.kyamranbilyal.workers.dev"'), 'direct workers.dev endpoint remains an emergency fallback');
 assert(adapter.includes('location.origin===CANONICAL_WEB_ORIGIN?CUSTOM_ENGINE_BASE:DIRECT_ENGINE_BASE'), 'canonical production Web selects the first-party engine domain');
-assert(adapter.includes('primary.replace(CUSTOM_ENGINE_BASE,DIRECT_ENGINE_BASE)') && adapter.includes('usedFallback:true'), 'browser engine retries the direct Worker only after a custom-domain transport failure');
+assert(adapter.includes('ENGINE_RELAY_PREFIX') && adapter.includes('relayUrl(primary)'), 'browser engine can map protected engine routes through the service relay');
+assert(adapter.includes('authenticated service relay succeeded') && adapter.includes('direct Worker fallback succeeded'), 'browser engine retries relay before direct Worker after custom-domain transport failure');
+assert(adapter.includes('Transport: custom=${primaryDetail}; relay=${relayDetail}; direct=${fallbackDetail}'), 'browser engine preserves custom, relay and direct transport diagnostics');
 assert(adapter.includes('const ENGINE_PREFIX=`${ENGINE_BASE}/api/engine`'), 'browser engine API prefix is built from the selected Worker route');
 assert(adapter.includes('mode:"cors"') && adapter.includes('credentials:"omit"'), 'browser engine transport remains credential-free apart from explicit bearer auth');
-assert(adapter.includes('nativeTransportError') && adapter.includes('Transport: custom='), 'browser engine preserves both transport failure reasons instead of hiding them');
+assert(adapter.includes('nativeTransportError') && adapter.includes('usedRelay:true'), 'browser engine records which transport recovered the request');
 assert(adapter.includes('Authorization') && adapter.includes('organizer-primary'), 'browser engine requests use the shared Organizer Token');
 assert(adapter.includes('${ENGINE_PREFIX}/pair'), 'browser pairing path is routed to the Web engine Worker');
 assert(adapter.includes('${ENGINE_PREFIX}/tiebreak-checker/check'), 'desktop tie-break checker path is routed to the Web engine Worker');
 assert(adapter.includes('${ENGINE_PREFIX}/trf26-exchange/check'), 'TRF26 exchange checker path is routed to the Web engine Worker');
 assert(!adapter.includes('operations are Desktop only'), 'production pairing adapter no longer hard-blocks browser pairing as Desktop-only');
 assert(!adapter.includes('/api/prototype') && !adapter.includes('generateLocalSwissFallback'), 'no prototype/synthetic pairing fallback is present');
+
+assert(relayWorker.includes("const ENGINE_RELAY_PREFIX = '/api/engine-relay/'"), 'relay Worker exposes only the dedicated engine relay prefix');
+assert(relayWorker.includes('ENGINE_RELAY_ROUTES') && relayWorker.includes("'pair'") && relayWorker.includes("'trf26-exchange/check'"), 'relay Worker allow-lists required engine routes');
+assert(relayWorker.includes("origin !== allowed") && relayWorker.includes('relay_origin_not_allowed'), 'relay Worker enforces the canonical Web origin before forwarding');
+assert(relayWorker.includes('WEB_ENGINE_SERVICE.fetch(forwarded)'), 'relay Worker uses a Cloudflare service binding instead of public engine transport');
+assert(relayWorker.includes('headers: request.headers'), 'relay preserves Organizer Token and browser Origin for authoritative engine validation');
+assert(relayWrangler.includes('binding = "WEB_ENGINE_SERVICE"') && relayWrangler.includes('service = "chess-publisher-web-engine"'), 'deployed Chess-Results Worker is bound directly to the protected Web engine service');
 
 assert(entry.includes('A valid Organizer Token is required for Web engine operations.'), 'Worker requires Organizer Token authentication');
 assert(entry.includes('origin_not_allowed') && entry.includes('WEB_ORIGIN'), 'Worker enforces the Web origin boundary');
