@@ -1,0 +1,106 @@
+name: UI v6 real-browser preview
+on:
+  pull_request:
+    paths:
+      - 'src/App.tsx'
+      - 'src/components/Header.tsx'
+      - 'src/index.css'
+      - 'src/ui-v6-approved.css'
+      - 'src/main.tsx'
+      - '.github/workflows/ui-v6-preview.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Create isolated presentation preview entry
+        run: |
+          cat > preview-v6.html <<'EOF'
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="UTF-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+              <title>Chess-Publisher UI v6 Preview</title>
+            </head>
+            <body><div id="root"></div><script type="module" src="/preview-v6.tsx"></script></body>
+          </html>
+          EOF
+          cat > preview-v6.tsx <<'EOF'
+          import React from 'react';
+          import { createRoot } from 'react-dom/client';
+          import App from './src/App.tsx';
+          import './src/index.css';
+          import './src/ui-v6-approved.css';
+          createRoot(document.getElementById('root')!).render(<App />);
+          EOF
+      - name: Start real Vite app
+        run: |
+          npx vite --host 127.0.0.1 --port 4173 > /tmp/cpv6-vite.log 2>&1 &
+          for i in {1..60}; do
+            if curl -fsS http://127.0.0.1:4173/preview-v6.html >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/cpv6-vite.log
+          exit 1
+      - name: Capture real desktop and mobile browser output
+        run: |
+          mkdir -p ui-v6-preview
+          cat > capture-ui-v6.mjs <<'EOF'
+          import { chromium } from 'playwright';
+          const browser = await chromium.launch({ headless: true });
+          const base = 'http://127.0.0.1:4173/preview-v6.html';
+
+          async function capture(page, path, mobile = false) {
+            const errors = [];
+            page.on('pageerror', error => errors.push(`pageerror: ${error.message}`));
+            page.on('console', message => {
+              if (message.type() === 'error') errors.push(`console: ${message.text()}`);
+            });
+            await page.goto(base, { waitUntil: 'networkidle' });
+            await page.waitForTimeout(500);
+
+            if (mobile) {
+              const menu = page.getByRole('button', { name: 'Open navigation' });
+              if (await menu.count()) await menu.first().click();
+            }
+
+            const setup = page.getByText('Tournament Setup', { exact: true });
+            if (!await setup.count()) throw new Error(`Tournament Setup control missing for ${path}`);
+            await setup.first().click();
+            await page.waitForTimeout(500);
+            if (errors.length) throw new Error(errors.join('\n'));
+            await page.screenshot({ path, fullPage: true });
+          }
+
+          await capture(
+            await browser.newPage({ viewport: { width: 1728, height: 1000 }, deviceScaleFactor: 1 }),
+            'ui-v6-preview/desktop-tournament-setup.png'
+          );
+          await capture(
+            await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 }),
+            'ui-v6-preview/mobile-tournament-setup.png',
+            true
+          );
+          await browser.close();
+          EOF
+          node capture-ui-v6.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ui-v6-real-browser-preview
+          path: ui-v6-preview/*.png
+          if-no-files-found: error
+          retention-days: 7
