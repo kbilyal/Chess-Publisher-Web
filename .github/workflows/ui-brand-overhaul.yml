@@ -13,6 +13,7 @@ on:
       - 'src/components/Header.tsx'
       - 'src/index.css'
       - 'src/companion.css'
+      - 'src/companion-cloud.css'
       - 'src/companion-publish-v2.css'
       - 'src/companion-registration.css'
       - 'src/companion-setup.css'
@@ -53,9 +54,10 @@ jobs:
       # contract is the focused Hub-first Companion gate below.
       - run: node tests/ui/hub-companion-v1.test.mjs
 
-      # Explicit protected-format gate: both TRF16 and TRF26 must still generate
-      # and parse correctly before any Companion deployment can be accepted.
+      # Protected-format and secure-publication gates required before any
+      # Companion deployment can be accepted.
       - run: npm run test:trf
+      - run: npm run test:chess-results-companion
 
       - run: npm run lint
       - run: npm run build
