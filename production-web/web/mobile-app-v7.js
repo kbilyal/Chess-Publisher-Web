@@ -1,4 +1,4 @@
-/* Chess-Publisher Web · Mobile App v7 · Visual Bug Hunt v7.1 · September 2026
+/* Chess-Publisher Web · Mobile App v7 · Visual Bug Hunt v7.2 · September 2026
  * Phone-only navigation facade. Original production handlers remain authoritative.
  */
 (() => {
@@ -6,7 +6,7 @@
 
   const root = document.documentElement;
   root.dataset.cpMobileApp = '7';
-  root.dataset.cpMobileVisualHunt = '7.1';
+  root.dataset.cpMobileVisualHunt = '7.2';
 
   const media = window.matchMedia('(max-width: 768px)');
   const $ = (selector, scope = document) => scope.querySelector(selector);
@@ -27,6 +27,7 @@
   const ALL = [...PRIMARY, ...MORE];
   let toastTimer = 0;
   let pageObserver = null;
+  let dialogObserver = null;
 
   function resolveTab(item) {
     for (const id of item.tabIds || []) {
@@ -118,6 +119,50 @@
       syncState();
     }));
     pageObserver.observe(content, { subtree: true, attributes: true, attributeFilter: ['class'] });
+  }
+
+  function normalizeEscapedDialogText(value) {
+    return String(value ?? '')
+      .replace(/\\r\\n/g, '\n')
+      .replace(/\\n/g, '\n');
+  }
+
+  function cleanDialogText(scope = document) {
+    if (!media.matches) return;
+    const selector = 'dialog,[role="dialog"],[class*="modal"],[class*="dialog"]';
+    const dialogs = [];
+    if (scope instanceof Element && scope.matches(selector)) dialogs.push(scope);
+    scope.querySelectorAll?.(selector).forEach(node => dialogs.push(node));
+
+    dialogs.forEach(dialog => {
+      const walker = document.createTreeWalker(dialog, NodeFilter.SHOW_TEXT);
+      let node;
+      while ((node = walker.nextNode())) {
+        const value = node.nodeValue || '';
+        if (!/\\(?:r\\n|n)/.test(value)) continue;
+        node.nodeValue = normalizeEscapedDialogText(value);
+        node.parentElement?.style.setProperty('white-space', 'pre-line');
+      }
+    });
+  }
+
+  function watchDialogText() {
+    dialogObserver?.disconnect();
+    cleanDialogText(document.body);
+    dialogObserver = new MutationObserver(mutations => {
+      for (const mutation of mutations) {
+        if (mutation.type === 'characterData') {
+          const parent = mutation.target.parentElement;
+          const dialog = parent?.closest?.('dialog,[role="dialog"],[class*="modal"],[class*="dialog"]');
+          if (dialog) cleanDialogText(dialog);
+          continue;
+        }
+        mutation.addedNodes.forEach(node => {
+          if (node.nodeType === Node.ELEMENT_NODE) cleanDialogText(node);
+        });
+      }
+    });
+    dialogObserver.observe(document.body, { childList: true, subtree: true, characterData: true });
   }
 
   function friendlyDisabledMessage(item) {
@@ -308,6 +353,7 @@
     ensureShell();
     isolateLegacyTabsForPhone();
     syncVisiblePageGuard();
+    cleanDialogText(document.body);
     if (!media.matches) {
       closeMore();
       dismissToast();
@@ -321,6 +367,7 @@
     syncVisiblePageGuard();
     syncState();
     watchPageClasses();
+    watchDialogText();
     document.addEventListener('click', event => {
       if (!media.matches || !event.target?.closest?.('#appWindow > .tabs > .tab')) return;
       window.setTimeout(() => {
@@ -340,6 +387,7 @@
       if (!media.matches) return;
       isolateLegacyTabsForPhone();
       syncVisiblePageGuard();
+      cleanDialogText(document.body);
       syncState();
     }, 900);
   }
