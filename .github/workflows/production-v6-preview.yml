@@ -154,16 +154,20 @@ jobs:
           const mobileState = await mobile.evaluate(() => {
             const nav = document.querySelector('#cpMobileAppNav');
             const legacy = document.querySelector('#appWindow > .tabs');
+            const legacyStyle = getComputedStyle(legacy);
+            const legacyBox = legacy.getBoundingClientRect();
             return {
               navDisplay: getComputedStyle(nav).display,
               navButtons: nav.querySelectorAll('.cp-mobile-nav-item').length,
-              legacyLeft: legacy.getBoundingClientRect().left,
-              legacyOpacity: getComputedStyle(legacy).opacity,
+              legacyOpacity: legacyStyle.opacity,
+              legacyPointerEvents: legacyStyle.pointerEvents,
+              legacyWidth: legacyBox.width,
+              legacyHeight: legacyBox.height,
               dgtInMobileNav: /DGT/i.test(nav.textContent || '')
             };
           });
           if (mobileState.navDisplay === 'none' || mobileState.navButtons !== 5) throw new Error(`Mobile app nav not rendered correctly: ${JSON.stringify(mobileState)}`);
-          if (mobileState.legacyLeft > -1000 || mobileState.legacyOpacity !== '0') throw new Error(`Legacy mobile tab strip still visible: ${JSON.stringify(mobileState)}`);
+          if (mobileState.legacyOpacity !== '0' || mobileState.legacyPointerEvents !== 'none' || mobileState.legacyWidth > 2 || mobileState.legacyHeight > 2) throw new Error(`Legacy mobile tab strip still visible or interactive: ${JSON.stringify(mobileState)}`);
           if (mobileState.dgtInMobileNav) throw new Error('DGT appeared in the mobile Web navigation.');
           await assertNoNavOverlap(mobile);
 
