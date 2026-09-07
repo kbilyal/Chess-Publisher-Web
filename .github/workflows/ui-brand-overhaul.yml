@@ -53,6 +53,7 @@ jobs:
       # The root React app is intentionally no longer UI v6. Its replacement
       # contract is the focused Hub-first Companion gate below.
       - run: node tests/ui/hub-companion-v1.test.mjs
+      - run: node tests/ui/companion-cloud-screens.test.mjs
 
       # Protected-format and secure-publication gates required before any
       # Companion deployment can be accepted.
