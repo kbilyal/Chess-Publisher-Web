@@ -4,7 +4,11 @@ import './cloud/installOrganizerApiAuth';
 import App from './App.tsx';
 import {OnlineCloudProvider} from './cloud/OnlineCloudProvider';
 import './index.css';
-import './ui-v6-approved.css';
+import './companion.css';
+import './companion-cloud.css';
+import './companion-publish-v2.css';
+import './companion-registration.css';
+import './companion-setup.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

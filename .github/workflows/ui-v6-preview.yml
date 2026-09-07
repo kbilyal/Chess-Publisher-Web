@@ -1,12 +1,16 @@
-name: UI v6 real-browser preview
+name: Hub Companion real-browser preview
 on:
   pull_request:
     paths:
       - 'src/App.tsx'
-      - 'src/components/Header.tsx'
+      - 'src/companion/**'
       - 'src/index.css'
-      - 'src/ui-v6-approved.css'
+      - 'src/companion.css'
+      - 'src/companion-publish-v2.css'
+      - 'src/companion-registration.css'
+      - 'src/companion-setup.css'
       - 'src/main.tsx'
+      - 'tests/ui/hub-companion-v1.test.mjs'
       - '.github/workflows/ui-v6-preview.yml'
   workflow_dispatch:
 permissions:
@@ -21,86 +25,166 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      - run: node tests/ui/hub-companion-v1.test.mjs
       - run: npm run build
       - name: Install Playwright Chromium
         run: |
           npm install --no-save playwright@1.55.0
           npx playwright install --with-deps chromium
-      - name: Create isolated presentation preview entry
+      - name: Create isolated Companion preview entry
         run: |
-          cat > preview-v6.html <<'EOF'
+          cat > preview-companion.html <<'EOF'
           <!doctype html>
           <html lang="en">
             <head>
               <meta charset="UTF-8" />
-              <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-              <title>Chess-Publisher UI v6 Preview</title>
+              <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+              <title>Chess-Publisher Web Companion Preview</title>
             </head>
-            <body><div id="root"></div><script type="module" src="/preview-v6.tsx"></script></body>
+            <body><div id="root"></div><script type="module" src="/preview-companion.tsx"></script></body>
           </html>
           EOF
-          cat > preview-v6.tsx <<'EOF'
+          cat > preview-companion.tsx <<'EOF'
           import React from 'react';
           import { createRoot } from 'react-dom/client';
-          import App from './src/App.tsx';
+          import { CompanionWorkspace } from './src/companion/CompanionWorkspace.tsx';
+          import { createInitialEmptyTournament } from './src/data/initialData.ts';
           import './src/index.css';
-          import './src/ui-v6-approved.css';
-          createRoot(document.getElementById('root')!).render(<App />);
+          import './src/companion.css';
+          import './src/companion-publish-v2.css';
+          import './src/companion-registration.css';
+          import './src/companion-setup.css';
+
+          const tournament: any = createInitialEmptyTournament('Desktop Sync · Rhodopes Open 2026');
+          tournament.settings.country = 'BUL';
+          tournament.settings.city = 'Kardzhali';
+          tournament.settings.startDate = '2026-10-10T09:00';
+          tournament.settings.endDate = '2026-10-11T18:00';
+          tournament.settings.rounds = '7';
+          tournament.settings.timeControl = '15+5';
+          tournament.settings.timeControlPreset = '15+5';
+          tournament.settings.tournamentType = 'test';
+          tournament.cloud = { schemaVersion: 4, internalId: 'hub-preview-1', cloudTournamentId: 'cloud-preview-1', baseRevision: 12 };
+          tournament.online = { hubTournamentId: 'hub-preview-1', publicSlug: 'rhodopes-open', publicPageUrl: 'https://chess-publisher.org/tournaments?id=rhodopes-open', revision: 4 };
+          localStorage.setItem('fide_tournament_manager_v2', JSON.stringify(tournament));
+
+          const cloud: any = {
+            activeCloud: { id: 'cloud-preview-1', name: tournament.name, revision: 12 },
+            status: 'Synced · r12', statusKind: 'ok', busy: false, conflict: false, cloudDirty: false,
+            syncNow: async () => {}, pullChanges: async () => {}, publishOnline: async () => {},
+            openPublicPage: () => {}, returnToCloudList: async () => {}
+          };
+
+          createRoot(document.getElementById('root')!).render(<CompanionWorkspace cloud={cloud} />);
           EOF
       - name: Start real Vite app
         run: |
-          npx vite --host 127.0.0.1 --port 4173 > /tmp/cpv6-vite.log 2>&1 &
+          npx vite --host 127.0.0.1 --port 4173 > /tmp/cp-companion-vite.log 2>&1 &
           for i in {1..60}; do
-            if curl -fsS http://127.0.0.1:4173/preview-v6.html >/dev/null; then exit 0; fi
+            if curl -fsS http://127.0.0.1:4173/preview-companion.html >/dev/null; then exit 0; fi
             sleep 1
           done
-          cat /tmp/cpv6-vite.log
+          cat /tmp/cp-companion-vite.log
           exit 1
-      - name: Capture real desktop and mobile browser output
+      - name: Verify desktop/mobile Setup, Registration and two publish actions
         run: |
-          mkdir -p ui-v6-preview
-          cat > capture-ui-v6.mjs <<'EOF'
+          mkdir -p hub-companion-preview
+          cat > capture-companion.mjs <<'EOF'
           import { chromium } from 'playwright';
           const browser = await chromium.launch({ headless: true });
-          const base = 'http://127.0.0.1:4173/preview-v6.html';
+          const base = 'http://127.0.0.1:4173/preview-companion.html';
 
-          async function capture(page, path, mobile = false) {
+          async function open(viewport) {
+            const page = await browser.newPage({ viewport, deviceScaleFactor: 1 });
             const errors = [];
             page.on('pageerror', error => errors.push(`pageerror: ${error.message}`));
-            page.on('console', message => {
-              if (message.type() === 'error') errors.push(`console: ${message.text()}`);
-            });
+            page.on('console', message => { if (message.type() === 'error') errors.push(`console: ${message.text()}`); });
             await page.goto(base, { waitUntil: 'networkidle' });
-            await page.waitForTimeout(500);
-
-            if (mobile) {
-              const menu = page.getByRole('button', { name: 'Open navigation' });
-              if (await menu.count()) await menu.first().click();
-            }
-
-            const setup = page.getByText('Tournament Setup', { exact: true });
-            if (!await setup.count()) throw new Error(`Tournament Setup control missing for ${path}`);
-            await setup.first().click();
-            await page.waitForTimeout(500);
+            await page.waitForTimeout(350);
             if (errors.length) throw new Error(errors.join('\n'));
-            await page.screenshot({ path, fullPage: true });
+            return page;
           }
 
-          await capture(
-            await browser.newPage({ viewport: { width: 1728, height: 1000 }, deviceScaleFactor: 1 }),
-            'ui-v6-preview/desktop-tournament-setup.png'
-          );
-          await capture(
-            await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 }),
-            'ui-v6-preview/mobile-tournament-setup.png',
-            true
-          );
+          async function assertNoOverflow(page, label) {
+            const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+            if (overflow > 1) throw new Error(`${label}: horizontal overflow ${overflow}px.`);
+          }
+
+          async function verifySetup(page, label) {
+            if (!await page.getByText('TOURNAMENT SETUP', { exact: true }).count()) throw new Error(`${label}: focused Setup surface missing.`);
+            const city = page.getByLabel('City *');
+            if (!await city.count()) throw new Error(`${label}: City field missing.`);
+            await city.fill('Nedelino');
+            if (await city.inputValue() !== 'Nedelino') throw new Error(`${label}: Setup edit failed.`);
+            if (!await page.getByLabel('Format *').count()) throw new Error(`${label}: tournament format control missing.`);
+            if (!await page.getByLabel('Time control *').count()) throw new Error(`${label}: time-control control missing.`);
+            await assertNoOverflow(page, `${label} setup`);
+          }
+
+          async function verifyRegistration(page, label) {
+            if (!await page.getByRole('heading', { name: 'Player registration' }).count()) throw new Error(`${label}: focused registration heading missing.`);
+            if (!await page.getByPlaceholder('Name or FIDE ID').isVisible()) throw new Error(`${label}: FIDE search field missing.`);
+            const before = await page.locator('.companion-roster-row').count();
+            await page.getByRole('button', { name: /Manual player/ }).click();
+            const form = page.locator('.companion-manual-form');
+            await form.locator('input').nth(0).fill('Preview New Player');
+            await form.locator('input').nth(2).fill('BUL');
+            await form.locator('input').nth(3).fill('1760');
+            await page.getByRole('button', { name: /Register player/ }).click();
+            await page.waitForTimeout(180);
+            if (!await page.getByText('Preview New Player', { exact: true }).count()) throw new Error(`${label}: manual registration did not reach roster.`);
+            const after = await page.locator('.companion-roster-row').count();
+            if (after !== before + 1) throw new Error(`${label}: roster count did not increase after registration.`);
+            await assertNoOverflow(page, `${label} registration`);
+          }
+
+          async function verifyPublish(page, label) {
+            const targets = page.locator('[data-publish-target]');
+            if (await targets.count() !== 2) throw new Error(`${label}: expected exactly two primary publish buttons.`);
+            if (!await page.locator('[data-publish-target="chess-results"]').isVisible()) throw new Error(`${label}: Chess-Results publish button missing.`);
+            if (!await page.locator('[data-publish-target="online-hub"]').isVisible()) throw new Error(`${label}: Online Hub publish button missing.`);
+            if (!await page.getByText('Publish to Chess-Results', { exact: true }).count()) throw new Error(`${label}: Chess-Results label missing.`);
+            if (!await page.getByText('Publish to Online Hub', { exact: true }).count()) throw new Error(`${label}: Online Hub label missing.`);
+            await assertNoOverflow(page, `${label} publish`);
+          }
+
+          const desktop = await open({ width: 1440, height: 960 });
+          if (!await desktop.locator('.companion-sidebar').isVisible()) throw new Error('Desktop sidebar is not visible.');
+          await verifySetup(desktop, 'desktop');
+          await desktop.screenshot({ path: 'hub-companion-preview/desktop-setup.png', fullPage: true });
+          await desktop.getByRole('button', { name: /Players/ }).first().click();
+          await desktop.waitForTimeout(200);
+          await verifyRegistration(desktop, 'desktop');
+          await desktop.screenshot({ path: 'hub-companion-preview/desktop-registration.png', fullPage: true });
+          await desktop.getByRole('button', { name: /Publish/ }).first().click();
+          await desktop.waitForTimeout(200);
+          await verifyPublish(desktop, 'desktop');
+          await desktop.screenshot({ path: 'hub-companion-preview/desktop-publish.png', fullPage: true });
+
+          for (const [width, height, name] of [[390,844,'mobile-390'], [360,800,'mobile-360']]) {
+            const page = await open({ width, height });
+            if (await page.locator('.companion-sidebar').isVisible()) throw new Error(`Desktop sidebar leaked into ${name}.`);
+            const nav = page.locator('.companion-mobile-nav');
+            if (!await nav.isVisible()) throw new Error(`Mobile bottom navigation missing at ${width}px.`);
+            const labels = await nav.locator('button span').allTextContents();
+            if (labels.join('|') !== 'Setup|Players|Publish|Tournaments') throw new Error(`Unexpected mobile navigation: ${labels.join('|')}`);
+            await verifySetup(page, name);
+            await page.screenshot({ path: `hub-companion-preview/${name}-setup.png`, fullPage: true });
+            await nav.getByRole('button', { name: /Players/ }).click();
+            await page.waitForTimeout(180);
+            await verifyRegistration(page, name);
+            await page.screenshot({ path: `hub-companion-preview/${name}-registration.png`, fullPage: true });
+            await nav.getByRole('button', { name: /Publish/ }).click();
+            await page.waitForTimeout(180);
+            await verifyPublish(page, name);
+            await page.screenshot({ path: `hub-companion-preview/${name}-publish.png`, fullPage: true });
+          }
           await browser.close();
           EOF
-          node capture-ui-v6.mjs
+          node capture-companion.mjs
       - uses: actions/upload-artifact@v4
         with:
-          name: ui-v6-real-browser-preview
-          path: ui-v6-preview/*.png
+          name: hub-companion-real-browser-preview
+          path: hub-companion-preview/*.png
           if-no-files-found: error
           retention-days: 7

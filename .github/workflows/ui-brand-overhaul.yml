@@ -1,4 +1,4 @@
-name: UI brand preservation
+name: UI preservation and Hub Companion gate
 on:
   pull_request:
     paths:
@@ -9,10 +9,21 @@ on:
       - 'production-web/web/ui-v6-production.js'
       - 'production-web/web/cloud-tournaments-shortcut.js'
       - 'src/App.tsx'
+      - 'src/companion/**'
       - 'src/components/Header.tsx'
       - 'src/index.css'
-      - 'src/ui-v6-approved.css'
+      - 'src/companion.css'
+      - 'src/companion-cloud.css'
+      - 'src/companion-publish-v2.css'
+      - 'src/companion-registration.css'
+      - 'src/companion-setup.css'
       - 'src/main.tsx'
+      - 'src/cloud/**'
+      - 'src/chessResults/**'
+      - 'src/engine/trfParser.ts'
+      - 'src/server/tests/runTrfRegressionTests.ts'
+      - 'src/server/fixtures/data/*.trf'
+      - 'package.json'
       - 'tests/ui/**'
       - '.github/workflows/ui-brand-overhaul.yml'
       - '.github/workflows/deploy-web.yml'
@@ -29,13 +40,26 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+
+      # The currently deployed legacy production artifact remains byte/regression
+      # protected until the Companion deployment switch is explicitly approved.
       - run: node tests/ui/brand-overhaul.test.mjs
       - run: node tests/ui/full-overhaul-v2.test.mjs
       - run: node tests/ui/masterpiece-v3.test.mjs
       - run: node tests/ui/stable-reliable-v5.test.mjs
-      - run: node tests/ui/v6-approved-layout.test.mjs
       - run: node tests/ui/production-v6-deployment.test.mjs
       - run: node tests/ui/login-screen-persistence.test.mjs
+
+      # The root React app is intentionally no longer UI v6. Its replacement
+      # contract is the focused Hub-first Companion gate below.
+      - run: node tests/ui/hub-companion-v1.test.mjs
+      - run: node tests/ui/companion-cloud-screens.test.mjs
+
+      # Protected-format and secure-publication gates required before any
+      # Companion deployment can be accepted.
+      - run: npm run test:trf
+      - run: npm run test:chess-results-companion
+
       - run: npm run lint
       - run: npm run build
       - run: npm run test:production-web-beta7

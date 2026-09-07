@@ -20,6 +20,7 @@ import {
   parseContinuationHint,
   stripContinuationHint
 } from './browserSyncPolicy';
+import { CompanionLoginScreen, CompanionTournamentSelectScreen } from '../companion/CompanionCloudScreens';
 
 const TOURNAMENT_STORAGE_KEY = 'fide_tournament_manager_v2';
 const TOKEN_SESSION_KEY = 'cpstudio.organizerToken.session';
@@ -915,72 +916,33 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
 
   if (phase === 'login') {
     return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-6">
-        <div className="w-full max-w-lg bg-white border border-slate-200 rounded-2xl shadow-xl p-6 space-y-5">
-          <div>
-            <h1 className="text-xl font-bold text-slate-900">Chess-Publisher Web</h1>
-            <p className="text-sm text-slate-500 mt-1">Private Organizer Cloud Workspace</p>
-          </div>
-          <label className="block text-xs font-semibold text-slate-700">Organizer Token</label>
-          <input
-            type="password"
-            value={tokenInput}
-            onChange={event => setTokenInput(event.target.value)}
-            onKeyDown={event => { if (event.key === 'Enter') void loginWithToken(tokenInput, rememberToken); }}
-            className="w-full px-3 py-2.5 border border-slate-300 rounded-lg font-mono text-sm focus:outline-none focus:border-blue-500"
-            autoComplete="off"
-          />
-          <label className="flex items-center gap-2 text-xs text-slate-600">
-            <input type="checkbox" checked={rememberToken} onChange={event => setRememberToken(event.target.checked)} />
-            Remember on this browser
-          </label>
-          <button disabled={busy || !tokenInput.trim()} onClick={() => void loginWithToken(tokenInput, rememberToken)} className="w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold text-sm">
-            Connect
-          </button>
-          <div className={`text-xs ${statusKind === 'warn' || statusKind === 'offline' ? 'text-rose-700' : 'text-slate-500'}`}>{status}</div>
-        </div>
-      </div>
+      <CompanionLoginScreen
+        tokenInput={tokenInput}
+        rememberToken={rememberToken}
+        busy={busy}
+        status={status}
+        statusKind={statusKind}
+        onTokenInput={setTokenInput}
+        onRememberToken={setRememberToken}
+        onConnect={() => void loginWithToken(tokenInput, rememberToken)}
+      />
     );
   }
 
   if (phase === 'select') {
-    const local = readLocalTournament();
     return (
-      <div className="min-h-screen bg-slate-100 p-5 sm:p-8">
-        <div className="max-w-5xl mx-auto space-y-5">
-          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex items-center justify-between gap-4">
-            <div>
-              <h1 className="text-lg font-bold text-slate-900">My Cloud Tournaments</h1>
-              <p className="text-xs text-slate-500 mt-1">Connected organizer: {organizerName}</p>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => void refreshWorkspace()} className="px-3 py-2 border border-slate-300 rounded-lg text-xs font-semibold bg-white hover:bg-slate-50">Refresh</button>
-              <button onClick={signOut} className="px-3 py-2 border border-slate-300 rounded-lg text-xs font-semibold bg-white hover:bg-slate-50">Sign out</button>
-            </div>
-          </div>
-
-          {local && (
-            <button onClick={() => void continueWithLocal()} className="w-full text-left bg-blue-50 border border-blue-200 hover:border-blue-400 rounded-xl p-4 shadow-sm transition">
-              <div className="text-xs uppercase tracking-wider text-blue-700 font-bold">This browser</div>
-              <div className="font-semibold text-slate-900 mt-1">Continue local tournament: {tournamentName(local)}</div>
-              <div className="text-xs text-slate-500 mt-1">Local save is immediate; Cloud sync starts automatically after opening.</div>
-            </button>
-          )}
-
-          <div className="grid gap-3">
-            {cloudTournaments.map(meta => (
-              <button key={meta.id} onClick={() => void openCloud(meta)} className="text-left bg-white border border-slate-200 hover:border-blue-400 rounded-xl p-4 shadow-sm transition flex items-center justify-between gap-4">
-                <div>
-                  <div className="font-semibold text-slate-900">{meta.name || 'Tournament'}</div>
-                  <div className="text-xs text-slate-500 mt-1 font-mono">{meta.id}</div>
-                </div>
-                <div className="text-xs font-mono text-slate-600">r{Number(meta.revision || 0)}</div>
-              </button>
-            ))}
-            {!cloudTournaments.length && <div className="bg-white border border-slate-200 rounded-xl p-6 text-sm text-slate-500">No private cloud tournaments yet.</div>}
-          </div>
-        </div>
-      </div>
+      <CompanionTournamentSelectScreen
+        organizerName={organizerName}
+        tournaments={cloudTournaments}
+        localTournament={readLocalTournament()}
+        busy={busy}
+        status={status}
+        statusKind={statusKind}
+        onRefresh={() => void refreshWorkspace()}
+        onSignOut={signOut}
+        onOpen={meta => void openCloud(meta)}
+        onContinueLocal={() => void continueWithLocal()}
+      />
     );
   }
 

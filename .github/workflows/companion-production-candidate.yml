@@ -1,0 +1,82 @@
+name: Companion production candidate gate
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'data/fide/fide_ratings.sqlite'
+      - 'public/**'
+      - 'vite.config.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tests/ui/**'
+      - '.github/workflows/companion-production-candidate.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  production-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Verify protected Desktop/core paths are untouched
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "${{ github.base_ref }}"
+          changed="$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")"
+          printf '%s\n' "$changed" > /tmp/companion-changed-files.txt
+          if grep -E '^(engine/gacrux/|src/engine/|bin/bbpPairings$|src/server/adapters/GacruxAdapter\.ts$|src/server/adapters/IndependentPairingCheckerAdapter\.ts$|workers/chess-results/)' /tmp/companion-changed-files.txt; then
+            echo 'Protected pairing/TRF/checker/Chess-Results Worker core changed in Companion PR.' >&2
+            exit 1
+          fi
+      - run: npm ci
+      - name: Companion architecture contract
+        run: node tests/ui/hub-companion-v1.test.mjs
+      - name: Organizer login and My Tournaments wiring
+        run: node tests/ui/companion-cloud-screens.test.mjs
+      - name: TypeScript
+        run: npm run lint
+      - name: Explicit TRF16 and TRF26 regression
+        run: npm run test:trf
+      - name: FIDE database regression
+        run: npm run test:fide
+      - name: Desktop-Web private Cloud roundtrip
+        run: npm run test:cloud-roundtrip
+      - name: Legacy Chess-Results compatibility contract
+        run: npm run test:chess-results-web-contract
+      - name: Companion Chess-Results secure transport
+        run: npm run test:chess-results-companion
+      - name: Build clean Vite Companion production artifact
+        run: npm run build
+      - name: Verify exact Companion production artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s dist/index.html
+          test -s dist/CNAME
+          test "$(cat dist/CNAME)" = 'web.chess-publisher.org'
+          test -s dist/fide/fide_ratings.sqlite
+          test -s dist/vendor/sql-wasm.wasm
+          test "$(stat -c%s dist/fide/fide_ratings.sqlite)" -gt 1000000
+          test "$(stat -c%s dist/vendor/sql-wasm.wasm)" -gt 100000
+          grep -Eq 'assets/index-[^" ]+\.js' dist/index.html
+          grep -Eq 'assets/index-[^" ]+\.css' dist/index.html
+          ! grep -q 'src/main.tsx' dist/index.html
+          ! grep -R -E 'AES_KEY|AES_IV' dist/assets --include='*.js'
+          cp dist/index.html dist/404.html
+          touch dist/.nojekyll
+          printf '{"product":"Chess-Publisher Web Companion","source":"vite-dist","commit":"%s"}\n' "$GITHUB_SHA" > dist/companion-build-info.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chess-publisher-web-companion-production-candidate
+          path: dist
+          if-no-files-found: error
+          retention-days: 7
