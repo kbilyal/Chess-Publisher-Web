@@ -1,4 +1,4 @@
-name: Deploy Chess-Publisher Web
+name: Deploy Chess-Publisher Web Companion
 
 on:
   push:
@@ -18,9 +18,9 @@ concurrency:
 jobs:
   build:
     if: github.ref == 'refs/heads/main'
-    name: Validate and build real Chess-Publisher Web app
+    name: Validate and build Chess-Publisher Web Companion
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
 
     steps:
       - name: Checkout exact triggering commit
@@ -33,6 +33,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -43,11 +44,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -f package-lock.json ]]; then
-            npm ci
-          else
-            npm install --no-audit --no-fund
-          fi
+          npm ci
           python -m pip install --disable-pip-version-check -r engine/gacrux/requirements.txt
           chmod +x bin/bbpPairings
 
@@ -57,32 +54,41 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
 
+      - name: Companion architecture contract
+        run: node tests/ui/hub-companion-v1.test.mjs
+
+      - name: Organizer login and My Tournaments contract
+        run: node tests/ui/companion-cloud-screens.test.mjs
+
       - name: TypeScript check
         run: npm run lint
 
-      - name: Online & Cloud beta4 regression
+      - name: Online and Cloud regression
         run: npm run test:online-cloud
 
-      - name: Online & Cloud beta5 Browser Continuation regression
+      - name: Browser continuation regression
         run: npm run test:online-cloud-beta5
 
       - name: Desktop-Web Cloud roundtrip regression
         run: npm run test:cloud-roundtrip
 
-      - name: Production Web beta7 regression
-        run: npm run test:production-web-beta7
+      - name: Transaction regression
+        run: npm run test:transactions
 
-      - name: Recovered browser function regression
-        run: npm run test:recovered-web-functions
+      - name: Round finalization regression
+        run: npm run test:finalization
 
-      - name: Desktop beta34 Web parity regression
-        run: npm run test:desktop-beta34-web-parity
+      - name: FIDE regression
+        run: npm run test:fide
 
-      - name: Production Web engine boundary regression
-        run: npm run test:web-engine
+      - name: Explicit TRF16 and TRF26 regression
+        run: npm run test:trf
 
-      - name: Chess-Results Web compatibility regression
+      - name: Legacy Chess-Results compatibility contract
         run: npm run test:chess-results-web-contract
+
+      - name: Companion Chess-Results secure transport
+        run: npm run test:chess-results-companion
 
       - name: Architecture regression
         shell: bash
@@ -112,174 +118,60 @@ jobs:
           BBP_PATH: ${{ github.workspace }}/bin/bbpPairings
         run: npm run test:parity
 
-      - name: Transaction regression
-        run: npm run test:transactions
-
-      - name: Round finalization regression
-        run: npm run test:finalization
-
-      - name: FIDE regression
-        run: npm run test:fide
-
-      - name: Build existing Web test target for regression validation
+      - name: Build clean Vite Companion production artifact
         run: npm run build
 
-      - name: Production UI v6 deployment regression
-        run: node tests/ui/production-v6-deployment.test.mjs
-
-      - name: Assemble canonical production-web artifact
+      - name: Verify exact Companion production artifact
         shell: bash
         run: |
           set -euo pipefail
-          test -f production-web/index.html
-          test -f production-web/CNAME
-          test "$(cat production-web/CNAME)" = "web.chess-publisher.org"
-          test -f production-web/web/browser-dev-host.js
-          test -f production-web/web/fide-browser-adapter.js
-          test -f production-web/web/linux-native-engine-adapter.js
-          test -f production-web/web/player-registration-enhancements.js
-          test -f production-web/web/chess-results-browser-adapter.js
-          test -f production-web/web/tournament-setup-enhancements.js
-          test -f production-web/web/cloud-tournaments-shortcut.js
-          test -f production-web/web/brand-overhaul.css
-          test -f production-web/web/ui-v6-production.css
-          test -f production-web/web/ui-v6-cascade-lock.css
-          test -f production-web/web/ui-v6-production.js
-          test -f production-web/hub/client/hub-snapshot.js
-          test -f production-web/hub/client/hub-api-client.js
-          test -f production-web/webview/HubAdapter.js
-          test -f production-web/cloud/client/cloud-workspace-api.js
-          test -f production-web/webview/CloudWorkspaceAdapter.js
-          test "$(git hash-object production-web/index.html)" = "$(git rev-parse "${GITHUB_SHA}:production-web/index.html")"
-          grep -q 'cpProductionWeb' production-web/index.html
-          grep -q 'cpLinuxWebDev' production-web/index.html
-          grep -q '/web/browser-dev-host.js' production-web/index.html
-          grep -q '/web/linux-native-engine-adapter.js' production-web/index.html
-          grep -q '/web/chess-results-browser-adapter.js' production-web/index.html
-          grep -q '/web/brand-overhaul.css?v=20260906-1' production-web/index.html
-          grep -q 'Production UI v6 approved target' production-web/web/ui-v6-production.css
-          grep -q 'UI v6 cascade lock' production-web/web/ui-v6-cascade-lock.css
-          grep -q 'cpUiV6Production' production-web/web/ui-v6-production.js
-          rm -rf dist
-          mkdir -p dist
-          cp -R production-web/. dist/
-          python - <<'PY'
-          from pathlib import Path
-          import os
-          p = Path('dist/index.html')
-          text = p.read_text(encoding='utf-8')
-          sha = os.environ['GITHUB_SHA']
-          for src in ('/web/browser-dev-host.js', '/web/linux-native-engine-adapter.js', '/web/chess-results-browser-adapter.js'):
-              text = text.replace(src, f'{src}?v={sha}')
-          text = text.replace('/web/brand-overhaul.css?v=20260906-1', f'/web/brand-overhaul.css?v={sha}')
-          v6_style = f'<link rel="stylesheet" href="/web/ui-v6-production.css?v={sha}">'
-          v6_lock = f'<link rel="stylesheet" href="/web/ui-v6-cascade-lock.css?v={sha}">'
-          if v6_style not in text:
-              text = text.replace('</head>', f'{v6_style}\n{v6_lock}\n</head>')
-          elif v6_lock not in text:
-              text = text.replace('</head>', f'{v6_lock}\n</head>')
-          shortcut = f'<script src="/web/cloud-tournaments-shortcut.js?v={sha}"></script>'
-          v6_script = f'<script src="/web/ui-v6-production.js?v={sha}"></script>'
-          injections = []
-          if shortcut not in text:
-              injections.append(shortcut)
-          if v6_script not in text:
-              injections.append(v6_script)
-          if injections:
-              text = text.replace('</body>', '\n'.join(injections) + '\n</body>')
-          p.write_text(text, encoding='utf-8')
-          PY
-
-      - name: Write deployment identity
-        shell: bash
-        run: |
-          set -euo pipefail
-          node -e "const { createHash } = require('node:crypto'); const { readFileSync, writeFileSync } = require('node:fs'); const indexSha256 = createHash('sha256').update(readFileSync('dist/index.html')).digest('hex'); const buildInfo = { product: 'Chess-Publisher Web', source: 'production-web', deploymentSource: 'Exact desktop ChessPublisher.html production shell', presentation: 'Production UI v6', repository: 'kbilyal/Chess-Publisher-Web', branch: 'main', commit: process.env.GITHUB_SHA, indexSha256, builtAt: new Date().toISOString() }; writeFileSync('dist/build-info.json', JSON.stringify(buildInfo, null, 2) + '\n');"
-
-      - name: Disable Jekyll processing and preserve SPA routes
-        run: |
+          test -s dist/index.html
+          test -s dist/CNAME
+          test "$(cat dist/CNAME)" = 'web.chess-publisher.org'
+          test -s dist/fide/fide_ratings.sqlite
+          test -s dist/vendor/sql-wasm.wasm
+          test "$(stat -c%s dist/fide/fide_ratings.sqlite)" -gt 1000000
+          test "$(stat -c%s dist/vendor/sql-wasm.wasm)" -gt 100000
+          grep -Eq 'assets/index-[^" ]+\.js' dist/index.html
+          grep -Eq 'assets/index-[^" ]+\.css' dist/index.html
+          ! grep -q 'src/main.tsx' dist/index.html
+          ! grep -R -E 'AES_KEY|AES_IV' dist/assets --include='*.js'
+          grep -R -q 'Continue your desktop tournaments anywhere' dist/assets --include='*.js'
+          grep -R -q 'Publish to Chess-Results' dist/assets --include='*.js'
+          grep -R -q 'Publish to Online Hub' dist/assets --include='*.js'
+          grep -R -q '/api/chess-results/' dist/assets --include='*.js'
+          grep -R -q 'chess-publisher-chess-results.kyamranbilyal.workers.dev/api/chess-results/' dist/assets --include='*.js'
           cp dist/index.html dist/404.html
           touch dist/.nojekyll
+          node -e "const { createHash } = require('node:crypto'); const { readFileSync, writeFileSync } = require('node:fs'); const indexSha256 = createHash('sha256').update(readFileSync('dist/index.html')).digest('hex'); const buildInfo = { product: 'Chess-Publisher Web Companion', source: 'vite-dist', repository: 'kbilyal/Chess-Publisher-Web', branch: 'main', commit: process.env.GITHUB_SHA, indexSha256, builtAt: new Date().toISOString() }; writeFileSync('dist/companion-build-info.json', JSON.stringify(buildInfo, null, 2) + '\n');"
+          node -e "const { readFileSync } = require('node:fs'); const info = JSON.parse(readFileSync('dist/companion-build-info.json', 'utf8')); if (info.commit !== process.env.GITHUB_SHA) throw new Error('build-info commit mismatch'); if (info.source !== 'vite-dist') throw new Error('deployment source mismatch'); if (!/^[a-f0-9]{64}$/.test(info.indexSha256)) throw new Error('index identity missing');"
 
-      - name: Verify exact production artifact
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -f dist/index.html
-          test -f dist/build-info.json
-          test -f dist/CNAME
-          test "$(cat dist/CNAME)" = "web.chess-publisher.org"
-          test -f dist/web/browser-dev-host.js
-          test -f dist/web/fide-browser-adapter.js
-          test -f dist/web/linux-native-engine-adapter.js
-          test -f dist/web/player-registration-enhancements.js
-          test -f dist/web/chess-results-browser-adapter.js
-          test -f dist/web/tournament-setup-enhancements.js
-          test -f dist/web/cloud-tournaments-shortcut.js
-          test -f dist/web/brand-overhaul.css
-          test -f dist/web/ui-v6-production.css
-          test -f dist/web/ui-v6-cascade-lock.css
-          test -f dist/web/ui-v6-production.js
-          test -f dist/hub/client/hub-snapshot.js
-          test -f dist/hub/client/hub-api-client.js
-          test -f dist/webview/HubAdapter.js
-          test -f dist/cloud/client/cloud-workspace-api.js
-          test -f dist/webview/CloudWorkspaceAdapter.js
-          grep -q 'cpProductionWeb' dist/index.html
-          grep -q 'cpLinuxWebDev' dist/index.html
-          grep -q 'Chess-Publisher' dist/index.html
-          grep -q 'Online & Cloud' dist/index.html
-          grep -q 'Pull Changes' dist/index.html
-          grep -q 'Sync Now' dist/index.html
-          grep -q 'Pin Board / Remarks' dist/index.html
-          grep -q 'function chessResultsPinBoardRemark' dist/index.html
-          grep -q 'crAttr("remark",chessResultsPinBoardRemark(cr))' dist/index.html
-          grep -q "/web/browser-dev-host.js?v=${GITHUB_SHA}" dist/index.html
-          grep -q "/web/linux-native-engine-adapter.js?v=${GITHUB_SHA}" dist/index.html
-          grep -q "/web/chess-results-browser-adapter.js?v=${GITHUB_SHA}" dist/index.html
-          grep -q "/web/cloud-tournaments-shortcut.js?v=${GITHUB_SHA}" dist/index.html
-          grep -q "/web/brand-overhaul.css?v=${GITHUB_SHA}" dist/index.html
-          grep -q "/web/ui-v6-production.css?v=${GITHUB_SHA}" dist/index.html
-          grep -q "/web/ui-v6-cascade-lock.css?v=${GITHUB_SHA}" dist/index.html
-          grep -q "/web/ui-v6-production.js?v=${GITHUB_SHA}" dist/index.html
-          grep -q 'Stable Reliable UI v5' dist/web/brand-overhaul.css
-          grep -q 'Production UI v6 approved target' dist/web/ui-v6-production.css
-          grep -q 'UI v6 cascade lock' dist/web/ui-v6-cascade-lock.css
-          grep -q 'cpUiV6Production' dist/web/ui-v6-production.js
-          grep -q 'chess-publisher-web-engine.kyamranbilyal.workers.dev' dist/web/linux-native-engine-adapter.js
-          grep -q 'desktopContract(operation,result)' dist/web/chess-results-browser-adapter.js
-          grep -q 'canDelete:result?.canDelete===true||result?.verifiedOwner===true' dist/web/chess-results-browser-adapter.js
-          grep -q 'button.innerHTML="<span>My Cloud</span><span></span>"' dist/web/cloud-tournaments-shortcut.js
-          grep -q 'visible:false' dist/web/cloud-tournaments-shortcut.js
-          grep -q 'fileMenu:true' dist/web/cloud-tournaments-shortcut.js
-          grep -q 'dialog:true' dist/web/cloud-tournaments-shortcut.js
-          grep -q 'cpWebMyCloudDialog' dist/web/cloud-tournaments-shortcut.js
-          grep -q 'publicOnlineListHidden:true' dist/web/cloud-tournaments-shortcut.js
-          grep -q 'legacyOnlineMenuRemoved:true' dist/web/cloud-tournaments-shortcut.js
-          grep -q 'durableSave:true' dist/web/cloud-tournaments-shortcut.js
-          grep -q 'autosaveUsesDurableSavePath:true' dist/web/cloud-tournaments-shortcut.js
-          grep -q 'autosaveCloudSync:true' dist/web/cloud-tournaments-shortcut.js
-          grep -q 'cloudSaveOnManualSave:true' dist/web/cloud-tournaments-shortcut.js
-          grep -q 'document.addEventListener("input"' dist/web/cloud-tournaments-shortcut.js
-          grep -q 'document.addEventListener("change"' dist/web/cloud-tournaments-shortcut.js
-          grep -q 'window.saveData' dist/web/cloud-tournaments-shortcut.js
-          grep -q 'window.cpCloudSyncCurrent' dist/web/cloud-tournaments-shortcut.js
-          ! grep -Eq 'assets/index-[^" ]+\.(js|css)' dist/index.html
-          ! grep -q 'vite/client' dist/index.html
-          ! grep -q 'src/main.tsx' dist/index.html
-          node -e "const { readFileSync } = require('node:fs'); const info = JSON.parse(readFileSync('dist/build-info.json', 'utf8')); if (info.commit !== process.env.GITHUB_SHA) throw new Error('build-info commit does not match GITHUB_SHA'); if (info.repository !== 'kbilyal/Chess-Publisher-Web') throw new Error('build-info repository mismatch'); if (info.branch !== 'main') throw new Error('build-info branch mismatch'); if (info.source !== 'production-web') throw new Error('production source identity mismatch'); if (info.deploymentSource !== 'Exact desktop ChessPublisher.html production shell') throw new Error('desktop shell identity mismatch'); if (info.presentation !== 'Production UI v6') throw new Error('production UI v6 identity mismatch'); if (!/^[a-f0-9]{64}$/.test(info.indexSha256)) throw new Error('production index identity missing');"
-          find dist -maxdepth 4 -type f | sort
+      - name: Preserve legacy production shell as rollback artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chess-publisher-web-legacy-production-rollback
+          path: production-web
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Archive exact Companion production artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chess-publisher-web-companion-production
+          path: dist
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
-      - name: Upload exact Chess-Publisher Web artifact
+      - name: Upload Chess-Publisher Web Companion artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./dist
 
   deploy:
-    name: Publish real Chess-Publisher Web program
+    name: Publish Chess-Publisher Web Companion
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10

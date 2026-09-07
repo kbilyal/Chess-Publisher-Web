@@ -10,6 +10,7 @@ on:
       - 'package-lock.json'
       - 'tests/ui/**'
       - '.github/workflows/companion-production-candidate.yml'
+      - '.github/workflows/deploy-web.yml'
   workflow_dispatch:
 permissions:
   contents: read
