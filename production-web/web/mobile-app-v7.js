@@ -49,6 +49,41 @@
     return Boolean(tab && (tab.classList.contains('active') || tab.getAttribute('aria-selected') === 'true'));
   }
 
+  function isolateLegacyTabsForPhone() {
+    const tabs = $('#appWindow > .tabs');
+    if (!tabs) return;
+    const mobileProperties = {
+      position: 'fixed',
+      left: '-10000px',
+      top: '0',
+      right: 'auto',
+      bottom: 'auto',
+      width: '1px',
+      'min-width': '1px',
+      'max-width': '1px',
+      height: '1px',
+      'min-height': '1px',
+      'max-height': '1px',
+      padding: '0',
+      margin: '0',
+      overflow: 'hidden',
+      opacity: '0',
+      'pointer-events': 'none',
+      'box-shadow': 'none',
+      border: '0'
+    };
+    if (media.matches) {
+      for (const [property, value] of Object.entries(mobileProperties)) {
+        tabs.style.setProperty(property, value, 'important');
+      }
+      tabs.dataset.cpMobileLegacyIsolated = '1';
+      return;
+    }
+    if (tabs.dataset.cpMobileLegacyIsolated !== '1') return;
+    for (const property of Object.keys(mobileProperties)) tabs.style.removeProperty(property);
+    delete tabs.dataset.cpMobileLegacyIsolated;
+  }
+
   function currentItem() {
     return ALL.find(item => isActive(resolveTab(item))) || PRIMARY[0];
   }
@@ -121,6 +156,7 @@
     }
 
     window.setTimeout(() => {
+      isolateLegacyTabsForPhone();
       syncState();
       const nowActive = isActive(tab);
       if (!nowActive && !isDisabled(tab)) {
@@ -238,17 +274,22 @@
     if (!media.matches) return;
     const tab = event.target?.closest?.('#appWindow > .tabs > .tab');
     if (!tab) return;
-    window.setTimeout(syncState, 30);
+    window.setTimeout(() => {
+      isolateLegacyTabsForPhone();
+      syncState();
+    }, 30);
   }
 
   function handleViewportChange() {
     ensureShell();
+    isolateLegacyTabsForPhone();
     if (!media.matches) closeMore();
     syncState();
   }
 
   function start() {
     ensureShell();
+    isolateLegacyTabsForPhone();
     syncState();
     document.addEventListener('click', onLegacyNavigation, false);
     document.addEventListener('keydown', event => {
@@ -260,7 +301,10 @@
     // registration or results changes. Reflect that state without wrapping or
     // replacing any production function.
     window.setInterval(() => {
-      if (media.matches) syncState();
+      if (media.matches) {
+        isolateLegacyTabsForPhone();
+        syncState();
+      }
     }, 900);
   }
 
