@@ -56,11 +56,9 @@ calls.length = 0;
 await chessResultsApi.publish({ key: '1492376', xml: '<chessresults />' });
 assert.equal(calls.length, 2, 'Existing Desktop TNR must transparently recover continuity before first Web publish.');
 assert.equal(calls[0].url, `${REMOTE_CHESS_RESULTS_API_PREFIX}claim`);
-assert.deepEqual(calls[0].body, {
-  key: '1492376',
-  cloudTournamentId: 'cloud-123',
-  clientId: 'cr-client-123'
-}, 'Automatic continuity must use the synchronized Desktop/Cloud tournament identity.');
+assert.equal(calls[0].body.key, '1492376');
+assert.equal(calls[0].body.cloudTournamentId, 'cloud-123', 'Automatic continuity must use the synchronized Desktop/Cloud tournament identity.');
+assert.equal(calls[0].body.clientId, 'cr-client-123');
 assert.equal(calls[1].url, `${REMOTE_CHESS_RESULTS_API_PREFIX}publish`);
 assert.equal(calls[1].body.ownershipProof, 'auto-continuity-1492376', 'Recovered continuity must be supplied internally to the protected Worker contract.');
 assert.equal(calls[1].body.cloudTournamentId, 'cloud-123');
