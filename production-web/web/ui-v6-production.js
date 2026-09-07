@@ -314,3 +314,29 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
   else start();
 })();
+
+/* Mobile App v7 is intentionally a separate presentation module. The production
+ * deploy already cache-busts this UI v6 script with the exact commit SHA, so the
+ * same query string is forwarded to the mobile CSS/JS assets automatically.
+ */
+(() => {
+  'use strict';
+  const current = document.currentScript?.src || '';
+  const query = current.includes('?') ? current.slice(current.indexOf('?')) : '?v=20260907-mobile7';
+
+  if (!document.querySelector('link[data-cp-mobile-app-v7]')) {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = `/web/mobile-app-v7.css${query}`;
+    link.dataset.cpMobileAppV7 = '1';
+    document.head.appendChild(link);
+  }
+
+  if (!document.querySelector('script[data-cp-mobile-app-v7]')) {
+    const script = document.createElement('script');
+    script.src = `/web/mobile-app-v7.js${query}`;
+    script.async = false;
+    script.dataset.cpMobileAppV7 = '1';
+    document.body.appendChild(script);
+  }
+})();
