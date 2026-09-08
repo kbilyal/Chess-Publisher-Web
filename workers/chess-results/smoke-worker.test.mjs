@@ -11,6 +11,9 @@ assert.match(source, /payload\?\.federation !== 'XXX'/);
 assert.match(source, /\/api\/chess-results\/publish/);
 assert.match(source, /\/api\/chess-results\/upload-diagnostic/);
 assert.match(source, /ownershipWorker\.fetch\(smokeRequest\(request, pathname, key, ownershipProof\), env\)/);
+assert.match(source, /<round round=\"1\" date=\"20260908\" time=\"10:00\"/);
+assert.doesNotMatch(source, /<round round=\"1\" date=\"\" time=\"\"/);
+assert.match(source, /sex=\"m\" fed=\"XXX\" board=\"0\" teamno=\"0\"/);
 
 const WEB_ORIGIN = 'https://web.chess-publisher.org';
 let forwarded = null;
@@ -72,4 +75,4 @@ const unknown = await smokeWorker.fetch(new Request('https://chess-publisher-che
 }), env);
 assert.equal(unknown.status, 404);
 
-console.log('PASS smoke route guard + publish delegation + Web engine service relay regression');
+console.log('PASS schema-valid smoke route guard + publish delegation + Web engine service relay regression');
