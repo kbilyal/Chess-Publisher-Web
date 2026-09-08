@@ -256,8 +256,16 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
       let key = String(current.chessResults?.key || '').trim();
       let next = current;
       attemptedKey = key;
+      const requestedMode = String(current.settings.tournamentType || '').trim().toLowerCase();
+      const linkedMode = String(current.chessResults?.mode || '').trim().toLowerCase();
+      const modeChanged = isTnr(key)
+        && ['real', 'test'].includes(requestedMode)
+        && ['real', 'test'].includes(linkedMode)
+        && requestedMode !== linkedMode;
+      const requiresFreshTnr = Boolean(current.chessResults?.freshTnrRequired || modeChanged);
+      const replacedKey = requiresFreshTnr && isTnr(key) ? key : '';
 
-      if (!isTnr(key)) {
+      if (!isTnr(key) || requiresFreshTnr) {
         const clientId = current.chessResults?.clientId || newClientId();
         const created = await chessResultsApi.create({
           tournament: current.name || '',
@@ -278,10 +286,12 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
             key,
             mode: current.settings.tournamentType,
             federation: String(created?.federation || initial.federation),
-            createdAt: current.chessResults?.createdAt || new Date().toISOString(),
+            createdAt: new Date().toISOString(),
             freshTnrRequired: false,
             lastError: '',
-            uploadStatus: 'TNR assigned — preparing upload'
+            uploadStatus: replacedKey
+              ? `Tournament mode changed — TNR ${replacedKey} replaced by ${key}; preparing upload`
+              : 'TNR assigned — preparing upload'
           }
         };
         persistTournament(next);
@@ -302,6 +312,7 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
           uploadStatus: 'Published / synced',
           publishCount: (next.chessResults?.publishCount || 0) + 1,
           activityLog: [
+            ...(replacedKey ? [{ at: now, type: 'ok' as const, message: `Tournament mode changed; replaced incompatible TNR ${replacedKey} with TNR ${key}.` }] : []),
             { at: now, type: 'ok' as const, message: `Published TNR ${key}: ${publication.players} players.` },
             ...(next.chessResults?.activityLog || [])
           ].slice(0, 120)
@@ -310,7 +321,9 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
       persistTournament(published);
       await cloud.syncNow(published);
       adoptSynchronizedTournament();
-      setNotice('ok', `Chess-Results TNR ${key} published and synchronized.`);
+      setNotice('ok', replacedKey
+        ? `Tournament mode changed. New Chess-Results TNR ${key} was created and published correctly.`
+        : `Chess-Results TNR ${key} published and synchronized.`);
     } catch (error: any) {
       if (isSourceIdMismatch(error) && isTnr(attemptedKey)) {
         setSourceMismatchTnr(attemptedKey);
