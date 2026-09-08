@@ -20,34 +20,60 @@ assert.equal(publication.players, 3);
 assert.equal(publication.rounds, Number(tournament.settings.rounds));
 assert.equal(publication.pairingRecords, 2);
 assert.match(publication.xml, /<tournament[^>]*key="123456"/);
-assert.match(publication.xml, /<round round="1" date="20261002" time="10:00"/);
-assert.doesNotMatch(publication.xml, /<round\b[^>]*date=""/);
-assert.doesNotMatch(publication.xml, /<round\b[^>]*time=""/);
-assert.match(publication.xml, /<player[^>]*board="0"[^>]*teamno="0"/);
-assert.match(publication.xml, /<playerpairing[^>]*whiteno="1"[^>]*blackno="2"[^>]*reswhite="1"[^>]*resblack="0"/);
-assert.match(publication.xml, /<playerpairing[^>]*whiteno="3"[^>]*blackno="-2"[^>]*reswhite=""/);
+assert.match(publication.xml, /<tournament[^>]*currentround="1"[^>]*rankinground="1"[^>]*sortstartrank="2"/);
+assert.match(publication.xml, /<tournament[^>]*ratednational="-"[^>]*tb1no="0"[^>]*tb5no="0"[^>]*replay="1"/);
+assert.match(publication.xml, /<tournament[^>]*endstatus="N"/);
+assert.match(publication.xml, /<round round="1" date="20261002" time="10:00" replay="1"/);
+assert.match(publication.xml, /<player[^>]*firstname=""[^>]*atitle=""/);
+assert.match(publication.xml, /<player[^>]*board=""[^>]*teamno="0"/);
+assert.match(publication.xml, /<player[^>]*tb1=""[^>]*tb5=""[^>]*pts="1\.0"[^>]*equal="N"/);
 assert.match(publication.xml, /sid="__CP_CR_SID__"/);
 
-// Individual Swiss records use pairing="1"; board numbering belongs in board.
+// Official 2026 Individual Swiss reference XML uses pairing as the sequential
+// table index and board="1" for every player-pairing record.
 const individualPairings = [...publication.xml.matchAll(/<playerpairing\b[^>]*\/>/g)].map(match => match[0]);
 assert.equal(individualPairings.length, 2);
-individualPairings.forEach(record => assert.match(record, /\bpairing="1"/));
-assert.doesNotMatch(publication.xml, /<playerpairing\b[^>]*\bpairing="2"/);
+assert.match(individualPairings[0], /\bpairing="1"\b[^>]*\bboard="1"/);
+assert.match(individualPairings[0], /\bwhiteno="1"[^>]*\bblackno="2"[^>]*\breswhite="1\.0"[^>]*\bresblack="0\.0"/);
+assert.match(individualPairings[1], /\bpairing="2"\b[^>]*\bboard="1"/);
+assert.match(individualPairings[1], /\bwhiteno="3"[^>]*\bblackno="-2"[^>]*\breswhite=""/);
+
+const twoTables = structuredClone(tournament);
+twoTables.pairings.liveBoards = {
+  '1': [
+    { board: 4, whiteKey: twoTables.players[0].localKey, blackKey: twoTables.players[1].localKey, result: '1 - 0' },
+    { board: 9, whiteKey: twoTables.players[2].localKey, blackKey: '', result: 'PAB' },
+  ],
+};
+const twoTablesPublication = buildChessResultsXml(twoTables, { requireKey: true });
+const twoTableRecords = [...twoTablesPublication.xml.matchAll(/<playerpairing\b[^>]*\/>/g)].map(match => match[0]);
+assert.equal(twoTableRecords.length, 2);
+assert.match(twoTableRecords[0], /pairing="1"[^>]*board="1"/);
+assert.match(twoTableRecords[1], /pairing="2"[^>]*board="1"/);
+assert.doesNotMatch(twoTablesPublication.xml, /<playerpairing\b[^>]*board="4"/);
+assert.doesNotMatch(twoTablesPublication.xml, /<playerpairing\b[^>]*board="9"/);
 
 const draw = structuredClone(tournament);
 draw.pairings.liveBoards = { '1': [{ board: 1, whiteKey: draw.players[0].localKey, blackKey: draw.players[1].localKey, result: '½ - ½' }] };
 const drawPublication = buildChessResultsXml(draw, { requireKey: true });
-assert.match(drawPublication.xml, /reswhite="0,5"[^>]*resblack="0,5"/);
+assert.match(drawPublication.xml, /reswhite="0\.5"[^>]*resblack="0\.5"/);
 
 const pab = structuredClone(tournament);
 pab.pairings.liveBoards = { '1': [{ board: 1, whiteKey: pab.players[0].localKey, blackKey: '', result: 'PAB' }] };
 const pabPublication = buildChessResultsXml(pab, { requireKey: true });
-assert.match(pabPublication.xml, /<playerpairing[^>]*pairing="1"[^>]*whiteno="1"[^>]*blackno="-1"[^>]*forfeit="K"/);
-assert.doesNotMatch(pabPublication.xml, /<playerpairing\b[^>]*\bpairing="[2-9]/);
+assert.match(pabPublication.xml, /<playerpairing[^>]*pairing="1"[^>]*board="1"[^>]*whiteno="1"[^>]*blackno="-1"[^>]*reswhite="1\.0"[^>]*resblack="0\.0"[^>]*forfeit="K"/);
+assert.match(pabPublication.xml, /<playerpairing[^>]*pairing="2"[^>]*board="1"[^>]*blackno="-2"/);
 
-const missingSchedule = structuredClone(tournament);
-missingSchedule.schedule.rows = missingSchedule.schedule.rows.filter(row => row.no !== '2');
-assert.throws(() => validateChessResultsTournament(missingSchedule), /date and time for every round.*Round 2/i);
+// Round date/time is optional in the current Chess-Results schema. A tournament
+// must remain publishable before the full schedule has been entered.
+const preRound = structuredClone(tournament);
+preRound.pairings.liveBoards = {};
+preRound.schedule.rows = [];
+const preRoundPublication = buildChessResultsXml(preRound, { requireKey: true });
+assert.equal(preRoundPublication.pairingRecords, 0);
+assert.match(preRoundPublication.xml, /<tournament[^>]*currentround="0"[^>]*rankinground="0"[^>]*sortstartrank="2"/);
+assert.match(preRoundPublication.xml, /<round round="1" date="" time="" replay="1"/);
+assert.match(preRoundPublication.xml, /<player[^>]*rank="1"[^>]*tb1=""[^>]*tb5=""[^>]*pts="0\.0"[^>]*equal="N"/);
 
 const invalid = structuredClone(tournament);
 invalid.settings.tournamentFormat = 'Individual Round Robin';
@@ -81,4 +107,4 @@ duplicateBoard.pairings.liveBoards = {
 };
 assert.throws(() => buildChessResultsXml(duplicateBoard, { requireKey: true }), /invalid or duplicate board number/i);
 
-console.log('Chess-Results publication contract: round schedule/schema regression PASS');
+console.log('Chess-Results publication contract: 2026 Individual Swiss schema parity PASS');
