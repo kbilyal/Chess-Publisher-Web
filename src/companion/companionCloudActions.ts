@@ -1,6 +1,7 @@
 import { Tournament } from '../types';
 import { cloudApi } from '../cloud/cloudWorkspaceApi';
 import { hubApi } from '../cloud/hubApi';
+import { buildPublicHubSnapshot } from '../cloud/publicHubSnapshot';
 import {
   buildPrivateSnapshot,
   chooseInternalTournamentId,
@@ -240,6 +241,50 @@ function adoptHubMetadata(tournament: Tournament | any, hub: any) {
   return current;
 }
 
+async function retryPublishAgainstAuthoritativeHub(cloud: any, tournament: Tournament | any) {
+  const token = text(cloud?.token);
+  if (!token) throw new Error('Organizer Token is required to confirm the Online Hub publication.');
+
+  const current: any = readLocalTournament() || tournament;
+  const hub = await findOrganizerOwnedHub(cloud, current);
+  if (!hub?.id) {
+    throw new Error('Online Hub publication failed before an organizer-owned tournament could be confirmed.');
+  }
+
+  if (hub.deleted) await hubApi.restoreOwnedTournament(token, hub.id);
+  adoptHubMetadata(current, hub);
+
+  // The provider may have raced a newer Hub revision and then swallowed the
+  // revision-conflict detail into React status. Rebuild against the freshly
+  // listed authoritative revision and retry exactly once. Any real validation,
+  // ownership or transport error is allowed to propagate to the user verbatim.
+  const revision = Number(hub.revision || current?.online?.revision || 0);
+  const snapshot = buildPublicHubSnapshot(current, {
+    hubTournamentId: hub.id,
+    publicSlug: hub.publicSlug,
+    revision
+  });
+  const published = await hubApi.publishOwnedTournament(token, hub.id, revision, snapshot);
+  const publicSlug = text(published?.publicSlug || hub.publicSlug || current?.online?.publicSlug);
+  const page = text(published?.publicPageUrl || hub.publicPageUrl) || (publicSlug
+    ? `https://chess-publisher.org/tournaments?id=${encodeURIComponent(publicSlug)}`
+    : '');
+
+  current.online = {
+    ...(current.online || {}),
+    hubTournamentId: text(hub.id),
+    publicSlug,
+    publicPageUrl: page,
+    revision: Number(published?.revision ?? revision),
+    lastPublishedAt: new Date().toISOString()
+  };
+  if (!text(current.cloud?.internalId) || String(current.cloud.internalId).startsWith('tournament:')) {
+    current.cloud = { ...(current.cloud || {}), internalId: hub.id };
+  }
+  localStorage.setItem(TOURNAMENT_STORAGE_KEY, JSON.stringify(current));
+  return current;
+}
+
 async function publishOnlineWithRecovery(cloud: any, tournament: Tournament) {
   const current: any = readLocalTournament() || tournament;
   try {
@@ -254,18 +299,20 @@ async function publishOnlineWithRecovery(cloud: any, tournament: Tournament) {
   const previousPublishedAt = text(current?.online?.lastPublishedAt);
   await cloud.publishOnline(current);
 
-  // OnlineCloudProviderV2 intentionally converts transport/validation failures
-  // into UI status instead of rethrowing them. The Companion therefore requires
-  // a fresh local acknowledgement timestamp written only after a successful Hub
-  // response. The Hub may legitimately return `unchanged` without incrementing
-  // the public revision, so equality is valid; the revision must never go back.
+  // Fast path: keep the existing provider authoritative whenever it wrote a
+  // fresh acknowledgement. Equality of revision is valid for `unchanged`.
   const published: any = readLocalTournament() || current;
   const publishedRevision = Number(published?.online?.revision || 0);
   const publishedAt = text(published?.online?.lastPublishedAt);
-  if (!publishedAt || publishedAt === previousPublishedAt || publishedRevision < previousRevision) {
-    throw new Error('Online Hub publish was not confirmed. The Hub did not acknowledge the publication; synchronize and publish again.');
+  if (publishedAt && publishedAt !== previousPublishedAt && publishedRevision >= previousRevision) {
+    return published;
   }
-  return published;
+
+  // Provider failures are intentionally converted to UI status internally, so
+  // there is no exception to inspect here. Retry once using the authoritative
+  // organizer-owned Hub revision. This both repairs stale revision races and
+  // surfaces the real Hub API error instead of a generic acknowledgement error.
+  return retryPublishAgainstAuthoritativeHub(cloud, published);
 }
 
 async function openPublicHubPage(cloud: any, tournament: Tournament) {
