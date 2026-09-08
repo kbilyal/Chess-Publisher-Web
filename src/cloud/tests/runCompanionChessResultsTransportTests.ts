@@ -100,6 +100,39 @@ assert.match(
   'Fresh TNR creation must use the current tournament mode and the exporter federation (XXX for Test).'
 );
 
+assert.match(
+  workspaceSource,
+  /const chessResultsPublishLockRef = useRef\(false\);/,
+  'Chess-Results Publish must be single-flight so a double click cannot issue multiple GETKEY requests.'
+);
+assert.match(
+  workspaceSource,
+  /if \(!isTnr\(oldKey\) \|\| chessResultsPublishLockRef\.current\) return;/,
+  'The recovery GETKEY path must share the same single-flight lock.'
+);
+assert.match(
+  workspaceSource,
+  /const localBeforeSync = tournamentRef\.current;[\s\S]*settings: \{ \.\.\.localBeforeSync\.settings, tnr: '' \}[\s\S]*key: ''[\s\S]*await cloud\.syncNow\(tournamentRef\.current\);/,
+  'A Real/Test rollover must detach the previous TNR before Cloud sync instead of synchronizing mixed mode/key identity.'
+);
+assert.match(
+  workspaceSource,
+  /const transitionFederation = transitionMode === 'test'[\s\S]*\? 'XXX'/,
+  'The atomic Test rollover must stage federation XXX before requesting the replacement TNR.'
+);
+assert.match(
+  workspaceSource,
+  /const replacedKey = transitionedFromTnr \|\| \(requiresFreshTnr/,
+  'The previous TNR must be retained only for audit while the replacement TNR becomes the active identity.'
+);
+assert.match(
+  workspaceSource,
+  /const linkedModeBeforeSync = explicitLinkedModeBeforeSync[\s\S]*linkedFederationBeforeSync === 'XXX' \? 'test' : isTnr\(linkedKeyBeforeSync\) \? 'real'/,
+  'Legacy synchronized TNRs without an explicit mode must still infer Test from XXX and Real from a non-XXX linked key.'
+);
+const lockReleaseMatches = workspaceSource.match(/chessResultsPublishLockRef\.current = false;/g) || [];
+assert.equal(lockReleaseMatches.length, 2, 'Both Chess-Results GETKEY paths must always release the single-flight lock.');
+
 (globalThis as any).window.location.hostname = 'localhost';
 calls.length = 0;
 await chessResultsApi.test();

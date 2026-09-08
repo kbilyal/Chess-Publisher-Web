@@ -60,6 +60,7 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
   const [messageKind, setMessageKind] = useState<'ok' | 'warn' | 'error'>('ok');
   const [sourceMismatchTnr, setSourceMismatchTnr] = useState('');
   const tournamentRef = useRef(tournament);
+  const chessResultsPublishLockRef = useRef(false);
 
   useEffect(() => { tournamentRef.current = tournament; }, [tournament]);
   useEffect(() => {
@@ -176,7 +177,8 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
 
   const createFreshChessResultsTnr = async () => {
     const oldKey = sourceMismatchTnr || tnr;
-    if (!isTnr(oldKey)) return;
+    if (!isTnr(oldKey) || chessResultsPublishLockRef.current) return;
+    chessResultsPublishLockRef.current = true;
     setBusy('cr-publish');
     setMessage('');
     try {
@@ -240,16 +242,57 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
     } catch (error: any) {
       setNotice('error', error?.message || 'Could not create a new Chess-Publisher TNR.');
     } finally {
+      chessResultsPublishLockRef.current = false;
       setBusy(null);
     }
   };
 
   const publishChessResults = async () => {
+    if (chessResultsPublishLockRef.current) return;
+    chessResultsPublishLockRef.current = true;
     setBusy('cr-publish');
     setMessage('');
     setSourceMismatchTnr('');
     let attemptedKey = '';
+    let transitionedFromTnr = '';
     try {
+      const localBeforeSync = tournamentRef.current;
+      const requestedModeBeforeSync = String(localBeforeSync.settings.tournamentType || '').trim().toLowerCase();
+      const linkedKeyBeforeSync = String(localBeforeSync.chessResults?.key || localBeforeSync.settings?.tnr || '').trim();
+      const linkedFederationBeforeSync = String(localBeforeSync.chessResults?.federation || '').trim().toUpperCase();
+      const explicitLinkedModeBeforeSync = String(localBeforeSync.chessResults?.mode || '').trim().toLowerCase();
+      const linkedModeBeforeSync = explicitLinkedModeBeforeSync
+        || (linkedFederationBeforeSync === 'XXX' ? 'test' : isTnr(linkedKeyBeforeSync) ? 'real' : '');
+      const modeChangedBeforeSync = isTnr(linkedKeyBeforeSync)
+        && ['real', 'test'].includes(requestedModeBeforeSync)
+        && ['real', 'test'].includes(linkedModeBeforeSync)
+        && requestedModeBeforeSync !== linkedModeBeforeSync;
+      const staleFreshIdentity = isTnr(linkedKeyBeforeSync) && localBeforeSync.chessResults?.freshTnrRequired === true;
+
+      // Never synchronize a mixed identity such as settings=test with an old Real TNR.
+      // Detach the old TNR first, synchronize that coherent transition, then obtain exactly one replacement key.
+      if (modeChangedBeforeSync || staleFreshIdentity) {
+        transitionedFromTnr = linkedKeyBeforeSync;
+        const transitionMode = ['real', 'test'].includes(requestedModeBeforeSync) ? requestedModeBeforeSync : linkedModeBeforeSync;
+        const transitionFederation = transitionMode === 'test'
+          ? 'XXX'
+          : String(localBeforeSync.settings.country || '').trim().toUpperCase();
+        const transition: Tournament = {
+          ...localBeforeSync,
+          settings: { ...localBeforeSync.settings, tnr: '' },
+          chessResults: {
+            ...localBeforeSync.chessResults,
+            key: '',
+            mode: transitionMode,
+            federation: transitionFederation,
+            freshTnrRequired: true,
+            lastError: '',
+            uploadStatus: `Preparing one new ${transitionMode === 'test' ? 'Test' : 'Real'} Chess-Results TNR; previous TNR ${linkedKeyBeforeSync} is no longer active for this mode.`
+          }
+        };
+        persistTournament(transition);
+      }
+
       await cloud.syncNow(tournamentRef.current);
       const current = adoptSynchronizedTournament();
       const initial = buildChessResultsXml(current);
@@ -257,13 +300,16 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
       let next = current;
       attemptedKey = key;
       const requestedMode = String(current.settings.tournamentType || '').trim().toLowerCase();
-      const linkedMode = String(current.chessResults?.mode || '').trim().toLowerCase();
+      const linkedFederation = String(current.chessResults?.federation || '').trim().toUpperCase();
+      const explicitLinkedMode = String(current.chessResults?.mode || '').trim().toLowerCase();
+      const linkedMode = explicitLinkedMode
+        || (linkedFederation === 'XXX' ? 'test' : isTnr(key) ? 'real' : '');
       const modeChanged = isTnr(key)
         && ['real', 'test'].includes(requestedMode)
         && ['real', 'test'].includes(linkedMode)
         && requestedMode !== linkedMode;
       const requiresFreshTnr = Boolean(current.chessResults?.freshTnrRequired || modeChanged);
-      const replacedKey = requiresFreshTnr && isTnr(key) ? key : '';
+      const replacedKey = transitionedFromTnr || (requiresFreshTnr && isTnr(key) ? key : '');
 
       if (!isTnr(key) || requiresFreshTnr) {
         const clientId = current.chessResults?.clientId || newClientId();
@@ -332,6 +378,7 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
         setNotice('error', error?.message || 'Chess-Results publication failed.');
       }
     } finally {
+      chessResultsPublishLockRef.current = false;
       setBusy(null);
     }
   };
