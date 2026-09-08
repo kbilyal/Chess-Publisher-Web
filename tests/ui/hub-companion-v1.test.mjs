@@ -4,6 +4,7 @@ import fs from 'node:fs';
 const app = fs.readFileSync('src/App.tsx', 'utf8');
 const workspace = fs.readFileSync('src/companion/CompanionWorkspace.tsx', 'utf8');
 const cloudActions = fs.readFileSync('src/companion/companionCloudActions.ts', 'utf8');
+const cloudProvider = fs.readFileSync('src/cloud/OnlineCloudProviderV2.tsx', 'utf8');
 const setup = fs.readFileSync('src/companion/CompanionSetup.tsx', 'utf8');
 const registration = fs.readFileSync('src/companion/CompanionRegistration.tsx', 'utf8');
 const cloudScreens = fs.readFileSync('src/companion/CompanionCloudScreens.tsx', 'utf8');
@@ -89,6 +90,10 @@ lacks(workspace, 'disabled={!publicHubUrl', 'Public Hub page action must not be 
 has(workspace, 'already exists on the Hub', 'Missing local Hub metadata must explain automatic Hub link recovery.');
 has(workspace, 'const current = adoptSynchronizedTournament()', 'Chess-Results must publish the synchronized Desktop/Cloud tournament revision, not stale browser state.');
 has(workspace, 'const synchronized = adoptSynchronizedTournament()', 'Online Hub must publish the synchronized Desktop/Cloud tournament revision.');
+
+const publishOnlineBody = cloudProvider.split('async function publishOnline(tournamentInput: Tournament) {', 2)[1]?.split('function openPublicPage', 1)[0] || '';
+has(publishOnlineBody, 'commitLocal(tournament, false)', 'Successful Online Hub publish must persist metadata without remounting the Companion workspace.');
+lacks(publishOnlineBody, 'commitLocal(tournament, true)', 'Online Hub publish must not remount the workspace and reset Publish back to Setup.');
 
 has(workspace, 'isSourceIdMismatch', 'Chess-Results source mismatch must be recognized explicitly instead of surfacing the raw bridge error.');
 has(workspace, 'data-chess-results-source-recovery', 'Incompatible external TNR must expose a dedicated recovery action.');

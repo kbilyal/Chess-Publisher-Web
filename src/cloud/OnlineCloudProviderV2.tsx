@@ -770,7 +770,9 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
           tournament.cloud = { ...(tournament.cloud || {}), internalId: hub.id };
         }
         setPublicState(tournament.online);
-        commitLocal(tournament, true);
+        // Publishing updates persisted Hub metadata but must not remount the
+        // Companion workspace: remounting resets the active Publish tab to Setup.
+        commitLocal(tournament, false);
         setStatus(`Published Online · r${tournament.online.revision}`);
         setStatusKind('ok');
         log(`Public Hub publish completed at revision ${tournament.online.revision}.`);
