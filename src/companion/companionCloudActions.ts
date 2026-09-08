@@ -198,7 +198,24 @@ async function syncNowConfirmed(cloud: any, tournament: Tournament) {
     fingerprintTournament(remote)
   ]);
   if (localFingerprint !== remoteFingerprint) {
-    throw new Error('Cloud changed or synchronization is still pending. Pull the latest changes before publishing.');
+    // A foreground Sync Now may discover a one-sided newer revision and stop
+    // safely instead of overwriting it. Reconcile that case once automatically
+    // before asking the user to intervene. True two-sided conflicts still fail closed.
+    await smartPullChanges(cloud, local);
+    const reconciledLocal: any = readLocalTournament() || local;
+    const reconciledRemoteResult = await cloudApi.getSnapshot(token, cloudTournamentId);
+    const reconciledRemote = extractPrivateTournament(
+      reconciledRemoteResult?.snapshot,
+      reconciledRemoteResult?.tournament?.name || tournamentName(reconciledLocal)
+    ).tournament;
+    const [reconciledLocalFingerprint, reconciledRemoteFingerprint] = await Promise.all([
+      fingerprintTournament(reconciledLocal),
+      fingerprintTournament(reconciledRemote)
+    ]);
+    if (reconciledLocalFingerprint !== reconciledRemoteFingerprint) {
+      throw new Error('Cloud and Web both changed this tournament. Resolve the synchronization conflict before publishing.');
+    }
+    return reconciledLocal;
   }
   return local;
 }

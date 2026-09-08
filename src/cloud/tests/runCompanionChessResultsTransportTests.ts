@@ -147,4 +147,12 @@ await assert.rejects(
   'Chess-Results publication must fail closed without an authenticated Organizer Token.'
 );
 
+assert.match(workspaceSource, /identityBeforeSync = \{[\s\S]*cloudTournamentId[\s\S]*internalId[\s\S]*name[\s\S]*mode:/, 'Publish must capture the intended tournament identity before Cloud synchronization.');
+assert.match(workspaceSource, /Tournament identity changed during Cloud synchronization\. No Chess-Results TNR was created\./, 'Publish must fail before GETKEY when Cloud synchronization changes tournament identity.');
+assert.match(workspaceSource, /tournament: identityBeforeSync\.name/, 'GETKEY must use the pre-confirmed tournament name, not a post-sync replacement object.');
+assert.match(workspaceSource, /mode: identityBeforeSync\.mode/, 'GETKEY must use the pre-confirmed tournament mode.');
+const companionCloudActionsSource = readFileSync(resolve(process.cwd(), 'src/companion/companionCloudActions.ts'), 'utf8');
+assert.match(companionCloudActionsSource, /await smartPullChanges\(cloud, local\);/, 'Confirmed sync must automatically reconcile a one-sided remote revision once before blocking publish.');
+assert.match(companionCloudActionsSource, /Cloud and Web both changed this tournament\. Resolve the synchronization conflict before publishing\./, 'True two-sided conflicts must still fail closed.');
+
 console.log('PASS Companion Chess-Results transport: Organizer Token auth + automatic Desktop/Cloud TNR continuity + Test/Real TNR identity replacement + no user-facing ownership step + local route + fail-closed token guard.');

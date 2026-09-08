@@ -258,6 +258,12 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
     try {
       const localBeforeSync = tournamentRef.current;
       const requestedModeBeforeSync = String(localBeforeSync.settings.tournamentType || '').trim().toLowerCase();
+      const identityBeforeSync = {
+        cloudTournamentId: String((localBeforeSync as any)?.cloud?.cloudTournamentId || '').trim(),
+        internalId: String((localBeforeSync as any)?.cloud?.internalId || '').trim(),
+        name: String(localBeforeSync.name || '').trim(),
+        mode: requestedModeBeforeSync
+      };
       const linkedKeyBeforeSync = String(localBeforeSync.chessResults?.key || localBeforeSync.settings?.tnr || '').trim();
       const linkedFederationBeforeSync = String(localBeforeSync.chessResults?.federation || '').trim().toUpperCase();
       const explicitLinkedModeBeforeSync = String(localBeforeSync.chessResults?.mode || '').trim().toLowerCase();
@@ -295,6 +301,21 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
 
       await cloud.syncNow(tournamentRef.current);
       const current = adoptSynchronizedTournament();
+      const identityAfterSync = {
+        cloudTournamentId: String((current as any)?.cloud?.cloudTournamentId || '').trim(),
+        internalId: String((current as any)?.cloud?.internalId || '').trim(),
+        name: String(current.name || '').trim(),
+        mode: String(current.settings.tournamentType || '').trim().toLowerCase()
+      };
+      const cloudIdentityChanged = Boolean(identityBeforeSync.cloudTournamentId)
+        && identityAfterSync.cloudTournamentId !== identityBeforeSync.cloudTournamentId;
+      const internalIdentityChanged = Boolean(identityBeforeSync.internalId)
+        && identityAfterSync.internalId !== identityBeforeSync.internalId;
+      const tournamentNameChanged = identityAfterSync.name !== identityBeforeSync.name;
+      const tournamentModeChanged = identityAfterSync.mode !== identityBeforeSync.mode;
+      if (cloudIdentityChanged || internalIdentityChanged || tournamentNameChanged || tournamentModeChanged) {
+        throw new Error('Tournament identity changed during Cloud synchronization. No Chess-Results TNR was created. Reopen the intended tournament and publish again.');
+      }
       const initial = buildChessResultsXml(current);
       let key = String(current.chessResults?.key || '').trim();
       let next = current;
@@ -314,14 +335,22 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
       if (!isTnr(key) || requiresFreshTnr) {
         const clientId = current.chessResults?.clientId || newClientId();
         const created = await chessResultsApi.create({
-          tournament: current.name || '',
+          tournament: identityBeforeSync.name,
           federation: initial.federation,
-          mode: current.settings.tournamentType,
+          mode: identityBeforeSync.mode,
           clientId
         });
         key = String(created?.key || '').trim();
         attemptedKey = key;
         if (!isTnr(key)) throw new Error('Chess-Results returned an invalid TNR.');
+        const createdMode = String(created?.mode || '').trim().toLowerCase();
+        const createdFederation = String(created?.federation || '').trim().toUpperCase();
+        if (createdMode && createdMode !== identityBeforeSync.mode) {
+          throw new Error('Chess-Results returned a TNR for a different tournament mode. Publication stopped before upload.');
+        }
+        if (identityBeforeSync.mode === 'test' && createdFederation !== 'XXX') {
+          throw new Error('Chess-Results returned a non-test federation for a Test TNR. Publication stopped before upload.');
+        }
         next = {
           ...current,
           settings: { ...current.settings, tnr: key },
