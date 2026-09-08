@@ -4,6 +4,7 @@ import './cloud/installOrganizerApiAuth';
 import './pwa/registerPwa';
 import App from './App.tsx';
 import {OnlineCloudProvider} from './cloud/OnlineCloudProvider';
+import {ArbiterPortal} from './arbiter/ArbiterPortal';
 import './index.css';
 import './companion.css';
 import './companion-cloud.css';
@@ -13,11 +14,18 @@ import './companion-setup.css';
 import './companion-conflict.css';
 import './mobile-native.css';
 import './companion-desktop.css';
+import './arbiter/arbiter.css';
+
+const isArbiterAccess = new URLSearchParams(window.location.search).has('arbiter');
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <OnlineCloudProvider>
-      <App />
-    </OnlineCloudProvider>
+    {isArbiterAccess ? (
+      <ArbiterPortal />
+    ) : (
+      <OnlineCloudProvider>
+        <App />
+      </OnlineCloudProvider>
+    )}
   </StrictMode>,
 );
