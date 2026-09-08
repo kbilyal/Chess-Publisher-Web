@@ -1,0 +1,110 @@
+--- a/index.html
++++ b/index.html
+@@ -148,10 +148,38 @@
+       .october-preview-lead{font-size:1rem}
+       .october-preview-card{padding:20px}
+     }
+-  </style>
++  
++    /* v42 WEB Companion + Windows/Linux platform badges — page-local to avoid global regressions */
++    .web-companion-news{padding:72px 0;background:linear-gradient(180deg,#f7fbff 0%,#ffffff 100%);border-block:1px solid #e7eef7}
++    .web-companion-grid{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(320px,.92fr);gap:46px;align-items:center}
++    .web-companion-kicker{margin:0 0 12px;color:#0b63ce;font-size:.78rem;font-weight:850;letter-spacing:.12em;text-transform:uppercase}
++    .web-companion-news h2{margin:0;font-size:clamp(2.35rem,4.2vw,4.65rem);line-height:.98;letter-spacing:-.045em;color:#0a1730}
++    .web-companion-news h2 span{color:#0b63ce}
++    .web-companion-lead{max-width:780px;margin:22px 0 0;color:#5f6f86;font-size:1.08rem;line-height:1.75}
++    .web-companion-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:26px}
++    .web-companion-card{border:1px solid #dfe7f1;border-radius:22px;background:#fff;padding:26px;box-shadow:0 18px 48px rgba(7,20,38,.08)}
++    .web-companion-card small{display:block;margin-bottom:13px;color:#0b63ce;font-size:.74rem;font-weight:850;letter-spacing:.12em;text-transform:uppercase}
++    .web-companion-list{display:grid;gap:12px}
++    .web-companion-item{display:grid;grid-template-columns:34px 1fr;gap:12px;align-items:flex-start;padding:13px 0;border-bottom:1px solid #edf2f7}
++    .web-companion-item:last-child{border-bottom:0;padding-bottom:0}
++    .web-companion-icon{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:#edf5ff;color:#0b63ce;font-weight:900}
++    .web-companion-item b{display:block;margin-bottom:3px;color:#0a1730}
++    .web-companion-item span{display:block;color:#65758b;font-size:.9rem;line-height:1.5}
++    .linux-chip{display:inline-flex;align-items:center;gap:8px;margin-top:18px;border-radius:999px;padding:9px 12px;background:#071426;color:#eaf4ff;font-weight:800;font-size:.88rem}
++    .linux-chip:before{content:"●";color:#69b6ff;font-size:.72rem}
++    .platform-os-row{display:flex;gap:12px;flex-wrap:wrap;margin-top:15px}
++    .os-badge{display:inline-flex;align-items:center;gap:11px;min-width:188px;padding:11px 14px;border:1px solid #dbe5f0;border-radius:15px;background:#fff;box-shadow:0 7px 20px rgba(7,20,38,.055)}
++    .os-badge strong{display:block;color:#0a1730;font-size:.9rem;line-height:1.15}.os-badge small{display:block;margin-top:3px;color:#6b7b90;font-size:.72rem;font-weight:700;letter-spacing:.01em;text-transform:none}
++    .os-logo{width:31px;height:31px;flex:0 0 31px;display:grid;place-items:center}
++    .windows-mark{width:26px;height:26px;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:2px;transform:skewY(-3deg)}
++    .windows-mark i{display:block;background:#0879d8;border-radius:1px}
++    .linux-mark{font-size:29px;line-height:1;filter:saturate(.95)}
++    @media(max-width:900px){.web-companion-grid{grid-template-columns:1fr}.web-companion-news{padding:58px 0}.web-companion-card{max-width:none}}
++    @media(max-width:620px){.web-companion-news{padding:50px 0}.web-companion-news h2{font-size:clamp(2.35rem,12vw,3.7rem)}.web-companion-lead{font-size:1rem}}
++</style>
+ 
+ </head>
+-<body data-site-build="2026-09-04-v40-homepage-web-entry" data-home-web-entry="protected-v1">
++<body data-site-build="2026-09-08-v42-platform-icons" data-home-web-entry="protected-v1">
+   <a class="skip-link" href="#main">Skip to content</a>
+ 
+   <header class="site-header" id="top">
+@@ -165,7 +193,7 @@
+         <a href="#october-preview">Coming in October</a>
+         <a href="#september-update">September Update</a>
+         <!-- PROTECTED HOME WEB ENTRY: keep this link in all homepage updates. -->
+-        <a class="nav-web" data-home-web-entry="nav" href="https://web.chess-publisher.org">Web <sup class="nav-beta-index">BETA</sup></a>
++        <a class="nav-web" data-home-web-entry="nav" href="https://web.chess-publisher.org">WEB Companion <sup class="nav-beta-index">BETA</sup></a>
+         <a href="/tournaments">Tournaments <sup class="nav-beta-index">BETA</sup></a>
+         <a href="#features">Features</a>
+         <a href="#screenshots">Screenshots</a>
+@@ -189,7 +217,7 @@
+           <div class="hero-actions">
+             <a class="button button-primary" id="heroDownload" href="https://github.com/kbilyal/ChessPublisher/releases/download/v1.05.01/chess-publisher-v1.05.01-2026-09-03.exe">Download for Windows</a>
+             <!-- PROTECTED HOME WEB ENTRY: browser workspace CTA. -->
+-            <a class="button button-secondary" data-home-web-entry="hero" href="https://web.chess-publisher.org">Open Chess-Publisher Web</a>
++            <a class="button button-secondary" data-home-web-entry="hero" href="https://web.chess-publisher.org">Open WEB Companion</a>
+             <a class="button button-secondary" href="/tournaments">Explore Tournament Hub</a>
+           </div>
+           <div class="hero-facts" aria-label="Product facts">
+@@ -207,6 +235,37 @@
+     </section>
+ 
+ 
++    <section class="web-companion-news" id="web-companion-news" aria-labelledby="web-companion-news-title">
++      <div class="shell web-companion-grid">
++        <div>
++          <p class="web-companion-kicker">Product News · September 2026</p>
++          <h2 id="web-companion-news-title">Meet <span>WEB Companion.</span></h2>
++          <p class="web-companion-lead">
++            The Chess-Publisher Web section is becoming <strong>WEB Companion</strong> — a focused browser workspace for the parts of tournament management that benefit most from mobility. Open a synchronized organizer tournament, update Tournament Setup, register and maintain players, synchronize changes through the private Cloud Workspace, and publish the same tournament to the Chess-Publisher Online Hub or Chess-Results through the protected server-side workflow.
++          </p>
++          <div class="web-companion-actions">
++            <a class="button button-primary" data-home-web-entry="news" href="https://web.chess-publisher.org">Open WEB Companion</a>
++            <a class="button button-secondary" href="news-web-companion-linux-2026.html">Read the news <span aria-hidden="true">→</span></a>
++          </div>
++          <div class="linux-chip">Chess-Publisher is coming to Linux</div>
++          <div class="platform-os-row" aria-label="Chess-Publisher desktop platforms">
++            <div class="os-badge"><span class="os-logo windows-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span><strong>Windows</strong><small>Available now · Windows 10/11</small></span></div>
++            <div class="os-badge"><span class="os-logo linux-mark" aria-hidden="true">🐧</span><span><strong>Linux</strong><small>Desktop version in development</small></span></div>
++          </div>
++        </div>
++        <aside class="web-companion-card" aria-label="WEB Companion highlights">
++          <small>Designed for tournament-day mobility</small>
++          <div class="web-companion-list">
++            <div class="web-companion-item"><div class="web-companion-icon">↔</div><div><b>Continue from Desktop</b><span>Work with the synchronized tournament without rebuilding it on another device.</span></div></div>
++            <div class="web-companion-item"><div class="web-companion-icon">＋</div><div><b>Register players on the go</b><span>Use the responsive browser interface from a phone, tablet or computer.</span></div></div>
++            <div class="web-companion-item"><div class="web-companion-icon">▣</div><div><b>Install it on mobile</b><span>WEB Companion is installable as a Progressive Web App on supported devices, so it can launch from the home screen like an app.</span></div></div>
++            <div class="web-companion-item"><div class="web-companion-icon">↗</div><div><b>Publish from the same workflow</b><span>Send the synchronized tournament to Online Hub and supported Chess-Results publishing without exposing bridge secrets in the browser.</span></div></div>
++          </div>
++        </aside>
++      </div>
++    </section>
++
++
+     <section class="october-preview" id="october-preview" aria-labelledby="october-preview-title">
+       <div class="shell october-preview-shell">
+         <div class="october-preview-copy">
+@@ -484,8 +543,8 @@
+ 
+   <footer class="site-footer">
+     <div class="shell footer-grid">
+-      <div class="footer-about"><a class="brand footer-brand" href="#top"><img src="assets/chess-publisher-icon.png" alt="" width="34" height="34"><span>Chess-Publisher</span></a><p>Open-source chess tournament management software for Windows.</p></div>
+-      <div><strong>Product</strong><a href="#features">Features</a><a data-home-web-entry="footer" href="https://web.chess-publisher.org">Web Application</a><a href="/tournaments">Tournaments</a><a href="#screenshots">Screenshots</a><a href="user-manual.html">User Manual</a><a href="#download">Download</a><a href="support.html">Support</a></div>
++      <div class="footer-about"><a class="brand footer-brand" href="#top"><img src="assets/chess-publisher-icon.png" alt="" width="34" height="34"><span>Chess-Publisher</span></a><p>Open-source chess tournament management software — Windows today, with WEB Companion and Linux development underway.</p></div>
++      <div><strong>Product</strong><a href="#features">Features</a><a data-home-web-entry="footer" href="https://web.chess-publisher.org">WEB Companion</a><a href="/tournaments">Tournaments</a><a href="#screenshots">Screenshots</a><a href="user-manual.html">User Manual</a><a href="#download">Download</a><a href="support.html">Support</a></div>
+       <div><strong>Project</strong><a href="https://github.com/kbilyal/ChessPublisher" target="_blank" rel="noopener">GitHub</a><a href="https://github.com/kbilyal/ChessPublisher/issues" target="_blank" rel="noopener">Issues</a><a href="support.html">Support the project</a><a href="https://github.com/kbilyal/ChessPublisher/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a></div>
+       <div><strong>Documentation</strong><a href="user-manual.html">User Manual</a><a href="https://github.com/kbilyal/ChessPublisher#readme" target="_blank" rel="noopener">README</a><a href="https://github.com/kbilyal/ChessPublisher/blob/main/SECURITY.md" target="_blank" rel="noopener">Security</a><a href="https://github.com/kbilyal/ChessPublisher/blob/main/PRIVACY.md" target="_blank" rel="noopener">Privacy</a></div>
+       <div><strong>Contact</strong><span class="footer-contact-name">Kyamran Bilyal</span><span class="footer-contact-role">Arbiter and Organizer</span><a href="mailto:kyamranbilyal@gmail.com">kyamranbilyal@gmail.com</a><a href="https://t.me/chesspublisher" target="_blank" rel="noopener">Telegram @chesspublisher ↗</a><a href="contact.html">Contact page</a></div>
