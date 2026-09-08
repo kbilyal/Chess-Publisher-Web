@@ -1,0 +1,60 @@
+name: Apply Native Mobile UX Refinement
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-native-mobile-ux.yml'
+      - 'scripts/apply-native-mobile-ux.py'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Apply mobile UX refinement
+        run: python scripts/apply-native-mobile-ux.py
+      - name: Validate mobile UX and protected workflows
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tests/ui/mobile-native-experience.test.mjs
+          node tests/ui/pwa-install.test.mjs
+          npm run lint
+          npm run test:cloud-roundtrip
+          npm run test:online-cloud
+          npm run test:online-cloud-beta5
+          npm run test:transactions
+          npm run test:finalization
+          npm run test:fide
+          npm run test:trf
+          npm run test:chess-results
+          npm run test:chess-results-web-contract
+          npm run test:chess-results-companion
+          npm run build
+      - name: Commit validated product changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/cloud/OnlineCloudProviderV2.tsx src/companion/CompanionWorkspace.tsx src/main.tsx src/mobile-native.css tests/ui/mobile-native-experience.test.mjs
+          if git diff --cached --quiet; then
+            echo 'No product changes to commit.'
+            exit 0
+          fi
+          git commit -m "Refine Chess-Publisher mobile app experience"
+          git push origin HEAD:main
