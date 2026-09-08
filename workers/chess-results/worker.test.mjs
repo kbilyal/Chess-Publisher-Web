@@ -87,6 +87,21 @@ try {
   assert.match(admin.url, /luser_sec=/);
   assert.match(admin.url, /tnr_sec=/);
 
+  response = await worker.fetch(request('admin-link', { key: created.key, ownershipProof: created.ownershipProof, section: 'upload' }), env);
+  const uploadData = await response.json();
+  assert.equal(uploadData.ok, true);
+  assert.equal(uploadData.section, 'upload');
+  const uploadUrl = new URL(uploadData.url);
+  assert.equal(uploadUrl.pathname, '/UploadData.aspx');
+  assert.equal(uploadUrl.searchParams.get('tnr'), '7654321');
+  assert.equal(uploadUrl.searchParams.get('source'), '21');
+  assert.equal(uploadUrl.searchParams.get('lan'), '0');
+  assert.match(uploadUrl.searchParams.get('sid') || '', /^[0-9A-F]+$/);
+  assert.match(uploadUrl.searchParams.get('sid1') || '', /^[0-9A-F]+$/);
+  assert.notEqual(uploadUrl.searchParams.get('sid'), '7654321', 'sid must contain encrypted database key/TNR, never the plaintext TNR.');
+  assert.notEqual(uploadUrl.searchParams.get('sid1'), '4242', 'sid1 must contain encrypted creatorId, never the plaintext creatorId.');
+  assert.match(uploadUrl.searchParams.get('time') || '', /^\d{14}$/);
+
   response = await worker.fetch(request('delete-authorize', { key: created.key, ownershipProof: created.ownershipProof }), env);
   assert.equal((await response.json()).verifiedOwner, true);
 

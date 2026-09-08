@@ -435,6 +435,20 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
     }
   };
 
+  const openChessResultsUpload = async () => {
+    if (!isTnr(tnr)) return;
+    setBusy('cr-admin');
+    try {
+      const result = await chessResultsApi.adminLink({ key: tnr, section: 'upload' });
+      if (!result?.url) throw new Error('Authenticated Chess-Results Upload Data URL was not returned.');
+      window.open(result.url, '_blank', 'noopener,noreferrer');
+    } catch (error: any) {
+      setNotice('error', error?.message || 'Could not open Chess-Results Upload Data.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const openHubPage = async () => {
     setMessage('');
     try {
@@ -637,6 +651,7 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
                   {isTnr(tnr) && <>
                     <a className="companion-button secondary" href={`https://chess-results.com/tnr${encodeURIComponent(tnr)}.aspx?lan=1`} target="_blank" rel="noreferrer"><ExternalLink size={16} /> Public page</a>
                     <button type="button" className="companion-button secondary" onClick={openChessResultsAdmin} disabled={busy !== null}><Globe2 size={16} /> Admin</button>
+                    <button type="button" data-chess-results-upload-data className="companion-button secondary" onClick={openChessResultsUpload} disabled={busy !== null}><ExternalLink size={16} /> Upload data</button>
                   </>}
                 </div>
               </section>

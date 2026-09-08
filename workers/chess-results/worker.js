@@ -381,7 +381,7 @@ async function adminUrl(env, key, creatorId, section) {
     url.searchParams.set('sid', encryptedTnr);
     url.searchParams.set('sid1', encryptedCreator);
     url.searchParams.set('source', String(SOURCE_ID));
-    url.searchParams.set('lan', '1');
+    url.searchParams.set('lan', '0');
     url.searchParams.set('time', chessResultsTimestamp());
     return url.toString();
   }

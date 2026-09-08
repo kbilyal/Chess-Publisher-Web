@@ -72,6 +72,14 @@ assert.equal(calls[0].url, `${REMOTE_CHESS_RESULTS_API_PREFIX}admin-link`);
 assert.equal(calls[0].body.ownershipProof, 'auto-continuity-1492376');
 
 calls.length = 0;
+await chessResultsApi.adminLink({ key: '1492376', section: 'upload' });
+assert.equal(calls.length, 1, 'Upload Data must reuse the recovered TNR continuity without another ownership round-trip.');
+assert.equal(calls[0].url, `${REMOTE_CHESS_RESULTS_API_PREFIX}admin-link`);
+assert.equal(calls[0].body.key, '1492376');
+assert.equal(calls[0].body.section, 'upload');
+assert.equal(calls[0].body.ownershipProof, 'auto-continuity-1492376');
+
+calls.length = 0;
 const created = await chessResultsApi.create({ tournament: 'Test tournament', federation: 'BUL', mode: 'test', clientId: 'new-client' });
 assert.equal(created.key, '1555001');
 await chessResultsApi.publish({ key: '1555001', xml: '<chessresults />' });
@@ -79,6 +87,16 @@ assert.equal(calls.filter(call => call.url.endsWith('/claim')).length, 0, 'A new
 assert.equal(calls.at(-1)?.body.ownershipProof, 'created-continuity-1555001');
 
 const workspaceSource = readFileSync(resolve(process.cwd(), 'src/companion/CompanionWorkspace.tsx'), 'utf8');
+assert.match(
+  workspaceSource,
+  /const openChessResultsUpload = async \(\) => \{[\s\S]*section: 'upload'[\s\S]*window\.open\(result\.url/,
+  'Web Companion Upload Data must request a server-generated authenticated UploadData.aspx URL.'
+);
+assert.match(
+  workspaceSource,
+  /data-chess-results-upload-data[\s\S]*onClick=\{openChessResultsUpload\}[\s\S]*Upload data/,
+  'Chess-Results status card must expose the Upload Data button when a TNR exists.'
+);
 assert.match(
   workspaceSource,
   /const modeChanged = isTnr\(key\)[\s\S]*requestedMode !== linkedMode;/,
