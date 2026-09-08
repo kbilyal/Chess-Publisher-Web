@@ -60,33 +60,25 @@ async function request(path: string, options: {
 }
 
 async function publishOwnedTournament(token: string, id: string, expectedRevision: number, snapshot: any) {
-  const headers = { 'X-Expected-Revision': String(expectedRevision) };
   try {
     return await request(`/api/v1/organizer/tournaments/${enc(id)}/snapshot`, {
       method: 'PUT',
       token,
-      headers,
+      headers: { 'X-Expected-Revision': String(expectedRevision) },
       body: snapshot
     });
   } catch (error: any) {
     if (!(error instanceof HubApiError) || error.status !== 404) throw error;
-
-    // Compatibility with the currently deployed Hub API. Older deployments
-    // expose the managed snapshot route without the /organizer prefix. Keep the
-    // same tournament ID and revision and forward the Organizer Token as both
-    // authenticated bearer identity and explicit organizer ownership header.
-    // This fallback never creates or relinks a tournament, so it cannot create
-    // a duplicate public slug. If the legacy backend still requires a separate
-    // per-tournament manage token it will fail closed with 401/403.
-    return request(`/api/v1/tournaments/${enc(id)}/snapshot`, {
-      method: 'PUT',
-      token,
-      headers: {
-        ...headers,
-        'X-Organizer-Token': token
-      },
-      body: snapshot
-    });
+    // Do not fall back to the Desktop managed route. That endpoint requires the
+    // installation-local per-tournament manageToken, which is deliberately not
+    // synchronized into the browser. Sending the Organizer Token there produces
+    // a misleading ownership failure and must never be treated as equivalent.
+    throw new HubApiError(
+      'Tournament Hub organizer publish route is not deployed on the backend.',
+      404,
+      'organizer_publish_route_missing',
+      error.payload
+    );
   }
 }
 
