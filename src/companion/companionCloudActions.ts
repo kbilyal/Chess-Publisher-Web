@@ -228,10 +228,36 @@ async function openPublicHubPage(cloud: any, tournament: Tournament) {
   return cloud.openPublicPage(tournament);
 }
 
+async function uploadRegulationsAndRepublish(cloud: any, tournament: Tournament, file: File) {
+  // The authoritative provider performs the authenticated file upload first.
+  // It persists the returned metadata under regulations.attachment.
+  await cloud.uploadRegulations(tournament, file);
+
+  const current: any = readLocalTournament() || tournament;
+  const attachment = current?.regulations?.attachment;
+  if (!attachment || typeof attachment !== 'object') {
+    throw new Error('The Hub accepted the regulations file but did not return usable attachment metadata.');
+  }
+
+  // Desktop Hub publishing reads hub.regulationsFile. Mirror the same metadata
+  // so a Web correction can be continued and republished from either client.
+  current.hub = {
+    ...(current.hub || {}),
+    regulationsFile: clone(attachment)
+  };
+  localStorage.setItem(TOURNAMENT_STORAGE_KEY, JSON.stringify(current));
+
+  // Uploading regulations changes public tournament content, not just private
+  // Cloud state. Immediately create a new public Hub revision using the same
+  // guarded publishOnline flow (latest organizer-owned revision + validation).
+  await cloud.publishOnline(current);
+}
+
 export function createCompanionCloudFacade(cloud: any) {
   return {
     ...cloud,
     pullChanges: (tournament: Tournament) => smartPullChanges(cloud, tournament),
-    openPublicPage: (tournament: Tournament) => openPublicHubPage(cloud, tournament)
+    openPublicPage: (tournament: Tournament) => openPublicHubPage(cloud, tournament),
+    uploadRegulations: (tournament: Tournament, file: File) => uploadRegulationsAndRepublish(cloud, tournament, file)
   };
 }
