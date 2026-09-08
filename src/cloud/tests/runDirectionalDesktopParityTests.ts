@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import {
   buildPrivateSnapshot,
   extractPrivateTournament,
+  fingerprintPayload,
   fingerprintTournament,
   preserveInstallationLocalFields,
   PORTABLE_FINGERPRINT_SCHEMA
@@ -105,10 +106,27 @@ assert.equal(hydrated.dgt.port, '/dev/ttyUSB0');
 assert.equal(hydrated.hub.manageToken, 'LOCAL-MANAGE-SECRET');
 assert.equal(hydrated.telegram.token, 'LOCAL-TG-SECRET');
 
+const goldenFingerprintTournament: any = {
+  name: 'Tournament Ubuntu',
+  settings: { organizer: 'Chess Club', city: 'Sofia' },
+  players: [{ id: 'p1', localKey: 'player:1', pairingNumber: 1, name: 'Alpha' }],
+  online: { hubTournamentId: 'hub-42', revision: 19, lastPublishedAt: '2026-09-08T16:31:00Z' },
+  hub: { tournamentId: 'hub-42', manageToken: 'LOCAL-HUB' },
+  telegram: { chatId: '123', token: 'LOCAL-TG' },
+  dgt: { port: '/dev/ttyUSB0' },
+  cloud: { schemaVersion: 4, internalId: 'tournament:ABC', cloudTournamentId: 'cloud-77' },
+  adminToken: 'LOCAL-ADMIN'
+};
+const GOLDEN_PAYLOAD = '{"hub":{"tournamentId":"hub-42"},"name":"Tournament Ubuntu","online":{"hubTournamentId":"hub-42"},"players":[{"id":"p1","localKey":"player:1","name":"Alpha","pairingNumber":1}],"settings":{"city":"Sofia","organizer":"Chess Club"},"telegram":{"chatId":"123"}}';
+const GOLDEN_HASH = '80b55443d01dd5de0f128dfa022bbbf829656707d2ae06914ced013c4511c8ff';
+assert.equal(fingerprintPayload(goldenFingerprintTournament), GOLDEN_PAYLOAD, 'Web fingerprint payload must exactly match the shared Desktop schema');
+assert.equal(await fingerprintTournament(goldenFingerprintTournament), GOLDEN_HASH, 'Web golden fingerprint hash mismatch');
+
 console.log('DESKTOP_WEB_FULL_SNAPSHOT_PARITY=PASS');
 console.log('ROSTER_83_PARITY=PASS');
 console.log('TOURNAMENT_IDENTITY_RENAME_SAFE=PASS');
 console.log('INSTALLATION_LOCAL_FIELDS_PRESERVED=PASS');
+console.log('DESKTOP_WEB_GOLDEN_FINGERPRINT=PASS');
 
 const providerSource = readFileSync('src/cloud/OnlineCloudProviderV2.tsx', 'utf8');
 const desktopTabSource = readFileSync('src/cloud/OnlineCloudTabV2.tsx', 'utf8');
