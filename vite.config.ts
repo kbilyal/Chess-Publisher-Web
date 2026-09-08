@@ -10,16 +10,20 @@ function copyBrowserFideAssets(): Plugin {
     closeBundle() {
       const outputRoot = path.resolve(__dirname, 'dist');
       const fideSource = path.resolve(__dirname, 'data/fide/fide_ratings.sqlite');
+      const manifestSource = path.resolve(__dirname, 'data/fide/fide_latest_manifest.json');
       const wasmSource = path.resolve(__dirname, 'node_modules/sql.js/dist/sql-wasm.wasm');
       const fideTarget = path.join(outputRoot, 'fide/fide_ratings.sqlite');
+      const manifestTarget = path.join(outputRoot, 'fide/fide_latest_manifest.json');
       const wasmTarget = path.join(outputRoot, 'vendor/sql-wasm.wasm');
 
       if (!fs.existsSync(fideSource)) throw new Error(`Missing browser FIDE database: ${fideSource}`);
+      if (!fs.existsSync(manifestSource)) throw new Error(`Missing FIDE freshness manifest: ${manifestSource}`);
       if (!fs.existsSync(wasmSource)) throw new Error(`Missing sql.js WASM runtime: ${wasmSource}`);
 
       fs.mkdirSync(path.dirname(fideTarget), { recursive: true });
       fs.mkdirSync(path.dirname(wasmTarget), { recursive: true });
       fs.copyFileSync(fideSource, fideTarget);
+      fs.copyFileSync(manifestSource, manifestTarget);
       fs.copyFileSync(wasmSource, wasmTarget);
     }
   };

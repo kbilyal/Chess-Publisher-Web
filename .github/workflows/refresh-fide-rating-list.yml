@@ -1,0 +1,104 @@
+name: Refresh latest FIDE rating list
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 3 * * *'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/refresh-fide-rating-list.ts'
+      - 'src/server/tests/runFideLatestListTests.ts'
+      - '.github/workflows/refresh-fide-rating-list.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fide-latest-rating-list
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify latest-list lifecycle contract
+        run: npm run test:fide-latest
+
+      - name: Download and validate current official FIDE list
+        run: npm run refresh:fide
+
+      - name: Guard repository and mobile artifact size
+        shell: bash
+        run: |
+          set -euo pipefail
+          bytes="$(stat -c%s data/fide/fide_ratings.sqlite)"
+          echo "Validated FIDE SQLite size: ${bytes} bytes"
+          if [ "$bytes" -ge 95000000 ]; then
+            echo "FIDE SQLite exceeds the safe GitHub artifact ceiling. Do not publish an oversized database; move Web search to a server/sharded index." >&2
+            exit 1
+          fi
+
+      - name: FIDE database regression
+        run: npm run test:fide
+
+      - name: FIDE player sync regression
+        run: npm run test:fide-sync
+
+      - name: Player parity regression
+        run: npm run test:player-parity
+
+      - name: Explicit TRF16 and TRF26 regression
+        run: npm run test:trf
+
+      - name: TypeScript
+        run: npm run lint
+
+      - name: Build Web Companion with refreshed database
+        run: npm run build
+
+      - name: Verify refreshed browser assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s dist/fide/fide_ratings.sqlite
+          test -s dist/fide/fide_latest_manifest.json
+          cmp data/fide/fide_latest_manifest.json dist/fide/fide_latest_manifest.json
+          node -e "const m=require('./data/fide/fide_latest_manifest.json'); if(!m.archiveSha256 || m.archiveSha256.length!==64 || m.recordCount<100000) process.exit(1); console.log('FIDE manifest:', m.listVersion, m.recordCount, m.archiveSha256.slice(0,12));"
+
+      - name: Keep repository backup binary stable
+        shell: bash
+        run: |
+          git restore --source=HEAD -- data/fide/fide_ratings_prev.sqlite 2>/dev/null || true
+
+      - name: Commit refreshed list only when official archive changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add data/fide/fide_ratings.sqlite data/fide/fide_latest_manifest.json data/fide/fide_update_report.txt
+          if git diff --cached --quiet; then
+            echo "Official FIDE archive is unchanged; nothing to commit."
+            exit 0
+          fi
+          version="$(node -p "require('./data/fide/fide_latest_manifest.json').listVersion")"
+          records="$(node -p "require('./data/fide/fide_latest_manifest.json').recordCount")"
+          git config user.name "chess-publisher-fide-bot"
+          git config user.email "65768770+kbilyal@users.noreply.github.com"
+          git commit -m "Update official FIDE rating list ${version} (${records} players)"
+          git push origin HEAD:main

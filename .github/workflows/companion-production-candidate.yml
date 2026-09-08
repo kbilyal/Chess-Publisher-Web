@@ -3,13 +3,16 @@ on:
   pull_request:
     paths:
       - 'src/**'
+      - 'scripts/refresh-fide-rating-list.ts'
       - 'data/fide/fide_ratings.sqlite'
+      - 'data/fide/fide_latest_manifest.json'
       - 'public/**'
       - 'vite.config.ts'
       - 'package.json'
       - 'package-lock.json'
       - 'tests/ui/**'
       - '.github/workflows/companion-production-candidate.yml'
+      - '.github/workflows/refresh-fide-rating-list.yml'
       - '.github/workflows/deploy-web.yml'
   workflow_dispatch:
 permissions:
@@ -45,6 +48,8 @@ jobs:
         run: node tests/ui/companion-cloud-screens.test.mjs
       - name: TypeScript
         run: npm run lint
+      - name: Latest FIDE rating-list lifecycle
+        run: npm run test:fide-latest
       - name: Explicit TRF16 and TRF26 regression
         run: npm run test:trf
       - name: FIDE database regression
@@ -65,9 +70,11 @@ jobs:
           test -s dist/CNAME
           test "$(cat dist/CNAME)" = 'web.chess-publisher.org'
           test -s dist/fide/fide_ratings.sqlite
+          test -s dist/fide/fide_latest_manifest.json
           test -s dist/vendor/sql-wasm.wasm
           test "$(stat -c%s dist/fide/fide_ratings.sqlite)" -gt 1000000
           test "$(stat -c%s dist/vendor/sql-wasm.wasm)" -gt 100000
+          cmp data/fide/fide_latest_manifest.json dist/fide/fide_latest_manifest.json
           grep -Eq 'assets/index-[^" ]+\.js' dist/index.html
           grep -Eq 'assets/index-[^" ]+\.css' dist/index.html
           ! grep -q 'src/main.tsx' dist/index.html
