@@ -24,7 +24,9 @@ jobs:
       - name: Install TUNX parser
         run: npm install @echecs/tunx@1.0.1 --save --no-audit --no-fund
       - name: Apply create/import implementation
-        run: python scripts/apply-web-create-import-tournament.py
+        run: |
+          python scripts/apply-web-create-import-tournament.py
+          python scripts/patch-web-create-import-tests.py
       - name: Validate create/import and protected cores
         run: |
           set -euo pipefail
