@@ -4,6 +4,22 @@ import fs from 'node:fs';
 const source = fs.readFileSync('src/companion/companionCloudActions.ts', 'utf8');
 
 assert.ok(
+  source.includes('async function syncNowConfirmed'),
+  'Web Companion must confirm the private Cloud state after the provider sync path returns.'
+);
+assert.ok(
+  source.includes('const remoteResult = await cloudApi.getSnapshot(token, cloudTournamentId)'),
+  'Cloud confirmation must re-read the authoritative remote tournament snapshot.'
+);
+assert.ok(
+  source.includes('localFingerprint !== remoteFingerprint'),
+  'Publication must fail closed when the local correction is not the same content as the remote Cloud snapshot.'
+);
+assert.ok(
+  source.includes('syncNow: (tournament: Tournament) => syncNowConfirmed'),
+  'All Companion Sync Now callers, including Hub and Chess-Results publication, must use remote confirmation.'
+);
+assert.ok(
   source.includes('async function uploadRegulationsAndRepublish'),
   'Web Companion must wrap regulations upload with public Hub republish.'
 );
@@ -52,4 +68,4 @@ assert.ok(
   'The Companion facade must expose the guarded upload-and-republish behavior.'
 );
 
-console.log('Hub identity recovery + confirmed revision + regulations automatic republish regression: PASS');
+console.log('Cloud confirmation + Hub identity + confirmed revision + regulations republish regression: PASS');
