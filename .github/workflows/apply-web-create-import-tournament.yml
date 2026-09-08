@@ -29,6 +29,9 @@ jobs:
           python scripts/patch-web-create-import-tests.py
           python scripts/patch-public-hub-bye-normalization.py
       - name: Validate create/import and protected cores
+        env:
+          GACRUX_PATH: ${{ github.workspace }}/engine/gacrux/pairingchecker.py
+          BBP_PATH: ${{ github.workspace }}/bin/bbpPairings
         run: |
           set -euo pipefail
           npm run lint
