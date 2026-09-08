@@ -1,0 +1,58 @@
+name: Apply Mobile PWA Install Support
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-pwa-mobile-app.yml'
+      - 'scripts/apply-pwa-mobile-app.py'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Apply PWA support
+        run: python scripts/apply-pwa-mobile-app.py
+      - name: Validate PWA and protected flows
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tests/ui/pwa-install.test.mjs
+          npm run lint
+          npm run test:cloud-roundtrip
+          npm run test:online-cloud
+          npm run test:online-cloud-beta5
+          npm run test:chess-results-companion
+          npm run test:chess-results
+          npm run test:trf
+          npm run build
+          test -s dist/manifest.webmanifest
+          test -s dist/sw.js
+          test -s dist/icons/chess-publisher-icon-192.png
+          test -s dist/icons/chess-publisher-icon-512.png
+          grep -q 'display' dist/manifest.webmanifest
+          grep -q 'standalone' dist/manifest.webmanifest
+      - name: Commit validated implementation and remove one-time files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/apply-pwa-mobile-app.yml scripts/apply-pwa-mobile-app.py
+          git add index.html src/main.tsx src/App.tsx src/pwa public/manifest.webmanifest public/sw.js public/icons tests/ui/pwa-install.test.mjs .github/workflows/deploy-web.yml
+          git commit -m "Add installable standalone Chess-Publisher mobile PWA"
+          git push origin HEAD:main
