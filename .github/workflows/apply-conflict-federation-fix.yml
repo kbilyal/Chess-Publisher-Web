@@ -33,13 +33,35 @@ jobs:
           from pathlib import Path
           path = Path('src/companion/companionCloudActions.ts')
           source = path.read_text()
-          anchor = "    // Re-enter the provider only through Pull."
-          marker = "    // Resolve Conflict is intentionally local-only.\n"
-          if marker.strip() not in source:
-              if anchor not in source:
-                  raise SystemExit('Directional parity comment anchor not found')
-              source = source.replace(anchor, marker + anchor, 1)
-              path.write_text(source)
+          original = """async function smartPullChanges(
+            cloud: any,
+            tournament: Tournament,
+            strategy: 'safe' | 'web' | 'cloud' = 'safe'
+          ) {"""
+          replacement = """async function smartPullChangesWithStrategy(
+            cloud: any,
+            tournament: Tournament,
+            strategy: 'safe' | 'web' | 'cloud' = 'safe'
+          ) {"""
+          if original not in source:
+              raise SystemExit('Strategy resolver signature anchor not found')
+          source = source.replace(original, replacement, 1)
+          sync_anchor = "\n\nasync function syncNowConfirmed(cloud: any, tournament: Tournament) {"
+          wrapper = """
+
+          async function smartPullChanges(cloud: any, tournament: Tournament) {
+            // Resolve Conflict is intentionally local-only.
+            return smartPullChangesWithStrategy(cloud, tournament, 'safe');
+          }"""
+          if sync_anchor not in source:
+              raise SystemExit('syncNowConfirmed anchor not found')
+          source = source.replace(sync_anchor, wrapper + sync_anchor, 1)
+          old_facade = "resolveConflict: (tournament: Tournament, strategy: 'safe' | 'web' | 'cloud' = 'safe') => smartPullChanges(cloud, tournament, strategy),"
+          new_facade = "resolveConflict: (tournament: Tournament, strategy: 'safe' | 'web' | 'cloud' = 'safe') => strategy === 'safe' ? smartPullChanges(cloud, tournament) : smartPullChangesWithStrategy(cloud, tournament, strategy),"
+          if old_facade not in source:
+              raise SystemExit('Conflict facade anchor not found')
+          source = source.replace(old_facade, new_facade, 1)
+          path.write_text(source)
           PY
       - name: Validate conflict, federation and protected publication paths
         shell: bash
