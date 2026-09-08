@@ -30,7 +30,7 @@
     "test:web-engine": "tsx src/cloud/tests/runWebEngineIntegrationTests.ts",
     "test:chess-results-web-contract": "tsx src/cloud/tests/runChessResultsWebContractTests.ts",
     "test:chess-results-companion": "tsx src/cloud/tests/runCompanionChessResultsTransportTests.ts",
-    "test:cloud-roundtrip": "tsx src/cloud/tests/runCloudRoundtripTests.ts && tsx src/cloud/tests/runCompanionConflictMergeTests.ts && tsx src/cloud/tests/runPublicHubSnapshotParityTests.ts",
+    "test:cloud-roundtrip": "tsx src/cloud/tests/runCloudRoundtripTests.ts && tsx src/cloud/tests/runCompanionConflictMergeTests.ts && tsx src/cloud/tests/runPublicHubSnapshotParityTests.ts && tsx src/cloud/tests/runHubRegulationsRepublishTests.ts",
     "test:chess-results": "tsx src/server/tests/runChessResultsTests.ts && tsx src/server/tests/runChessResultsRouteTests.ts"
   },
   "dependencies": {
