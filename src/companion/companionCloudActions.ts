@@ -5,6 +5,7 @@ import { buildPublicHubSnapshot } from '../cloud/publicHubSnapshot';
 import {
   buildPrivateSnapshot,
   chooseInternalTournamentId,
+  classifyThreeWay,
   extractPrivateTournament,
   fingerprintTournament,
   preserveInstallationLocalFields,
@@ -128,6 +129,64 @@ export function mergeCompanionTournamentChanges(
   };
 }
 
+async function pullChangesOnly(cloud: any, tournament: Tournament) {
+  const local: any = readLocalTournament() || tournament;
+  const token = text(cloud?.token);
+  const remoteId = text(local?.cloud?.cloudTournamentId || cloud?.activeCloud?.id);
+  if (!token || !remoteId) throw new Error('Cloud tournament is not linked.');
+
+  const remoteResult = await cloudApi.getSnapshot(token, remoteId);
+  const remote = extractPrivateTournament(remoteResult?.snapshot, remoteResult?.tournament?.name || tournamentName(local)).tournament;
+  const revision = Number(remoteResult?.tournament?.revision || cloud?.activeCloud?.revision || 0);
+  const [localFingerprint, remoteFingerprint] = await Promise.all([
+    fingerprintTournament(local),
+    fingerprintTournament(remote)
+  ]);
+
+  if (localFingerprint === remoteFingerprint) {
+    // Re-enter the provider only after equality is proven; this refreshes its
+    // revision metadata and cannot upload local content.
+    await cloud.pullChanges(local);
+    return { kind: 'equal', revision };
+  }
+
+  let baseFingerprint = text(local?.cloud?.baseFingerprint);
+  const baseRevision = Number(local?.cloud?.baseRevision || 0);
+  if (!baseFingerprint && baseRevision > 0) {
+    try {
+      const historical = await cloudApi.getRevisionSnapshot(token, remoteId, baseRevision);
+      const base = extractPrivateTournament(historical?.snapshot, tournamentName(local)).tournament;
+      baseFingerprint = await fingerprintTournament(base);
+    } catch {
+      baseFingerprint = '';
+    }
+  }
+
+  if (!baseFingerprint) {
+    // Unknown common base: let the provider set its fail-closed conflict state.
+    await cloud.pullChanges(local);
+    return { kind: 'conflict', revision };
+  }
+
+  const decision = classifyThreeWay(localFingerprint, baseFingerprint, remoteFingerprint);
+  if (decision === 'cloud-only') {
+    await cloud.pullChanges(local);
+    return { kind: 'pulled', revision };
+  }
+  if (decision === 'local-only') {
+    // A Pull command must never upload Web changes.
+    return { kind: 'local-only', revision };
+  }
+  if (decision === 'equal') {
+    await cloud.pullChanges(local);
+    return { kind: 'equal', revision };
+  }
+
+  // True two-sided conflict: provider marks the conflict and preserves both copies.
+  await cloud.pullChanges(local);
+  return { kind: 'conflict', revision };
+}
+
 async function smartPullChanges(cloud: any, tournament: Tournament) {
   if (!cloud?.conflict) return cloud.pullChanges(tournament);
 
@@ -198,24 +257,9 @@ async function syncNowConfirmed(cloud: any, tournament: Tournament) {
     fingerprintTournament(remote)
   ]);
   if (localFingerprint !== remoteFingerprint) {
-    // A foreground Sync Now may discover a one-sided newer revision and stop
-    // safely instead of overwriting it. Reconcile that case once automatically
-    // before asking the user to intervene. True two-sided conflicts still fail closed.
-    await smartPullChanges(cloud, local);
-    const reconciledLocal: any = readLocalTournament() || local;
-    const reconciledRemoteResult = await cloudApi.getSnapshot(token, cloudTournamentId);
-    const reconciledRemote = extractPrivateTournament(
-      reconciledRemoteResult?.snapshot,
-      reconciledRemoteResult?.tournament?.name || tournamentName(reconciledLocal)
-    ).tournament;
-    const [reconciledLocalFingerprint, reconciledRemoteFingerprint] = await Promise.all([
-      fingerprintTournament(reconciledLocal),
-      fingerprintTournament(reconciledRemote)
-    ]);
-    if (reconciledLocalFingerprint !== reconciledRemoteFingerprint) {
-      throw new Error('Cloud and Web both changed this tournament. Resolve the synchronization conflict before publishing.');
-    }
-    return reconciledLocal;
+    // Push is strictly Web -> Cloud. It never downloads or merges a newer
+    // remote revision behind the user's back.
+    throw new Error('Cloud has newer Desktop changes or a synchronization conflict. Pull Cloud → Web before pushing or publishing.');
   }
   return local;
 }
@@ -384,7 +428,8 @@ export function createCompanionCloudFacade(cloud: any) {
   return {
     ...cloud,
     syncNow: (tournament: Tournament) => syncNowConfirmed(cloud, tournament),
-    pullChanges: (tournament: Tournament) => smartPullChanges(cloud, tournament),
+    pullChanges: (tournament: Tournament) => pullChangesOnly(cloud, tournament),
+    resolveConflict: (tournament: Tournament) => smartPullChanges(cloud, tournament),
     publishOnline: (tournament: Tournament) => publishOnlineWithRecovery(cloud, tournament),
     openPublicPage: (tournament: Tournament) => openPublicHubPage(cloud, tournament),
     uploadRegulations: (tournament: Tournament, file: File) => uploadRegulationsAndRepublish(cloud, tournament, file)

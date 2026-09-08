@@ -60,8 +60,7 @@ export const CompanionSetup: React.FC<Props> = ({ tournament, onUpdateTournament
   const updateName = (name: string) => {
     onUpdateTournament(previous => ({
       ...previous,
-      name,
-      settings: { ...previous.settings, organizer: previous.settings.organizer || name }
+      name
     }));
   };
 
@@ -189,7 +188,7 @@ export const CompanionSetup: React.FC<Props> = ({ tournament, onUpdateTournament
         </div>
       </section>
 
-      <div className="companion-setup-footnote"><Globe2 size={16} /><span>Every edit is written to the same private tournament object and picked up by the existing Desktop ↔ Web Cloud synchronization.</span></div>
+      <div className="companion-setup-footnote"><Globe2 size={16} /><span>Edits are saved locally immediately. Cloud autosync is push-only; Pull Cloud → Web is always explicit and never overwrites Web changes silently.</span></div>
     </div>
   );
 };

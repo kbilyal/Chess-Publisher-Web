@@ -54,8 +54,13 @@
 .companion-searchbox:focus-within { border-color: #8ab9f3; box-shadow: 0 0 0 3px rgba(23,105,224,.08); background: #fff; }
 .companion-searchbox input { min-width: 0; flex: 1; height: 44px; border: 0; outline: 0; background: transparent; color: #152137; font-size: 12px; }
 .companion-searchbox input::placeholder { color: #9ba8b8; }
-.companion-searchbox.small { min-height: 40px; margin-bottom: 10px; }
+.companion-searchbox.small { min-height: 40px; margin-bottom: 0; }
 .companion-searchbox.small input { height: 38px; font-size: 11px; }
+.companion-roster-toolbar { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 9px; align-items: center; margin-bottom: 5px; }
+.companion-sort-control { min-height: 40px; padding: 0 10px; display: flex; align-items: center; gap: 7px; border: 1px solid #d6e0eb; border-radius: 10px; background: #f9fbfd; color: #617086; }
+.companion-sort-control > span { font-size: 8.5px; font-weight: 800; text-transform: uppercase; white-space: nowrap; }
+.companion-sort-control select { min-height: 30px; border: 0; outline: 0; background: transparent; color: #253650; font-size: 10px; font-weight: 800; }
+.companion-sort-note { margin: 0 0 8px; color: #7c899a; font-size: 8.5px; }
 
 .companion-fide-results,
 .companion-roster-list {
@@ -182,6 +187,9 @@
   .companion-registration-heading .companion-button { width: 100%; }
   .companion-registration-heading h2 { font-size: 15px; }
   .companion-registration-heading p { font-size: 9px; }
+  .companion-roster-toolbar { grid-template-columns: 1fr; }
+  .companion-sort-control { min-height: 44px; justify-content: space-between; }
+  .companion-sort-control select { font-size: 14px; }
   .companion-searchbox { min-height: 48px; }
   .companion-searchbox input { height: 46px; font-size: 16px; }
   .companion-manual-grid { grid-template-columns: 1fr; }

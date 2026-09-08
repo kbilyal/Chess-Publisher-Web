@@ -32,7 +32,8 @@ export type CompanionCloud = {
   conflict: boolean;
   cloudDirty: boolean;
   syncNow: (tournament: Tournament) => Promise<void>;
-  pullChanges: (tournament: Tournament) => Promise<void>;
+  pullChanges: (tournament: Tournament) => Promise<any>;
+  resolveConflict: (tournament: Tournament) => Promise<any>;
   publishOnline: (tournament: Tournament) => Promise<void>;
   openPublicPage: (tournament: Tournament) => void | Promise<void>;
   returnToCloudList: () => Promise<void>;
@@ -66,15 +67,6 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(tournament));
   }, [tournament]);
-
-  useEffect(() => {
-    const onFocus = () => {
-      if (cloud.busy || cloud.conflict || cloud.cloudDirty) return;
-      void cloud.pullChanges(tournamentRef.current);
-    };
-    window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
-  }, [cloud]);
 
   const updateTournament = (updater: (previous: Tournament) => Tournament) => {
     setTournament(previous => updater(previous));
@@ -124,7 +116,7 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
     try {
       await cloud.syncNow(tournamentRef.current);
       adoptSynchronizedTournament();
-      setNotice('ok', 'Tournament synchronized with the desktop/cloud workspace.');
+      setNotice('ok', 'Push complete: Web → Cloud. Desktop can continue from this Cloud revision.');
     } catch (error: any) {
       setNotice('error', error?.message || 'Synchronization failed.');
     } finally {
@@ -136,11 +128,28 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
     setBusy('pull');
     setMessage('');
     try {
-      await cloud.pullChanges(tournamentRef.current);
+      const result = await cloud.pullChanges(tournamentRef.current);
       adoptSynchronizedTournament();
-      setNotice('ok', 'Desktop and Web revisions checked. Non-overlapping changes were merged safely when possible.');
+      if (result?.kind === 'pulled') setNotice('ok', 'Pull complete: Cloud → Web. The latest Desktop/Cloud revision is now open in Web.');
+      else if (result?.kind === 'equal') setNotice('ok', 'No pull needed: Web already matches the current Cloud revision.');
+      else if (result?.kind === 'local-only') setNotice('warn', 'Web has local changes that are not in Cloud. Pull did not upload them. Use Push Web → Cloud when ready.');
+      else setNotice('warn', 'Both Web and Cloud changed. Nothing was overwritten. Resolve the conflict before Pull, Push or Publish.');
     } catch (error: any) {
       setNotice('error', error?.message || 'Could not check the latest revision.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const resolveSyncConflict = async () => {
+    setBusy('pull');
+    setMessage('');
+    try {
+      await cloud.resolveConflict(tournamentRef.current);
+      adoptSynchronizedTournament();
+      setNotice('ok', 'Safe conflict resolution completed where fields did not overlap. Same-field conflicts remain protected from overwrite.');
+    } catch (error: any) {
+      setNotice('error', error?.message || 'Could not resolve the synchronization conflict safely.');
     } finally {
       setBusy(null);
     }
@@ -437,8 +446,9 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
   };
 
   const leaveTournament = async () => {
-    if (!cloud.conflict) {
-      try { await cloud.syncNow(tournamentRef.current); } catch { /* list remains available */ }
+    if (cloud.cloudDirty) {
+      const leave = window.confirm('Web has local changes that may not be confirmed in Cloud yet. Leave this tournament without forcing a hidden Push?');
+      if (!leave) return;
     }
     await cloud.returnToCloudList();
   };
@@ -488,11 +498,11 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
           <strong>{displayName}</strong>
         </div>
         <div className="companion-top-actions">
-          <button type="button" className="companion-button secondary" onClick={pullDesktopChanges} disabled={busy !== null || cloud.busy}>
-            <RefreshCw size={16} className={busy === 'pull' ? 'spin' : ''} /> Check updates
+          <button type="button" className="companion-button secondary" onClick={pullDesktopChanges} disabled={busy !== null || cloud.busy} title="Download the current Cloud/Desktop revision into Web. Never uploads Web edits.">
+            <RefreshCw size={16} className={busy === 'pull' ? 'spin' : ''} /> {busy === 'pull' ? 'Pulling…' : 'Pull Cloud → Web'}
           </button>
-          <button type="button" className="companion-button primary" onClick={syncNow} disabled={busy !== null || cloud.busy || cloud.conflict}>
-            <Cloud size={16} /> {busy === 'sync' ? 'Syncing…' : 'Sync now'}
+          <button type="button" className="companion-button primary" onClick={syncNow} disabled={busy !== null || cloud.busy || cloud.conflict} title="Upload Web edits to Cloud. Never downloads a newer Cloud revision.">
+            <Cloud size={16} /> {busy === 'sync' ? 'Pushing…' : 'Push Web → Cloud'}
           </button>
         </div>
       </header>
@@ -502,11 +512,11 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
           <div className="companion-alert warn companion-conflict-alert">
             <WifiOff size={18} />
             <div className="companion-conflict-copy">
-              <strong>Desktop and Web both changed this tournament.</strong>
-              <span>Resolve safely merges non-overlapping changes. If the same field changed on both devices, nothing is overwritten.</span>
+              <strong>Desktop/Cloud and Web both changed this tournament.</strong>
+              <span>Pull and Push are blocked from overwriting either side. Resolve conflict merges only non-overlapping fields; same-field conflicts remain protected.</span>
             </div>
-            <button type="button" className="companion-button secondary companion-conflict-action" onClick={pullDesktopChanges} disabled={busy !== null || cloud.busy}>
-              <RefreshCw size={16} className={busy === 'pull' ? 'spin' : ''} /> {busy === 'pull' ? 'Resolving…' : 'Resolve safely'}
+            <button type="button" className="companion-button secondary companion-conflict-action" onClick={resolveSyncConflict} disabled={busy !== null || cloud.busy}>
+              <RefreshCw size={16} className={busy === 'pull' ? 'spin' : ''} /> {busy === 'pull' ? 'Resolving…' : 'Resolve conflict'}
             </button>
           </div>
         )}
@@ -557,7 +567,7 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
                 <div>
                   <span className="companion-eyebrow">PUBLISH</span>
                   <h1>Choose where to publish</h1>
-                  <p>Both actions first synchronize the tournament with the same Desktop/Cloud record, then publish that synchronized revision.</p>
+                  <p>Publish first confirms a safe Web → Cloud Push. If Desktop/Cloud is newer, publication stops and requires an explicit Pull before anything is overwritten.</p>
                 </div>
                 <div className="companion-publish-revision">r{cloudRevision || 0}</div>
               </div>
@@ -650,8 +660,8 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
             </div>
 
             <section className="companion-sync-card">
-              <div><Smartphone size={20} /><span><strong>One tournament, every device</strong><small>Desktop and Web use the same private Cloud tournament identity and revision history.</small></span></div>
-              <button type="button" className="companion-button secondary" onClick={pullDesktopChanges} disabled={busy !== null || cloud.busy}><RefreshCw size={16} /> Check latest desktop revision</button>
+              <div><Smartphone size={20} /><span><strong>One tournament, explicit direction</strong><small>Pull = Cloud → Web only. Push = Web → Cloud only. Neither command silently reverses direction.</small></span></div>
+              <button type="button" className="companion-button secondary" onClick={pullDesktopChanges} disabled={busy !== null || cloud.busy}><RefreshCw size={16} /> Pull latest Cloud → Web</button>
             </section>
           </div>
         )}

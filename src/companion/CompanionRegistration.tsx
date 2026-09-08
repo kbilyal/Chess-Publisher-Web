@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Loader2, Search, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { ArrowUpDown, Check, Loader2, Search, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { Attendance, FideTitle, Gender, Tournament } from '../types';
 import { FidePlayerRecord } from '../server/fide/types';
 import { TransactionManager } from '../transactions/TransactionManager';
@@ -41,6 +41,7 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
   const [results, setResults] = useState<FidePlayerRecord[]>([]);
   const [searching, setSearching] = useState(false);
   const [listQuery, setListQuery] = useState('');
+  const [sortMode, setSortMode] = useState<'starting' | 'rating' | 'name'>('starting');
   const [notice, setNotice] = useState<Notice>(null);
   const [manualOpen, setManualOpen] = useState(false);
   const [busyKey, setBusyKey] = useState('');
@@ -85,11 +86,25 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
 
   const filteredPlayers = useMemo(() => {
     const q = listQuery.trim().toLowerCase();
-    if (!q) return [...players].sort((a, b) => a.pairingNumber - b.pairingNumber);
-    return [...players]
-      .filter(player => [player.name, player.fideId, player.fed, player.club].some(value => String(value || '').toLowerCase().includes(q)))
-      .sort((a, b) => a.pairingNumber - b.pairingNumber);
-  }, [players, listQuery]);
+    const visible = [...players].filter(player =>
+      !q || [player.name, player.fideId, player.fed, player.club]
+        .some(value => String(value || '').toLowerCase().includes(q))
+    );
+    return visible.sort((a, b) => {
+      if (sortMode === 'rating') {
+        if (Number(b.rating || 0) !== Number(a.rating || 0)) return Number(b.rating || 0) - Number(a.rating || 0);
+        const byName = String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' });
+        return byName || a.pairingNumber - b.pairingNumber;
+      }
+      if (sortMode === 'name') {
+        const byName = String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' });
+        if (byName) return byName;
+        if (Number(b.rating || 0) !== Number(a.rating || 0)) return Number(b.rating || 0) - Number(a.rating || 0);
+        return a.pairingNumber - b.pairingNumber;
+      }
+      return a.pairingNumber - b.pairingNumber;
+    });
+  }, [players, listQuery, sortMode]);
 
   const commitTournament = (next: Tournament) => onUpdateTournament(() => next);
 
@@ -253,7 +268,19 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
           <div><span className="companion-eyebrow">TOURNAMENT ROSTER</span><h2>Registered players</h2><p>{rankLocked ? `Starting numbers are locked. New players join from round ${latestRound + 1}.` : 'Changes here use the same protected desktop player transactions.'}</p></div>
           <div className="companion-roster-count"><Users size={16} /><strong>{players.length}</strong></div>
         </div>
-        <label className="companion-searchbox small"><Search size={16} /><input value={listQuery} onChange={event => setListQuery(event.target.value)} placeholder="Filter registered players" /></label>
+        <div className="companion-roster-toolbar">
+          <label className="companion-searchbox small"><Search size={16} /><input value={listQuery} onChange={event => setListQuery(event.target.value)} placeholder="Filter registered players" /></label>
+          <label className="companion-sort-control">
+            <ArrowUpDown size={15} />
+            <span>Sort view</span>
+            <select value={sortMode} onChange={event => setSortMode(event.target.value as 'starting' | 'rating' | 'name')}>
+              <option value="starting">Starting #</option>
+              <option value="rating">Rating ↓</option>
+              <option value="name">Name A–Z</option>
+            </select>
+          </label>
+        </div>
+        <div className="companion-sort-note">View only — sorting never changes official starting numbers or pairing numbers.</div>
 
         <div className="companion-roster-list">
           {filteredPlayers.map(player => (

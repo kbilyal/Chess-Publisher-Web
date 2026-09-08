@@ -221,17 +221,22 @@ export function withUpdatedBase(
 }
 
 export function buildPrivateSnapshot(name: string, tournament: Tournament | any) {
-  const clean = stripForPrivateCloud(tournament);
+  const clean: any = stripForPrivateCloud(tournament);
+  const snapshotName = text(name || clean?.name || clean?.settings?.eventName || 'Tournament') || 'Tournament';
+  // Desktop historically stores the tournament name primarily as currentTournament
+  // + the tournaments map key. Persist it inside the portable object as well so
+  // Desktop -> Web -> Desktop roundtrips cannot lose the visible tournament name.
+  clean.name = snapshotName;
   const internalId = chooseInternalTournamentId(clean);
   return {
     version: 'V99',
     data: {
-      currentTournament: name,
-      tournaments: { [name]: clean },
+      currentTournament: snapshotName,
+      tournaments: { [snapshotName]: clean },
       preferences: {}
     },
     telegramGlobal: {},
-    currentTournament: name,
+    currentTournament: snapshotName,
     preferences: {},
     cloudWorkspace: {
       schemaVersion: 4,
@@ -244,11 +249,19 @@ export function buildPrivateSnapshot(name: string, tournament: Tournament | any)
 }
 
 export function extractPrivateTournament(snapshot: any, fallbackName = '') {
-  const name = text(snapshot?.data?.currentTournament || snapshot?.currentTournament || fallbackName);
   const tournaments = snapshot?.data?.tournaments;
+  const keys = tournaments && typeof tournaments === 'object' ? Object.keys(tournaments) : [];
+  const requestedName = text(snapshot?.data?.currentTournament || snapshot?.currentTournament || fallbackName);
+  const name = requestedName && tournaments?.[requestedName]
+    ? requestedName
+    : (keys[0] || requestedName || text(fallbackName));
   const tournament = name && tournaments && typeof tournaments === 'object' ? tournaments[name] : null;
   if (!name || !tournament) {
     throw new Error('Cloud snapshot does not contain a Chess-Publisher tournament object.');
   }
-  return { name, tournament: clone(tournament) as Tournament };
+  const hydrated: any = clone(tournament);
+  // Legacy Desktop snapshots can omit tournament.name because the map key is
+  // authoritative there. Hydrate it for the Web UI without changing any other data.
+  if (!text(hydrated.name)) hydrated.name = name;
+  return { name, tournament: hydrated as Tournament };
 }
