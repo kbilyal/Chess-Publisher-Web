@@ -1,0 +1,31 @@
+.pwa-install-card {
+  position: fixed;
+  right: 14px;
+  bottom: calc(86px + env(safe-area-inset-bottom, 0px));
+  z-index: 5000;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  width: min(520px, calc(100vw - 28px));
+  padding: 12px 42px 12px 12px;
+  border: 1px solid rgba(120, 170, 220, .28);
+  border-radius: 16px;
+  background: rgba(7, 24, 43, .97);
+  color: #fff;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .28);
+  backdrop-filter: blur(16px);
+}
+.pwa-install-icon { width: 44px; height: 44px; border-radius: 11px; }
+.pwa-install-copy { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.pwa-install-copy strong { font-size: 13px; line-height: 1.2; }
+.pwa-install-copy span { color: #b8c8da; font-size: 11px; line-height: 1.35; }
+.pwa-install-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 38px; padding: 0 12px; border: 0; border-radius: 10px; background: #219aff; color: #fff; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }
+.pwa-install-close { position: absolute; right: 10px; top: 10px; display: grid; width: 26px; height: 26px; place-items: center; border: 0; border-radius: 8px; background: transparent; color: #9fb3c8; cursor: pointer; }
+.pwa-ios-help { display: inline-flex !important; align-items: center; gap: 5px; color: #d9eaff !important; }
+@media (min-width: 800px) { .pwa-install-card { bottom: 18px; } }
+@media (max-width: 520px) {
+  .pwa-install-card { left: 10px; right: 10px; bottom: calc(78px + env(safe-area-inset-bottom, 0px)); width: auto; grid-template-columns: 40px minmax(0, 1fr); padding: 11px 38px 11px 11px; }
+  .pwa-install-icon { width: 40px; height: 40px; }
+  .pwa-install-button { grid-column: 1 / -1; width: 100%; }
+}
