@@ -286,7 +286,22 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
           {filteredPlayers.map(player => (
             <div key={player.localKey} className="companion-roster-row">
               <div className="companion-player-rank">#{player.pairingNumber}</div>
-              <div className="companion-player-main"><strong>{player.name}</strong><span>{player.title ? `${player.title} · ` : ''}{player.fed || 'FID'}{player.fideId && player.fideId !== '-' ? ` · FIDE ${player.fideId}` : ''}</span></div>
+              <div className="companion-player-main">
+                <strong>{player.name}</strong>
+                <span>
+                  {player.title ? `${player.title} · ` : ''}{player.fed || 'FID'}
+                  {player.fideId && player.fideId !== '-' && player.fideId !== '0' ? (
+                    <>{' · FIDE '}<a
+                      href={`https://ratings.fide.com/profile/${encodeURIComponent(player.fideId.trim())}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={`Open FIDE profile ${player.fideId}`}
+                      aria-label={`Open FIDE profile ${player.fideId} for ${player.name}`}
+                      style={{ color: '#1769e0', fontWeight: 800, textDecoration: 'underline', textUnderlineOffset: '2px' }}
+                    >{player.fideId}</a></>
+                  ) : null}
+                </span>
+              </div>
               <div className="companion-player-rating"><strong>{player.rating || '—'}</strong><span>{ratingType}</span></div>
               <select className="companion-attendance" value={player.attendance} disabled={busyKey !== ''} onChange={event => void updateAttendance(player.localKey, event.target.value as Attendance)} aria-label={`Status for ${player.name}`}>
                 <option value="present">Present</option>
