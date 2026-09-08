@@ -10,7 +10,8 @@ import {
   fingerprintTournament,
   preserveInstallationLocalFields,
   stableStringify,
-  withUpdatedBase
+  withUpdatedBase,
+  PORTABLE_FINGERPRINT_SCHEMA
 } from '../cloud/onlineCloudSync';
 
 const TOURNAMENT_STORAGE_KEY = 'fide_tournament_manager_v2';
@@ -150,8 +151,15 @@ async function pullChangesOnly(cloud: any, tournament: Tournament) {
     return { kind: 'equal', revision };
   }
 
-  let baseFingerprint = text(local?.cloud?.baseFingerprint);
   const baseRevision = Number(local?.cloud?.baseRevision || 0);
+  const baseSchema = Number(local?.cloud?.fingerprintContentSchema || local?.cloud?.fingerprintSchema || 0);
+  let baseFingerprint = baseSchema === PORTABLE_FINGERPRINT_SCHEMA ? text(local?.cloud?.baseFingerprint) : '';
+  // Same remote revision as our base means the remote side has not changed.
+  // Reconstruct the common base from the authoritative current Cloud payload
+  // instead of treating stale fingerprint-schema metadata as a conflict.
+  if (!baseFingerprint && baseRevision > 0 && revision === baseRevision) {
+    baseFingerprint = remoteFingerprint;
+  }
   if (!baseFingerprint && baseRevision > 0) {
     try {
       const historical = await cloudApi.getRevisionSnapshot(token, remoteId, baseRevision);
@@ -174,7 +182,10 @@ async function pullChangesOnly(cloud: any, tournament: Tournament) {
     return { kind: 'pulled', revision };
   }
   if (decision === 'local-only') {
-    // A Pull command must never upload Web changes.
+    // A Pull command must never upload Web changes. If an earlier false-positive
+    // conflict flag is still latched in the provider, re-enter its pull-only path
+    // so it can clear that UI state. The provider's local-only branch performs no PUT.
+    if (cloud?.conflict) await cloud.pullChanges(local);
     return { kind: 'local-only', revision };
   }
   if (decision === 'equal') {
@@ -219,8 +230,15 @@ export async function checkCloudStatusOnly(cloud: any, tournament: Tournament): 
     return { kind: 'in-sync', revision, message: `Desktop and Cloud match at r${revision}.` };
   }
 
-  let baseFingerprint = text(local?.cloud?.baseFingerprint);
   const baseRevision = Number(local?.cloud?.baseRevision || 0);
+  const baseSchema = Number(local?.cloud?.fingerprintContentSchema || local?.cloud?.fingerprintSchema || 0);
+  let baseFingerprint = baseSchema === PORTABLE_FINGERPRINT_SCHEMA ? text(local?.cloud?.baseFingerprint) : '';
+  // Same remote revision as our base means the remote side has not changed.
+  // Reconstruct the common base from the authoritative current Cloud payload
+  // instead of treating stale fingerprint-schema metadata as a conflict.
+  if (!baseFingerprint && baseRevision > 0 && revision === baseRevision) {
+    baseFingerprint = remoteFingerprint;
+  }
   if (!baseFingerprint && baseRevision > 0) {
     try {
       const baseResult = await cloudApi.getRevisionSnapshot(token, remoteId, baseRevision);

@@ -11,7 +11,8 @@ import {
   extractPrivateTournament,
   fingerprintTournament,
   preserveInstallationLocalFields,
-  withUpdatedBase
+  withUpdatedBase,
+  PORTABLE_FINGERPRINT_SCHEMA
 } from './onlineCloudSync';
 import { CloudSyncCoordinator } from './CloudSyncCoordinator';
 import {
@@ -27,7 +28,7 @@ const TOURNAMENT_STORAGE_KEY = 'fide_tournament_manager_v2';
 const TOKEN_SESSION_KEY = 'cpstudio.organizerToken.session';
 const TOKEN_LOCAL_KEY = 'cpstudio.organizerToken.remembered';
 const DEVICE_KEY = 'cpstudio.cloud.device.v1';
-const FINGERPRINT_SCHEMA = 5;
+const FINGERPRINT_SCHEMA = PORTABLE_FINGERPRINT_SCHEMA;
 const AUTOSYNC_DELAY_MS = 1000;
 
 type CloudTournamentMeta = {
@@ -220,8 +221,8 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
   async function resolveBaseFingerprint(tournament: Tournament | any, remoteId: string) {
     const cloud = tournament?.cloud || {};
     const stored = text(cloud.baseFingerprint);
-    const schema = Number(cloud.fingerprintSchema || 0);
-    if (stored && schema === FINGERPRINT_SCHEMA) return stored;
+    const schema = Number(cloud.fingerprintContentSchema || cloud.fingerprintSchema || 0);
+    if (stored && schema === PORTABLE_FINGERPRINT_SCHEMA) return stored;
 
     const baseRevision = Number(cloud.baseRevision || 0);
     if (baseRevision <= 0) return '';
@@ -310,7 +311,16 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      const baseRevision = Number((seeded as any)?.cloud?.baseRevision || 0);
       let baseFingerprint = await resolveBaseFingerprint(seeded, remote.id);
+      // If Cloud is still on exactly the revision this client last synchronized,
+      // Cloud cannot have changed independently. Its current fingerprint is the
+      // authoritative common base even when an older client stored a fingerprint
+      // using a previous portable-content schema. This prevents a simple local
+      // title/venue/etc. edit from becoming a false two-sided conflict.
+      if (!baseFingerprint && baseRevision > 0 && cloud.revision === baseRevision) {
+        baseFingerprint = cloud.fingerprint;
+      }
       if (!baseFingerprint) {
         if (localFingerprint === cloud.fingerprint) {
           baseFingerprint = cloud.fingerprint;
@@ -429,7 +439,11 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
           return;
         }
 
+        const baseRevision = Number((seeded as any)?.cloud?.baseRevision || 0);
         let baseFingerprint = await resolveBaseFingerprint(seeded, remote.id);
+        if (!baseFingerprint && baseRevision > 0 && cloud.revision === baseRevision) {
+          baseFingerprint = cloud.fingerprint;
+        }
         if (!baseFingerprint) {
           if (localFingerprint === cloud.fingerprint) baseFingerprint = cloud.fingerprint;
           else {

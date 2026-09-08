@@ -48,6 +48,7 @@ const setup = readFileSync(resolve(process.cwd(), 'src/companion/CompanionSetup.
 const registration = readFileSync(resolve(process.cwd(), 'src/companion/CompanionRegistration.tsx'), 'utf8');
 const workspace = readFileSync(resolve(process.cwd(), 'src/companion/CompanionWorkspace.tsx'), 'utf8');
 const actions = readFileSync(resolve(process.cwd(), 'src/companion/companionCloudActions.ts'), 'utf8');
+const provider = readFileSync(resolve(process.cwd(), 'src/cloud/OnlineCloudProviderV2.tsx'), 'utf8');
 assert.doesNotMatch(setup, /organizer:\s*previous\.settings\.organizer\s*\|\|\s*name/, 'Editing tournament name must never populate Organizer implicitly.');
 assert.match(registration, /'starting' \| 'rating' \| 'name'/, 'Web roster must expose Starting #, Rating and Name sort modes.');
 assert.match(registration, /Rating ↓/);
@@ -60,4 +61,9 @@ assert.match(actions, /async function pullChangesOnly/);
 assert.match(actions, /A Pull command must never upload Web changes/);
 assert.match(actions, /Cloud has newer Desktop changes or a synchronization conflict\. Pull Cloud → Web before pushing or publishing\./);
 assert.match(actions, /resolveConflict: \(tournament: Tournament\) => smartPullChanges/);
+assert.match(provider, /const FINGERPRINT_SCHEMA = PORTABLE_FINGERPRINT_SCHEMA;/, 'Provider fingerprint schema must track the portable-content fingerprint schema.');
+assert.match(provider, /cloud\.fingerprintContentSchema \|\| cloud\.fingerprintSchema/, 'Provider must reject stale base fingerprints from older content schemas.');
+assert.ok((provider.match(/cloud\.revision === baseRevision/g) || []).length >= 2, 'Automatic sync and Pull must use revision equality to avoid false two-sided conflicts.');
+assert.match(actions, /revision === baseRevision[\s\S]*baseFingerprint = remoteFingerprint/, 'Directional Pull/status must use revision equality to recover the common base after a fingerprint-schema upgrade.');
+assert.match(actions, /if \(cloud\?\.conflict\) await cloud\.pullChanges\(local\);/, 'A stale false-positive conflict flag must be clearable through the pull-only provider path without uploading local edits.');
 console.log('PASS Companion sync contract: full Desktop/Web tournament parity + directional Pull/Push + safe roster view sorting.');
