@@ -224,7 +224,22 @@ async function publishOnlineWithRecovery(cloud: any, tournament: Tournament) {
     // The authoritative provider still performs its own owner list/create
     // checks. Recovery is opportunistic and must never bypass those checks.
   }
-  return cloud.publishOnline(current);
+
+  const previousRevision = Number(current?.online?.revision || 0);
+  const previousPublishedAt = text(current?.online?.lastPublishedAt);
+  await cloud.publishOnline(current);
+
+  // OnlineCloudProviderV2 intentionally converts transport/validation failures
+  // into UI status instead of rethrowing them. The Companion must therefore
+  // prove that a new public revision was actually persisted before reporting
+  // success to the user. A rejected publish leaves both fields unchanged.
+  const published: any = readLocalTournament() || current;
+  const publishedRevision = Number(published?.online?.revision || 0);
+  const publishedAt = text(published?.online?.lastPublishedAt);
+  if (!publishedAt || publishedAt === previousPublishedAt || publishedRevision <= previousRevision) {
+    throw new Error('Online Hub publish was not confirmed. No new public revision was recorded; synchronize and publish again.');
+  }
+  return published;
 }
 
 async function openPublicHubPage(cloud: any, tournament: Tournament) {
