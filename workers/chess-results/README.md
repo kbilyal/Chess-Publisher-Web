@@ -23,6 +23,19 @@ Test tournaments are always forced to federation `XXX`.
 
 No AES key, AES IV or ownership signing secret belongs in browser code, GitHub Pages, or public repository variables.
 
+## Authenticated Upload Data link
+
+For a verified TNR, `POST /api/chess-results/admin-link` with `section: "upload"` returns the official Chess-Results `UploadData.aspx` URL. The URL is generated only by the Worker and follows the official parameter contract:
+
+- `tnr` = database key / TNR
+- `sid` = encrypted database key / TNR
+- `sid1` = encrypted Worker-side CreatorID
+- `source` = `21`
+- `lan` = `0`
+- `time` = 14-digit request timestamp
+
+The Web Companion exposes this as **Upload data** beside the Chess-Results **Admin** action. AES material never enters the browser, and the browser never constructs `sid` or `sid1` itself.
+
 ## GitHub Actions deployment credentials
 
 Configure these repository Actions secrets before automatic Worker deployment can run:
