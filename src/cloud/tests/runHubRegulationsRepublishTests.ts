@@ -48,24 +48,32 @@ assert.ok(
   'Companion publish must remember the public revision before sending the correction.'
 );
 assert.ok(
-  source.includes('publishedRevision < previousRevision'),
-  'Companion publish must reject a backwards public revision while allowing a confirmed unchanged revision.'
+  source.includes('publishedRevision >= previousRevision'),
+  'A provider acknowledgement must allow a legitimate unchanged Hub revision but never a backwards revision.'
 );
 assert.ok(
-  !source.includes('publishedRevision <= previousRevision'),
-  'A legitimate Hub unchanged response must not be rejected merely because the revision did not increment.'
+  source.includes('async function retryPublishAgainstAuthoritativeHub'),
+  'An unacknowledged provider publish must retry once against freshly listed authoritative Hub metadata.'
 );
 assert.ok(
-  source.includes("publishedAt === previousPublishedAt"),
-  'Companion publish must require a fresh lastPublishedAt success acknowledgement.'
+  source.includes('const hub = await findOrganizerOwnedHub(cloud, current)'),
+  'The retry must resolve only an organizer-owned existing Hub tournament.'
 );
 assert.ok(
-  source.includes('The Hub may legitimately return `unchanged` without incrementing'),
-  'The unchanged-publication contract must remain documented next to the success gate.'
+  source.includes('const snapshot = buildPublicHubSnapshot(current'),
+  'The retry must rebuild the validated public snapshot against the authoritative Hub revision.'
 );
 assert.ok(
-  source.includes('Online Hub publish was not confirmed.'),
-  'A rejected Hub update must surface a real failure instead of a false Published notice.'
+  source.includes('await hubApi.publishOwnedTournament(token, hub.id, revision, snapshot)'),
+  'The retry must use the authenticated owner-publish endpoint and current revision.'
+);
+assert.ok(
+  source.includes('return retryPublishAgainstAuthoritativeHub(cloud, published)'),
+  'Missing provider acknowledgement must enter the authoritative retry instead of returning a generic false failure.'
+);
+assert.ok(
+  !source.includes('Online Hub publish was not confirmed. The Hub did not acknowledge'),
+  'The generic acknowledgement failure must no longer hide the real Hub API error.'
 );
 assert.ok(
   source.includes('publishOnline: (tournament: Tournament) => publishOnlineWithRecovery'),
@@ -76,4 +84,4 @@ assert.ok(
   'The Companion facade must expose the guarded upload-and-republish behavior.'
 );
 
-console.log('Cloud confirmation + Hub unchanged acknowledgement + identity recovery + regulations republish regression: PASS');
+console.log('Cloud confirmation + authoritative Hub retry + identity recovery + regulations republish regression: PASS');
