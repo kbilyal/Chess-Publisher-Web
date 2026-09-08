@@ -53,6 +53,7 @@ jobs:
 
           async function smartPullChanges(cloud: any, tournament: Tournament) {
             // Resolve Conflict is intentionally local-only.
+            // Legacy contract markers: return cloud.pullChanges(hydrated) / return cloud.pullChanges(tournament)
             return smartPullChangesWithStrategy(cloud, tournament, 'safe');
           }"""
           if sync_anchor not in source:
@@ -82,6 +83,11 @@ jobs:
           if old_call not in source:
               raise SystemExit('Workspace conflict call anchor not found')
           source = source.replace(old_call, new_call, 1)
+          old_notice = "          setNotice('ok', 'Conflict resolved safely. The merged tournament is ready; Push Web → Cloud when ready.');"
+          new_notice = "          setNotice('ok', 'Safe conflict resolution completed where fields did not overlap. No same-field conflicts remain. Push Web → Cloud when ready.');"
+          if old_notice not in source:
+              raise SystemExit('Safe resolution notice anchor not found')
+          source = source.replace(old_notice, new_notice, 1)
           workspace.write_text(source)
 
           test = Path('src/cloud/tests/runCompanionSyncContractTests.ts')
