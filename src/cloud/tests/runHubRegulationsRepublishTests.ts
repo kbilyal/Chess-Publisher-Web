@@ -28,6 +28,22 @@ assert.ok(
   'Hub identity recovery must retain the original shared local-key fallback.'
 );
 assert.ok(
+  source.includes('const previousRevision = Number(current?.online?.revision || 0)'),
+  'Companion publish must remember the public revision before sending the correction.'
+);
+assert.ok(
+  source.includes('publishedRevision <= previousRevision'),
+  'Companion publish must reject a false success when no new Hub revision was persisted.'
+);
+assert.ok(
+  source.includes("publishedAt === previousPublishedAt"),
+  'Companion publish must require a fresh lastPublishedAt success marker.'
+);
+assert.ok(
+  source.includes('Online Hub publish was not confirmed.'),
+  'A rejected Hub update must surface a real failure instead of a false Published notice.'
+);
+assert.ok(
   source.includes('publishOnline: (tournament: Tournament) => publishOnlineWithRecovery'),
   'All Web Companion public publishes must recover the organizer-owned existing Hub record before create/update.'
 );
@@ -36,4 +52,4 @@ assert.ok(
   'The Companion facade must expose the guarded upload-and-republish behavior.'
 );
 
-console.log('Hub identity recovery + regulations upload automatic public republish regression: PASS');
+console.log('Hub identity recovery + confirmed revision + regulations automatic republish regression: PASS');
