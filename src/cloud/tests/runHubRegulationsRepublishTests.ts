@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const source = fs.readFileSync('src/companion/companionCloudActions.ts', 'utf8');
+const hubApiSource = fs.readFileSync('src/cloud/hubApi.ts', 'utf8');
 
 assert.ok(
   source.includes('async function syncNowConfirmed'),
@@ -65,7 +66,7 @@ assert.ok(
 );
 assert.ok(
   source.includes('await hubApi.publishOwnedTournament(token, hub.id, revision, snapshot)'),
-  'The retry must use the authenticated owner-publish endpoint and current revision.'
+  'The retry must use the authenticated Hub publish contract and current revision.'
 );
 assert.ok(
   source.includes('return retryPublishAgainstAuthoritativeHub(cloud, published)'),
@@ -76,6 +77,22 @@ assert.ok(
   'The generic acknowledgement failure must no longer hide the real Hub API error.'
 );
 assert.ok(
+  hubApiSource.includes('error.status !== 404'),
+  'The compatibility route must be attempted only when the organizer-owned snapshot endpoint is genuinely missing.'
+);
+assert.ok(
+  hubApiSource.includes('/api/v1/tournaments/${enc(id)}/snapshot'),
+  'A missing organizer-prefixed snapshot route must fall back to the deployed legacy snapshot route.'
+);
+assert.ok(
+  hubApiSource.includes("'X-Organizer-Token': token"),
+  'The legacy fallback must retain organizer identity instead of attempting an unauthenticated write.'
+);
+assert.ok(
+  !hubApiSource.includes('createOrganizerTournament(token,') || hubApiSource.indexOf('createOrganizerTournament(token,') < 0,
+  'The publish compatibility fallback must never create a replacement Hub tournament.'
+);
+assert.ok(
   source.includes('publishOnline: (tournament: Tournament) => publishOnlineWithRecovery'),
   'All Web Companion public publishes must recover the organizer-owned existing Hub record before create/update.'
 );
@@ -84,4 +101,4 @@ assert.ok(
   'The Companion facade must expose the guarded upload-and-republish behavior.'
 );
 
-console.log('Cloud confirmation + authoritative Hub retry + identity recovery + regulations republish regression: PASS');
+console.log('Cloud confirmation + authoritative Hub retry + legacy snapshot compatibility + identity recovery + regulations republish regression: PASS');
