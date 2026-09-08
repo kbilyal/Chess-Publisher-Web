@@ -1,0 +1,206 @@
+name: Deploy Private Cloud Permanent Delete
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'scripts/patch-private-cloud-hard-delete-worker.py'
+      - '.github/workflows/deploy-hub-hard-delete.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  HUB_WORKER_NAME: chess-publisher-hub-api-beta
+  HUB_PUBLIC_BASE: https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev
+  ARCHIVE_PATCHED_SHA256: ef72c0f35558076c311fb17c46efad114c9da8f5de36e2cfe4e9a0a8a16d9d7a
+
+jobs:
+  deploy:
+    name: Make main-list DELETE permanent in Organizer Cloud
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Checkout exact triggering commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Verify Cloudflare credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+
+      - name: Recover exact live Hub Worker
+        id: inspect
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/hub-hard-delete"
+          mkdir -p "$work"
+          api="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${HUB_WORKER_NAME}"
+          auth="Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
+
+          curl --fail --silent --show-error --location -H "$auth" "$api" -o "$work/live-worker.multipart"
+          curl --fail --silent --show-error -H "$auth" "$api/deployments" -o "$work/deployments-before.json"
+
+          python - <<'PY'
+          from pathlib import Path
+          from email.parser import BytesParser
+          from email.policy import default
+          import hashlib, json, os
+
+          work = Path(os.environ['RUNNER_TEMP']) / 'hub-hard-delete'
+          raw = (work / 'live-worker.multipart').read_bytes()
+          first = raw.splitlines()[0].decode('ascii', 'strict')
+          if not first.startswith('--'):
+              raise SystemExit('Unexpected Hub Worker download format.')
+          boundary = first[2:]
+          envelope = (
+              f'Content-Type: multipart/form-data; boundary={boundary}\r\n'
+              'MIME-Version: 1.0\r\n\r\n'
+          ).encode() + raw
+          msg = BytesParser(policy=default).parsebytes(envelope)
+          parts = list(msg.iter_parts())
+          if len(parts) != 1:
+              raise SystemExit(f'Expected one Worker module, got {len(parts)}.')
+          payload = parts[0].get_payload(decode=True) or b''
+          if b'export default' not in payload:
+              raise SystemExit('Recovered module is not the expected Hub Worker source.')
+          (work / 'worker.original.js').write_bytes(payload)
+          (work / 'worker.js').write_bytes(payload)
+
+          sha = hashlib.sha256(payload).hexdigest()
+          source = payload.decode('utf-8', 'strict')
+          if sha == os.environ['ARCHIVE_PATCHED_SHA256']:
+              source_state = 'archive'
+          elif 'private_cloud_hard_delete_v1' in source and 'deleteCloudTournamentPermanently' in source:
+              source_state = 'hard_delete'
+          else:
+              raise SystemExit(f'Refusing unknown Hub Worker content SHA256: {sha}')
+
+          deployments = json.loads((work / 'deployments-before.json').read_text())
+          rows = (deployments.get('result') or {}).get('deployments') or []
+          if not rows:
+              raise SystemExit('No active Hub deployment was returned by Cloudflare.')
+          versions = rows[0].get('versions') or []
+          if len(versions) != 1 or float(versions[0].get('percentage') or 0) != 100:
+              raise SystemExit('Expected one 100% active Hub Worker version.')
+          previous_version = str(versions[0].get('version_id') or '')
+          if not previous_version:
+              raise SystemExit('Active Hub deployment has no version id.')
+
+          print(f'Current Hub content SHA256: {sha}')
+          print(f'Current content state: {source_state}')
+          print(f'Active deployment version: {previous_version}')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              out.write(f'source_state={source_state}\n')
+              out.write(f'previous_version_id={previous_version}\n')
+          PY
+
+      - name: Apply permanent private Cloud delete patch
+        if: steps.inspect.outputs.source_state == 'archive'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python "$GITHUB_WORKSPACE/scripts/patch-private-cloud-hard-delete-worker.py" "$RUNNER_TEMP/hub-hard-delete/worker.js"
+
+      - name: Verify protected Worker source
+        id: verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/hub-hard-delete"
+          node --check worker.js
+          grep -Fq '/api\/v1\/organizer\/tournaments\/([^/]+)\/snapshot' worker.js
+          grep -Fq 'async function requireOrganizerTournamentOwner' worker.js
+          grep -Fq 'authMode = "managed"' worker.js
+          grep -Fq 'return requireManageToken(' worker.js
+          grep -Fq 'private_cloud_archive_v1' worker.js
+          grep -Fq 'async function restoreArchivedCloudTournament' worker.js
+          grep -Fq 'private_cloud_hard_delete_v1' worker.js
+          grep -Fq 'async function deleteCloudTournamentPermanently' worker.js
+          grep -Fq 'DELETE FROM cloud_tournaments' worker.js
+          grep -Fq 'cloud_revision_conflict' worker.js
+          sha="$(sha256sum worker.js | awk '{print $1}')"
+          echo "Target Hub content SHA256: $sha"
+          echo "target_sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Upload protected Worker content when changed
+        id: upload
+        if: steps.inspect.outputs.source_state == 'archive'
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/hub-hard-delete"
+          endpoint="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${HUB_WORKER_NAME}/content"
+          status="$(curl --silent --show-error \
+            --output "$work/content-update.json" \
+            --write-out '%{http_code}' \
+            -X PUT \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -F 'metadata={"main_module":"worker.js"};type=application/json' \
+            -F "worker.js=@${work}/worker.js;type=application/javascript+module" \
+            "$endpoint")"
+          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+            cat "$work/content-update.json"
+            exit 1
+          fi
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Verify live permanent-delete route and CORS
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/hub-hard-delete"
+          route_ok=false
+          dummy='cloud_00000000000000000000000000000000'
+
+          for attempt in $(seq 1 30); do
+            health_code="$(curl --silent --show-error --output "$work/health.json" --write-out '%{http_code}' "$HUB_PUBLIC_BASE/api/v1/health")"
+            delete_code="$(curl --silent --show-error --output "$work/delete.json" --write-out '%{http_code}' -X DELETE -H 'X-Expected-Revision: 0' "$HUB_PUBLIC_BASE/api/v1/cloud/tournaments/$dummy")"
+            archived_code="$(curl --silent --show-error --output "$work/archived.json" --write-out '%{http_code}' "$HUB_PUBLIC_BASE/api/v1/cloud/tournaments/archived")"
+            restore_code="$(curl --silent --show-error --output "$work/restore.json" --write-out '%{http_code}' -X POST "$HUB_PUBLIC_BASE/api/v1/cloud/tournaments/$dummy/restore")"
+            if [ "$health_code" = '200' ] && [ "$delete_code" = '401' ] && [ "$archived_code" = '401' ] && [ "$restore_code" = '401' ]; then
+              route_ok=true
+              break
+            fi
+            echo "Waiting for Hub route propagation: health=$health_code delete=$delete_code archived=$archived_code restore=$restore_code"
+            sleep 3
+          done
+          test "$route_ok" = true
+
+          cors_headers="$(curl --silent --show-error --dump-header - --output /dev/null -X OPTIONS -H 'Origin: https://web.chess-publisher.org' -H 'Access-Control-Request-Method: DELETE' -H 'Access-Control-Request-Headers: authorization,x-expected-revision' "$HUB_PUBLIC_BASE/api/v1/cloud/tournaments/$dummy")"
+          printf '%s\n' "$cors_headers" | grep -qi '^access-control-allow-origin: https://web.chess-publisher.org'
+          printf '%s\n' "$cors_headers" | grep -qi 'authorization'
+          printf '%s\n' "$cors_headers" | grep -qi 'x-expected-revision'
+          printf '%s\n' "$cors_headers" | grep -qi 'DELETE'
+          echo "PRIVATE_CLOUD_PERMANENT_DELETE=PASS"
+          echo "LIVE_TARGET_SHA=${{ steps.verify.outputs.target_sha }}"
+
+      - name: Roll back previous Worker version if verification fails
+        if: failure() && steps.upload.outputs.changed == 'true'
+        shell: bash
+        env:
+          PREVIOUS_VERSION: ${{ steps.inspect.outputs.previous_version_id }}
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/hub-hard-delete"
+          endpoint="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${HUB_WORKER_NAME}/deployments?force=true"
+          python - <<'PY' > "$work/rollback-body.json"
+          import json, os
+          print(json.dumps({
+              'strategy': 'percentage',
+              'versions': [{'percentage': 100, 'version_id': os.environ['PREVIOUS_VERSION']}],
+              'annotations': {'workers/message': 'Automatic rollback after private Cloud permanent-delete verification failure'}
+          }))
+          PY
+          curl --fail --silent --show-error -X POST -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" -H 'Content-Type: application/json' --data-binary "@$work/rollback-body.json" "$endpoint" >/dev/null
+          echo 'Previous active Hub Worker version restored.'
