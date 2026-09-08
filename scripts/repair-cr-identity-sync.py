@@ -2,6 +2,12 @@ from pathlib import Path
 
 workspace = Path('src/companion/CompanionWorkspace.tsx')
 s = workspace.read_text()
+start_marker = "  const publishChessResults = async () => {\n"
+end_marker = "\n  const openChessResultsAdmin = async () => {\n"
+if s.count(start_marker) != 1 or s.count(end_marker) != 1:
+    raise SystemExit('publishChessResults function boundary not found exactly once')
+prefix, rest = s.split(start_marker, 1)
+body, suffix = rest.split(end_marker, 1)
 
 needle = """      const localBeforeSync = tournamentRef.current;
       const requestedModeBeforeSync = String(localBeforeSync.settings.tournamentType || '').trim().toLowerCase();
@@ -17,9 +23,9 @@ replacement = """      const localBeforeSync = tournamentRef.current;
       };
       const linkedKeyBeforeSync = String(localBeforeSync.chessResults?.key || localBeforeSync.settings?.tnr || '').trim();
 """
-if s.count(needle) != 1:
-    raise SystemExit(f'identity-before marker count={s.count(needle)}')
-s = s.replace(needle, replacement, 1)
+if body.count(needle) != 1:
+    raise SystemExit(f'identity-before marker count={body.count(needle)}')
+body = body.replace(needle, replacement, 1)
 
 needle = """      await cloud.syncNow(tournamentRef.current);
       const current = adoptSynchronizedTournament();
@@ -44,9 +50,9 @@ replacement = """      await cloud.syncNow(tournamentRef.current);
       }
       const initial = buildChessResultsXml(current);
 """
-if s.count(needle) != 1:
-    raise SystemExit(f'identity-after marker count={s.count(needle)}')
-s = s.replace(needle, replacement, 1)
+if body.count(needle) != 1:
+    raise SystemExit(f'identity-after marker count={body.count(needle)}')
+body = body.replace(needle, replacement, 1)
 
 needle = """        const created = await chessResultsApi.create({
           tournament: current.name || '',
@@ -62,9 +68,9 @@ replacement = """        const created = await chessResultsApi.create({
           clientId
         });
 """
-if s.count(needle) != 1:
-    raise SystemExit(f'create identity marker count={s.count(needle)}')
-s = s.replace(needle, replacement, 1)
+if body.count(needle) != 1:
+    raise SystemExit(f'create identity marker count={body.count(needle)}')
+body = body.replace(needle, replacement, 1)
 
 needle = """        key = String(created?.key || '').trim();
         attemptedKey = key;
@@ -82,10 +88,11 @@ replacement = """        key = String(created?.key || '').trim();
           throw new Error('Chess-Results returned a non-test federation for a Test TNR. Publication stopped before upload.');
         }
 """
-if s.count(needle) != 1:
-    raise SystemExit(f'created verification marker count={s.count(needle)}')
-s = s.replace(needle, replacement, 1)
-workspace.write_text(s)
+if body.count(needle) != 1:
+    raise SystemExit(f'created verification marker count={body.count(needle)}')
+body = body.replace(needle, replacement, 1)
+
+workspace.write_text(prefix + start_marker + body + end_marker + suffix)
 
 actions = Path('src/companion/companionCloudActions.ts')
 s = actions.read_text()
