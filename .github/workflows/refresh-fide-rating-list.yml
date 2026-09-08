@@ -1,16 +1,25 @@
-name: One-time Chess-Results TNR repair via active workflow
+name: Refresh latest FIDE rating list
 
 on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 3 * * *'
   push:
     branches: [main]
     paths:
+      - 'scripts/refresh-fide-rating-list.ts'
+      - 'src/server/tests/runFideLatestListTests.ts'
       - '.github/workflows/refresh-fide-rating-list.yml'
 
 permissions:
   contents: write
 
+concurrency:
+  group: fide-latest-rating-list
+  cancel-in-progress: false
+
 jobs:
-  repair:
+  refresh:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
@@ -26,176 +35,70 @@ jobs:
           node-version: '22'
           cache: npm
 
-      - name: Preserve original FIDE workflow
-        shell: bash
-        run: git show HEAD^:.github/workflows/refresh-fide-rating-list.yml > "$RUNNER_TEMP/original-fide-workflow.yml"
-
-      - name: Patch atomic Chess-Results identity rollover
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          workspace = Path('src/companion/CompanionWorkspace.tsx')
-          s = workspace.read_text()
-
-          needle = """  const [sourceMismatchTnr, setSourceMismatchTnr] = useState('');
-  const tournamentRef = useRef(tournament);
-"""
-          replacement = """  const [sourceMismatchTnr, setSourceMismatchTnr] = useState('');
-  const tournamentRef = useRef(tournament);
-  const chessResultsPublishLockRef = useRef(false);
-"""
-          if s.count(needle) != 1:
-              raise SystemExit(f'workspace ref marker count={s.count(needle)}')
-          s = s.replace(needle, replacement, 1)
-
-          needle = """  const publishChessResults = async () => {
-    setBusy('cr-publish');
-    setMessage('');
-    setSourceMismatchTnr('');
-    let attemptedKey = '';
-    try {
-      await cloud.syncNow(tournamentRef.current);
-      const current = adoptSynchronizedTournament();
-"""
-          replacement = """  const publishChessResults = async () => {
-    if (chessResultsPublishLockRef.current) return;
-    chessResultsPublishLockRef.current = true;
-    setBusy('cr-publish');
-    setMessage('');
-    setSourceMismatchTnr('');
-    let attemptedKey = '';
-    let transitionedFromTnr = '';
-    try {
-      const localBeforeSync = tournamentRef.current;
-      const requestedModeBeforeSync = String(localBeforeSync.settings.tournamentType || '').trim().toLowerCase();
-      const linkedModeBeforeSync = String(localBeforeSync.chessResults?.mode || '').trim().toLowerCase();
-      const linkedKeyBeforeSync = String(localBeforeSync.chessResults?.key || localBeforeSync.settings?.tnr || '').trim();
-      const modeChangedBeforeSync = isTnr(linkedKeyBeforeSync)
-        && ['real', 'test'].includes(requestedModeBeforeSync)
-        && ['real', 'test'].includes(linkedModeBeforeSync)
-        && requestedModeBeforeSync !== linkedModeBeforeSync;
-      const staleFreshIdentity = isTnr(linkedKeyBeforeSync) && localBeforeSync.chessResults?.freshTnrRequired === true;
-
-      if (modeChangedBeforeSync || staleFreshIdentity) {
-        transitionedFromTnr = linkedKeyBeforeSync;
-        const transitionMode = ['real', 'test'].includes(requestedModeBeforeSync) ? requestedModeBeforeSync : linkedModeBeforeSync;
-        const transitionFederation = transitionMode === 'test'
-          ? 'XXX'
-          : String(localBeforeSync.settings.country || '').trim().toUpperCase();
-        const transition: Tournament = {
-          ...localBeforeSync,
-          settings: { ...localBeforeSync.settings, tnr: '' },
-          chessResults: {
-            ...localBeforeSync.chessResults,
-            key: '',
-            mode: transitionMode,
-            federation: transitionFederation,
-            freshTnrRequired: true,
-            lastError: '',
-            uploadStatus: `Preparing one new ${transitionMode === 'test' ? 'Test' : 'Real'} Chess-Results TNR; previous TNR ${linkedKeyBeforeSync} is no longer active for this mode.`
-          }
-        };
-        persistTournament(transition);
-      }
-
-      await cloud.syncNow(tournamentRef.current);
-      const current = adoptSynchronizedTournament();
-"""
-          if s.count(needle) != 1:
-              raise SystemExit(f'publish start marker count={s.count(needle)}')
-          s = s.replace(needle, replacement, 1)
-
-          needle = """      const requiresFreshTnr = Boolean(current.chessResults?.freshTnrRequired || modeChanged);
-      const replacedKey = requiresFreshTnr && isTnr(key) ? key : '';
-"""
-          replacement = """      const requiresFreshTnr = Boolean(current.chessResults?.freshTnrRequired || modeChanged);
-      const replacedKey = transitionedFromTnr || (requiresFreshTnr && isTnr(key) ? key : '');
-"""
-          if s.count(needle) != 1:
-              raise SystemExit(f'replacedKey marker count={s.count(needle)}')
-          s = s.replace(needle, replacement, 1)
-
-          needle = """    } finally {
-      setBusy(null);
-    }
-  };
-
-  const openChessResultsAdmin = async () => {
-"""
-          replacement = """    } finally {
-      chessResultsPublishLockRef.current = false;
-      setBusy(null);
-    }
-  };
-
-  const openChessResultsAdmin = async () => {
-"""
-          if s.count(needle) != 1:
-              raise SystemExit(f'publish finally marker count={s.count(needle)}')
-          s = s.replace(needle, replacement, 1)
-          workspace.write_text(s)
-
-          test = Path('src/cloud/tests/runCompanionChessResultsTransportTests.ts')
-          s = test.read_text()
-          insert_before = """(globalThis as any).window.location.hostname = 'localhost';
-"""
-          block = """assert.match(
-  workspaceSource,
-  /const chessResultsPublishLockRef = useRef\\(false\\);/,
-  'Chess-Results Publish must be single-flight so a double click cannot issue multiple GETKEY requests.'
-);
-assert.match(
-  workspaceSource,
-  /const localBeforeSync = tournamentRef\\.current;[\\s\\S]*settings: \\{ \\.\\.\\.localBeforeSync\\.settings, tnr: '' \\}[\\s\\S]*key: ''/,
-  'A Real/Test rollover must detach the previous TNR before Cloud sync instead of synchronizing mixed mode/key identity.'
-);
-assert.match(
-  workspaceSource,
-  /transitionMode === 'test'[\\s\\S]*\\? 'XXX'/,
-  'The atomic Test rollover must stage federation XXX before requesting the replacement TNR.'
-);
-assert.match(
-  workspaceSource,
-  /const replacedKey = transitionedFromTnr \\|\\| \\(requiresFreshTnr/,
-  'The previous TNR must be remembered only for audit/status while the new TNR becomes the active identity.'
-);
-assert.match(
-  workspaceSource,
-  /finally \\{[\\s\\S]*chessResultsPublishLockRef\\.current = false;[\\s\\S]*setBusy\\(null\\);/,
-  'The single-flight lock must always be released after Chess-Results publish completes or fails.'
-);
-
-"""
-          if block not in s:
-              if insert_before not in s:
-                  raise SystemExit('transport test insertion marker missing')
-              s = s.replace(insert_before, block + insert_before, 1)
-          test.write_text(s)
-          PY
-
       - name: Install dependencies
         run: npm ci
 
-      - name: Validate targeted regressions
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm run lint
-          npm run test:chess-results-companion
-          npm run test:chess-results
-          npm run test:cloud-roundtrip
-          npm run test:trf
+      - name: Verify latest-list lifecycle contract
+        run: npm run test:fide-latest
 
-      - name: Restore FIDE workflow and commit repair
+      - name: Download and validate current official FIDE list
+        run: npm run refresh:fide
+
+      - name: Guard repository and mobile artifact size
         shell: bash
         run: |
           set -euo pipefail
-          cp "$RUNNER_TEMP/original-fide-workflow.yml" .github/workflows/refresh-fide-rating-list.yml
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/companion/CompanionWorkspace.tsx src/cloud/tests/runCompanionChessResultsTransportTests.ts .github/workflows/refresh-fide-rating-list.yml
-          git diff --cached --quiet && exit 0
-          git commit -m "Make Chess-Results TNR rollover idempotent"
+          bytes="$(stat -c%s data/fide/fide_ratings.sqlite)"
+          echo "Validated FIDE SQLite size: ${bytes} bytes"
+          if [ "$bytes" -ge 95000000 ]; then
+            echo "FIDE SQLite exceeds the safe GitHub artifact ceiling. Do not publish an oversized database; move Web search to a server/sharded index." >&2
+            exit 1
+          fi
+
+      - name: FIDE database regression
+        run: npm run test:fide
+
+      - name: FIDE player sync regression
+        run: npm run test:fide-sync
+
+      - name: Player parity regression
+        run: npm run test:player-parity
+
+      - name: Explicit TRF16 and TRF26 regression
+        run: npm run test:trf
+
+      - name: TypeScript
+        run: npm run lint
+
+      - name: Build Web Companion with refreshed database
+        run: npm run build
+
+      - name: Verify refreshed browser assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s dist/fide/fide_ratings.sqlite
+          test -s dist/fide/fide_latest_manifest.json
+          cmp data/fide/fide_latest_manifest.json dist/fide/fide_latest_manifest.json
+          node -e "const m=require('./data/fide/fide_latest_manifest.json'); if(!m.archiveSha256 || m.archiveSha256.length!==64 || m.recordCount<100000) process.exit(1); console.log('FIDE manifest:', m.listVersion, m.recordCount, m.archiveSha256.slice(0,12));"
+
+      - name: Keep repository backup binary stable
+        shell: bash
+        run: |
+          git restore --source=HEAD -- data/fide/fide_ratings_prev.sqlite 2>/dev/null || true
+
+      - name: Commit refreshed list only when official archive changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add data/fide/fide_ratings.sqlite data/fide/fide_latest_manifest.json data/fide/fide_update_report.txt
+          if git diff --cached --quiet; then
+            echo "Official FIDE archive is unchanged; nothing to commit."
+            exit 0
+          fi
+          version="$(node -p "require('./data/fide/fide_latest_manifest.json').listVersion")"
+          records="$(node -p "require('./data/fide/fide_latest_manifest.json').recordCount")"
+          git config user.name "chess-publisher-fide-bot"
+          git config user.email "65768770+kbilyal@users.noreply.github.com"
+          git commit -m "Update official FIDE rating list ${version} (${records} players)"
           git push origin HEAD:main
