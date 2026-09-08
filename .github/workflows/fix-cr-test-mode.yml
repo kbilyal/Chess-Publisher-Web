@@ -1,0 +1,138 @@
+name: One-time Chess-Results Test Mode Repair
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/fix-cr-test-mode.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Patch mode-change TNR handling
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          workspace = Path('src/companion/CompanionWorkspace.tsx')
+          s = workspace.read_text()
+          needle = """      let key = String(current.chessResults?.key || '').trim();
+      let next = current;
+      attemptedKey = key;
+
+      if (!isTnr(key)) {
+"""
+          replacement = """      let key = String(current.chessResults?.key || '').trim();
+      let next = current;
+      attemptedKey = key;
+      const requestedMode = String(current.settings.tournamentType || '').trim().toLowerCase();
+      const linkedMode = String(current.chessResults?.mode || '').trim().toLowerCase();
+      const modeChanged = isTnr(key)
+        && ['real', 'test'].includes(requestedMode)
+        && ['real', 'test'].includes(linkedMode)
+        && requestedMode !== linkedMode;
+      const requiresFreshTnr = Boolean(current.chessResults?.freshTnrRequired || modeChanged);
+
+      if (!isTnr(key) || requiresFreshTnr) {
+"""
+          if s.count(needle) != 1:
+              raise SystemExit(f'CompanionWorkspace publish marker count={s.count(needle)}')
+          s = s.replace(needle, replacement, 1)
+          workspace.write_text(s)
+
+          setup = Path('src/companion/CompanionSetup.tsx')
+          s = setup.read_text()
+          needle = """  const updateSetting = <K extends keyof typeof settings>(key: K, value: typeof settings[K]) => {
+    onUpdateTournament(previous => ({
+      ...previous,
+      settings: { ...previous.settings, [key]: value }
+    }));
+  };
+"""
+          replacement = """  const updateSetting = <K extends keyof typeof settings>(key: K, value: typeof settings[K]) => {
+    onUpdateTournament(previous => {
+      const nextSettings = { ...previous.settings, [key]: value };
+      if (key !== 'tournamentType') return { ...previous, settings: nextSettings };
+
+      const requestedMode = String(value || '').trim().toLowerCase();
+      const linkedMode = String(previous.chessResults?.mode || '').trim().toLowerCase();
+      const linkedKey = String(previous.chessResults?.key || previous.settings?.tnr || '').trim();
+      const modeChanged = /^\\d+$/.test(linkedKey)
+        && ['real', 'test'].includes(requestedMode)
+        && ['real', 'test'].includes(linkedMode)
+        && requestedMode !== linkedMode;
+      const restoredLinkedMode = /^\\d+$/.test(linkedKey) && requestedMode === linkedMode;
+
+      return {
+        ...previous,
+        settings: nextSettings,
+        chessResults: {
+          ...previous.chessResults,
+          freshTnrRequired: modeChanged ? true : restoredLinkedMode ? false : previous.chessResults.freshTnrRequired,
+          uploadStatus: modeChanged
+            ? `Tournament mode changed to ${requestedMode === 'test' ? 'Test' : 'Real'} — a new Chess-Results TNR will be assigned on Publish.`
+            : previous.chessResults.uploadStatus
+        }
+      };
+    });
+  };
+"""
+          if s.count(needle) != 1:
+              raise SystemExit(f'CompanionSetup updateSetting marker count={s.count(needle)}')
+          s = s.replace(needle, replacement, 1)
+          setup.write_text(s)
+
+          test = Path('src/cloud/tests/runCompanionChessResultsTransportTests.ts')
+          s = test.read_text()
+          if "readFileSync" not in s:
+              s = s.replace("import assert from 'node:assert/strict';\n", "import assert from 'node:assert/strict';\nimport { readFileSync } from 'node:fs';\nimport { resolve } from 'node:path';\n", 1)
+          marker = """const workspaceSource = readFileSync(resolve(process.cwd(), 'src/companion/CompanionWorkspace.tsx'), 'utf8');
+const setupSource = readFileSync(resolve(process.cwd(), 'src/companion/CompanionSetup.tsx'), 'utf8');
+assert.match(workspaceSource, /const modeChanged = isTnr\(key\)[\s\S]*requestedMode !== linkedMode;/, 'Publish must detect Real/Test mode changes on an existing TNR.');
+assert.match(workspaceSource, /if \(!isTnr\(key\) \|\| requiresFreshTnr\)/, 'Mode changes must request a fresh Chess-Results TNR instead of reusing the old identity.');
+assert.match(setupSource, /freshTnrRequired: modeChanged \? true/, 'Setup must mark an existing TNR stale when Real/Test mode changes.');
+
+"""
+          insert_before = "console.log('PASS Companion Chess-Results transport:"
+          if marker not in s:
+              if insert_before not in s:
+                  raise SystemExit('Companion transport test console marker missing')
+              s = s.replace(insert_before, marker + insert_before, 1)
+          test.write_text(s)
+          PY
+
+      - name: Validate targeted regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run lint
+          npm run test:chess-results-companion
+          npm run test:chess-results
+          npm run test:trf
+
+      - name: Commit repair to main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/companion/CompanionWorkspace.tsx src/companion/CompanionSetup.tsx src/cloud/tests/runCompanionChessResultsTransportTests.ts
+          git diff --cached --quiet && exit 0
+          git commit -m "Fix Chess-Results Test mode TNR identity"
+          git push origin HEAD:main
