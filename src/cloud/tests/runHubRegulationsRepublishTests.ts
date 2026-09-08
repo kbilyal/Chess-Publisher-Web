@@ -33,7 +33,7 @@ assert.ok(
 );
 assert.ok(
   source.includes('await publishOnlineWithRecovery(cloud, current)'),
-  'A successful regulations upload must immediately publish a new validated public Hub revision through identity recovery.'
+  'A successful regulations upload must immediately publish through identity recovery.'
 );
 assert.ok(
   source.includes('text(item.id) === internalId'),
@@ -48,12 +48,20 @@ assert.ok(
   'Companion publish must remember the public revision before sending the correction.'
 );
 assert.ok(
-  source.includes('publishedRevision <= previousRevision'),
-  'Companion publish must reject a false success when no new Hub revision was persisted.'
+  source.includes('publishedRevision < previousRevision'),
+  'Companion publish must reject a backwards public revision while allowing a confirmed unchanged revision.'
+);
+assert.ok(
+  !source.includes('publishedRevision <= previousRevision'),
+  'A legitimate Hub unchanged response must not be rejected merely because the revision did not increment.'
 );
 assert.ok(
   source.includes("publishedAt === previousPublishedAt"),
-  'Companion publish must require a fresh lastPublishedAt success marker.'
+  'Companion publish must require a fresh lastPublishedAt success acknowledgement.'
+);
+assert.ok(
+  source.includes('The Hub may legitimately return `unchanged` without incrementing'),
+  'The unchanged-publication contract must remain documented next to the success gate.'
 );
 assert.ok(
   source.includes('Online Hub publish was not confirmed.'),
@@ -68,4 +76,4 @@ assert.ok(
   'The Companion facade must expose the guarded upload-and-republish behavior.'
 );
 
-console.log('Cloud confirmation + Hub identity + confirmed revision + regulations republish regression: PASS');
+console.log('Cloud confirmation + Hub unchanged acknowledgement + identity recovery + regulations republish regression: PASS');
