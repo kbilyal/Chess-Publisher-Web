@@ -1,0 +1,182 @@
+name: Deploy Public Website
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'deploy/public-site/**'
+      - '.github/workflows/deploy-public-site.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chess-publisher-public-site-production
+  cancel-in-progress: false
+
+jobs:
+  validate-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      PUBLIC_ORIGIN: https://chess-publisher.org
+      WORKER_NAME: white-meadow-8069
+
+    steps:
+      - name: Checkout exact triggering commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+
+      - name: Materialize current production site
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf site
+          mkdir -p site/assets/screenshots
+
+          files=(
+            index.html
+            app.js
+            styles.css
+            release-live.css
+            release-live.js
+            contact.html
+            support.html
+            tournaments.html
+            tournaments.css
+            tournaments.js
+            hub-config.js
+            rating-analysis.js
+            user-manual.html
+            manual.css
+            manual.js
+            latest.json
+            tournaments-data.json
+            robots.txt
+            sitemap.xml
+            news-october-2026.html
+            assets/chess-publisher-icon.png
+            assets/screenshots/chess-results.png
+            assets/screenshots/dgt-boards.png
+            assets/screenshots/lists-players.png
+            assets/screenshots/pairings.png
+            assets/screenshots/tournament-schedule.png
+            assets/screenshots/tournament-setup.png
+          )
+
+          for path in "${files[@]}"; do
+            mkdir -p "site/$(dirname "$path")"
+            curl --fail --silent --show-error --location \
+              --retry 4 --retry-all-errors --connect-timeout 15 --max-time 60 \
+              "${PUBLIC_ORIGIN}/${path}?deploy_base=${GITHUB_SHA}" \
+              --output "site/${path}"
+            test -s "site/${path}"
+          done
+
+      - name: Apply WEB Companion v42 homepage patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -q 'data-site-build="2026-09-08-v42-platform-icons"' site/index.html; then
+            echo 'Live homepage is already v42; patch application is not required.'
+          else
+            cd site
+            patch --batch --forward -p1 < ../deploy/public-site/index-v40-to-v42.patch
+          fi
+          cp deploy/public-site/news-web-companion-linux-2026.html site/news-web-companion-linux-2026.html
+
+      - name: Update sitemap for WEB Companion news
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('site/sitemap.xml')
+          text = p.read_text(encoding='utf-8')
+          url = 'https://chess-publisher.org/news-web-companion-linux-2026.html'
+          if url not in text and '</urlset>' in text:
+              block = '  <url>\n    <loc>' + url + '</loc>\n  </url>\n'
+              text = text.replace('</urlset>', block + '</urlset>')
+              p.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Public-site regression gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'data-site-build="2026-09-08-v42-platform-icons"' site/index.html
+          grep -q 'WEB Companion <sup class="nav-beta-index">BETA</sup>' site/index.html
+          grep -q 'Open WEB Companion' site/index.html
+          grep -q 'data-home-web-entry="protected-v1"' site/index.html
+          grep -q 'data-home-web-entry="nav"' site/index.html
+          grep -q 'data-home-web-entry="hero"' site/index.html
+          grep -q 'data-home-web-entry="footer"' site/index.html
+          grep -q 'Chess-Publisher is coming to Linux' site/index.html
+          grep -q '<strong>Windows</strong>' site/index.html
+          grep -q '<strong>Linux</strong>' site/index.html
+          grep -q 'Install it on mobile' site/index.html
+          grep -q 'Meet WEB Companion' site/news-web-companion-linux-2026.html
+          grep -q 'Linux.*In development' site/news-web-companion-linux-2026.html
+          test -s site/tournaments.js
+          test -s site/tournaments.html
+          test -s site/hub-config.js
+          test -s site/assets/screenshots/pairings.png
+          python - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+          class Gate(HTMLParser):
+              pass
+          for name in ('index.html', 'news-web-companion-linux-2026.html', 'tournaments.html', 'user-manual.html'):
+              parser = Gate()
+              parser.feed(Path('site', name).read_text(encoding='utf-8'))
+              parser.close()
+          print('HTML parse gate: PASS')
+          PY
+
+      - name: Check Cloudflare deployment credentials
+        id: cf
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          if [[ -n "${CF_API_TOKEN}" && -n "${CF_ACCOUNT_ID}" ]]; then
+            echo 'configured=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'configured=false' >> "$GITHUB_OUTPUT"
+            echo 'Cloudflare deployment skipped: CLOUDFLARE_API_TOKEN/CLOUDFLARE_ACCOUNT_ID are not configured.'
+          fi
+
+      - name: Deploy public website Worker assets
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cf.outputs.configured == 'true'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --name white-meadow-8069 --assets ./site
+
+      - name: Verify production v42
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cf.outputs.configured == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ok=0
+          for attempt in $(seq 1 12); do
+            cb="${GITHUB_SHA}-${attempt}-$(date +%s)"
+            home="$(curl --fail --silent --show-error --location --retry 2 "${PUBLIC_ORIGIN}/?cb=${cb}" || true)"
+            news="$(curl --fail --silent --show-error --location --retry 2 "${PUBLIC_ORIGIN}/news-web-companion-linux-2026.html?cb=${cb}" || true)"
+            if grep -q 'data-site-build="2026-09-08-v42-platform-icons"' <<<"$home" \
+              && grep -q 'WEB Companion' <<<"$home" \
+              && grep -q 'Chess-Publisher is coming to Linux' <<<"$home" \
+              && grep -q 'Meet WEB Companion' <<<"$news"; then
+              ok=1
+              break
+            fi
+            sleep 5
+          done
+          test "$ok" -eq 1
+          echo 'PUBLIC WEBSITE v42 LIVE GATE: PASS'
