@@ -1,3 +1,4 @@
+# One-time guarded repair; remove after the patch commit is verified.
 name: One-time Chess-Results Test Mode Repair
 
 on:
