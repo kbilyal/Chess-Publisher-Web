@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
 import { FideRatingRepository } from '../src/server/fide/FideRatingRepository';
 import { FideRatingService } from '../src/server/fide/FideRatingService';
 
@@ -66,24 +67,69 @@ function readManifest(): FideLatestManifest | null {
   }
 }
 
+function curlBuffer(url: string, maxBytes = MAX_ARCHIVE_BYTES): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('curl', [
+      '--location', '--fail', '--silent', '--show-error',
+      '--connect-timeout', '35', '--max-time', '240',
+      '--retry', '2', '--retry-delay', '3', '--retry-all-errors',
+      '--user-agent', 'Chess-Publisher-FIDE-List-Updater/1.0',
+      url
+    ], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const chunks: Buffer[] = [];
+    const errors: Buffer[] = [];
+    let total = 0;
+    let killedForSize = false;
+
+    child.stdout.on('data', (chunk: Buffer) => {
+      total += chunk.length;
+      if (total > maxBytes) {
+        killedForSize = true;
+        child.kill('SIGKILL');
+        return;
+      }
+      chunks.push(Buffer.from(chunk));
+    });
+    child.stderr.on('data', (chunk: Buffer) => errors.push(Buffer.from(chunk)));
+    child.on('error', reject);
+    child.on('close', code => {
+      if (killedForSize) return reject(new Error(`curl response exceeded ${maxBytes} bytes`));
+      if (code !== 0) return reject(new Error(`curl exited ${code}: ${Buffer.concat(errors).toString('utf8').trim() || 'download failed'}`));
+      const buffer = Buffer.concat(chunks);
+      if (!buffer.length) return reject(new Error('curl returned an empty response'));
+      resolve(buffer);
+    });
+  });
+}
+
 async function fetchBuffer(url: string, timeoutMs = 45000): Promise<Buffer> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: { 'User-Agent': 'Chess-Publisher-FIDE-List-Updater/1.0' },
-      cache: 'no-store'
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText}`);
-    const length = Number(response.headers.get('content-length') || 0);
-    if (length > MAX_ARCHIVE_BYTES) throw new Error(`Archive is too large (${length} bytes)`);
-    const buffer = Buffer.from(await response.arrayBuffer());
-    if (!buffer.length || buffer.length > MAX_ARCHIVE_BYTES) throw new Error(`Invalid archive size (${buffer.length} bytes)`);
-    return buffer;
+    try {
+      const response = await fetch(url, {
+        signal: controller.signal,
+        headers: { 'User-Agent': 'Chess-Publisher-FIDE-List-Updater/1.0' },
+        cache: 'no-store'
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText}`);
+      const length = Number(response.headers.get('content-length') || 0);
+      if (length > MAX_ARCHIVE_BYTES) throw new Error(`Archive is too large (${length} bytes)`);
+      const buffer = Buffer.from(await response.arrayBuffer());
+      if (!buffer.length || buffer.length > MAX_ARCHIVE_BYTES) throw new Error(`Invalid archive size (${buffer.length} bytes)`);
+      return buffer;
+    } catch (fetchError: any) {
+      console.warn(`[FIDE] Node fetch could not retrieve ${url}: ${fetchError?.message || fetchError}. Retrying with curl transport.`);
+      return await curlBuffer(url);
+    }
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function fetchTextWithCurl(url: string): Promise<string> {
+  const buffer = await curlBuffer(url, 4 * 1024 * 1024);
+  return buffer.toString('utf8');
 }
 
 async function fetchVersionInfo(): Promise<ReturnType<typeof extractOfficialListVersion>> {
@@ -91,13 +137,18 @@ async function fetchVersionInfo(): Promise<ReturnType<typeof extractOfficialList
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
     try {
-      const response = await fetch(OFFICIAL_DOWNLOAD_PAGE, {
-        signal: controller.signal,
-        headers: { 'User-Agent': 'Chess-Publisher-FIDE-List-Updater/1.0' },
-        cache: 'no-store'
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      return extractOfficialListVersion(await response.text());
+      try {
+        const response = await fetch(OFFICIAL_DOWNLOAD_PAGE, {
+          signal: controller.signal,
+          headers: { 'User-Agent': 'Chess-Publisher-FIDE-List-Updater/1.0' },
+          cache: 'no-store'
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return extractOfficialListVersion(await response.text());
+      } catch (fetchError: any) {
+        console.warn(`[FIDE] Node fetch could not read the official list page: ${fetchError?.message || fetchError}. Retrying with curl transport.`);
+        return extractOfficialListVersion(await fetchTextWithCurl(OFFICIAL_DOWNLOAD_PAGE));
+      }
     } finally {
       clearTimeout(timeout);
     }
