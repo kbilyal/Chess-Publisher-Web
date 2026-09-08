@@ -1,0 +1,524 @@
+from pathlib import Path
+
+
+def replace_once(path: str, old: str, new: str, label: str) -> None:
+    p = Path(path)
+    src = p.read_text(encoding='utf-8')
+    count = src.count(old)
+    if count != 1:
+        raise SystemExit(f'{label}: expected one anchor in {path}, found {count}')
+    p.write_text(src.replace(old, new, 1), encoding='utf-8')
+
+
+# Provider: add an on-demand Trash collection and reversible private archive actions.
+replace_once(
+    'src/cloud/OnlineCloudProviderV2.tsx',
+    "  const [cloudTournaments, setCloudTournaments] = useState<CloudTournamentMeta[]>([]);\n  const [activeCloud, setActiveCloud] = useState<CloudTournamentMeta | null>(null);",
+    "  const [cloudTournaments, setCloudTournaments] = useState<CloudTournamentMeta[]>([]);\n  const [archivedCloudTournaments, setArchivedCloudTournaments] = useState<CloudTournamentMeta[]>([]);\n  const [activeCloud, setActiveCloud] = useState<CloudTournamentMeta | null>(null);",
+    'provider archived state'
+)
+
+replace_once(
+    'src/cloud/OnlineCloudProviderV2.tsx',
+    "  function chooseExistingRemote(tournament: Tournament | any, list = cloudTournaments) {",
+    """  async function refreshArchivedWorkspace(currentToken = tokenRef.current) {
+    setBusy(true);
+    setStatus('Loading Trash…');
+    setStatusKind('busy');
+    try {
+      const list = await cloudApi.listArchivedTournaments(currentToken);
+      const tournaments = list?.tournaments || [];
+      setArchivedCloudTournaments(tournaments);
+      setStatus(tournaments.length ? `${tournaments.length} tournament${tournaments.length === 1 ? '' : 's'} in Trash` : 'Trash is empty');
+      setStatusKind('ok');
+      return tournaments as CloudTournamentMeta[];
+    } catch (error: any) {
+      setStatus(error?.message || 'Could not load Trash.');
+      setStatusKind(error instanceof CloudApiError && error.code === 'network_error' ? 'offline' : 'warn');
+      throw error;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function archivePrivateCloudTournament(meta: CloudTournamentMeta) {
+    setBusy(true);
+    setStatus('Moving tournament to Trash…');
+    setStatusKind('busy');
+    try {
+      const result = await cloudApi.archiveTournament(
+        tokenRef.current,
+        meta.id,
+        Math.max(0, Number(meta.revision || 0))
+      );
+      const archived = result?.tournament || { ...meta, archived: true, archivedAt: new Date().toISOString() };
+      setCloudTournaments(current => current.filter(item => item.id !== meta.id));
+      setArchivedCloudTournaments(current => [archived, ...current.filter(item => item.id !== meta.id)]);
+      if (activeRef.current?.id === meta.id) {
+        setActiveCloud(null);
+        activeRef.current = null;
+      }
+      setStatus('Moved to Trash · private revisions preserved');
+      setStatusKind('ok');
+      log(`Private Cloud tournament moved to Trash: ${meta.name || meta.id}.`);
+    } catch (error: any) {
+      if (error instanceof CloudApiError && error.code === 'cloud_revision_conflict') {
+        await refreshWorkspace().catch(() => []);
+        setStatus('Tournament changed in Cloud. Refresh and review the latest revision before moving it to Trash.');
+        setStatusKind('warn');
+      } else {
+        setStatus(error?.message || 'Could not move tournament to Trash.');
+        setStatusKind(error instanceof CloudApiError && error.code === 'network_error' ? 'offline' : 'warn');
+      }
+      throw error;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function restorePrivateCloudTournament(meta: CloudTournamentMeta) {
+    setBusy(true);
+    setStatus('Restoring tournament…');
+    setStatusKind('busy');
+    try {
+      const result = await cloudApi.restoreArchivedTournament(tokenRef.current, meta.id);
+      const restored = result?.tournament || { ...meta, archived: false, archivedAt: null, updatedAt: new Date().toISOString() };
+      setArchivedCloudTournaments(current => current.filter(item => item.id !== meta.id));
+      setCloudTournaments(current => [restored, ...current.filter(item => item.id !== meta.id)]);
+      setStatus('Tournament restored to My tournaments');
+      setStatusKind('ok');
+      log(`Private Cloud tournament restored: ${meta.name || meta.id}.`);
+    } catch (error: any) {
+      setStatus(error?.message || 'Could not restore tournament.');
+      setStatusKind(error instanceof CloudApiError && error.code === 'network_error' ? 'offline' : 'warn');
+      throw error;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function chooseExistingRemote(tournament: Tournament | any, list = cloudTournaments) {""",
+    'provider trash actions'
+)
+
+replace_once(
+    'src/cloud/OnlineCloudProviderV2.tsx',
+    "    setCloudTournaments([]);\n    setActiveCloud(null);",
+    "    setCloudTournaments([]);\n    setArchivedCloudTournaments([]);\n    setActiveCloud(null);",
+    'provider signout trash reset'
+)
+
+old_select = """      <CompanionTournamentSelectScreen
+        organizerName={organizerName}
+        tournaments={cloudTournaments}
+        localTournament={readLocalTournament()}
+        busy={busy}
+        status={status}
+        statusKind={statusKind}
+        onRefresh={() => void refreshWorkspace()}
+        onSignOut={signOut}
+        onOpen={meta => void openCloud(meta)}
+        onContinueLocal={() => void continueWithLocal()}
+        onCreateNew={name => void createNewTournamentFromStart(name)}
+        onImportFile={file => void importTournamentFromStart(file)}
+      />"""
+new_select = """      <CompanionTournamentSelectScreen
+        organizerName={organizerName}
+        tournaments={cloudTournaments}
+        archivedTournaments={archivedCloudTournaments}
+        busy={busy}
+        status={status}
+        statusKind={statusKind}
+        onRefresh={() => void refreshWorkspace()}
+        onSignOut={signOut}
+        onOpen={meta => void openCloud(meta)}
+        onCreateNew={name => void createNewTournamentFromStart(name)}
+        onImportFile={file => void importTournamentFromStart(file)}
+        onLoadArchived={() => refreshArchivedWorkspace()}
+        onArchive={archivePrivateCloudTournament}
+        onRestore={restorePrivateCloudTournament}
+      />"""
+replace_once('src/cloud/OnlineCloudProviderV2.tsx', old_select, new_select, 'provider select props')
+
+# Workspace: make the existing four destinations feel like a real bottom tab bar without changing navigation semantics.
+old_nav = """      <nav className=\"companion-mobile-nav\" aria-label=\"Mobile tournament navigation\">
+        {nav.map(item => {
+          const Icon = item.icon;
+          return <button key={item.id} type=\"button\" className={activeTab === item.id ? 'is-active' : ''} onClick={() => setActiveTab(item.id)}><Icon size={21} /><span>{item.label}</span></button>;
+        })}
+        <button type=\"button\" onClick={leaveTournament}><ArrowLeft size={21} /><span>Tournaments</span></button>
+      </nav>"""
+new_nav = """      <nav className=\"companion-mobile-nav companion-native-tabbar\" aria-label=\"Mobile tournament navigation\">
+        {nav.map(item => {
+          const Icon = item.icon;
+          const active = activeTab === item.id;
+          return <button key={item.id} type=\"button\" className={active ? 'is-active' : ''} aria-current={active ? 'page' : undefined} onClick={() => setActiveTab(item.id)}><span className=\"companion-mobile-nav-icon\"><Icon size={22} /></span><span>{item.label}</span></button>;
+        })}
+        <button type=\"button\" className=\"companion-mobile-home-action\" onClick={leaveTournament}><span className=\"companion-mobile-nav-icon\"><ArrowLeft size={22} /></span><span>Tournaments</span></button>
+      </nav>"""
+replace_once('src/companion/CompanionWorkspace.tsx', old_nav, new_nav, 'native mobile nav')
+
+replace_once(
+    'src/main.tsx',
+    "import './companion-conflict.css';",
+    "import './companion-conflict.css';\nimport './mobile-native.css';",
+    'native css import'
+)
+
+Path('src/mobile-native.css').write_text(r'''/* Mobile native refinement — visual-only overrides; tournament logic stays in existing components. */
+:root {
+  --cp-native-bg: #f3f6fa;
+  --cp-native-navy: #08182d;
+  --cp-native-blue: #1769e0;
+  --cp-native-border: rgba(15, 39, 68, .10);
+  --cp-native-ease: cubic-bezier(.2,.8,.2,1);
+}
+
+html { -webkit-tap-highlight-color: transparent; }
+button, a, input, select { touch-action: manipulation; }
+button { -webkit-user-select: none; user-select: none; }
+
+.companion-native-surface {
+  background: var(--cp-native-bg);
+  color: #10213a;
+}
+.companion-native-topbar {
+  border-bottom: 1px solid rgba(16, 41, 70, .08);
+  background: rgba(248, 250, 253, .86);
+  -webkit-backdrop-filter: saturate(180%) blur(18px);
+  backdrop-filter: saturate(180%) blur(18px);
+}
+.companion-hub-hero {
+  border: 1px solid rgba(23, 105, 224, .10);
+  background: linear-gradient(145deg, rgba(255,255,255,.98), rgba(240,247,255,.94));
+  box-shadow: 0 16px 42px rgba(8, 24, 45, .06);
+}
+.companion-list-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 18px 0 14px;
+}
+.companion-tournament-search {
+  min-height: 48px;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 13px;
+  border: 1px solid var(--cp-native-border);
+  border-radius: 15px;
+  background: rgba(255,255,255,.96);
+  box-shadow: 0 5px 18px rgba(8,24,45,.035);
+  transition: border-color .18s var(--cp-native-ease), box-shadow .18s var(--cp-native-ease);
+}
+.companion-tournament-search:focus-within {
+  border-color: rgba(23,105,224,.42);
+  box-shadow: 0 0 0 4px rgba(23,105,224,.08), 0 8px 22px rgba(8,24,45,.05);
+}
+.companion-tournament-search > svg { color: #6e7d91; flex: 0 0 auto; }
+.companion-tournament-search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  color: #10213a;
+}
+.companion-tournament-search input::placeholder { color: #8592a4; }
+.companion-tournament-search button,
+.companion-trash-toggle,
+.companion-tournament-delete,
+.companion-tournament-restore {
+  border: 0;
+  cursor: pointer;
+}
+.companion-tournament-search button {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  color: #758297;
+  background: transparent;
+}
+.companion-trash-toggle {
+  min-height: 48px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--cp-native-border);
+  border-radius: 15px;
+  background: #fff;
+  color: #42536a;
+  font-weight: 700;
+}
+.companion-trash-toggle small {
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 10px;
+  background: #edf3fc;
+  color: var(--cp-native-blue);
+  font-size: 10px;
+}
+.companion-native-tile {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) 52px;
+  overflow: hidden;
+  border: 1px solid rgba(15,39,68,.09);
+  border-radius: 17px;
+  background: rgba(255,255,255,.98);
+  box-shadow: 0 7px 22px rgba(8,24,45,.035);
+  transition: transform .18s var(--cp-native-ease), box-shadow .18s var(--cp-native-ease), border-color .18s var(--cp-native-ease);
+}
+.companion-native-tile:hover { border-color: rgba(23,105,224,.20); box-shadow: 0 12px 30px rgba(8,24,45,.07); }
+.companion-tournament-open {
+  min-width: 0;
+  min-height: 74px;
+  padding: 13px 8px 13px 14px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+}
+.companion-tournament-open:disabled { cursor: default; }
+.companion-tournament-delete,
+.companion-tournament-restore {
+  min-width: 48px;
+  min-height: 48px;
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  background: transparent;
+  color: #7c899a;
+  transition: background .16s var(--cp-native-ease), color .16s var(--cp-native-ease), transform .12s var(--cp-native-ease);
+}
+.companion-tournament-delete:hover { background: #fff2f1; color: #c93a33; }
+.companion-tournament-restore { padding: 0 12px; color: var(--cp-native-blue); font-weight: 750; }
+.companion-tournament-restore:hover { background: #eff6ff; }
+.companion-tournament-delete:active,
+.companion-tournament-restore:active,
+.companion-trash-toggle:active { transform: scale(.96); }
+.companion-tournament-restore span { display: none; }
+.companion-native-list .companion-tournament-grid { gap: 10px; }
+
+.companion-native-sheet-backdrop {
+  background: rgba(5, 17, 32, .34);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  animation: cp-native-fade .18s var(--cp-native-ease) both;
+}
+.companion-native-sheet {
+  border-radius: 22px;
+  box-shadow: 0 28px 70px rgba(5,17,32,.24);
+  animation: cp-native-sheet-in .24s var(--cp-native-ease) both;
+}
+.companion-sheet-grabber { display: none; }
+.companion-entry-eyebrow.danger { color: #bd3530; }
+.companion-delete-summary {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px;
+  margin: 5px 0 10px;
+  border-radius: 14px;
+  background: #f7f9fc;
+}
+.companion-delete-summary > span:last-child { min-width: 0; display: grid; gap: 3px; }
+.companion-delete-summary strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.companion-delete-summary small { color: #758297; }
+.companion-new-dialog-actions .destructive {
+  border-color: #d6473f;
+  background: #d6473f;
+  color: #fff;
+}
+.companion-undo-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  z-index: 120;
+  transform: translateX(-50%);
+  min-height: 50px;
+  width: min(430px, calc(100vw - 28px));
+  padding: 7px 8px 7px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 16px;
+  background: rgba(8,24,45,.94);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  color: #fff;
+  box-shadow: 0 18px 44px rgba(5,17,32,.26);
+  animation: cp-native-toast-in .24s var(--cp-native-ease) both;
+}
+.companion-undo-toast > span { min-width: 0; flex: 1; display: flex; align-items: center; gap: 8px; }
+.companion-undo-toast button { min-height: 38px; padding: 0 11px; border: 0; border-radius: 11px; background: transparent; color: #8fc0ff; font-weight: 800; }
+.companion-undo-toast button:last-child { width: 38px; padding: 0; color: #b9c4d2; }
+
+@keyframes cp-native-fade { from { opacity: 0 } to { opacity: 1 } }
+@keyframes cp-native-sheet-in { from { opacity: 0; transform: translateY(10px) scale(.985) } to { opacity: 1; transform: none } }
+@keyframes cp-native-toast-in { from { opacity: 0; transform: translate(-50%, 12px) } to { opacity: 1; transform: translate(-50%, 0) } }
+
+@media (max-width: 820px) {
+  body { overscroll-behavior-y: none; background: var(--cp-native-bg); }
+  .companion-native-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    min-height: calc(60px + env(safe-area-inset-top));
+    padding-top: env(safe-area-inset-top);
+  }
+  .companion-native-content {
+    width: 100%;
+    padding: 14px 13px calc(104px + env(safe-area-inset-bottom));
+  }
+  .companion-select-topbar .companion-entry-brand.compact span { display: block; }
+  .companion-select-actions { gap: 4px; }
+  .companion-icon-action {
+    min-width: 46px;
+    min-height: 46px;
+    border-radius: 14px;
+  }
+  .companion-icon-action span { display: none; }
+  .companion-hub-hero {
+    padding: 18px 16px;
+    border-radius: 19px;
+  }
+  .companion-hub-hero h1 { font-size: clamp(25px, 7vw, 34px); letter-spacing: -.035em; }
+  .companion-hub-hero p { font-size: 13.5px; line-height: 1.55; }
+  .companion-organizer-pill { margin-top: 12px; }
+  .companion-start-actions { grid-template-columns: 1fr; gap: 9px; }
+  .companion-start-action {
+    min-height: 68px;
+    padding: 12px 13px;
+    border-radius: 17px;
+  }
+  .companion-start-action strong { font-size: 14px; }
+  .companion-start-action small { font-size: 11.5px; line-height: 1.35; }
+  .companion-list-tools { position: sticky; top: calc(60px + env(safe-area-inset-top)); z-index: 35; margin: 12px -3px 12px; padding: 7px 3px; background: rgba(243,246,250,.90); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
+  .companion-tournament-search { min-height: 50px; border-radius: 16px; }
+  .companion-trash-toggle { min-width: 50px; min-height: 50px; padding: 0 13px; border-radius: 16px; }
+  .companion-trash-toggle span { display: none; }
+  .companion-tournament-grid { grid-template-columns: 1fr !important; }
+  .companion-native-tile { min-height: 76px; border-radius: 18px; }
+  .companion-tournament-open { min-height: 76px; }
+  .companion-tournament-tile-main strong { font-size: 13.5px; }
+  .companion-tournament-tile-main small { font-size: 11px; }
+  .companion-tournament-delete, .companion-tournament-restore { min-width: 52px; }
+  .companion-new-dialog { align-items: flex-end; padding: 0; }
+  .companion-native-sheet {
+    width: 100%;
+    max-width: none;
+    max-height: min(82dvh, 640px);
+    padding: 8px 16px calc(16px + env(safe-area-inset-bottom));
+    border-radius: 24px 24px 0 0;
+  }
+  .companion-sheet-grabber { display: block; width: 38px; height: 5px; margin: 1px auto 11px; border-radius: 5px; background: #d8dee7; }
+  .companion-new-dialog-actions button { min-height: 48px; border-radius: 14px; }
+  .companion-undo-toast { bottom: calc(88px + env(safe-area-inset-bottom)); }
+
+  .companion-shell { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
+  .companion-mobile-nav.companion-native-tabbar {
+    position: fixed;
+    left: 9px;
+    right: 9px;
+    bottom: calc(8px + env(safe-area-inset-bottom));
+    z-index: 90;
+    width: auto;
+    height: 68px;
+    padding: 6px;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0,1fr));
+    gap: 3px;
+    border: 1px solid rgba(15,39,68,.10);
+    border-radius: 22px;
+    background: rgba(250,252,255,.91);
+    -webkit-backdrop-filter: saturate(190%) blur(22px);
+    backdrop-filter: saturate(190%) blur(22px);
+    box-shadow: 0 12px 34px rgba(5,17,32,.16), 0 1px 0 rgba(255,255,255,.78) inset;
+  }
+  .companion-mobile-nav.companion-native-tabbar button {
+    min-width: 0;
+    min-height: 56px;
+    padding: 5px 2px 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    border: 0;
+    border-radius: 16px;
+    background: transparent;
+    color: #77869a;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: -.01em;
+    transition: color .15s var(--cp-native-ease), background .15s var(--cp-native-ease), transform .1s var(--cp-native-ease);
+  }
+  .companion-mobile-nav.companion-native-tabbar button:active { transform: scale(.94); }
+  .companion-mobile-nav.companion-native-tabbar button.is-active { background: rgba(23,105,224,.095); color: var(--cp-native-blue); }
+  .companion-mobile-nav-icon { height: 28px; min-width: 34px; display: grid; place-items: center; border-radius: 12px; }
+  .companion-mobile-nav button.is-active .companion-mobile-nav-icon { transform: translateY(-1px); }
+  .companion-mobile-home-action { color: #53647b !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+}
+''', encoding='utf-8')
+
+Path('tests/ui/mobile-native-experience.test.mjs').write_text(r'''import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+
+const read = path => readFileSync(path, 'utf8');
+const screen = read('src/companion/CompanionCloudScreens.tsx');
+const provider = read('src/cloud/OnlineCloudProviderV2.tsx');
+const api = read('src/cloud/cloudWorkspaceApi.ts');
+const workspace = read('src/companion/CompanionWorkspace.tsx');
+const css = read('src/mobile-native.css');
+const main = read('src/main.tsx');
+
+assert.ok(screen.includes('Search tournaments'), 'Tournament search is missing.');
+assert.ok(screen.includes('Move to Trash'), 'Safe Trash confirmation is missing.');
+assert.ok(screen.includes('Recently removed'), 'Trash recovery view is missing.');
+assert.ok(screen.includes('Undo'), 'Reversible delete feedback is missing.');
+assert.ok(!screen.includes('THIS BROWSER'), 'Obsolete This Browser continuation card must not be visible.');
+assert.ok(!screen.includes('companion-local-continuation'), 'Obsolete local continuation card must be removed from My Tournaments.');
+
+assert.ok(api.includes("listArchivedTournaments"), 'Archived tournament API client is missing.');
+assert.ok(api.includes("method: 'DELETE'"), 'Archive request must use the protected DELETE route.');
+assert.ok(api.includes("'X-Expected-Revision'"), 'Safe archive must carry expected revision.');
+assert.ok(api.includes('restoreArchivedTournament'), 'Restore API client is missing.');
+assert.ok(provider.includes('archivePrivateCloudTournament'), 'Provider archive orchestration is missing.');
+assert.ok(provider.includes('restorePrivateCloudTournament'), 'Provider restore orchestration is missing.');
+assert.ok(provider.includes('private revisions preserved'), 'Safe-delete preservation contract is missing.');
+
+assert.ok(workspace.includes('companion-native-tabbar'), 'Native mobile tab bar marker is missing.');
+assert.ok(workspace.includes("aria-current={active ? 'page' : undefined}"), 'Active mobile tab semantics are missing.');
+assert.ok(css.includes('grid-template-columns: repeat(4'), 'Four-destination mobile tab bar layout is missing.');
+assert.ok(css.includes('min-height: 56px'), 'Thumb-friendly tab targets are missing.');
+assert.ok(css.includes('env(safe-area-inset-bottom)'), 'iOS safe-area handling is missing.');
+assert.ok(css.includes('prefers-reduced-motion'), 'Reduced-motion accessibility is missing.');
+assert.ok(css.includes('backdrop-filter'), 'Native material surface treatment is missing.');
+assert.ok(main.includes("import './mobile-native.css';"), 'Native mobile refinement stylesheet is not loaded.');
+
+console.log('Mobile native experience contract: search + reversible Trash + HUB-like iOS tab bar PASS');
+''', encoding='utf-8')
+
+print('Applied native mobile UX refinement without touching tournament engines or publication cores.')
