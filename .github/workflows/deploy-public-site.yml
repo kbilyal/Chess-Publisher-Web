@@ -157,7 +157,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --name white-meadow-8069 --assets ./site
+          command: deploy --name white-meadow-8069 --assets ./site --compatibility-date 2026-09-08
 
       - name: Verify production v42
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cf.outputs.configured == 'true'
