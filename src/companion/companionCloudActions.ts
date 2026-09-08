@@ -255,14 +255,15 @@ async function publishOnlineWithRecovery(cloud: any, tournament: Tournament) {
   await cloud.publishOnline(current);
 
   // OnlineCloudProviderV2 intentionally converts transport/validation failures
-  // into UI status instead of rethrowing them. The Companion must therefore
-  // prove that a new public revision was actually persisted before reporting
-  // success to the user. A rejected publish leaves both fields unchanged.
+  // into UI status instead of rethrowing them. The Companion therefore requires
+  // a fresh local acknowledgement timestamp written only after a successful Hub
+  // response. The Hub may legitimately return `unchanged` without incrementing
+  // the public revision, so equality is valid; the revision must never go back.
   const published: any = readLocalTournament() || current;
   const publishedRevision = Number(published?.online?.revision || 0);
   const publishedAt = text(published?.online?.lastPublishedAt);
-  if (!publishedAt || publishedAt === previousPublishedAt || publishedRevision <= previousRevision) {
-    throw new Error('Online Hub publish was not confirmed. No new public revision was recorded; synchronize and publish again.');
+  if (!publishedAt || publishedAt === previousPublishedAt || publishedRevision < previousRevision) {
+    throw new Error('Online Hub publish was not confirmed. The Hub did not acknowledge the publication; synchronize and publish again.');
   }
   return published;
 }
