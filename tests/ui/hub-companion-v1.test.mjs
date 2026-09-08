@@ -51,8 +51,8 @@ has(workspace, 'Safe conflict resolution completed where fields did not overlap.
 has(cloudActions, 'mergeCompanionTournamentChanges', 'Companion-safe three-way merge helper is missing.');
 has(cloudActions, 'cloudApi.getRevisionSnapshot', 'Smart merge must reconstruct the exact common base revision.');
 has(cloudActions, 'cloudApi.getSnapshot', 'Smart merge must read the latest remote tournament before merging.');
-has(cloudActions, 'cloudApi.putSnapshot', 'A proven conflict-free merge must still use the optimistic revision gate.');
-has(cloudActions, 'return cloud.pullChanges(updated)', 'Existing provider must remain authoritative for clearing conflict state after a smart merge.');
+lacks(cloudActions, 'cloudApi.putSnapshot', 'Resolve Conflict must never auto-Push a merged tournament; Push remains an explicit user action.');
+has(cloudActions, 'return cloud.pullChanges(hydrated)', 'Existing provider must refresh conflict state after a local-only safe merge without uploading it.');
 has(cloudActions, 'return cloud.pullChanges(tournament)', 'Unproven merges must fail closed through the existing three-way workflow.');
 has(cloudActions, 'hubApi.listOrganizerTournaments', 'Open public Hub page must recover an existing organizer-owned Hub link.');
 has(cloudActions, 'text(item.localKey) === internalId', 'Hub page recovery must use the shared Desktop/Web tournament identity.');

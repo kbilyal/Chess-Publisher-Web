@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   buildPrivateSnapshot,
   extractPrivateTournament,
@@ -108,3 +109,21 @@ console.log('DESKTOP_WEB_FULL_SNAPSHOT_PARITY=PASS');
 console.log('ROSTER_83_PARITY=PASS');
 console.log('TOURNAMENT_IDENTITY_RENAME_SAFE=PASS');
 console.log('INSTALLATION_LOCAL_FIELDS_PRESERVED=PASS');
+
+const providerSource = readFileSync('src/cloud/OnlineCloudProviderV2.tsx', 'utf8');
+const desktopTabSource = readFileSync('src/cloud/OnlineCloudTabV2.tsx', 'utf8');
+const companionActionsSource = readFileSync('src/companion/companionCloudActions.ts', 'utf8');
+const pullBody = providerSource.split('async function pullChanges(tournamentInput: Tournament) {', 2)[1]?.split('async function syncNow(tournamentInput: Tournament) {', 1)[0] || '';
+assert.ok(pullBody.includes('Pull Cloud → Desktop found no remote snapshot; no upload occurred.'), 'Pull must fail directionally when Cloud has no snapshot.');
+assert.ok(pullBody.includes('Pull Cloud → Desktop detected local-only changes and did not upload them.'), 'Pull must leave Desktop-only edits local.');
+assert.equal(pullBody.includes('cloudApi.putSnapshot('), false, 'Pull Cloud → Desktop must never upload a snapshot.');
+assert.ok(desktopTabSource.includes('Pull Cloud → Desktop'));
+assert.ok(desktopTabSource.includes('Push Desktop → Cloud'));
+assert.ok(desktopTabSource.includes('Check Cloud Status'));
+assert.ok(desktopTabSource.includes('Resolve Conflict'));
+assert.ok(desktopTabSource.includes('Open in Web'));
+assert.ok(companionActionsSource.includes('export async function checkCloudStatusOnly'), 'Cloud status check must be read-only and reusable by Desktop/Web.');
+const resolveBody = companionActionsSource.split('async function smartPullChanges(cloud: any, tournament: Tournament) {', 2)[1]?.split('async function syncNowConfirmed(cloud: any, tournament: Tournament) {', 1)[0] || '';
+assert.equal(resolveBody.includes('cloudApi.putSnapshot('), false, 'Resolve Conflict must save a safe merge locally and require an explicit Push afterwards.');
+assert.ok(resolveBody.includes('Resolve Conflict is intentionally local-only.'));
+console.log('DESKTOP_DIRECTIONAL_CONTROL_PANEL=PASS');

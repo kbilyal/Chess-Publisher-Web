@@ -187,6 +187,66 @@ async function pullChangesOnly(cloud: any, tournament: Tournament) {
   return { kind: 'conflict', revision };
 }
 
+export type DirectionalCloudStatus = {
+  kind: 'in-sync' | 'local-changes' | 'remote-changes' | 'conflict' | 'unlinked' | 'no-cloud-snapshot';
+  revision: number;
+  message: string;
+};
+
+export async function checkCloudStatusOnly(cloud: any, tournament: Tournament): Promise<DirectionalCloudStatus> {
+  const local: any = readLocalTournament() || tournament;
+  const token = text(cloud?.token);
+  const remoteId = text(local?.cloud?.cloudTournamentId || cloud?.activeCloud?.id);
+  if (!token || !remoteId) {
+    return { kind: 'unlinked', revision: 0, message: 'This tournament is not linked to a private Cloud record.' };
+  }
+
+  const remoteResult = await cloudApi.getSnapshot(token, remoteId);
+  const revision = Number(remoteResult?.tournament?.revision || cloud?.activeCloud?.revision || 0);
+  if (!remoteResult?.snapshot) {
+    return { kind: 'no-cloud-snapshot', revision, message: 'Cloud has no tournament snapshot yet. Use Push Desktop → Cloud.' };
+  }
+
+  const remote = extractPrivateTournament(
+    remoteResult.snapshot,
+    remoteResult?.tournament?.name || tournamentName(local)
+  ).tournament;
+  const [localFingerprint, remoteFingerprint] = await Promise.all([
+    fingerprintTournament(local),
+    fingerprintTournament(remote)
+  ]);
+  if (localFingerprint === remoteFingerprint) {
+    return { kind: 'in-sync', revision, message: `Desktop and Cloud match at r${revision}.` };
+  }
+
+  let baseFingerprint = text(local?.cloud?.baseFingerprint);
+  const baseRevision = Number(local?.cloud?.baseRevision || 0);
+  if (!baseFingerprint && baseRevision > 0) {
+    try {
+      const baseResult = await cloudApi.getRevisionSnapshot(token, remoteId, baseRevision);
+      const base = extractPrivateTournament(baseResult?.snapshot, tournamentName(local)).tournament;
+      baseFingerprint = await fingerprintTournament(base);
+    } catch {
+      baseFingerprint = '';
+    }
+  }
+  if (!baseFingerprint) {
+    return { kind: 'conflict', revision, message: 'Common base cannot be confirmed. Nothing was overwritten.' };
+  }
+
+  const decision = classifyThreeWay(localFingerprint, baseFingerprint, remoteFingerprint);
+  if (decision === 'local-only') {
+    return { kind: 'local-changes', revision, message: 'Desktop has changes that are not in Cloud.' };
+  }
+  if (decision === 'cloud-only') {
+    return { kind: 'remote-changes', revision, message: 'Cloud has newer changes. Pull Cloud → Desktop before pushing.' };
+  }
+  if (decision === 'equal') {
+    return { kind: 'in-sync', revision, message: `Desktop and Cloud match at r${revision}.` };
+  }
+  return { kind: 'conflict', revision, message: 'Desktop and Cloud both changed. Nothing was overwritten.' };
+}
+
 async function smartPullChanges(cloud: any, tournament: Tournament) {
   if (!cloud?.conflict) return cloud.pullChanges(tournament);
 
@@ -215,21 +275,12 @@ async function smartPullChanges(cloud: any, tournament: Tournament) {
       baseRevision: currentRevision,
       baseFingerprint: currentFingerprint
     });
-    const mergedFingerprint = await fingerprintTournament(hydrated);
-    const saved = await cloudApi.putSnapshot(
-      token,
-      remote.id,
-      currentRevision,
-      buildPrivateSnapshot(tournamentName(hydrated), hydrated),
-      browserDevice()
-    );
-    const revision = Number(saved?.revision || currentRevision + 1);
-    const updated = withUpdatedBase(hydrated, remote.id, revision, mergedFingerprint);
-    localStorage.setItem(TOURNAMENT_STORAGE_KEY, JSON.stringify(updated));
+    localStorage.setItem(TOURNAMENT_STORAGE_KEY, JSON.stringify(hydrated));
 
-    // Re-enter the existing provider's Pull Changes path so it remains the
-    // authority that clears conflict state and refreshes its React metadata.
-    return cloud.pullChanges(updated);
+    // Resolve Conflict is intentionally local-only. Re-enter Pull only to refresh
+    // provider state against the confirmed current base. The provider's local-only
+    // branch is prohibited from uploading, so the user explicitly chooses Push next.
+    return cloud.pullChanges(hydrated);
   } catch {
     // If the merge cannot be proven safe (including a concurrent new revision),
     // fall back to the existing fail-closed three-way workflow. No overwrite.
@@ -430,6 +481,7 @@ export function createCompanionCloudFacade(cloud: any) {
     syncNow: (tournament: Tournament) => syncNowConfirmed(cloud, tournament),
     pullChanges: (tournament: Tournament) => pullChangesOnly(cloud, tournament),
     resolveConflict: (tournament: Tournament) => smartPullChanges(cloud, tournament),
+    checkStatus: (tournament: Tournament) => checkCloudStatusOnly(cloud, tournament),
     publishOnline: (tournament: Tournament) => publishOnlineWithRecovery(cloud, tournament),
     openPublicPage: (tournament: Tournament) => openPublicHubPage(cloud, tournament),
     uploadRegulations: (tournament: Tournament, file: File) => uploadRegulationsAndRepublish(cloud, tournament, file)
