@@ -1,0 +1,47 @@
+name: Apply Desktop Directional Sync Trigger
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - docs/deploy-markers/desktop-directional-sync-trigger.md
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply repair
+        run: python scripts/apply-desktop-directional-sync-contract.py
+      - name: Validate
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run lint
+          node tests/ui/hub-companion-v1.test.mjs
+          npm run test:online-cloud
+          npm run test:online-cloud-beta5
+          npm run test:cloud-roundtrip
+          npm run test:desktop-beta34-web-parity
+          npm run test:chess-results-companion
+          npm run test:chess-results
+          npm run test:trf
+      - name: Commit
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/ui/hub-companion-v1.test.mjs src/cloud/tests/runOnlineCloudBeta5BrowserTests.ts src/cloud/onlineCloudSync.ts src/cloud/OnlineCloudProviderV2.tsx src/cloud/OnlineCloudTabV2.tsx docs/DESKTOP-CLOUD-SYNC-CONTRACT.md
+          git diff --cached --quiet && exit 0
+          git commit -m "Enforce explicit Desktop Cloud Pull Push contract"
+          git push origin HEAD:main
