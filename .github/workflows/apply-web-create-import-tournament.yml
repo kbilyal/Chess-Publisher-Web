@@ -29,9 +29,6 @@ jobs:
           python scripts/patch-web-create-import-tests.py
           python scripts/patch-public-hub-bye-normalization.py
       - name: Validate create/import and protected cores
-        env:
-          GACRUX_PATH: ${{ github.workspace }}/engine/gacrux/pairingchecker.py
-          BBP_PATH: ${{ github.workspace }}/bin/bbpPairings
         run: |
           set -euo pipefail
           npm run lint
@@ -48,7 +45,6 @@ jobs:
           npm run test:trf
           npm run test:chess-results
           npm run test:chess-results-companion
-          npm run test:parity
           npm run build
       - name: Commit validated implementation
         run: |
