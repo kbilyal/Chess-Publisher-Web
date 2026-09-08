@@ -1,0 +1,138 @@
+from pathlib import Path
+
+workspace = Path('src/companion/CompanionWorkspace.tsx')
+s = workspace.read_text()
+anchor = """  const openChessResultsAdmin = async () => {
+    if (!isTnr(tnr)) return;
+    setBusy('cr-admin');
+    try {
+      const result = await chessResultsApi.adminLink({ key: tnr, section: 'admin' });
+      if (!result?.url) throw new Error('Authenticated Chess-Results admin URL was not returned.');
+      window.open(result.url, '_blank', 'noopener,noreferrer');
+    } catch (error: any) {
+      setNotice('error', error?.message || 'Could not open Chess-Results admin.');
+    } finally {
+      setBusy(null);
+    }
+  };
+"""
+addition = anchor + """
+  const openChessResultsUpload = async () => {
+    if (!isTnr(tnr)) return;
+    setBusy('cr-admin');
+    try {
+      const result = await chessResultsApi.adminLink({ key: tnr, section: 'upload' });
+      if (!result?.url) throw new Error('Authenticated Chess-Results Upload Data URL was not returned.');
+      window.open(result.url, '_blank', 'noopener,noreferrer');
+    } catch (error: any) {
+      setNotice('error', error?.message || 'Could not open Chess-Results Upload Data.');
+    } finally {
+      setBusy(null);
+    }
+  };
+"""
+if 'const openChessResultsUpload = async () =>' not in s:
+    if anchor not in s:
+        raise SystemExit('Companion admin function anchor not found')
+    s = s.replace(anchor, addition, 1)
+
+old_button = """                    <button type=\"button\" className=\"companion-button secondary\" onClick={openChessResultsAdmin} disabled={busy !== null}><Globe2 size={16} /> Admin</button>
+"""
+new_buttons = old_button + """                    <button type=\"button\" data-chess-results-upload-data className=\"companion-button secondary\" onClick={openChessResultsUpload} disabled={busy !== null}><ExternalLink size={16} /> Upload data</button>
+"""
+if 'data-chess-results-upload-data' not in s:
+    if old_button not in s:
+        raise SystemExit('Companion Admin button anchor not found')
+    s = s.replace(old_button, new_buttons, 1)
+workspace.write_text(s)
+
+worker = Path('workers/chess-results/worker.js')
+w = worker.read_text()
+upload_block = """    url.searchParams.set('source', String(SOURCE_ID));
+    url.searchParams.set('lan', '1');
+    url.searchParams.set('time', chessResultsTimestamp());
+"""
+upload_block_new = """    url.searchParams.set('source', String(SOURCE_ID));
+    url.searchParams.set('lan', '0');
+    url.searchParams.set('time', chessResultsTimestamp());
+"""
+if upload_block in w:
+    w = w.replace(upload_block, upload_block_new, 1)
+elif "url.searchParams.set('lan', '0');" not in w:
+    raise SystemExit('Worker UploadData URL block not found')
+worker.write_text(w)
+
+worker_test = Path('workers/chess-results/worker.test.mjs')
+t = worker_test.read_text()
+admin_anchor = """  assert.match(admin.url, /tnr_sec=/);
+
+  response = await worker.fetch(request('delete-authorize', { key: created.key, ownershipProof: created.ownershipProof }), env);
+"""
+admin_insert = """  assert.match(admin.url, /tnr_sec=/);
+
+  response = await worker.fetch(request('admin-link', { key: created.key, ownershipProof: created.ownershipProof, section: 'upload' }), env);
+  const uploadData = await response.json();
+  assert.equal(uploadData.ok, true);
+  assert.equal(uploadData.section, 'upload');
+  const uploadUrl = new URL(uploadData.url);
+  assert.equal(uploadUrl.pathname, '/UploadData.aspx');
+  assert.equal(uploadUrl.searchParams.get('tnr'), '7654321');
+  assert.equal(uploadUrl.searchParams.get('source'), '21');
+  assert.equal(uploadUrl.searchParams.get('lan'), '0');
+  assert.match(uploadUrl.searchParams.get('sid') || '', /^[0-9A-F]+$/);
+  assert.match(uploadUrl.searchParams.get('sid1') || '', /^[0-9A-F]+$/);
+  assert.notEqual(uploadUrl.searchParams.get('sid'), '7654321', 'sid must contain encrypted database key/TNR, never the plaintext TNR.');
+  assert.notEqual(uploadUrl.searchParams.get('sid1'), '4242', 'sid1 must contain encrypted creatorId, never the plaintext creatorId.');
+  assert.match(uploadUrl.searchParams.get('time') || '', /^\\d{14}$/);
+
+  response = await worker.fetch(request('delete-authorize', { key: created.key, ownershipProof: created.ownershipProof }), env);
+"""
+if "const uploadData = await response.json();" not in t:
+    if admin_anchor not in t:
+        raise SystemExit('Worker admin-link test anchor not found')
+    t = t.replace(admin_anchor, admin_insert, 1)
+worker_test.write_text(t)
+
+companion_test = Path('src/cloud/tests/runCompanionChessResultsTransportTests.ts')
+c = companion_test.read_text()
+api_anchor = """assert.equal(calls[0].body.ownershipProof, 'auto-continuity-1492376');
+
+calls.length = 0;
+const created = await chessResultsApi.create({ tournament: 'Test tournament', federation: 'BUL', mode: 'test', clientId: 'new-client' });
+"""
+api_insert = """assert.equal(calls[0].body.ownershipProof, 'auto-continuity-1492376');
+
+calls.length = 0;
+await chessResultsApi.adminLink({ key: '1492376', section: 'upload' });
+assert.equal(calls.length, 1, 'Upload Data must reuse the recovered TNR continuity without another ownership round-trip.');
+assert.equal(calls[0].url, `${REMOTE_CHESS_RESULTS_API_PREFIX}admin-link`);
+assert.equal(calls[0].body.key, '1492376');
+assert.equal(calls[0].body.section, 'upload');
+assert.equal(calls[0].body.ownershipProof, 'auto-continuity-1492376');
+
+calls.length = 0;
+const created = await chessResultsApi.create({ tournament: 'Test tournament', federation: 'BUL', mode: 'test', clientId: 'new-client' });
+"""
+if "Upload Data must reuse the recovered TNR continuity" not in c:
+    if api_anchor not in c:
+        raise SystemExit('Companion API test anchor not found')
+    c = c.replace(api_anchor, api_insert, 1)
+
+source_anchor = """const workspaceSource = readFileSync(resolve(process.cwd(), 'src/companion/CompanionWorkspace.tsx'), 'utf8');
+"""
+source_insert = source_anchor + """assert.match(
+  workspaceSource,
+  /const openChessResultsUpload = async \(\) => \{[\\s\\S]*section: 'upload'[\\s\\S]*window\\.open\(result\\.url/,
+  'Web Companion Upload Data must request a server-generated authenticated UploadData.aspx URL.'
+);
+assert.match(
+  workspaceSource,
+  /data-chess-results-upload-data[\\s\\S]*onClick=\{openChessResultsUpload\}[\\s\\S]*Upload data/,
+  'Chess-Results status card must expose the Upload Data button when a TNR exists.'
+);
+"""
+if "Web Companion Upload Data must request" not in c:
+    if source_anchor not in c:
+        raise SystemExit('Companion workspace source test anchor not found')
+    c = c.replace(source_anchor, source_insert, 1)
+companion_test.write_text(c)
