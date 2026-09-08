@@ -1,0 +1,52 @@
+name: Apply Conflict and Federation Fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-conflict-federation-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Apply repair
+        run: python scripts/apply-conflict-federation-fix.py
+      - name: Validate conflict, federation and protected publication paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run lint
+          npm run test:cloud-roundtrip
+          npm run test:online-cloud
+          npm run test:online-cloud-beta5
+          npm run test:chess-results-companion
+          npm run test:chess-results
+          npm run test:trf
+          node tests/ui/hub-companion-v1.test.mjs
+          node tests/ui/companion-cloud-screens.test.mjs
+          npm run build
+      - name: Commit validated implementation and remove one-time repair files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/apply-conflict-federation-fix.yml scripts/apply-conflict-federation-fix.py
+          git add src/data/initialData.ts src/companion/CompanionSetup.tsx src/companion/CompanionWorkspace.tsx src/companion/companionCloudActions.ts src/cloud/tests/runCompanionConflictMergeTests.ts src/cloud/tests/runCompanionSyncContractTests.ts
+          git commit -m "Fix resolvable sync conflicts and complete FIDE federations"
+          git push origin HEAD:main
