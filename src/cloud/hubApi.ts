@@ -59,17 +59,43 @@ async function request(path: string, options: {
   return data;
 }
 
+async function publishOwnedTournament(token: string, id: string, expectedRevision: number, snapshot: any) {
+  const headers = { 'X-Expected-Revision': String(expectedRevision) };
+  try {
+    return await request(`/api/v1/organizer/tournaments/${enc(id)}/snapshot`, {
+      method: 'PUT',
+      token,
+      headers,
+      body: snapshot
+    });
+  } catch (error: any) {
+    if (!(error instanceof HubApiError) || error.status !== 404) throw error;
+
+    // Compatibility with the currently deployed Hub API. Older deployments
+    // expose the managed snapshot route without the /organizer prefix. Keep the
+    // same tournament ID and revision and forward the Organizer Token as both
+    // authenticated bearer identity and explicit organizer ownership header.
+    // This fallback never creates or relinks a tournament, so it cannot create
+    // a duplicate public slug. If the legacy backend still requires a separate
+    // per-tournament manage token it will fail closed with 401/403.
+    return request(`/api/v1/tournaments/${enc(id)}/snapshot`, {
+      method: 'PUT',
+      token,
+      headers: {
+        ...headers,
+        'X-Organizer-Token': token
+      },
+      body: snapshot
+    });
+  }
+}
+
 export const hubApi = {
   health: () => request('/api/v1/health'),
   organizerMe: (token: string) => request('/api/v1/organizer/me', { token }),
   listOrganizerTournaments: (token: string) => request('/api/v1/organizer/tournaments', { token }),
   createOrganizerTournament: (token: string, input: any) => request('/api/v1/organizer/tournaments', { method: 'POST', token, body: input }),
-  publishOwnedTournament: (token: string, id: string, expectedRevision: number, snapshot: any) => request(`/api/v1/organizer/tournaments/${enc(id)}/snapshot`, {
-    method: 'PUT',
-    token,
-    headers: { 'X-Expected-Revision': String(expectedRevision) },
-    body: snapshot
-  }),
+  publishOwnedTournament,
   uploadOwnedRegulations: (token: string, id: string, file: File) => request(`/api/v1/organizer/tournaments/${enc(id)}/regulations-file`, {
     method: 'POST',
     token,
