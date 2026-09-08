@@ -418,19 +418,13 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
         const cloud = await getCloudState(remote);
 
         if (cloud.revision === 0 || !cloud.tournament) {
-          const saved = await cloudApi.putSnapshot(tokenRef.current, remote.id, 0, buildPrivateSnapshot(tournamentName(seeded), seeded), browserDevice());
-          const revision = Number(saved?.revision || 1);
-          const updated = withBrowserBase(seeded, remote.id, revision, localFingerprint);
-          commitLocal(updated, true);
-          setActiveCloud({ ...remote, revision });
-          activeRef.current = { ...remote, revision };
           setConflict(false);
           conflictRef.current = false;
           setRemoteChangesAvailable(false);
-          setCloudDirty(false);
-          setLastSyncAt(updated.cloud?.lastSyncAt || '');
-          setStatus(`Local changes pushed · r${revision}`);
-          setStatusKind('ok');
+          setCloudDirty(true);
+          setStatus('Cloud has no snapshot yet. Pull did not upload Desktop data — use Push Desktop → Cloud.');
+          setStatusKind('warn');
+          log('Pull Cloud → Desktop found no remote snapshot; no upload occurred.');
           return;
         }
 
@@ -474,20 +468,13 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
         }
 
         if (decision === 'local-only') {
-          const saved = await cloudApi.putSnapshot(tokenRef.current, remote.id, cloud.revision, buildPrivateSnapshot(tournamentName(seeded), seeded), browserDevice());
-          const revision = Number(saved?.revision || cloud.revision + 1);
-          const updated = withBrowserBase(seeded, remote.id, revision, localFingerprint);
-          commitLocal(updated, true);
-          setActiveCloud({ ...remote, ...cloud.meta, revision });
-          activeRef.current = { ...remote, ...cloud.meta, revision };
           setConflict(false);
           conflictRef.current = false;
           setRemoteChangesAvailable(false);
-          setCloudDirty(false);
-          setLastSyncAt(updated.cloud?.lastSyncAt || '');
-          setStatus(`Local changes pushed · r${revision}`);
-          setStatusKind('ok');
-          log(`Pull Changes pushed local-only changes as r${revision}.`);
+          setCloudDirty(true);
+          setStatus(`Desktop has local changes not in Cloud · r${cloud.revision} — use Push Desktop → Cloud`);
+          setStatusKind('warn');
+          log('Pull Cloud → Desktop detected local-only changes and did not upload them.');
           return;
         }
 

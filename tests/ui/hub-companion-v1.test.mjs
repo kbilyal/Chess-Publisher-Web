@@ -39,12 +39,14 @@ has(workspace, 'publishChessResults', 'Chess-Results publication must remain ava
 has(workspace, 'cloud.publishOnline', 'Online Hub publication must remain available.');
 has(workspace, 'cloud.syncNow', 'Web edits must synchronize through the private Cloud Workspace.');
 has(workspace, 'cloud.pullChanges', 'Desktop changes must be pullable into Web.');
-has(workspace, "window.addEventListener('focus'", 'Returning to the browser must trigger a desktop/cloud revision check.');
+lacks(workspace, "window.addEventListener('focus'", 'Returning to the browser must not silently Pull Cloud data over the open tournament.');
+has(workspace, 'Pull Cloud → Web', 'Web must expose an explicit Cloud-to-Web Pull action.');
+has(workspace, 'Push Web → Cloud', 'Web must expose an explicit Web-to-Cloud Push action.');
 has(workspace, 'companion-mobile-nav', 'Mobile must use a dedicated app navigation surface.');
 has(workspace, '>Tournaments</span>', 'Mobile must provide a direct return to synchronized tournament list.');
 has(workspace, 'companion-conflict-action', 'A sync conflict must expose an actionable phone-friendly resolver.');
-has(workspace, 'Resolve safely', 'Conflict action wording must explain the safe merge behavior.');
-has(workspace, 'Non-overlapping changes were merged safely when possible.', 'Conflict resolution result must be explained to the user.');
+has(workspace, 'Resolve conflict', 'Conflict resolution must be an explicit separate action.');
+has(workspace, 'Safe conflict resolution completed where fields did not overlap.', 'Conflict resolution result must be explained to the user.');
 
 has(cloudActions, 'mergeCompanionTournamentChanges', 'Companion-safe three-way merge helper is missing.');
 has(cloudActions, 'cloudApi.getRevisionSnapshot', 'Smart merge must reconstruct the exact common base revision.');
@@ -143,7 +145,7 @@ has(setupCss, '@media (max-width: 640px)', 'Setup must have a dedicated phone la
 has(setupCss, 'grid-template-columns: 1fr', 'Setup fields must collapse to one column on phones.');
 has(setupCss, 'font-size: 16px', 'Mobile setup inputs must avoid browser zoom and remain finger-friendly.');
 
-has(sync, 'Desktop beta.4 contract', 'Shared Desktop/Web tournament identity contract must remain present.');
+has(sync, 'PORTABLE_FINGERPRINT_SCHEMA = 6', 'Shared Desktop/Web directional tournament fingerprint contract must remain present.');
 has(sync, "export type ThreeWayDecision = 'equal' | 'cloud-only' | 'local-only' | 'conflict'", 'Three-way sync conflict protection must remain authoritative.');
 has(sync, 'buildPrivateSnapshot', 'Full private tournament snapshot must remain the synchronization payload.');
 has(sync, 'delete next.dgt', 'DGT remains device-local and excluded from private Web sync.');

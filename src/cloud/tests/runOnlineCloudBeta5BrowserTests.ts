@@ -80,7 +80,7 @@ function testPrivateSnapshotSanitization() {
   const serialized = JSON.stringify(snapshot);
   const portable: any = snapshot.data.tournaments[source.name];
 
-  assert.equal(snapshot.cloudWorkspace.clientVersion, 'chess-publisher-web-online-cloud-beta5');
+  assert.equal(snapshot.cloudWorkspace.clientVersion, 'chess-publisher-web-online-cloud-directional-v1');
   assert.equal(portable.cloud.internalId, 'tournament:ABC');
   assert.equal(portable.cloud.localKey, undefined);
   assert.equal(portable.cloud.baseRevision, undefined);

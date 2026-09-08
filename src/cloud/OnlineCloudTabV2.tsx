@@ -49,7 +49,7 @@ export function OnlineCloudTab({ tournament }: { tournament: Tournament }) {
               )}
             </div>
             <p className="text-xs text-slate-500 mt-1 max-w-3xl">
-              Local save is immediate. Automatic Cloud Sync is always ON and push-safe. Remote changes are never pulled silently; use Pull Changes at any moment.
+              Local save is immediate. Cloud background sync is push-only. Manual directions are explicit: Pull Cloud → Desktop never uploads; Push Desktop → Cloud never downloads a newer Cloud revision.
             </p>
           </div>
           <div className="text-right text-[11px] font-mono text-slate-500">
@@ -64,16 +64,16 @@ export function OnlineCloudTab({ tournament }: { tournament: Tournament }) {
             onClick={() => void cloud.pullChanges(tournament)}
             className="min-h-20 rounded-xl border border-blue-300 bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 text-left shadow-sm transition"
           >
-            <div className="flex items-center gap-2 font-bold"><CloudDownload className="w-5 h-5" /> Pull Changes</div>
-            <div className="text-[11px] text-blue-100 mt-1">Always available. Saves local first, then safely reconciles local ↔ common base ↔ cloud.</div>
+            <div className="flex items-center gap-2 font-bold"><CloudDownload className="w-5 h-5" /> Pull Cloud → Desktop</div>
+            <div className="text-[11px] text-blue-100 mt-1">Downloads the current Cloud revision only. It never uploads Desktop edits.</div>
           </button>
 
           <button
             onClick={() => void cloud.syncNow(tournament)}
             className="min-h-20 rounded-xl border border-emerald-300 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-3 text-left shadow-sm transition"
           >
-            <div className="flex items-center gap-2 font-bold"><CloudUpload className="w-5 h-5" /> Sync Now</div>
-            <div className="text-[11px] text-emerald-100 mt-1">Attempts safe local → Cloud sync now. Never pulls remote changes over the open tournament.</div>
+            <div className="flex items-center gap-2 font-bold"><CloudUpload className="w-5 h-5" /> Push Desktop → Cloud</div>
+            <div className="text-[11px] text-emerald-100 mt-1">Uploads Desktop changes only after the revision guard passes. It never pulls newer Cloud data.</div>
           </button>
 
           <button
@@ -148,7 +148,7 @@ export function OnlineCloudTab({ tournament }: { tournament: Tournament }) {
               ))}
               {!history.length && <div className="p-3 text-slate-500">Load history to view immutable private revisions.</div>}
             </div>
-            <p className="text-slate-500">Restore creates a new remote current revision. It never overwrites the open browser tournament automatically; use Pull Changes afterwards.</p>
+            <p className="text-slate-500">Restore creates a new remote current revision. It never overwrites the open browser tournament automatically; use Pull Cloud → Desktop afterwards.</p>
           </div>
         </details>
 

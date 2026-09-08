@@ -93,6 +93,10 @@ export function tournamentContentForFingerprint(tournament: Tournament | any) {
   delete next.dgt;
   delete next.uiState;
   delete next.runtimeState;
+  if (next.online && typeof next.online === 'object') {
+    delete next.online.revision;
+    delete next.online.lastPublishedAt;
+  }
   if (next.telegram && typeof next.telegram === 'object') {
     delete next.telegram.token;
     delete next.telegram.botToken;
