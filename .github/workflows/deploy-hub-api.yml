@@ -39,24 +39,36 @@ jobs:
           test -n "$CLOUDFLARE_API_TOKEN"
           test -n "$CLOUDFLARE_ACCOUNT_ID"
 
-      - name: Download current live Hub Worker source
+      - name: Inspect current Hub content and active deployment
+        id: inspect
         shell: bash
         run: |
           set -euo pipefail
           work="$RUNNER_TEMP/hub-api-deploy"
           mkdir -p "$work"
-          base="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${HUB_WORKER_NAME}"
+          api="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${HUB_WORKER_NAME}"
+          auth="Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
 
           curl --fail --silent --show-error --location \
-            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-            "$base" \
+            -H "$auth" \
+            "$api" \
             -o "$work/live-worker.multipart"
+
+          curl --fail --silent --show-error \
+            -H "$auth" \
+            "$api/deployments" \
+            -o "$work/deployments-before.json"
+
+          curl --fail --silent --show-error \
+            -H "$auth" \
+            "$api/versions?per_page=5" \
+            -o "$work/versions-before.json"
 
           python - <<'PY'
           from pathlib import Path
           from email.parser import BytesParser
           from email.policy import default
-          import os
+          import hashlib, json, os
 
           work = Path(os.environ['RUNNER_TEMP']) / 'hub-api-deploy'
           raw = (work / 'live-worker.multipart').read_bytes()
@@ -75,39 +87,72 @@ jobs:
           payload = parts[0].get_payload(decode=True) or b''
           if b'export default' not in payload:
               raise SystemExit('Recovered module is not the expected Hub Worker source.')
-          (work / 'worker.original.js').write_bytes(payload)
           (work / 'worker.js').write_bytes(payload)
+
+          sha = hashlib.sha256(payload).hexdigest()
+          baseline = os.environ['BASELINE_SHA256']
+          patched = os.environ['PATCHED_SHA256']
+          if sha == baseline:
+              source_state = 'baseline'
+          elif sha == patched:
+              source_state = 'patched'
+          else:
+              raise SystemExit(f'Refusing unknown Hub Worker content SHA256: {sha}')
+
+          deployments = json.loads((work / 'deployments-before.json').read_text())
+          rows = (deployments.get('result') or {}).get('deployments') or []
+          if not rows:
+              raise SystemExit('No active Hub deployment was returned by Cloudflare.')
+          active_versions = rows[0].get('versions') or []
+          if len(active_versions) != 1 or float(active_versions[0].get('percentage') or 0) != 100:
+              raise SystemExit('Expected one 100% active Hub Worker version before deployment.')
+          previous_version = str(active_versions[0].get('version_id') or '')
+          if not previous_version:
+              raise SystemExit('Active Hub deployment has no version id.')
+
+          versions = json.loads((work / 'versions-before.json').read_text())
+          items = (versions.get('result') or {}).get('items') or []
+          latest_before = str((items[0] if items else {}).get('id') or '')
+          if not latest_before:
+              raise SystemExit('Cloudflare returned no Hub Worker versions.')
+
+          print(f'Current Hub content SHA256: {sha}')
+          print(f'Current content state: {source_state}')
+          print(f'Active deployment version: {previous_version}')
+          print(f'Latest stored version: {latest_before}')
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              out.write(f'source_state={source_state}\n')
+              out.write(f'previous_version_id={previous_version}\n')
+              out.write(f'latest_before_id={latest_before}\n')
           PY
 
-      - name: Verify live baseline and apply exact organizer-route patch
+      - name: Apply exact organizer-route patch when needed
+        if: steps.inspect.outputs.source_state == 'baseline'
         shell: bash
         run: |
           set -euo pipefail
           work="$RUNNER_TEMP/hub-api-deploy"
           cd "$work"
-          current_sha="$(sha256sum worker.js | awk '{print $1}')"
-          echo "Live Hub source SHA256: $current_sha"
+          patch --batch --forward -p0 < "$GITHUB_WORKSPACE/workers/hub-api/organizer-write-routes.patch"
 
-          if [ "$current_sha" = "$PATCHED_SHA256" ]; then
-            echo "Organizer routes are already present; deployment is idempotent."
-          elif [ "$current_sha" = "$BASELINE_SHA256" ]; then
-            patch --batch --forward -p0 < "$GITHUB_WORKSPACE/workers/hub-api/organizer-write-routes.patch"
-          else
-            echo "Refusing to patch an unknown live Hub Worker baseline." >&2
-            exit 1
-          fi
-
+      - name: Verify exact patched Worker source
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/hub-api-deploy"
+          cd "$work"
           node --check worker.js
           final_sha="$(sha256sum worker.js | awk '{print $1}')"
           test "$final_sha" = "$PATCHED_SHA256"
-
           grep -Fq '/api\/v1\/organizer\/tournaments\/([^/]+)\/snapshot' worker.js
           grep -Fq 'async function requireOrganizerTournamentOwner' worker.js
           grep -Fq 'authMode = "managed"' worker.js
           grep -Fq 'return requireManageToken(' worker.js
 
-      - name: Upload script content only
-        id: deploy
+      - name: Upload patched content when needed
+        id: upload
+        if: steps.inspect.outputs.source_state == 'baseline'
         shell: bash
         run: |
           set -euo pipefail
@@ -120,47 +165,148 @@ jobs:
             -F 'metadata={"main_module":"worker.js"};type=application/json' \
             -F "worker.js=@${work}/worker.js;type=application/javascript+module" \
             "$endpoint" \
-            -o "$work/deploy-result.json"
+            -o "$work/content-update.json"
 
           python - <<'PY'
           import json, os
           from pathlib import Path
-          p = Path(os.environ['RUNNER_TEMP']) / 'hub-api-deploy' / 'deploy-result.json'
+          p = Path(os.environ['RUNNER_TEMP']) / 'hub-api-deploy' / 'content-update.json'
           data = json.loads(p.read_text())
           if data.get('success') is not True:
               raise SystemExit('Cloudflare rejected the Hub Worker content update.')
-          print('Cloudflare accepted the Hub Worker content update.')
+          print('Cloudflare stored the patched Hub Worker content.')
           PY
-          echo "deployed=true" >> "$GITHUB_OUTPUT"
 
-      - name: Live Hub route and CORS smoke test
+      - name: Resolve patched Worker version
+        id: target
         shell: bash
         run: |
           set -euo pipefail
+          work="$RUNNER_TEMP/hub-api-deploy"
+          api="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${HUB_WORKER_NAME}"
+          auth="Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
+          latest_before='${{ steps.inspect.outputs.latest_before_id }}'
+          source_state='${{ steps.inspect.outputs.source_state }}'
 
-          health_code="$(curl --silent --show-error --output "$RUNNER_TEMP/hub-health.json" --write-out '%{http_code}' "$HUB_PUBLIC_BASE/api/v1/health")"
-          test "$health_code" = "200"
+          for attempt in $(seq 1 15); do
+            curl --fail --silent --show-error \
+              -H "$auth" \
+              "$api/versions?deployable=true" \
+              -o "$work/versions-after.json"
 
-          probe_code="$(curl --silent --show-error \
-            --output "$RUNNER_TEMP/hub-organizer-probe.json" \
-            --write-out '%{http_code}' \
-            -X PUT \
-            -H 'Origin: https://web.chess-publisher.org' \
+            target="$(python - <<'PY'
+          import json, os
+          from pathlib import Path
+          p = Path(os.environ['RUNNER_TEMP']) / 'hub-api-deploy' / 'versions-after.json'
+          data = json.loads(p.read_text())
+          items = (data.get('result') or {}).get('items') or []
+          print(str((items[0] if items else {}).get('id') or ''))
+          PY
+            )"
+
+            if [ -n "$target" ]; then
+              if [ "$source_state" = "patched" ] || [ "$target" != "$latest_before" ]; then
+                echo "Resolved patched Worker version: $target"
+                echo "version_id=$target" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+            fi
+            sleep 2
+          done
+
+          echo 'Cloudflare did not expose the patched Worker version in time.' >&2
+          exit 1
+
+      - name: Activate patched Worker version at 100 percent
+        id: activate
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/hub-api-deploy"
+          endpoint="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${HUB_WORKER_NAME}/deployments"
+          target='${{ steps.target.outputs.version_id }}'
+
+          python - <<'PY' > "$work/deployment-body.json"
+          import json, os
+          print(json.dumps({
+              'strategy': 'percentage',
+              'versions': [{
+                  'percentage': 100,
+                  'version_id': os.environ['TARGET_VERSION']
+              }],
+              'annotations': {
+                  'workers/message': 'Deploy organizer-owned Tournament Hub write routes',
+                  'workers/triggered_by': 'github_actions'
+              }
+          }))
+          PY
+
+          curl --fail --silent --show-error \
+            -X POST \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
             -H 'Content-Type: application/json' \
-            -H 'X-Expected-Revision: 0' \
-            --data '{}' \
-            "$HUB_PUBLIC_BASE/api/v1/organizer/tournaments/hub_route_probe_does_not_exist/snapshot")"
-          test "$probe_code" = "404"
+            --data-binary "@$work/deployment-body.json" \
+            "$endpoint" \
+            -o "$work/deployment-result.json"
 
           python - <<'PY'
           import json, os
           from pathlib import Path
-          p = Path(os.environ['RUNNER_TEMP']) / 'hub-organizer-probe.json'
+          p = Path(os.environ['RUNNER_TEMP']) / 'hub-api-deploy' / 'deployment-result.json'
           data = json.loads(p.read_text())
-          if data.get('error') != 'tournament_not_found':
-              raise SystemExit(f"Organizer route is not active: {data.get('error')!r}")
-          print('Organizer-owned snapshot route is active.')
+          if data.get('success') is not True:
+              raise SystemExit('Cloudflare rejected the explicit Hub deployment.')
+          result = data.get('result') or {}
+          versions = result.get('versions') or []
+          if len(versions) != 1 or float(versions[0].get('percentage') or 0) != 100:
+              raise SystemExit('Cloudflare did not create the requested 100% Hub deployment.')
+          print(f"Activated Hub deployment {result.get('id', '')}.")
           PY
+          echo "activated=true" >> "$GITHUB_OUTPUT"
+        env:
+          TARGET_VERSION: ${{ steps.target.outputs.version_id }}
+
+      - name: Wait for live organizer route and verify CORS
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/hub-api-deploy"
+          route_ok=false
+
+          for attempt in $(seq 1 20); do
+            health_code="$(curl --silent --show-error --output "$work/hub-health.json" --write-out '%{http_code}' "$HUB_PUBLIC_BASE/api/v1/health")"
+            probe_code="$(curl --silent --show-error \
+              --output "$work/hub-organizer-probe.json" \
+              --write-out '%{http_code}' \
+              -X PUT \
+              -H 'Origin: https://web.chess-publisher.org' \
+              -H 'Content-Type: application/json' \
+              -H 'X-Expected-Revision: 0' \
+              --data '{}' \
+              "$HUB_PUBLIC_BASE/api/v1/organizer/tournaments/hub_route_probe_does_not_exist/snapshot")"
+
+            error_code="$(python - <<'PY'
+          import json, os
+          from pathlib import Path
+          p = Path(os.environ['RUNNER_TEMP']) / 'hub-api-deploy' / 'hub-organizer-probe.json'
+          try:
+              data = json.loads(p.read_text())
+              print(data.get('error') or '')
+          except Exception:
+              print('')
+          PY
+            )"
+
+            if [ "$health_code" = "200" ] && [ "$probe_code" = "404" ] && [ "$error_code" = "tournament_not_found" ]; then
+              route_ok=true
+              echo "Organizer-owned snapshot route became active on attempt $attempt."
+              break
+            fi
+            echo "Waiting for Hub deployment propagation (attempt $attempt: health=$health_code probe=$probe_code error=$error_code)."
+            sleep 3
+          done
+
+          test "$route_ok" = true
 
           cors_headers="$(curl --silent --show-error --dump-header - --output /dev/null \
             -X OPTIONS \
@@ -172,18 +318,45 @@ jobs:
           printf '%s\n' "$cors_headers" | grep -qi 'authorization'
           printf '%s\n' "$cors_headers" | grep -qi 'x-expected-revision'
 
-      - name: Roll back previous Worker content if post-deploy smoke fails
-        if: failure() && steps.deploy.outputs.deployed == 'true'
+      - name: Roll back to previous deployed version if live verification fails
+        if: failure() && steps.activate.outputs.activated == 'true'
         shell: bash
         run: |
           set -euo pipefail
           work="$RUNNER_TEMP/hub-api-deploy"
-          endpoint="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${HUB_WORKER_NAME}/content"
+          endpoint="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${HUB_WORKER_NAME}/deployments?force=true"
+          previous='${{ steps.inspect.outputs.previous_version_id }}'
+
+          python - <<'PY' > "$work/rollback-body.json"
+          import json, os
+          print(json.dumps({
+              'strategy': 'percentage',
+              'versions': [{
+                  'percentage': 100,
+                  'version_id': os.environ['PREVIOUS_VERSION']
+              }],
+              'annotations': {
+                  'workers/message': 'Automatic rollback after Tournament Hub smoke-test failure',
+                  'workers/triggered_by': 'github_actions_rollback'
+              }
+          }))
+          PY
+
           curl --fail --silent --show-error \
-            -X PUT \
+            -X POST \
             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-            -F 'metadata={"main_module":"worker.js"};type=application/json' \
-            -F "worker.js=@${work}/worker.original.js;type=application/javascript+module" \
+            -H 'Content-Type: application/json' \
+            --data-binary "@$work/rollback-body.json" \
             "$endpoint" \
-            -o /dev/null
-          echo "Previous Hub Worker content restored."
+            -o "$work/rollback-result.json"
+
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          data = json.loads((Path(os.environ['RUNNER_TEMP']) / 'hub-api-deploy' / 'rollback-result.json').read_text())
+          if data.get('success') is not True:
+              raise SystemExit('Cloudflare rejected the deployment rollback.')
+          print('Previous active Hub Worker version restored.')
+          PY
+        env:
+          PREVIOUS_VERSION: ${{ steps.inspect.outputs.previous_version_id }}
