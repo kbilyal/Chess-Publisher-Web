@@ -3,15 +3,57 @@ import { FidePlayerRecord } from '../server/fide/types';
 import { generateTransliterationVariants } from '../server/fide/transliteration';
 
 const DATABASE_URL = '/fide/fide_ratings.sqlite';
+const MANIFEST_URL = '/fide/fide_latest_manifest.json';
 const SQL_WASM_URL = '/vendor/sql-wasm.wasm';
+
+export interface BrowserFideManifest {
+  schemaVersion?: number;
+  provider?: string;
+  listVersion?: string;
+  listDate?: string;
+  downloadedAt?: string;
+  sourceArchive?: string;
+  archiveSha256?: string;
+  databaseRevision?: string;
+  recordCount?: number;
+  standardRatedCount?: number;
+  rapidRatedCount?: number;
+  blitzRatedCount?: number;
+  unratedCount?: number;
+}
+
 let databasePromise: Promise<Database> | null = null;
+let manifestPromise: Promise<BrowserFideManifest | null> | null = null;
+
+async function latestManifest(): Promise<BrowserFideManifest | null> {
+  if (!manifestPromise) {
+    manifestPromise = (async () => {
+      try {
+        const response = await fetch(MANIFEST_URL, { cache: 'no-store' });
+        if (!response.ok) return null;
+        const value = await response.json();
+        return value && typeof value === 'object' ? value as BrowserFideManifest : null;
+      } catch {
+        return null;
+      }
+    })();
+  }
+  return manifestPromise;
+}
+
+function revisionedDatabaseUrl(manifest: BrowserFideManifest | null) {
+  const revision = String(manifest?.databaseRevision || manifest?.archiveSha256 || '').trim();
+  return revision ? `${DATABASE_URL}?v=${encodeURIComponent(revision.slice(0, 64))}` : DATABASE_URL;
+}
 
 async function database() {
   if (!databasePromise) {
     databasePromise = (async () => {
+      const manifest = await latestManifest();
+      const databaseUrl = revisionedDatabaseUrl(manifest);
       const [SQL, response] = await Promise.all([
         initSqlJs({ locateFile: () => SQL_WASM_URL }),
-        fetch(DATABASE_URL, { cache: 'force-cache' })
+        fetch(databaseUrl, { cache: 'force-cache' })
       ]);
       if (!response.ok) throw new Error(`FIDE database HTTP ${response.status}`);
       const bytes = new Uint8Array(await response.arrayBuffer());
@@ -19,6 +61,10 @@ async function database() {
     })();
   }
   return databasePromise;
+}
+
+export async function getFideBrowserDatabaseInfo(): Promise<BrowserFideManifest | null> {
+  return latestManifest();
 }
 
 export async function searchFideBrowserDatabase(query: string, tournamentType: 'Standard' | 'Rapid' | 'Blitz', limit = 20): Promise<FidePlayerRecord[]> {
@@ -83,4 +129,5 @@ export async function searchFideBrowserDatabase(query: string, tournamentType: '
 
 export function resetFideBrowserDatabaseForTests() {
   databasePromise = null;
+  manifestPromise = null;
 }
