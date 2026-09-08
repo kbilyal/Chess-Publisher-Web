@@ -132,7 +132,6 @@ export function CompanionTournamentSelectScreen(props: {
   const [query, setQuery] = useState('');
   const [showTrash, setShowTrash] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<CompanionCloudTournament | null>(null);
-  const [undoTarget, setUndoTarget] = useState<CompanionCloudTournament | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
   const source = showTrash ? archivedTournaments : tournaments;
@@ -156,13 +155,16 @@ export function CompanionTournamentSelectScreen(props: {
     void onLoadArchived();
   };
 
-  const moveToTrash = async () => {
+  const deleteFromCloud = async () => {
     const target = deleteTarget;
     if (!target || busy) return;
     try {
+      // onArchive is the legacy provider prop name. The protected DELETE route is
+      // now permanent for main-list deletes; reload clears the provider's legacy
+      // archive-state bookkeeping immediately after the server confirms deletion.
       await onArchive(target);
       setDeleteTarget(null);
-      setUndoTarget(target);
+      window.location.reload();
     } catch {
       // Provider exposes the actionable error in the shared status surface.
     }
@@ -172,7 +174,6 @@ export function CompanionTournamentSelectScreen(props: {
     if (busy) return;
     try {
       await onRestore(target);
-      if (undoTarget?.id === target.id) setUndoTarget(null);
     } catch {
       // Provider exposes the actionable error in the shared status surface.
     }
@@ -191,7 +192,7 @@ export function CompanionTournamentSelectScreen(props: {
 
       <div className="companion-select-content companion-native-content">
         <section className="companion-select-head companion-hub-hero">
-          <div><span className="companion-entry-eyebrow">{showTrash ? 'RECOVERY' : 'SYNCHRONIZED WORKSPACE'}</span><h1>{showTrash ? 'Trash' : 'My tournaments'}</h1><p>{showTrash ? 'Restore a tournament at any time. Moving to Trash never deletes its private revisions or source snapshots.' : 'Create, import or continue the same tournament from Web and Chess-Publisher Desktop.'}</p></div>
+          <div><span className="companion-entry-eyebrow">{showTrash ? 'RECOVERY' : 'SYNCHRONIZED WORKSPACE'}</span><h1>{showTrash ? 'Trash' : 'My tournaments'}</h1><p>{showTrash ? 'Restore tournaments that were archived before permanent Cloud deletion was enabled.' : 'Create, import or continue the same tournament from Web and Chess-Publisher Desktop.'}</p></div>
           <div className="companion-organizer-pill"><ShieldCheck size={15} /><span><small>Organizer</small><strong>{organizerName}</strong></span></div>
         </section>
 
@@ -239,13 +240,13 @@ export function CompanionTournamentSelectScreen(props: {
         )}
 
         {deleteTarget && (
-          <div className="companion-new-dialog companion-native-sheet-backdrop" role="dialog" aria-modal="true" aria-label="Move tournament to Trash">
+          <div className="companion-new-dialog companion-native-sheet-backdrop" role="dialog" aria-modal="true" aria-label="Delete tournament from Cloud">
             <div className="companion-new-dialog-card companion-native-sheet companion-delete-sheet">
               <div className="companion-sheet-grabber" aria-hidden="true" />
-              <div className="companion-new-dialog-head"><div><span className="companion-entry-eyebrow danger">SAFE DELETE</span><h2>Move to Trash?</h2></div><button type="button" aria-label="Close" onClick={() => setDeleteTarget(null)}><X size={19} /></button></div>
+              <div className="companion-new-dialog-head"><div><span className="companion-entry-eyebrow danger">PERMANENT CLOUD DELETE</span><h2>Delete from Cloud?</h2></div><button type="button" aria-label="Close" onClick={() => setDeleteTarget(null)}><X size={19} /></button></div>
               <div className="companion-delete-summary"><span className="companion-tournament-icon"><Trophy size={20} /></span><span><strong>{deleteTarget.name || 'Tournament'}</strong><small>Cloud revision r{Number(deleteTarget.revision || 0)}</small></span></div>
-              <p>The active Cloud record will disappear from My tournaments, but all private revisions and stored snapshots stay intact. This does not delete the Public Hub page or Chess-Results tournament.</p>
-              <div className="companion-new-dialog-actions"><button type="button" onClick={() => setDeleteTarget(null)}>Cancel</button><button type="button" className="destructive" disabled={busy} onClick={() => void moveToTrash()}><Trash2 size={16} /> Move to Trash</button></div>
+              <p>This permanently deletes the tournament from your private Organizer Cloud, including its stored private revisions and snapshots. It cannot be restored. The Public Hub page and Chess-Results tournament are not deleted.</p>
+              <div className="companion-new-dialog-actions"><button type="button" onClick={() => setDeleteTarget(null)}>Cancel</button><button type="button" className="destructive" disabled={busy} onClick={() => void deleteFromCloud()}><Trash2 size={16} /> Delete from Cloud</button></div>
             </div>
           </div>
         )}
@@ -264,18 +265,14 @@ export function CompanionTournamentSelectScreen(props: {
                 {showTrash ? (
                   <button type="button" className="companion-tournament-restore" onClick={() => void restore(meta)} disabled={busy}><RotateCcw size={18} /><span>Restore</span></button>
                 ) : (
-                  <button type="button" className="companion-tournament-delete" aria-label={`Move ${meta.name || 'tournament'} to Trash`} onClick={() => setDeleteTarget(meta)} disabled={busy}><Trash2 size={18} /></button>
+                  <button type="button" className="companion-tournament-delete" aria-label={`Delete ${meta.name || 'tournament'} from Cloud`} onClick={() => setDeleteTarget(meta)} disabled={busy}><Trash2 size={18} /></button>
                 )}
               </article>
             ))}
-            {!filtered.length && <div className="companion-tournament-empty">{showTrash ? <Archive size={30} /> : <Cloud size={30} />}<strong>{query ? 'No tournaments match your search.' : (showTrash ? 'Trash is empty.' : 'No synchronized tournaments yet.')}</strong><span>{query ? 'Try another name, ID or tournament key.' : (showTrash ? 'Tournaments moved to Trash will appear here and can be restored.' : 'Create a tournament here, import TRF/TUNX, or sync one from Chess-Publisher Desktop.')}</span></div>}
+            {!filtered.length && <div className="companion-tournament-empty">{showTrash ? <Archive size={30} /> : <Cloud size={30} />}<strong>{query ? 'No tournaments match your search.' : (showTrash ? 'Trash is empty.' : 'No synchronized tournaments yet.')}</strong><span>{query ? 'Try another name, ID or tournament key.' : (showTrash ? 'Previously archived tournaments appear here and can be restored.' : 'Create a tournament here, import TRF/TUNX, or sync one from Chess-Publisher Desktop.')}</span></div>}
           </div>
         </section>
       </div>
-
-      {undoTarget && (
-        <div className="companion-undo-toast" role="status"><span><CheckCircle2 size={18} /><strong>Moved to Trash</strong></span><button type="button" onClick={() => void restore(undoTarget)} disabled={busy}>Undo</button><button type="button" aria-label="Dismiss" onClick={() => setUndoTarget(null)}><X size={17} /></button></div>
-      )}
     </main>
   );
 }
