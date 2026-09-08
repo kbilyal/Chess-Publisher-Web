@@ -39,23 +39,64 @@ const birth = (value: string) => {
 const pairingResult = (value: string, single: boolean) => {
   const result = String(value || '').replace(/\s+/g, '').toUpperCase();
   if (single) {
-    // A pairing-allocated bye is the only single-player pairing that uses the
-    // Chess-Results -1/K convention. Requested and late-entry byes remain
-    // ordinary non-pairing records (-2) unless the authoritative round entry
-    // explicitly says PAB.
-    if (result === 'PAB') return { white: '1.0', black: '0.0', forfeit: 'K', blackNo: -1 };
-    if (result === 'ВЅBYE' || result === '1/2BYE' || result === '0.5BYE') return { white: '0.5', black: '0.0', forfeit: '', blackNo: -2 };
-    if (result === '0BYE') return { white: '0.0', black: '0.0', forfeit: '', blackNo: -2 };
+    if (result === 'PAB' || result === '1BYE') return { white: '1', black: '0', forfeit: 'K', blackNo: -1 };
+    if (result === '½BYE' || result === '1/2BYE' || result === '0.5BYE') return { white: '0,5', black: '0', forfeit: '', blackNo: -2 };
+    if (result === '0BYE') return { white: '0', black: '0', forfeit: '', blackNo: -2 };
     return { white: '', black: '', forfeit: '', blackNo: -2 };
   }
-  if (result === '1-0') return { white: '1.0', black: '0.0', forfeit: '' };
-  if (result === '0-1') return { white: '0.0', black: '1.0', forfeit: '' };
-  if (result === 'ВЅ-ВЅ' || result === '1/2-1/2' || result === '0.5-0.5' || result === '=') return { white: '0.5', black: '0.5', forfeit: '' };
-  if (result === '1F-0F' || result === '+:-') return { white: '1.0', black: '0.0', forfeit: 'K' };
-  if (result === '0F-1F' || result === '-:+') return { white: '0.0', black: '1.0', forfeit: 'K' };
-  if (result === '0F-0F' || result === '-:-') return { white: '0.0', black: '0.0', forfeit: 'D' };
+  if (result === '1-0') return { white: '1', black: '0', forfeit: '' };
+  if (result === '0-1') return { white: '0', black: '1', forfeit: '' };
+  if (result === '½-½' || result === '1/2-1/2' || result === '0.5-0.5' || result === '=') return { white: '0,5', black: '0,5', forfeit: '' };
+  if (result === '1F-0F' || result === '+:-') return { white: '1', black: '0', forfeit: 'K' };
+  if (result === '0F-1F' || result === '-:+') return { white: '0', black: '1', forfeit: 'K' };
+  if (result === '0F-0F' || result === '-:-') return { white: '0', black: '0', forfeit: 'D' };
   return { white: '', black: '', forfeit: '' };
 };
+
+function roundSchedule(tournament: Tournament, rounds: number) {
+  const rows = Array.isArray(tournament.schedule?.rows) ? tournament.schedule.rows : [];
+  const mapped = new Map<number, { date: string; time: string }>();
+
+  for (const row of rows) {
+    const label = `${row.event || ''} ${row.description || ''}`;
+    const explicitRound = label.match(/\bround\s*(\d{1,3})\b/i);
+    const rowNo = Number.parseInt(String(row.no || ''), 10);
+    const round = explicitRound ? Number(explicitRound[1]) : rowNo;
+    if (!Number.isInteger(round) || round < 1 || round > rounds) continue;
+
+    const rawDateTime = String(row.dateTime || '').trim();
+    const match = rawDateTime.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})/);
+    const roundDate = match ? date(match[1]) : '';
+    const hour = match ? Number(match[2]) : -1;
+    const minute = match ? Number(match[3]) : -1;
+    if (!roundDate || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+      throw new Error(`Chess-Results requires a valid date and time for Round ${round}. Correct Round ${round} in Schedule before publishing.`);
+    }
+    if (mapped.has(round)) {
+      throw new Error(`Chess-Results Schedule contains more than one row for Round ${round}. Keep one Round ${round} date/time before publishing.`);
+    }
+    mapped.set(round, { date: roundDate, time: `${match![2]}:${match![3]}` });
+  }
+
+  for (let round = 1; round <= rounds; round += 1) {
+    if (!mapped.has(round)) {
+      throw new Error(`Chess-Results requires a date and time for every round. Add Round ${round} to Schedule before publishing.`);
+    }
+  }
+  return mapped;
+}
+
+function playerNameParts(value: unknown) {
+  const full = text(value);
+  const comma = full.indexOf(',');
+  if (comma >= 0) {
+    return {
+      lastname: text(full.slice(0, comma), 32),
+      firstname: text(full.slice(comma + 1), 30),
+    };
+  }
+  return { lastname: text(full, 32), firstname: '' };
+}
 
 export function validateChessResultsTournament(tournament: Tournament, requireKey = false, keyOverride = '') {
   const { settings, chessResults } = tournament;
@@ -80,6 +121,7 @@ export function validateChessResultsTournament(tournament: Tournament, requireKe
   if (invalidIndex >= 0) {
     throw new Error(`Chess-Results starting numbers must be continuous from 1 to ${tournament.players.length}. Resort the starting list before publishing.`);
   }
+  roundSchedule(tournament, rounds);
   const key = String(keyOverride || chessResults?.key || '').trim();
   if (requireKey && !/^\d+$/.test(key)) throw new Error('A numeric Chess-Results TNR is required.');
   return { federation, rounds, key };
@@ -89,6 +131,7 @@ export function buildChessResultsXml(tournament: Tournament, options: { requireK
   const { federation, rounds, key } = validateChessResultsTournament(tournament, options.requireKey, options.key);
   const settings = tournament.settings;
   const cr = tournament.chessResults;
+  const schedule = roundSchedule(tournament, rounds);
   const liveBoards = tournament.pairings.liveBoards || {};
   const generatedRounds = Object.entries(liveBoards)
     .filter(([, boards]) => Array.isArray(boards) && boards.length > 0)
@@ -103,21 +146,28 @@ export function buildChessResultsXml(tournament: Tournament, options: { requireK
   const lines = ['<?xml version="1.0" encoding="UTF-8"?>', '<chessresults>', '<tournamentdata>'];
   const tournamentAttrs = [
     attr('key', key || '0'), attr('type', '0'), attr('name', text(tournament.name, 160)),
-    attr('fideeventid', text(settings.fideEventId, 20)), attr('remark', cr.pinBoardEnabled ? text(cr.pinBoardText, 599) : ''),
+    attr('fideeventid', text(settings.fideEventId, 20)), attr('remark', cr.pinBoardEnabled ? text(cr.pinBoardText, 400) : ''),
     attr('director', text(settings.director, 80)), attr('organiser', text(settings.organizer, 80)), attr('location', text(settings.venue || settings.city, 80)),
-    attr('arbiter', text(settings.arbiter, 1200)), attr('rounds', rounds), attr('currentround', latestRound), attr('rankinground', latestRound),
-    attr('from', date(settings.startDate)), attr('to', date(settings.endDate) || date(settings.startDate)), attr('ratedfide', settings.fideRated === 'Yes' ? 'J' : '-'),
-    attr('timecontrol', text(settings.timeControl, 100)), attr('chiefarbiter', text(settings.chiefArbiter, 120)), attr('mail', text(settings.email, 80)),
-    attr('federation', federation), attr('creator', cr.creatorId || 100)
+    attr('arbiter', text(settings.arbiter, 400)), attr('rounds', rounds), attr('currentround', latestRound), attr('rankinground', latestRound),
+    attr('from', date(settings.startDate)), attr('to', date(settings.endDate) || date(settings.startDate)), attr('ratedfide', settings.fideRated === 'Yes' ? 'J' : 'N'),
+    attr('ratednational', '-'), attr('replay', 1), attr('timecontrol', text(settings.timeControl, 100)), attr('chiefarbiter', text(settings.chiefArbiter, 50)),
+    attr('mail', text(settings.email, 80)), attr('federation', federation), attr('creator', cr.creatorId || 100), attr('endstatus', 'N')
   ];
   lines.push(`<tournament ${tournamentAttrs.join(' ')} />`, '</tournamentdata>', '<rounds>');
-  for (let round = 1; round <= rounds; round += 1) lines.push(`<round ${attr('round', round)} ${attr('date', '')} ${attr('time', '')} />`);
+  for (let round = 1; round <= rounds; round += 1) {
+    const row = schedule.get(round)!;
+    lines.push(`<round ${attr('round', round)} ${attr('date', row.date)} ${attr('time', row.time)} />`);
+  }
   lines.push('</rounds>', '<players>');
   [...tournament.players].sort((a, b) => a.pairingNumber - b.pairingNumber).forEach(player => {
+    const names = playerNameParts(player.name);
+    const internalId = /^\d{1,12}$/.test(String(player.id || '')) ? player.id : player.pairingNumber;
     lines.push(`<player ${[
-      attr('no', player.pairingNumber), attr('lastname', text(player.name, 80)), attr('title', player.title), attr('rtg', player.rating || ''),
-      attr('rtgfide', player.stdRating || player.rating || ''), attr('dob', birth(player.birth)), attr('sex', player.gender === 'f' ? 'W' : player.gender === 'm' ? 'M' : ''),
-      attr('fed', text(player.fed, 3).toUpperCase()), attr('clubname', text(player.club, 40)), attr('fideid', String(player.fideId || '').replace(/^-$/, '')), attr('rank', player.pairingNumber)
+      attr('no', player.pairingNumber), attr('id', internalId), attr('lastname', names.lastname), attr('firstname', names.firstname), attr('atitle', ''),
+      attr('title', text(player.title, 4)), attr('rtg', player.rating || 0), attr('rtgfide', player.stdRating || player.rating || 0), attr('rtgnat', player.nationalRating || 0),
+      attr('dob', birth(player.birth)), attr('sex', player.gender === 'f' ? 'w' : player.gender === 'm' ? 'm' : ''), attr('fed', text(player.fed, 3).toUpperCase()),
+      attr('board', 0), attr('teamno', 0), attr('clubname', text(player.club, 40)), attr('fideid', String(player.fideId || '').replace(/^-$/, '')), attr('club', 0),
+      attr('typ', text(player.type, 4)), attr('group', text(player.group, 4)), attr('rank', player.pairingNumber), attr('kfaktor', player.fideK || 0)
     ].join(' ')} />`);
   });
   lines.push('</players>', '<playerpairings>');
@@ -145,18 +195,11 @@ export function buildChessResultsXml(tournament: Tournament, options: { requireK
       if (black) pairedKeys.add(black.localKey);
       const result = pairingResult(board.result, !black);
       pairingRecords += 1;
-      // Chess-Results XML defines `pairing` as the team-pairing index. For an
-      // individual tournament it must always be 1; the chessboard number is
-      // carried separately in `board`. Sending 2,3,... here can make the
-      // official upload parser index a non-existent team pairing array.
       lines.push(`<playerpairing ${[
         attr('round', round), attr('pairing', 1), attr('board', boardNumber), attr('whiteno', white.pairingNumber),
         attr('blackno', black?.pairingNumber || result.blackNo || -2), attr('reswhite', result.white), attr('resblack', result.black), attr('forfeit', result.forfeit)
       ].join(' ')} />`);
     });
-    // The official XML examples include a -2 placeholder for each player who
-    // has no pairing record in the round. Omitting it can leave stale results
-    // or make an incremental upload fail validation on Chess-Results.
     orderedPlayers.filter(player => !pairedKeys.has(player.localKey)).forEach(player => {
       pairingRecords += 1;
       lines.push(`<playerpairing ${[
