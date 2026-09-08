@@ -34,6 +34,7 @@ export type CompanionCloud = {
   syncNow: (tournament: Tournament) => Promise<void>;
   pullChanges: (tournament: Tournament) => Promise<any>;
   resolveConflict: (tournament: Tournament) => Promise<any>;
+  resolveConflictWithStrategy: (tournament: Tournament, strategy: 'web' | 'cloud') => Promise<any>;
   publishOnline: (tournament: Tournament) => Promise<void>;
   openPublicPage: (tournament: Tournament) => void | Promise<void>;
   returnToCloudList: () => Promise<void>;
@@ -60,10 +61,12 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
   const [message, setMessage] = useState('');
   const [messageKind, setMessageKind] = useState<'ok' | 'warn' | 'error'>('ok');
   const [sourceMismatchTnr, setSourceMismatchTnr] = useState('');
+  const [pendingConflictFields, setPendingConflictFields] = useState<string[]>([]);
   const tournamentRef = useRef(tournament);
   const chessResultsPublishLockRef = useRef(false);
 
   useEffect(() => { tournamentRef.current = tournament; }, [tournament]);
+  useEffect(() => { if (!cloud.conflict) setPendingConflictFields([]); }, [cloud.conflict]);
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(tournament));
   }, [tournament]);
@@ -141,13 +144,34 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
     }
   };
 
-  const resolveSyncConflict = async () => {
+  const resolveSyncConflict = async (strategy: 'safe' | 'web' | 'cloud' = 'safe') => {
     setBusy('pull');
     setMessage('');
     try {
-      await cloud.resolveConflict(tournamentRef.current);
+      const result = strategy === 'safe'
+      ? await cloud.resolveConflict(tournamentRef.current)
+      : await cloud.resolveConflictWithStrategy(tournamentRef.current, strategy);
       adoptSynchronizedTournament();
-      setNotice('ok', 'Safe conflict resolution completed where fields did not overlap. Same-field conflicts remain protected from overwrite.');
+      if (result?.kind === 'needs-choice') {
+        const fields = Array.isArray(result.conflicts) ? result.conflicts : [];
+        setPendingConflictFields(fields);
+        const preview = fields.slice(0, 4).join(', ');
+        const more = fields.length > 4 ? ` +${fields.length - 4} more` : '';
+        setNotice('warn', `Same-field conflict${fields.length === 1 ? '' : 's'}: ${preview}${more}. Choose Keep Web or Use Cloud for the overlapping fields.`);
+        return;
+      }
+      if (result?.kind === 'resolved' || result?.kind === 'not-conflicted') {
+        setPendingConflictFields([]);
+        if (strategy === 'web') {
+          setNotice('ok', 'Conflict resolved. Web values were kept for overlapping fields and Cloud-only changes were merged. Push Web → Cloud when ready.');
+        } else if (strategy === 'cloud') {
+          setNotice('ok', 'Conflict resolved. Cloud values were kept for overlapping fields and Web-only changes were merged. Push Web → Cloud when ready.');
+        } else {
+          setNotice('ok', 'Safe conflict resolution completed where fields did not overlap. No same-field conflicts remain. Push Web → Cloud when ready.');
+        }
+        return;
+      }
+      setNotice('warn', 'Conflict is still protected because a common base could not be proven. Nothing was overwritten.');
     } catch (error: any) {
       setNotice('error', error?.message || 'Could not resolve the synchronization conflict safely.');
     } finally {
@@ -527,11 +551,24 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
             <WifiOff size={18} />
             <div className="companion-conflict-copy">
               <strong>Desktop/Cloud and Web both changed this tournament.</strong>
-              <span>Pull and Push are blocked from overwriting either side. Resolve conflict merges only non-overlapping fields; same-field conflicts remain protected.</span>
+              <span>{pendingConflictFields.length > 0
+                ? `Same-field conflicts: ${pendingConflictFields.slice(0, 4).join(', ')}${pendingConflictFields.length > 4 ? ` +${pendingConflictFields.length - 4} more` : ''}. Choose which side wins only for these overlapping fields.`
+                : 'Pull and Push are blocked from overwriting either side. Resolve conflict first merges all non-overlapping fields and asks for a side only when the same field changed on both sides.'}</span>
             </div>
-            <button type="button" className="companion-button secondary companion-conflict-action" onClick={resolveSyncConflict} disabled={busy !== null || cloud.busy}>
-              <RefreshCw size={16} className={busy === 'pull' ? 'spin' : ''} /> {busy === 'pull' ? 'Resolving…' : 'Resolve conflict'}
-            </button>
+            {pendingConflictFields.length > 0 ? (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button type="button" className="companion-button secondary companion-conflict-action" onClick={() => void resolveSyncConflict('web')} disabled={busy !== null || cloud.busy} title="Keep Web values only for same-field conflicts">
+                  <RefreshCw size={16} className={busy === 'pull' ? 'spin' : ''} /> Keep Web
+                </button>
+                <button type="button" className="companion-button secondary companion-conflict-action" onClick={() => void resolveSyncConflict('cloud')} disabled={busy !== null || cloud.busy} title="Keep Cloud values only for same-field conflicts">
+                  <Cloud size={16} /> Use Cloud
+                </button>
+              </div>
+            ) : (
+              <button type="button" className="companion-button secondary companion-conflict-action" onClick={() => void resolveSyncConflict('safe')} disabled={busy !== null || cloud.busy}>
+                <RefreshCw size={16} className={busy === 'pull' ? 'spin' : ''} /> {busy === 'pull' ? 'Resolving…' : 'Resolve conflict'}
+              </button>
+            )}
           </div>
         )}
         {message && (

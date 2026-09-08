@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Calendar, Clock, Globe2, MapPin, ShieldCheck, Trophy, Users } from 'lucide-react';
 import { PairingSystem, RatingType, Tournament, TournamentFormat } from '../types';
-import { FEDERATIONS, TIME_CONTROLS, getFederationFlag } from '../data/initialData';
+import { FEDERATIONS, TIME_CONTROLS, getFederationFlagUrl } from '../data/initialData';
 
 interface Props {
   tournament: Tournament;
@@ -27,6 +27,7 @@ export const CompanionSetup: React.FC<Props> = ({ tournament, onUpdateTournament
   const settings = tournament.settings;
   const regulations = tournament.regulations;
   const isRoundRobin = settings.tournamentFormat === 'Individual Round Robin';
+  const federationFlagUrl = getFederationFlagUrl(settings.country);
 
   const completion = useMemo(() => {
     const required = [
@@ -134,7 +135,12 @@ export const CompanionSetup: React.FC<Props> = ({ tournament, onUpdateTournament
         <div className="companion-setup-grid two">
           <label className="wide"><span>Tournament name *</span><input value={tournament.name || ''} onChange={event => updateName(event.target.value)} placeholder="Tournament name" /></label>
           <label><span>Organizer</span><input value={settings.organizer || ''} onChange={event => updateSetting('organizer', event.target.value)} /></label>
-          <label><span>Federation *</span><select value={settings.country || 'BUL'} onChange={event => updateSetting('country', event.target.value)}>{FEDERATIONS.map(([code, name]) => <option key={code} value={code}>{getFederationFlag(code)} {code} — {name}</option>)}</select></label>
+          <label><span>Federation *</span><div style={{ position: 'relative', width: '100%' }}>
+            {federationFlagUrl && <img src={federationFlagUrl} alt="" aria-hidden="true" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', width: 24, height: 18, objectFit: 'cover', borderRadius: 2, zIndex: 1, pointerEvents: 'none', boxShadow: '0 0 0 1px rgba(15,23,42,.12)' }} onError={event => { event.currentTarget.style.display = 'none'; }} />}
+            <select style={{ width: '100%', ...(federationFlagUrl ? { paddingLeft: 46 } : {}) }} value={settings.country || 'BUL'} onChange={event => updateSetting('country', event.target.value)}>
+              {FEDERATIONS.map(([code, name]) => <option key={code} value={code}>{code} — {name}</option>)}
+            </select>
+          </div></label>
           <label><span>Tournament mode</span><select value={settings.tournamentType || 'real'} onChange={event => updateSetting('tournamentType', event.target.value as any)}><option value="real">Real tournament</option><option value="test">Test tournament</option><option value="real-online">Real + online</option><option value="unknown">Not set</option></select></label>
           <label><span>FIDE rated</span><select value={settings.fideRated} onChange={event => updateSetting('fideRated', event.target.value as any)}><option value="Yes">Yes</option><option value="No">No</option></select></label>
           <label><span>FIDE Event ID</span><input inputMode="numeric" value={settings.fideEventId || ''} onChange={event => updateSetting('fideEventId', event.target.value.replace(/\D/g, ''))} placeholder="Optional" /></label>

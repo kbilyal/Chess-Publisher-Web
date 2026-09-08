@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { buildPrivateSnapshot, extractPrivateTournament } from '../onlineCloudSync';
+import { FEDERATIONS, getFederationFlagUrl } from '../../data/initialData';
 
 const legacyTournament: any = {
   settings: {
@@ -61,9 +62,18 @@ assert.match(actions, /async function pullChangesOnly/);
 assert.match(actions, /A Pull command must never upload Web changes/);
 assert.match(actions, /Cloud has newer Desktop changes or a synchronization conflict\. Pull Cloud → Web before pushing or publishing\./);
 assert.match(actions, /resolveConflict: \(tournament: Tournament\) => smartPullChanges/);
+assert.match(actions, /resolveConflictWithStrategy: \(tournament: Tournament, strategy: 'web' \| 'cloud'\)/);
 assert.match(provider, /const FINGERPRINT_SCHEMA = PORTABLE_FINGERPRINT_SCHEMA;/, 'Provider fingerprint schema must track the portable-content fingerprint schema.');
 assert.match(provider, /cloud\.fingerprintContentSchema \|\| cloud\.fingerprintSchema/, 'Provider must reject stale base fingerprints from older content schemas.');
 assert.ok((provider.match(/cloud\.revision === baseRevision/g) || []).length >= 2, 'Automatic sync and Pull must use revision equality to avoid false two-sided conflicts.');
 assert.match(actions, /revision === baseRevision[\s\S]*baseFingerprint = remoteFingerprint/, 'Directional Pull/status must use revision equality to recover the common base after a fingerprint-schema upgrade.');
 assert.match(actions, /if \(cloud\?\.conflict\) await cloud\.pullChanges\(local\);/, 'A stale false-positive conflict flag must be clearable through the pull-only provider path without uploading local edits.');
+assert.ok(FEDERATIONS.length >= 201, 'Web/Desktop federation catalogue must include the full FIDE member set, not a short curated subset.');
+assert.equal(FEDERATIONS.find(item => item[0] === 'GRE')?.[2], 'GR', 'GRE must map to the Greece flag asset.');
+assert.equal(getFederationFlagUrl('GRE'), 'https://flagcdn.com/gr.svg', 'Web Companion must use a real image flag for Greece instead of Windows regional-letter glyphs.');
+assert.match(setup, /getFederationFlagUrl\(settings\.country\)/, 'Companion federation selector must render a real selected flag image.');
+assert.doesNotMatch(setup, /getFederationFlag\(code\)/, 'Companion native select text must not render Windows GR-style regional-letter glyphs.');
+assert.match(workspace, /Keep Web/, 'Same-field conflict UI must expose an explicit Web winner.');
+assert.match(workspace, /Use Cloud/, 'Same-field conflict UI must expose an explicit Cloud winner.');
+assert.match(actions, /kind: 'needs-choice'/, 'Safe conflict resolution must stop for explicit same-field choice.');
 console.log('PASS Companion sync contract: full Desktop/Web tournament parity + directional Pull/Push + safe roster view sorting.');

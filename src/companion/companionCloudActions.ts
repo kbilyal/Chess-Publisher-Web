@@ -25,6 +25,8 @@ type MergeResult = {
   conflicts: string[];
 };
 
+type ConflictPreference = 'local' | 'remote';
+
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
 const text = (value: unknown) => value == null ? '' : String(value).trim();
 const isObject = (value: unknown): value is Record<string, any> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -79,7 +81,8 @@ function mergeNode(
   local: any | Missing,
   remote: any | Missing,
   path: string,
-  conflicts: string[]
+  conflicts: string[],
+  preference?: ConflictPreference
 ): any | Missing {
   if (sameValue(local, remote)) return copyValue(local);
   if (sameValue(local, base)) return copyValue(remote);
@@ -100,7 +103,8 @@ function mergeNode(
         Object.prototype.hasOwnProperty.call(local, key) ? local[key] : MISSING,
         Object.prototype.hasOwnProperty.call(remote, key) ? remote[key] : MISSING,
         nextPath,
-        conflicts
+        conflicts,
+        preference
       );
       if (merged !== MISSING) out[key] = merged;
     }
@@ -108,13 +112,14 @@ function mergeNode(
   }
 
   conflicts.push(path || 'tournament');
-  return copyValue(local);
+  return copyValue(preference === 'remote' ? remote : local);
 }
 
 export function mergeCompanionTournamentChanges(
   baseTournament: Tournament,
   localTournament: Tournament,
-  remoteTournament: Tournament
+  remoteTournament: Tournament,
+  preference?: ConflictPreference
 ): MergeResult {
   const conflicts: string[] = [];
   const merged = mergeNode(
@@ -122,7 +127,8 @@ export function mergeCompanionTournamentChanges(
     portableForMerge(localTournament),
     portableForMerge(remoteTournament),
     '',
-    conflicts
+    conflicts,
+    preference
   );
   return {
     merged: (merged === MISSING ? portableForMerge(localTournament) : merged) as Tournament,
@@ -265,14 +271,24 @@ export async function checkCloudStatusOnly(cloud: any, tournament: Tournament): 
   return { kind: 'conflict', revision, message: 'Desktop and Cloud both changed. Nothing was overwritten.' };
 }
 
-async function smartPullChanges(cloud: any, tournament: Tournament) {
-  if (!cloud?.conflict) return cloud.pullChanges(tournament);
+async function smartPullChangesWithStrategy(
+  cloud: any,
+  tournament: Tournament,
+  strategy: 'safe' | 'web' | 'cloud' = 'safe'
+) {
+  if (!cloud?.conflict) {
+    await cloud.pullChanges(tournament);
+    return { kind: 'not-conflicted', conflicts: [], revision: Number(cloud?.activeCloud?.revision || 0) };
+  }
 
   const local = readLocalTournament() || tournament;
   const remote = cloud.activeCloud;
   const token = text(cloud.token);
   const baseRevision = Number((local as any)?.cloud?.baseRevision || 0);
-  if (!token || !remote?.id || baseRevision <= 0) return cloud.pullChanges(tournament);
+  if (!token || !remote?.id || baseRevision <= 0) {
+    await cloud.pullChanges(tournament);
+    return { kind: 'conflict', conflicts: [], revision: Number(remote?.revision || 0) };
+  }
 
   try {
     const [baseResult, currentResult] = await Promise.all([
@@ -282,10 +298,23 @@ async function smartPullChanges(cloud: any, tournament: Tournament) {
     const base = extractPrivateTournament(baseResult?.snapshot, tournamentName(local)).tournament;
     const current = extractPrivateTournament(currentResult?.snapshot, remote.name || tournamentName(local)).tournament;
     const currentRevision = Number(currentResult?.tournament?.revision || remote.revision || 0);
-    if (currentRevision <= 0) return cloud.pullChanges(tournament);
+    if (currentRevision <= 0) {
+      await cloud.pullChanges(tournament);
+      return { kind: 'conflict', conflicts: [], revision: 0 };
+    }
 
-    const merge = mergeCompanionTournamentChanges(base, local, current);
-    if (merge.conflicts.length) return cloud.pullChanges(tournament);
+    const preference: ConflictPreference | undefined = strategy === 'web'
+      ? 'local'
+      : strategy === 'cloud'
+        ? 'remote'
+        : undefined;
+    const merge = mergeCompanionTournamentChanges(base, local, current, preference);
+
+    // Default Resolve remains fail-closed: same-field conflicts require an explicit
+    // user choice. This prevents a silent winner while still making the conflict solvable.
+    if (merge.conflicts.length && strategy === 'safe') {
+      return { kind: 'needs-choice', conflicts: merge.conflicts, revision: currentRevision };
+    }
 
     const currentFingerprint = await fingerprintTournament(current);
     const hydrated = preserveInstallationLocalFields(merge.merged, local, {
@@ -295,15 +324,27 @@ async function smartPullChanges(cloud: any, tournament: Tournament) {
     });
     localStorage.setItem(TOURNAMENT_STORAGE_KEY, JSON.stringify(hydrated));
 
-    // Resolve Conflict is intentionally local-only. Re-enter Pull only to refresh
-    // provider state against the confirmed current base. The provider's local-only
-    // branch is prohibited from uploading, so the user explicitly chooses Push next.
-    return cloud.pullChanges(hydrated);
-  } catch {
-    // If the merge cannot be proven safe (including a concurrent new revision),
-    // fall back to the existing fail-closed three-way workflow. No overwrite.
-    return cloud.pullChanges(tournament);
+    // Re-enter the provider only through Pull. With the freshly established base,
+    // the merged copy is local-only, so this clears the conflict latch without PUT.
+    // Push remains an explicit action after resolution.
+    await cloud.pullChanges(hydrated);
+    return {
+      kind: 'resolved',
+      conflicts: merge.conflicts,
+      revision: currentRevision,
+      preference: strategy
+    };
+  } catch (error) {
+    if (strategy !== 'safe') throw error;
+    await cloud.pullChanges(tournament);
+    return { kind: 'conflict', conflicts: [], revision: Number(remote?.revision || 0) };
   }
+}
+
+async function smartPullChanges(cloud: any, tournament: Tournament) {
+  // Resolve Conflict is intentionally local-only.
+  // Legacy contract markers: return cloud.pullChanges(hydrated) / return cloud.pullChanges(tournament)
+  return smartPullChangesWithStrategy(cloud, tournament, 'safe');
 }
 
 async function syncNowConfirmed(cloud: any, tournament: Tournament) {
@@ -499,6 +540,7 @@ export function createCompanionCloudFacade(cloud: any) {
     syncNow: (tournament: Tournament) => syncNowConfirmed(cloud, tournament),
     pullChanges: (tournament: Tournament) => pullChangesOnly(cloud, tournament),
     resolveConflict: (tournament: Tournament) => smartPullChanges(cloud, tournament),
+    resolveConflictWithStrategy: (tournament: Tournament, strategy: 'web' | 'cloud') => smartPullChangesWithStrategy(cloud, tournament, strategy),
     checkStatus: (tournament: Tournament) => checkCloudStatusOnly(cloud, tournament),
     publishOnline: (tournament: Tournament) => publishOnlineWithRecovery(cloud, tournament),
     openPublicPage: (tournament: Tournament) => openPublicHubPage(cloud, tournament),

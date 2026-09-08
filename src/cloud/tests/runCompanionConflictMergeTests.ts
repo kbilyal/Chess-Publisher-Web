@@ -62,6 +62,29 @@ function testSameFieldConflictFailsClosed() {
   assert.equal(result.merged.settings.venue, 'Web venue', 'unresolved merge keeps local value in memory but must not be uploaded');
 }
 
+function testExplicitSameFieldChoiceIsDeterministic() {
+  const base = baseTournament();
+  const web = clone(base);
+  const desktop = clone(base);
+
+  web.settings.venue = 'Web venue';
+  desktop.settings.venue = 'Cloud venue';
+  web.settings.city = 'Web-only city';
+  desktop.settings.chiefArbiter = 'Cloud-only arbiter';
+
+  const keepWeb = mergeCompanionTournamentChanges(base, web, desktop, 'local');
+  assert.ok(keepWeb.conflicts.includes('settings.venue'));
+  assert.equal(keepWeb.merged.settings.venue, 'Web venue');
+  assert.equal(keepWeb.merged.settings.city, 'Web-only city');
+  assert.equal(keepWeb.merged.settings.chiefArbiter, 'Cloud-only arbiter');
+
+  const useCloud = mergeCompanionTournamentChanges(base, web, desktop, 'remote');
+  assert.ok(useCloud.conflicts.includes('settings.venue'));
+  assert.equal(useCloud.merged.settings.venue, 'Cloud venue');
+  assert.equal(useCloud.merged.settings.city, 'Web-only city');
+  assert.equal(useCloud.merged.settings.chiefArbiter, 'Cloud-only arbiter');
+}
+
 function testPlayerRosterConflictIsNotGuessed() {
   const base = baseTournament();
   const web = clone(base);
@@ -77,6 +100,7 @@ function testPlayerRosterConflictIsNotGuessed() {
 function main() {
   testNonOverlappingDesktopAndWebMerge();
   testSameFieldConflictFailsClosed();
+  testExplicitSameFieldChoiceIsDeterministic();
   testPlayerRosterConflictIsNotGuessed();
   console.log('Companion smart Desktop/Web conflict merge regression: PASS');
 }
