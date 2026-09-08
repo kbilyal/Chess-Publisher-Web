@@ -84,6 +84,9 @@ jobs:
       - name: Explicit TRF16 and TRF26 regression
         run: npm run test:trf
 
+      - name: Chess-Results publication XML regression
+        run: npm run test:chess-results
+
       - name: Legacy Chess-Results compatibility contract
         run: npm run test:chess-results-web-contract
 
