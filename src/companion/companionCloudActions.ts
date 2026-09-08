@@ -177,6 +177,31 @@ async function smartPullChanges(cloud: any, tournament: Tournament) {
   }
 }
 
+async function syncNowConfirmed(cloud: any, tournament: Tournament) {
+  await cloud.syncNow(tournament);
+
+  // OnlineCloudProviderV2 deliberately converts automatic-sync transport and
+  // revision failures into status state. Re-read the authoritative remote
+  // snapshot so a publish workflow cannot continue from a merely local save.
+  const local: any = readLocalTournament() || tournament;
+  const token = text(cloud?.token);
+  const cloudTournamentId = text(local?.cloud?.cloudTournamentId || cloud?.activeCloud?.id);
+  if (!token || !cloudTournamentId) {
+    throw new Error('Cloud synchronization was not confirmed for this tournament.');
+  }
+
+  const remoteResult = await cloudApi.getSnapshot(token, cloudTournamentId);
+  const remote = extractPrivateTournament(remoteResult?.snapshot, remoteResult?.tournament?.name || tournamentName(local)).tournament;
+  const [localFingerprint, remoteFingerprint] = await Promise.all([
+    fingerprintTournament(local),
+    fingerprintTournament(remote)
+  ]);
+  if (localFingerprint !== remoteFingerprint) {
+    throw new Error('Cloud changed or synchronization is still pending. Pull the latest changes before publishing.');
+  }
+  return local;
+}
+
 function publicPageUrl(tournament: Tournament | any) {
   const explicit = text(tournament?.online?.publicPageUrl);
   if (explicit) return explicit;
@@ -293,6 +318,7 @@ async function uploadRegulationsAndRepublish(cloud: any, tournament: Tournament,
 export function createCompanionCloudFacade(cloud: any) {
   return {
     ...cloud,
+    syncNow: (tournament: Tournament) => syncNowConfirmed(cloud, tournament),
     pullChanges: (tournament: Tournament) => smartPullChanges(cloud, tournament),
     publishOnline: (tournament: Tournament) => publishOnlineWithRecovery(cloud, tournament),
     openPublicPage: (tournament: Tournament) => openPublicHubPage(cloud, tournament),
