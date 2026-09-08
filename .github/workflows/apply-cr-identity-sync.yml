@@ -1,0 +1,41 @@
+name: Apply Chess-Results Identity Repair
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - docs/deploy-markers/cr-identity-sync-trigger.md
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply repair
+        run: python scripts/repair-cr-identity-sync.py
+      - name: Validate
+        run: |
+          npm ci
+          npm run lint
+          npm run test:chess-results-companion
+          npm run test:chess-results
+          npm run test:cloud-roundtrip
+          npm run test:trf
+      - name: Commit repair
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/companion/CompanionWorkspace.tsx src/companion/companionCloudActions.ts src/cloud/tests/runCompanionChessResultsTransportTests.ts
+          git diff --cached --quiet && exit 0
+          git commit -m "Guard Chess-Results TNR identity across Cloud sync"
+          git push origin HEAD:main
