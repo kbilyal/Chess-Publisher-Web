@@ -1,0 +1,109 @@
+name: Recover Hub Worker Source (Encrypted)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/recover-hub-worker.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  HUB_WORKER_NAME: chess-publisher-hub-api-beta
+
+jobs:
+  recover:
+    name: Export current Hub Worker without exposing plaintext
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Verify Cloudflare credentials are configured
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+
+      - name: Export current Worker script and metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          work="$RUNNER_TEMP/hub-worker-recovery"
+          mkdir -p "$work/plain"
+          base="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${HUB_WORKER_NAME}"
+          auth="Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
+
+          curl --fail --silent --show-error --location \
+            -H "$auth" \
+            "$base" \
+            -o "$work/plain/worker-content.bin"
+
+          curl --fail --silent --show-error \
+            -H "$auth" \
+            "$base/script-settings" \
+            -o "$work/plain/script-settings.json"
+
+          curl --fail --silent --show-error \
+            -H "$auth" \
+            "$base/deployments" \
+            -o "$work/plain/deployments.json"
+
+          file "$work/plain/worker-content.bin" > "$work/plain/content-type.txt"
+          tar -C "$work/plain" -czf "$work/hub-worker-recovery.tar.gz" .
+
+      - name: Encrypt recovered Worker bundle for this repair session
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/hub-worker-recovery"
+          cat > "$work/recovery-cert.pem" <<'CERT'
+          -----BEGIN CERTIFICATE-----
+          MIIEHTCCAoWgAwIBAgIUAxBo6pnKO4GdIfcnr/taVb2IzdYwDQYJKoZIhvcNAQEL
+          BQAwHjEcMBoGA1UEAwwTaHViLXdvcmtlci1yZWNvdmVyeTAeFw0yNjA5MDgwNzI4
+          MzZaFw0yNjA5MDkwNzI4MzZaMB4xHDAaBgNVBAMME2h1Yi13b3JrZXItcmVjb3Zl
+          cnkwggGiMA0GCSqGSIb3DQEBAQUAA4IBjwAwggGKAoIBgQCs6VKANxWGDsdCBWBm
+          /3HAid9TmevO2eeqEZJ7//LEsveoeWPBpBCr0JeoCZnDShFqUnVMxSSBNHKvsbIl
+          zDY9yJzVpgZzBW3SQChHaPaH7yfrHSpHGqU/qplF2xhgUNBC2DNBCS7q8i0Ev/fy
+          Zks1Hqmcq5RbdvG4dRlkcCeS9AXTLfId1l7B47SB6Y/D8p1q58B2YWE3x/nUCWgU
+          3uaNaOAdLvKgmOjAZfsBFrHc/pFvmFIKdf99F+R4LNU5UqCIEIs+baYYXCrxHCMP
+          ugwvaTgUm7CPc2W3d8cTuMDn9ukvnr+7LiA8zA1MMwkM3db+YS1UFs4YMlCVHHD9
+          Li5M79HhP8Yp/ibd1KKvbRD4nCtDfCpNj0uZSFu0Nvoo5iLx8/oaVrSBz/mye+cm
+          iKuFVWJmrfddKdqyR0SIFOr5/BUfk2t3FNP5x80n64VDALL6o4ypgzBWHBdltpCg
+          F/D9sm1NL3qAkIO41A34BM+G83ve+RsTZmih/lMkrX32aCcCAwEAAaNTMFEwHQYD
+          VR0OBBYEFCF0QUzP6l/H7Q+lv9lAd9D3LZrCMB8GA1UdIwQYMBaAFCF0QUzP6l/H
+          7Q+lv9lAd9D3LZrCMA8GA1UdEwEB/wQFMAMBAf8wDQYJKoZIhvcNAQELBQADggGB
+          AGTgez6ozhtH6hQGOy0l/6cSk0KLGKryIUmsbHV0nnF2cly2akcDlonHawmlJTKK
+          gVMoRn74RcGFuYaqzJl1JW2kgFQm4I6sBy7AwgeNjwFUE0mCxxpQctIUWcZkpWEu
+          /N5tLjw2JzlMNKIJknZ76ArRPnTAz7PXNWFq24Jtf+l7pyFEEgPlCATOcXYXeCoF
+          6V7BtyncKbOjEhNhcePOYFZpzOaGVWT0kJk0tvDT6nbp18uJbH1f1iKu6JtVJxmy
+          nSiy7U1KWaCVAuVK+M+Xev5SdLIYTw6okJEPPnAHreF680FTzSlZeQ0NdLpyaZA1
+          G+ticNHKVTs2wUBvaQnp2AId9kvnhes2ypooz0sUwfIfa7jl4iBlRP12gvaku4ju
+          H4TQuw72dr+thVLtH8Q6iNE8KwS63zolaipS28YsFMNQnoKTHSVfQWVP6XFCP2Ll
+          F+/UTdVMeX7Pbn+frC9Yv0n6jflBg2ErO1A5c9TeFyjADnIdko9U3jAcJW4TRitw
+          Ug==
+          -----END CERTIFICATE-----
+          CERT
+
+          openssl cms -encrypt -binary -aes-256-cbc \
+            -in "$work/hub-worker-recovery.tar.gz" \
+            -out "$work/hub-worker-recovery.cms" \
+            -outform DER \
+            "$work/recovery-cert.pem"
+
+          rm -rf "$work/plain" "$work/hub-worker-recovery.tar.gz" "$work/recovery-cert.pem"
+          test -s "$work/hub-worker-recovery.cms"
+
+      - name: Upload encrypted recovery artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hub-worker-recovery-encrypted
+          path: ${{ runner.temp }}/hub-worker-recovery/hub-worker-recovery.cms
+          if-no-files-found: error
+          retention-days: 1
