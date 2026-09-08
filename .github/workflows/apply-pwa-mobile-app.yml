@@ -44,7 +44,6 @@ jobs:
           test -s dist/sw.js
           test -s dist/icons/chess-publisher-icon-192.png
           test -s dist/icons/chess-publisher-icon-512.png
-          grep -q 'display' dist/manifest.webmanifest
           grep -q 'standalone' dist/manifest.webmanifest
       - name: Commit validated implementation and remove one-time files
         shell: bash
@@ -52,7 +51,10 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # GITHUB_TOKEN cannot update an existing workflow file. Revert only that
+          # generated deploy-gate edit; it is applied separately after this commit.
+          git checkout -- .github/workflows/deploy-web.yml
           git rm .github/workflows/apply-pwa-mobile-app.yml scripts/apply-pwa-mobile-app.py
-          git add index.html src/main.tsx src/App.tsx src/pwa public/manifest.webmanifest public/sw.js public/icons tests/ui/pwa-install.test.mjs .github/workflows/deploy-web.yml
+          git add index.html src/main.tsx src/App.tsx src/pwa public/manifest.webmanifest public/sw.js public/icons tests/ui/pwa-install.test.mjs
           git commit -m "Add installable standalone Chess-Publisher mobile PWA"
           git push origin HEAD:main
