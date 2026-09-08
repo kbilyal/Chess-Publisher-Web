@@ -189,3 +189,5 @@ assert.match(
           git diff --cached --quiet && exit 0
           git commit -m "Make Chess-Results TNR rollover idempotent"
           git push origin HEAD:main
+
+# trigger: 2026-09-08
