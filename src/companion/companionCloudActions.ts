@@ -184,37 +184,59 @@ function publicPageUrl(tournament: Tournament | any) {
   return slug ? `https://chess-publisher.org/tournaments?id=${encodeURIComponent(slug)}` : '';
 }
 
+async function findOrganizerOwnedHub(cloud: any, tournament: Tournament | any) {
+  const token = text(cloud?.token);
+  if (!token) return null;
+  const internalId = chooseInternalTournamentId(tournament);
+  const linkedHubId = text(tournament?.online?.hubTournamentId);
+  const listed = await hubApi.listOrganizerTournaments(token);
+  return (listed?.tournaments || []).find((item: any) =>
+    text(item.id) === linkedHubId ||
+    text(item.id) === internalId ||
+    text(item.localKey) === internalId
+  ) || null;
+}
+
+function adoptHubMetadata(tournament: Tournament | any, hub: any) {
+  if (!hub?.id) return tournament;
+  const current: any = tournament;
+  const publicSlug = text(hub.publicSlug);
+  const publicPageUrl = text(hub.publicPageUrl) || (publicSlug
+    ? `https://chess-publisher.org/tournaments?id=${encodeURIComponent(publicSlug)}`
+    : '');
+  current.online = {
+    ...(current.online || {}),
+    hubTournamentId: text(hub.id),
+    publicSlug: publicSlug || current.online?.publicSlug,
+    publicPageUrl: publicPageUrl || current.online?.publicPageUrl,
+    revision: Number(hub.revision || current.online?.revision || 0)
+  };
+  localStorage.setItem(TOURNAMENT_STORAGE_KEY, JSON.stringify(current));
+  return current;
+}
+
+async function publishOnlineWithRecovery(cloud: any, tournament: Tournament) {
+  const current: any = readLocalTournament() || tournament;
+  try {
+    const hub = await findOrganizerOwnedHub(cloud, current);
+    if (hub) adoptHubMetadata(current, hub);
+  } catch {
+    // The authoritative provider still performs its own owner list/create
+    // checks. Recovery is opportunistic and must never bypass those checks.
+  }
+  return cloud.publishOnline(current);
+}
+
 async function openPublicHubPage(cloud: any, tournament: Tournament) {
   const current: any = readLocalTournament() || tournament;
   let url = publicPageUrl(current);
 
   if (!url && text(cloud?.token)) {
     try {
-      const internalId = chooseInternalTournamentId(current);
-      const linkedHubId = text(current?.online?.hubTournamentId);
-      const listed = await hubApi.listOrganizerTournaments(cloud.token);
-      const hub = (listed?.tournaments || []).find((item: any) =>
-        (!item?.deleted) && (
-          text(item.id) === linkedHubId ||
-          text(item.id) === internalId ||
-          text(item.localKey) === internalId
-        )
-      );
-      if (hub) {
-        const publicSlug = text(hub.publicSlug);
-        url = text(hub.publicPageUrl) || (publicSlug
-          ? `https://chess-publisher.org/tournaments?id=${encodeURIComponent(publicSlug)}`
-          : '');
-        if (url) {
-          current.online = {
-            ...(current.online || {}),
-            hubTournamentId: text(hub.id) || current.online?.hubTournamentId,
-            publicSlug: publicSlug || current.online?.publicSlug,
-            publicPageUrl: url,
-            revision: Number(hub.revision || current.online?.revision || 0)
-          };
-          localStorage.setItem(TOURNAMENT_STORAGE_KEY, JSON.stringify(current));
-        }
+      const hub = await findOrganizerOwnedHub(cloud, current);
+      if (hub && !hub.deleted) {
+        adoptHubMetadata(current, hub);
+        url = publicPageUrl(current);
       }
     } catch {
       // The provider below will present the existing user-facing warning.
@@ -249,14 +271,15 @@ async function uploadRegulationsAndRepublish(cloud: any, tournament: Tournament,
 
   // Uploading regulations changes public tournament content, not just private
   // Cloud state. Immediately create a new public Hub revision using the same
-  // guarded publishOnline flow (latest organizer-owned revision + validation).
-  await cloud.publishOnline(current);
+  // guarded owner recovery + publish flow.
+  await publishOnlineWithRecovery(cloud, current);
 }
 
 export function createCompanionCloudFacade(cloud: any) {
   return {
     ...cloud,
     pullChanges: (tournament: Tournament) => smartPullChanges(cloud, tournament),
+    publishOnline: (tournament: Tournament) => publishOnlineWithRecovery(cloud, tournament),
     openPublicPage: (tournament: Tournament) => openPublicHubPage(cloud, tournament),
     uploadRegulations: (tournament: Tournament, file: File) => uploadRegulationsAndRepublish(cloud, tournament, file)
   };
