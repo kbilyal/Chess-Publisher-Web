@@ -1,0 +1,189 @@
+name: Deploy Tournament Hub API
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'workers/hub-api/organizer-write-routes.patch'
+      - '.github/workflows/deploy-hub-api.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  HUB_WORKER_NAME: chess-publisher-hub-api-beta
+  HUB_PUBLIC_BASE: https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev
+  BASELINE_SHA256: b1f455b94a63b4715ae7ade2c71317c6a5ba5475d1f98e97b2e0d6a6de0ed346
+  PATCHED_SHA256: f5cdcd77812898a6ac04ed3659ba776684159534a663398fea2279257fcf0679
+
+jobs:
+  deploy:
+    name: Patch and deploy organizer-owned Hub routes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Checkout exact triggering commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Verify Cloudflare credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+
+      - name: Download current live Hub Worker source
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/hub-api-deploy"
+          mkdir -p "$work"
+          base="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${HUB_WORKER_NAME}"
+
+          curl --fail --silent --show-error --location \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            "$base" \
+            -o "$work/live-worker.multipart"
+
+          python - <<'PY'
+          from pathlib import Path
+          from email.parser import BytesParser
+          from email.policy import default
+          import os
+
+          work = Path(os.environ['RUNNER_TEMP']) / 'hub-api-deploy'
+          raw = (work / 'live-worker.multipart').read_bytes()
+          first = raw.splitlines()[0].decode('ascii', 'strict')
+          if not first.startswith('--'):
+              raise SystemExit('Unexpected Hub Worker download format.')
+          boundary = first[2:]
+          envelope = (
+              f'Content-Type: multipart/form-data; boundary={boundary}\r\n'
+              'MIME-Version: 1.0\r\n\r\n'
+          ).encode() + raw
+          msg = BytesParser(policy=default).parsebytes(envelope)
+          parts = list(msg.iter_parts())
+          if len(parts) != 1:
+              raise SystemExit(f'Expected one Worker module, got {len(parts)}.')
+          payload = parts[0].get_payload(decode=True) or b''
+          if b'export default' not in payload:
+              raise SystemExit('Recovered module is not the expected Hub Worker source.')
+          (work / 'worker.original.js').write_bytes(payload)
+          (work / 'worker.js').write_bytes(payload)
+          PY
+
+      - name: Verify live baseline and apply exact organizer-route patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/hub-api-deploy"
+          cd "$work"
+          current_sha="$(sha256sum worker.js | awk '{print $1}')"
+          echo "Live Hub source SHA256: $current_sha"
+
+          if [ "$current_sha" = "$PATCHED_SHA256" ]; then
+            echo "Organizer routes are already present; deployment is idempotent."
+          elif [ "$current_sha" = "$BASELINE_SHA256" ]; then
+            patch --batch --forward -p0 < "$GITHUB_WORKSPACE/workers/hub-api/organizer-write-routes.patch"
+          else
+            echo "Refusing to patch an unknown live Hub Worker baseline." >&2
+            exit 1
+          fi
+
+          node --check worker.js
+          final_sha="$(sha256sum worker.js | awk '{print $1}')"
+          test "$final_sha" = "$PATCHED_SHA256"
+
+          grep -Fq '/api\/v1\/organizer\/tournaments\/([^/]+)\/snapshot' worker.js
+          grep -Fq 'async function requireOrganizerTournamentOwner' worker.js
+          grep -Fq 'authMode = "managed"' worker.js
+          grep -Fq 'return requireManageToken(' worker.js
+
+      - name: Upload script content only
+        id: deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/hub-api-deploy"
+          endpoint="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${HUB_WORKER_NAME}/content"
+
+          curl --fail --silent --show-error \
+            -X PUT \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -F 'metadata={"main_module":"worker.js"};type=application/json' \
+            -F "worker.js=@${work}/worker.js;type=application/javascript+module" \
+            "$endpoint" \
+            -o "$work/deploy-result.json"
+
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          p = Path(os.environ['RUNNER_TEMP']) / 'hub-api-deploy' / 'deploy-result.json'
+          data = json.loads(p.read_text())
+          if data.get('success') is not True:
+              raise SystemExit('Cloudflare rejected the Hub Worker content update.')
+          print('Cloudflare accepted the Hub Worker content update.')
+          PY
+          echo "deployed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Live Hub route and CORS smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          health_code="$(curl --silent --show-error --output "$RUNNER_TEMP/hub-health.json" --write-out '%{http_code}' "$HUB_PUBLIC_BASE/api/v1/health")"
+          test "$health_code" = "200"
+
+          probe_code="$(curl --silent --show-error \
+            --output "$RUNNER_TEMP/hub-organizer-probe.json" \
+            --write-out '%{http_code}' \
+            -X PUT \
+            -H 'Origin: https://web.chess-publisher.org' \
+            -H 'Content-Type: application/json' \
+            -H 'X-Expected-Revision: 0' \
+            --data '{}' \
+            "$HUB_PUBLIC_BASE/api/v1/organizer/tournaments/hub_route_probe_does_not_exist/snapshot")"
+          test "$probe_code" = "404"
+
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          p = Path(os.environ['RUNNER_TEMP']) / 'hub-organizer-probe.json'
+          data = json.loads(p.read_text())
+          if data.get('error') != 'tournament_not_found':
+              raise SystemExit(f"Organizer route is not active: {data.get('error')!r}")
+          print('Organizer-owned snapshot route is active.')
+          PY
+
+          cors_headers="$(curl --silent --show-error --dump-header - --output /dev/null \
+            -X OPTIONS \
+            -H 'Origin: https://web.chess-publisher.org' \
+            -H 'Access-Control-Request-Method: PUT' \
+            -H 'Access-Control-Request-Headers: authorization,content-type,x-expected-revision' \
+            "$HUB_PUBLIC_BASE/api/v1/organizer/tournaments/hub_route_probe_does_not_exist/snapshot")"
+          printf '%s\n' "$cors_headers" | grep -qi '^access-control-allow-origin: https://web.chess-publisher.org'
+          printf '%s\n' "$cors_headers" | grep -qi 'authorization'
+          printf '%s\n' "$cors_headers" | grep -qi 'x-expected-revision'
+
+      - name: Roll back previous Worker content if post-deploy smoke fails
+        if: failure() && steps.deploy.outputs.deployed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/hub-api-deploy"
+          endpoint="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${HUB_WORKER_NAME}/content"
+          curl --fail --silent --show-error \
+            -X PUT \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -F 'metadata={"main_module":"worker.js"};type=application/json' \
+            -F "worker.js=@${work}/worker.original.js;type=application/javascript+module" \
+            "$endpoint" \
+            -o /dev/null
+          echo "Previous Hub Worker content restored."
