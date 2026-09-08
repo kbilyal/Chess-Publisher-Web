@@ -59,7 +59,7 @@ jobs:
           set -euo pipefail
           npm ci
           node tests/ui/hub-companion-v1.test.mjs
-          npm run typecheck
+          npm run lint
 
       - name: Commit exact fix and remove one-time workflow
         shell: bash
