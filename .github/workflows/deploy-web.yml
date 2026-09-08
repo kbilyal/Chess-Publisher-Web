@@ -63,6 +63,9 @@ jobs:
       - name: PWA mobile installability contract
         run: node tests/ui/pwa-install.test.mjs
 
+      - name: Native mobile tournament UX contract
+        run: node tests/ui/mobile-native-experience.test.mjs
+
       - name: TypeScript check
         run: npm run lint
 
