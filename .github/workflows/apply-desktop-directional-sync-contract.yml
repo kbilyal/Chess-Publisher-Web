@@ -1,0 +1,313 @@
+name: Apply Desktop Directional Sync Contract
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/apply-desktop-directional-sync-contract.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply directional Desktop/Web contract
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          # 1) Align the production Companion architecture gate with explicit directional sync.
+          p = Path('tests/ui/hub-companion-v1.test.mjs')
+          s = p.read_text()
+          s = s.replace(
+              "has(workspace, \"window.addEventListener('focus'\", 'Returning to the browser must trigger a desktop/cloud revision check.');",
+              "lacks(workspace, \"window.addEventListener('focus'\", 'Returning to the browser must not silently Pull Cloud data over the open tournament.');\nhas(workspace, 'Pull Cloud → Web', 'Web must expose an explicit Cloud-to-Web Pull action.');\nhas(workspace, 'Push Web → Cloud', 'Web must expose an explicit Web-to-Cloud Push action.');"
+          )
+          s = s.replace(
+              "has(workspace, 'Resolve safely', 'Conflict action wording must explain the safe merge behavior.');",
+              "has(workspace, 'Resolve conflict', 'Conflict resolution must be an explicit separate action.');"
+          )
+          s = s.replace(
+              "has(workspace, 'Non-overlapping changes were merged safely when possible.', 'Conflict resolution result must be explained to the user.');",
+              "has(workspace, 'Safe conflict resolution completed where fields did not overlap.', 'Conflict resolution result must be explained to the user.');"
+          )
+          p.write_text(s)
+
+          # 2) Keep legacy beta.5 regression pointed at the current directional snapshot schema.
+          p = Path('src/cloud/tests/runOnlineCloudBeta5BrowserTests.ts')
+          s = p.read_text().replace(
+              "assert.equal(snapshot.cloudWorkspace.clientVersion, 'chess-publisher-web-online-cloud-beta5');",
+              "assert.equal(snapshot.cloudWorkspace.clientVersion, 'chess-publisher-web-online-cloud-directional-v1');"
+          )
+          p.write_text(s)
+
+          # 3) Public-Hub publication revision/timestamp are volatile metadata, not tournament-content conflicts.
+          p = Path('src/cloud/onlineCloudSync.ts')
+          s = p.read_text()
+          marker = "  delete next.runtimeState;\n"
+          addition = "  delete next.runtimeState;\n  if (next.online && typeof next.online === 'object') {\n    delete next.online.revision;\n    delete next.online.lastPublishedAt;\n  }\n"
+          if addition not in s:
+              if marker not in s: raise SystemExit('fingerprint marker missing')
+              s = s.replace(marker, addition, 1)
+          p.write_text(s)
+
+          # 4) Provider Pull must be genuinely Cloud -> local: it must never create/upload a snapshot.
+          p = Path('src/cloud/OnlineCloudProviderV2.tsx')
+          s = p.read_text()
+          start = s.index('  async function pullChanges(tournamentInput: Tournament) {')
+          end = s.index('  async function syncNow(tournamentInput: Tournament) {', start)
+          pull = s[start:end]
+
+          pull, n = re.subn(
+              r"        if \(cloud\.revision === 0 \|\| !cloud\.tournament\) \{.*?          return;\n        \}\n\n        let baseFingerprint",
+              "        if (cloud.revision === 0 || !cloud.tournament) {\n          setConflict(false);\n          conflictRef.current = false;\n          setRemoteChangesAvailable(false);\n          setCloudDirty(true);\n          setStatus('Cloud has no snapshot yet. Pull did not upload Desktop data — use Push Desktop → Cloud.');\n          setStatusKind('warn');\n          log('Pull Cloud → Desktop found no remote snapshot; no upload occurred.');\n          return;\n        }\n\n        let baseFingerprint",
+              pull,
+              count=1,
+              flags=re.S
+          )
+          if n != 1: raise SystemExit(f'pull empty-cloud branch replacement count={n}')
+
+          pull, n = re.subn(
+              r"        if \(decision === 'local-only'\) \{.*?          return;\n        \}",
+              "        if (decision === 'local-only') {\n          setConflict(false);\n          conflictRef.current = false;\n          setRemoteChangesAvailable(false);\n          setCloudDirty(true);\n          setStatus(`Desktop has local changes not in Cloud · r${cloud.revision} — use Push Desktop → Cloud`);\n          setStatusKind('warn');\n          log('Pull Cloud → Desktop detected local-only changes and did not upload them.');\n          return;\n        }",
+              pull,
+              count=1,
+              flags=re.S
+          )
+          if n != 1: raise SystemExit(f'pull local-only branch replacement count={n}')
+          s = s[:start] + pull + s[end:]
+          p.write_text(s)
+
+          # 5) Desktop Online & Cloud UI: direction is visible in the button itself.
+          p = Path('src/cloud/OnlineCloudTabV2.tsx')
+          s = p.read_text()
+          s = s.replace(
+              'Local save is immediate. Automatic Cloud Sync is always ON and push-safe. Remote changes are never pulled silently; use Pull Changes at any moment.',
+              'Local save is immediate. Cloud background sync is push-only. Manual directions are explicit: Pull Cloud → Desktop never uploads; Push Desktop → Cloud never downloads a newer Cloud revision.'
+          )
+          s = s.replace('<CloudDownload className="w-5 h-5" /> Pull Changes', '<CloudDownload className="w-5 h-5" /> Pull Cloud → Desktop')
+          s = s.replace('Always available. Saves local first, then safely reconciles local ↔ common base ↔ cloud.', 'Downloads the current Cloud revision only. It never uploads Desktop edits.')
+          s = s.replace('<CloudUpload className="w-5 h-5" /> Sync Now', '<CloudUpload className="w-5 h-5" /> Push Desktop → Cloud')
+          s = s.replace('Attempts safe local → Cloud sync now. Never pulls remote changes over the open tournament.', 'Uploads Desktop changes only after the revision guard passes. It never pulls newer Cloud data.')
+          s = s.replace('use Pull Changes afterwards.', 'use Pull Cloud → Desktop afterwards.')
+          p.write_text(s)
+
+          # 6) A durable implementation contract for Desktop and Web agents.
+          doc = Path('docs/DESKTOP-CLOUD-SYNC-CONTRACT.md')
+          doc.write_text(r'''# Chess-Publisher Desktop ↔ Cloud ↔ Web directional sync contract
+
+Status: normative implementation contract for Desktop and Web continuation.
+
+## Non-negotiable invariants
+
+- Tournament identity is `internalId` + `cloudTournamentId`, never the tournament name.
+- Renaming a tournament never creates a new Cloud record.
+- Local autosave and Cloud transport are separate concepts.
+- `Pull` never uploads local tournament content.
+- `Push` never downloads or silently merges a newer Cloud tournament.
+- `Resolve Conflict` is the only operation allowed to perform a three-way merge.
+- `X-Expected-Revision` remains mandatory for every Cloud write.
+- Installation-local secrets and hardware state never enter the portable snapshot.
+
+## Buttons
+
+Desktop must use these labels exactly:
+
+1. `↓ Pull Cloud → Desktop`
+2. `↑ Push Desktop → Cloud`
+3. `Check Cloud Status`
+4. `Resolve Conflict` — visible/enabled only for a true two-sided conflict
+5. `Open in Web`
+
+Web uses the symmetric labels `Pull Cloud → Web` and `Push Web → Cloud`.
+
+## State machine
+
+Compute `LOCAL`, `BASE`, and `REMOTE` with the same portable fingerprint schema.
+
+| Condition | State | Allowed primary action |
+|---|---|---|
+| `LOCAL == REMOTE` | `IN_SYNC` | none required |
+| `LOCAL != BASE && REMOTE == BASE` | `LOCAL_CHANGES` | Push |
+| `LOCAL == BASE && REMOTE != BASE` | `REMOTE_CHANGES` | Pull |
+| `LOCAL != BASE && REMOTE != BASE && LOCAL != REMOTE` | `CONFLICT` | Resolve Conflict |
+| network unavailable | `OFFLINE` | local save only |
+
+UI status must say what is true, e.g. `Desktop changes not pushed`, `Cloud has newer changes`, or `Conflict — nothing overwritten`; never show a generic `Synced` without fingerprint equality.
+
+## Pull Cloud → Desktop
+
+Pseudo-code:
+
+```text
+save local file/state first
+GET latest Cloud snapshot
+compute local/base/remote fingerprints
+
+if no remote snapshot:
+    DO NOT create/upload a snapshot
+    show "Cloud has no snapshot; use Push Desktop → Cloud"
+
+if local == remote:
+    refresh baseRevision/baseFingerprint only
+
+if local == base and remote != base:
+    preserve installation-local fields
+    replace portable tournament with remote
+    save locally
+    update baseRevision/baseFingerprint
+
+if local != base and remote == base:
+    DO NOT upload
+    show "Desktop has unpublished changes; use Push Desktop → Cloud"
+
+if both changed:
+    DO NOT overwrite
+    status = CONFLICT
+```
+
+## Push Desktop → Cloud
+
+```text
+saveAll()
+GET current Cloud metadata/snapshot
+compute local/base/remote fingerprints
+
+if local == remote:
+    refresh base metadata only
+
+if remote == base and local != base:
+    PUT full portable snapshot with X-Expected-Revision
+    store returned revision + new base fingerprint
+
+if remote != base:
+    STOP
+    do not Pull
+    do not merge
+    show "Cloud has newer changes. Pull Cloud → Desktop first."
+```
+
+A background Cloud push, if enabled by product policy, must execute this exact Push preflight. It may never act as a Pull and may never bypass the revision guard.
+
+## Resolve Conflict
+
+Use an exact three-way merge:
+
+```text
+BASE   = snapshot at baseRevision
+LOCAL  = current Desktop tournament
+REMOTE = current Cloud tournament
+```
+
+Per field:
+
+```text
+LOCAL == BASE && REMOTE != BASE  -> REMOTE
+REMOTE == BASE && LOCAL != BASE  -> LOCAL
+LOCAL == REMOTE                  -> either
+otherwise                        -> FIELD CONFLICT
+```
+
+Same-field conflicts require an explicit user choice (`Keep Desktop` / `Keep Cloud`). After resolution, save the merged object locally. Do not auto-Push; the user can inspect it and then press `Push Desktop → Cloud`.
+
+## Portable snapshot
+
+The full portable tournament object includes at least:
+
+- `name`
+- `settings.*`
+- `regulations.*`
+- `schedule.*`
+- `players.*`
+- portable `pairings.*` and round lifecycle/finalization
+- requested byes and attendance
+- official starting/pairing numbers
+- portable standings/tie-break configuration
+- special-prize configuration
+- `chessResults.*`
+- Online Hub identity/public metadata
+- stable `cloud.internalId` and `cloud.cloudTournamentId`
+
+Legacy Desktop snapshots where the visible name exists only as `data.currentTournament` / tournament-map key must hydrate that value into `tournament.name`.
+
+## Installation-local fields
+
+Preserve locally and never transport as portable content:
+
+- Organizer Token and any auth/access/refresh token
+- Hub `manageToken` / admin token
+- AES key/IV or other secrets
+- file/folder/executable/working-directory paths
+- DGT serial/USB/port/physical mappings
+- machine/device secrets
+- temporary UI/runtime state
+
+## Player list sorting
+
+`Starting #`, `Rating ↓`, and `Name A–Z` are view sorting only. They must never mutate `pairingNumber`, `id`, `localKey`, pairings, or official starting ranks. Official `Resort Starting List` remains a separate tournament operation.
+
+## Publish gate
+
+Chess-Results and Online Hub publication must use a confirmed tournament identity/revision.
+
+```text
+IN_SYNC        -> publish
+LOCAL_CHANGES  -> safe Push, verify equality, then publish
+REMOTE_CHANGES -> stop and request Pull
+CONFLICT       -> stop and request Resolve Conflict
+```
+
+No hidden Pull/Push direction reversal is allowed inside Publish.
+
+## Required regression fixture
+
+Use the real parity shape that exposed the bug:
+
+- name: `Tournament Ubuntu`
+- chief arbiter: `Kyamran Bilyal`
+- city: `Sofia`
+- federation: `BUL`
+- time control: `90+30`
+- 7 rounds
+- Test tournament
+- 83 players
+
+Desktop → Cloud → Web → Cloud → Desktop must preserve the complete portable object, the 83-player roster, `internalId`, and `cloudTournamentId` exactly while keeping installation-local fields local.
+
+Protected gates remain mandatory: TypeScript, Desktop/Web Cloud roundtrip, Chess-Results, explicit TRF16/TRF26, pairing parity, FIDE, and production build.
+''')
+          PY
+      - name: Validate directional sync gates
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run lint
+          node tests/ui/hub-companion-v1.test.mjs
+          npm run test:online-cloud
+          npm run test:online-cloud-beta5
+          npm run test:cloud-roundtrip
+          npm run test:desktop-beta34-web-parity
+          npm run test:chess-results-companion
+          npm run test:chess-results
+          npm run test:trf
+      - name: Commit validated contract
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/ui/hub-companion-v1.test.mjs src/cloud/tests/runOnlineCloudBeta5BrowserTests.ts src/cloud/onlineCloudSync.ts src/cloud/OnlineCloudProviderV2.tsx src/cloud/OnlineCloudTabV2.tsx docs/DESKTOP-CLOUD-SYNC-CONTRACT.md
+          git diff --cached --quiet && exit 0
+          git commit -m "Enforce explicit Desktop Cloud Pull Push contract"
+          git push origin HEAD:main
