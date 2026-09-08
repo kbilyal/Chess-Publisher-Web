@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 function storage(seed: Record<string, string> = {}) {
   const values = new Map(Object.entries(seed));
@@ -76,6 +78,28 @@ await chessResultsApi.publish({ key: '1555001', xml: '<chessresults />' });
 assert.equal(calls.filter(call => call.url.endsWith('/claim')).length, 0, 'A newly created TNR must use the transient continuity returned by GETKEY without a separate ownership step.');
 assert.equal(calls.at(-1)?.body.ownershipProof, 'created-continuity-1555001');
 
+const workspaceSource = readFileSync(resolve(process.cwd(), 'src/companion/CompanionWorkspace.tsx'), 'utf8');
+assert.match(
+  workspaceSource,
+  /const modeChanged = isTnr\(key\)[\s\S]*requestedMode !== linkedMode;/,
+  'Publish must detect a Real/Test mode change on an already linked Chess-Results TNR.'
+);
+assert.match(
+  workspaceSource,
+  /const requiresFreshTnr = Boolean\(current\.chessResults\?\.freshTnrRequired \|\| modeChanged\);/,
+  'A mode mismatch must mark the existing Chess-Results identity as requiring a fresh TNR.'
+);
+assert.match(
+  workspaceSource,
+  /if \(!isTnr\(key\) \|\| requiresFreshTnr\)/,
+  'Publish must request GETKEY for a new TNR instead of reusing a Real TNR for a Test tournament.'
+);
+assert.match(
+  workspaceSource,
+  /federation: initial\.federation,[\s\S]*mode: current\.settings\.tournamentType/,
+  'Fresh TNR creation must use the current tournament mode and the exporter federation (XXX for Test).'
+);
+
 (globalThis as any).window.location.hostname = 'localhost';
 calls.length = 0;
 await chessResultsApi.test();
@@ -90,4 +114,4 @@ await assert.rejects(
   'Chess-Results publication must fail closed without an authenticated Organizer Token.'
 );
 
-console.log('PASS Companion Chess-Results transport: Organizer Token auth + automatic Desktop/Cloud TNR continuity + no user-facing ownership step + local route + fail-closed token guard.');
+console.log('PASS Companion Chess-Results transport: Organizer Token auth + automatic Desktop/Cloud TNR continuity + Test/Real TNR identity replacement + no user-facing ownership step + local route + fail-closed token guard.');
