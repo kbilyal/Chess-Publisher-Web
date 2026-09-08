@@ -77,20 +77,20 @@ assert.ok(
   'The generic acknowledgement failure must no longer hide the real Hub API error.'
 );
 assert.ok(
-  hubApiSource.includes('error.status !== 404'),
-  'The compatibility route must be attempted only when the organizer-owned snapshot endpoint is genuinely missing.'
+  hubApiSource.includes('organizer_publish_route_missing'),
+  'A missing organizer-owned write route must fail with an explicit backend-contract error.'
 );
 assert.ok(
-  hubApiSource.includes('/api/v1/tournaments/${enc(id)}/snapshot'),
-  'A missing organizer-prefixed snapshot route must fall back to the deployed legacy snapshot route.'
+  hubApiSource.includes('installation-local per-tournament manageToken'),
+  'The browser client must document that the Desktop management credential is intentionally not synchronized.'
 );
 assert.ok(
-  hubApiSource.includes("'X-Organizer-Token': token"),
-  'The legacy fallback must retain organizer identity instead of attempting an unauthenticated write.'
+  !hubApiSource.includes("'X-Organizer-Token': token"),
+  'The browser must never impersonate the Desktop manage-token route with the Organizer Token.'
 );
 assert.ok(
-  !hubApiSource.includes('createOrganizerTournament(token,') || hubApiSource.indexOf('createOrganizerTournament(token,') < 0,
-  'The publish compatibility fallback must never create a replacement Hub tournament.'
+  !hubApiSource.includes('return request(`/api/v1/tournaments/${enc(id)}/snapshot`'),
+  'The organizer-owned Web publish path must never fall back to the legacy managed snapshot route.'
 );
 assert.ok(
   source.includes('publishOnline: (tournament: Tournament) => publishOnlineWithRecovery'),
@@ -101,4 +101,4 @@ assert.ok(
   'The Companion facade must expose the guarded upload-and-republish behavior.'
 );
 
-console.log('Cloud confirmation + authoritative Hub retry + legacy snapshot compatibility + identity recovery + regulations republish regression: PASS');
+console.log('Cloud confirmation + authoritative Hub retry + fail-closed ownership + identity recovery + regulations republish regression: PASS');
