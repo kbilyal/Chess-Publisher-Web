@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'workers/hub-api/organizer-write-routes.patch'
+      - 'scripts/patch-private-cloud-archive-worker.py'
       - '.github/workflows/deploy-hub-api.yml'
   workflow_dispatch:
 
@@ -16,11 +17,12 @@ env:
   HUB_WORKER_NAME: chess-publisher-hub-api-beta
   HUB_PUBLIC_BASE: https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev
   BASELINE_SHA256: b1f455b94a63b4715ae7ade2c71317c6a5ba5475d1f98e97b2e0d6a6de0ed346
-  PATCHED_SHA256: f5cdcd77812898a6ac04ed3659ba776684159534a663398fea2279257fcf0679
+  ORGANIZER_PATCHED_SHA256: f5cdcd77812898a6ac04ed3659ba776684159534a663398fea2279257fcf0679
+  ARCHIVE_PATCHED_SHA256: ef72c0f35558076c311fb17c46efad114c9da8f5de36e2cfe4e9a0a8a16d9d7a
 
 jobs:
   deploy:
-    name: Ensure organizer-owned Hub routes are live
+    name: Ensure organizer and private Trash routes are live
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -81,8 +83,10 @@ jobs:
           sha = hashlib.sha256(payload).hexdigest()
           if sha == os.environ['BASELINE_SHA256']:
               source_state = 'baseline'
-          elif sha == os.environ['PATCHED_SHA256']:
-              source_state = 'patched'
+          elif sha == os.environ['ORGANIZER_PATCHED_SHA256']:
+              source_state = 'organizer'
+          elif sha == os.environ['ARCHIVE_PATCHED_SHA256']:
+              source_state = 'archive'
           else:
               raise SystemExit(f'Refusing unknown Hub Worker content SHA256: {sha}')
 
@@ -113,21 +117,32 @@ jobs:
           cd "$RUNNER_TEMP/hub-api-deploy"
           patch --batch --forward -p0 < "$GITHUB_WORKSPACE/workers/hub-api/organizer-write-routes.patch"
 
-      - name: Verify exact patched Worker source
+      - name: Apply reversible private Cloud Trash patch when needed
+        if: steps.inspect.outputs.source_state != 'archive'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python "$GITHUB_WORKSPACE/scripts/patch-private-cloud-archive-worker.py" "$RUNNER_TEMP/hub-api-deploy/worker.js"
+
+      - name: Verify exact protected Worker source
         shell: bash
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/hub-api-deploy"
           node --check worker.js
-          test "$(sha256sum worker.js | awk '{print $1}')" = "$PATCHED_SHA256"
+          test "$(sha256sum worker.js | awk '{print $1}')" = "$ARCHIVE_PATCHED_SHA256"
           grep -Fq '/api\/v1\/organizer\/tournaments\/([^/]+)\/snapshot' worker.js
           grep -Fq 'async function requireOrganizerTournamentOwner' worker.js
           grep -Fq 'authMode = "managed"' worker.js
           grep -Fq 'return requireManageToken(' worker.js
+          grep -Fq 'private_cloud_archive_v1' worker.js
+          grep -Fq 'async function archiveCloudTournament' worker.js
+          grep -Fq 'async function restoreArchivedCloudTournament' worker.js
+          grep -Fq 'cloud_expected_revision_required' worker.js
 
-      - name: Upload patched content when needed
+      - name: Upload protected content when needed
         id: upload
-        if: steps.inspect.outputs.source_state == 'baseline'
+        if: steps.inspect.outputs.source_state != 'archive'
         shell: bash
         run: |
           set -euo pipefail
@@ -142,69 +157,48 @@ jobs:
             -F "worker.js=@${work}/worker.js;type=application/javascript+module" \
             "$endpoint")"
           if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
-            python - <<'PY'
-          import json, os
-          from pathlib import Path
-          p = Path(os.environ['RUNNER_TEMP']) / 'hub-api-deploy' / 'content-update.json'
-          try:
-              data = json.loads(p.read_text())
-              for err in data.get('errors') or []:
-                  print(f"Cloudflare error {err.get('code')}: {err.get('message')}")
-          except Exception:
-              print('Cloudflare content update failed with a non-JSON response.')
-          PY
+            cat "$work/content-update.json"
             exit 1
           fi
           echo "changed=true" >> "$GITHUB_OUTPUT"
 
-      - name: Wait for live organizer route and verify CORS
+      - name: Wait for live organizer and Trash routes and verify CORS
         shell: bash
         run: |
           set -euo pipefail
           work="$RUNNER_TEMP/hub-api-deploy"
           route_ok=false
+          dummy='cloud_00000000000000000000000000000000'
 
           for attempt in $(seq 1 30); do
             health_code="$(curl --silent --show-error --output "$work/hub-health.json" --write-out '%{http_code}' "$HUB_PUBLIC_BASE/api/v1/health")"
-            probe_code="$(curl --silent --show-error \
-              --output "$work/hub-organizer-probe.json" \
-              --write-out '%{http_code}' \
-              -X PUT \
-              -H 'Origin: https://web.chess-publisher.org' \
-              -H 'Content-Type: application/json' \
-              -H 'X-Expected-Revision: 0' \
-              --data '{}' \
-              "$HUB_PUBLIC_BASE/api/v1/organizer/tournaments/hub_route_probe_does_not_exist/snapshot")"
-            error_code="$(python - <<'PY'
+            organizer_code="$(curl --silent --show-error --output "$work/hub-organizer-probe.json" --write-out '%{http_code}' -X PUT -H 'Origin: https://web.chess-publisher.org' -H 'Content-Type: application/json' -H 'X-Expected-Revision: 0' --data '{}' "$HUB_PUBLIC_BASE/api/v1/organizer/tournaments/hub_route_probe_does_not_exist/snapshot")"
+            archived_code="$(curl --silent --show-error --output "$work/archive-list.json" --write-out '%{http_code}' "$HUB_PUBLIC_BASE/api/v1/cloud/tournaments/archived")"
+            delete_code="$(curl --silent --show-error --output "$work/archive-delete.json" --write-out '%{http_code}' -X DELETE -H 'X-Expected-Revision: 0' "$HUB_PUBLIC_BASE/api/v1/cloud/tournaments/$dummy")"
+            restore_code="$(curl --silent --show-error --output "$work/archive-restore.json" --write-out '%{http_code}' -X POST "$HUB_PUBLIC_BASE/api/v1/cloud/tournaments/$dummy/restore")"
+            organizer_error="$(python - <<'PY'
           import json, os
           from pathlib import Path
           p = Path(os.environ['RUNNER_TEMP']) / 'hub-api-deploy' / 'hub-organizer-probe.json'
-          try:
-              print((json.loads(p.read_text()) or {}).get('error') or '')
-          except Exception:
-              print('')
+          try: print((json.loads(p.read_text()) or {}).get('error') or '')
+          except Exception: print('')
           PY
             )"
-
-            if [ "$health_code" = "200" ] && [ "$probe_code" = "404" ] && [ "$error_code" = "tournament_not_found" ]; then
+            if [ "$health_code" = '200' ] && [ "$organizer_code" = '404' ] && [ "$organizer_error" = 'tournament_not_found' ] && [ "$archived_code" = '401' ] && [ "$delete_code" = '401' ] && [ "$restore_code" = '401' ]; then
               route_ok=true
-              echo "Organizer-owned snapshot route is live (attempt $attempt)."
               break
             fi
-            echo "Waiting for Hub route propagation (attempt $attempt: health=$health_code probe=$probe_code error=$error_code)."
+            echo "Waiting for Hub route propagation: health=$health_code organizer=$organizer_code/$organizer_error archived=$archived_code delete=$delete_code restore=$restore_code"
             sleep 3
           done
           test "$route_ok" = true
 
-          cors_headers="$(curl --silent --show-error --dump-header - --output /dev/null \
-            -X OPTIONS \
-            -H 'Origin: https://web.chess-publisher.org' \
-            -H 'Access-Control-Request-Method: PUT' \
-            -H 'Access-Control-Request-Headers: authorization,content-type,x-expected-revision' \
-            "$HUB_PUBLIC_BASE/api/v1/organizer/tournaments/hub_route_probe_does_not_exist/snapshot")"
+          cors_headers="$(curl --silent --show-error --dump-header - --output /dev/null -X OPTIONS -H 'Origin: https://web.chess-publisher.org' -H 'Access-Control-Request-Method: DELETE' -H 'Access-Control-Request-Headers: authorization,x-expected-revision' "$HUB_PUBLIC_BASE/api/v1/cloud/tournaments/$dummy")"
           printf '%s\n' "$cors_headers" | grep -qi '^access-control-allow-origin: https://web.chess-publisher.org'
           printf '%s\n' "$cors_headers" | grep -qi 'authorization'
           printf '%s\n' "$cors_headers" | grep -qi 'x-expected-revision'
+          printf '%s\n' "$cors_headers" | grep -qi 'DELETE'
+          echo 'HUB_ORGANIZER_AND_PRIVATE_TRASH_ROUTES=PASS'
 
       - name: Roll back previous version if a newly uploaded patch fails live verification
         if: failure() && steps.upload.outputs.changed == 'true'
@@ -223,26 +217,5 @@ jobs:
               'annotations': {'workers/message': 'Automatic rollback after Tournament Hub smoke-test failure'}
           }))
           PY
-          status="$(curl --silent --show-error \
-            --output "$work/rollback-result.json" \
-            --write-out '%{http_code}' \
-            -X POST \
-            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-            -H 'Content-Type: application/json' \
-            --data-binary "@$work/rollback-body.json" \
-            "$endpoint")"
-          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
-            python - <<'PY'
-          import json, os
-          from pathlib import Path
-          p = Path(os.environ['RUNNER_TEMP']) / 'hub-api-deploy' / 'rollback-result.json'
-          try:
-              data = json.loads(p.read_text())
-              for err in data.get('errors') or []:
-                  print(f"Rollback error {err.get('code')}: {err.get('message')}")
-          except Exception:
-              print('Rollback failed with a non-JSON response.')
-          PY
-            exit 1
-          fi
+          curl --fail --silent --show-error -X POST -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" -H 'Content-Type: application/json' --data-binary "@$work/rollback-body.json" "$endpoint" >/dev/null
           echo 'Previous active Hub Worker version restored.'
