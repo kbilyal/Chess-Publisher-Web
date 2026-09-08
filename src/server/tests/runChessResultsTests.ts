@@ -47,18 +47,18 @@ assert.throws(() => validateChessResultsTournament(gap), /continuous from 1 to 3
 const staleRound = structuredClone(tournament);
 staleRound.pairings.liveBoards = {
   ...staleRound.pairings.liveBoards,
-  '99': [{ board: 1, whiteKey: staleRound.players[0].localKey, blackKey: staleRound.players[1].localKey, result: '' }]
+  '99': [{ board: 1, whiteKey: staleRound.players[0].localKey, blackKey: staleRound.players[1].localKey, result: '-' }]
 };
 assert.throws(() => buildChessResultsXml(staleRound, { requireKey: true }), /round 99 is outside the declared/i);
 
 const unknownPlayer = structuredClone(tournament);
-unknownPlayer.pairings.liveBoards = { '1': [{ board: 1, whiteKey: 'missing-player', blackKey: unknownPlayer.players[1].localKey, result: '' }] };
+unknownPlayer.pairings.liveBoards = { '1': [{ board: 1, whiteKey: 'missing-player', blackKey: unknownPlayer.players[1].localKey, result: '-' }] };
 assert.throws(() => buildChessResultsXml(unknownPlayer, { requireKey: true }), /unknown White player/i);
 
 const duplicateBoard = structuredClone(tournament);
 duplicateBoard.pairings.liveBoards = {
   '1': [
-    { board: 1, whiteKey: duplicateBoard.players[0].localKey, blackKey: duplicateBoard.players[1].localKey, result: '' },
+    { board: 1, whiteKey: duplicateBoard.players[0].localKey, blackKey: duplicateBoard.players[1].localKey, result: '-' },
     { board: 1, whiteKey: duplicateBoard.players[2].localKey, blackKey: '', result: 'PAB' }
   ]
 };
