@@ -139,6 +139,7 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
   const [rememberToken, setRememberToken] = useState(false);
   const [workspace, setWorkspace] = useState<any>(null);
   const [cloudTournaments, setCloudTournaments] = useState<CloudTournamentMeta[]>([]);
+  const [archivedCloudTournaments, setArchivedCloudTournaments] = useState<CloudTournamentMeta[]>([]);
   const [activeCloud, setActiveCloud] = useState<CloudTournamentMeta | null>(null);
   const [status, setStatus] = useState('Organizer Token required');
   const [statusKind, setStatusKind] = useState<StatusKind>('warn');
@@ -190,6 +191,82 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
     const tournaments = list?.tournaments || [];
     setCloudTournaments(tournaments);
     return tournaments as CloudTournamentMeta[];
+  }
+
+  async function refreshArchivedWorkspace(currentToken = tokenRef.current) {
+    setBusy(true);
+    setStatus('Loading Trash…');
+    setStatusKind('busy');
+    try {
+      const list = await cloudApi.listArchivedTournaments(currentToken);
+      const tournaments = list?.tournaments || [];
+      setArchivedCloudTournaments(tournaments);
+      setStatus(tournaments.length ? `${tournaments.length} tournament${tournaments.length === 1 ? '' : 's'} in Trash` : 'Trash is empty');
+      setStatusKind('ok');
+      return tournaments as CloudTournamentMeta[];
+    } catch (error: any) {
+      setStatus(error?.message || 'Could not load Trash.');
+      setStatusKind(error instanceof CloudApiError && error.code === 'network_error' ? 'offline' : 'warn');
+      throw error;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function archivePrivateCloudTournament(meta: CloudTournamentMeta) {
+    setBusy(true);
+    setStatus('Moving tournament to Trash…');
+    setStatusKind('busy');
+    try {
+      const result = await cloudApi.archiveTournament(
+        tokenRef.current,
+        meta.id,
+        Math.max(0, Number(meta.revision || 0))
+      );
+      const archived = result?.tournament || { ...meta, archived: true, archivedAt: new Date().toISOString() };
+      setCloudTournaments(current => current.filter(item => item.id !== meta.id));
+      setArchivedCloudTournaments(current => [archived, ...current.filter(item => item.id !== meta.id)]);
+      if (activeRef.current?.id === meta.id) {
+        setActiveCloud(null);
+        activeRef.current = null;
+      }
+      setStatus('Moved to Trash · private revisions preserved');
+      setStatusKind('ok');
+      log(`Private Cloud tournament moved to Trash: ${meta.name || meta.id}.`);
+    } catch (error: any) {
+      if (error instanceof CloudApiError && error.code === 'cloud_revision_conflict') {
+        await refreshWorkspace().catch(() => []);
+        setStatus('Tournament changed in Cloud. Refresh and review the latest revision before moving it to Trash.');
+        setStatusKind('warn');
+      } else {
+        setStatus(error?.message || 'Could not move tournament to Trash.');
+        setStatusKind(error instanceof CloudApiError && error.code === 'network_error' ? 'offline' : 'warn');
+      }
+      throw error;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function restorePrivateCloudTournament(meta: CloudTournamentMeta) {
+    setBusy(true);
+    setStatus('Restoring tournament…');
+    setStatusKind('busy');
+    try {
+      const result = await cloudApi.restoreArchivedTournament(tokenRef.current, meta.id);
+      const restored = result?.tournament || { ...meta, archived: false, archivedAt: null, updatedAt: new Date().toISOString() };
+      setArchivedCloudTournaments(current => current.filter(item => item.id !== meta.id));
+      setCloudTournaments(current => [restored, ...current.filter(item => item.id !== meta.id)]);
+      setStatus('Tournament restored to My tournaments');
+      setStatusKind('ok');
+      log(`Private Cloud tournament restored: ${meta.name || meta.id}.`);
+    } catch (error: any) {
+      setStatus(error?.message || 'Could not restore tournament.');
+      setStatusKind(error instanceof CloudApiError && error.code === 'network_error' ? 'offline' : 'warn');
+      throw error;
+    } finally {
+      setBusy(false);
+    }
   }
 
   function chooseExistingRemote(tournament: Tournament | any, list = cloudTournaments) {
@@ -952,6 +1029,7 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
     tokenRef.current = '';
     setWorkspace(null);
     setCloudTournaments([]);
+    setArchivedCloudTournaments([]);
     setActiveCloud(null);
     activeRef.current = null;
     setPhase('login');
@@ -1014,16 +1092,18 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
       <CompanionTournamentSelectScreen
         organizerName={organizerName}
         tournaments={cloudTournaments}
-        localTournament={readLocalTournament()}
+        archivedTournaments={archivedCloudTournaments}
         busy={busy}
         status={status}
         statusKind={statusKind}
         onRefresh={() => void refreshWorkspace()}
         onSignOut={signOut}
         onOpen={meta => void openCloud(meta)}
-        onContinueLocal={() => void continueWithLocal()}
         onCreateNew={name => void createNewTournamentFromStart(name)}
         onImportFile={file => void importTournamentFromStart(file)}
+        onLoadArchived={() => refreshArchivedWorkspace()}
+        onArchive={archivePrivateCloudTournament}
+        onRestore={restorePrivateCloudTournament}
       />
     );
   }

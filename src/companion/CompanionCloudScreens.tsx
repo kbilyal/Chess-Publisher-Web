@@ -107,7 +107,7 @@ export function CompanionTournamentSelectScreen(props: {
   onOpen: (meta: CompanionCloudTournament) => void;
   onCreateNew: (name: string) => void;
   onImportFile: (file: File) => void;
-  onLoadArchived: () => Promise<void>;
+  onLoadArchived: () => Promise<unknown>;
   onArchive: (meta: CompanionCloudTournament) => Promise<void>;
   onRestore: (meta: CompanionCloudTournament) => Promise<void>;
 }) {

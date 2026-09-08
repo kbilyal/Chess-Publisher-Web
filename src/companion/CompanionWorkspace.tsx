@@ -719,12 +719,13 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
         )}
       </main>
 
-      <nav className="companion-mobile-nav" aria-label="Mobile tournament navigation">
+      <nav className="companion-mobile-nav companion-native-tabbar" aria-label="Mobile tournament navigation">
         {nav.map(item => {
           const Icon = item.icon;
-          return <button key={item.id} type="button" className={activeTab === item.id ? 'is-active' : ''} onClick={() => setActiveTab(item.id)}><Icon size={21} /><span>{item.label}</span></button>;
+          const active = activeTab === item.id;
+          return <button key={item.id} type="button" className={active ? 'is-active' : ''} aria-current={active ? 'page' : undefined} onClick={() => setActiveTab(item.id)}><span className="companion-mobile-nav-icon"><Icon size={22} /></span><span>{item.label}</span></button>;
         })}
-        <button type="button" onClick={leaveTournament}><ArrowLeft size={21} /><span>Tournaments</span></button>
+        <button type="button" className="companion-mobile-home-action" onClick={leaveTournament}><span className="companion-mobile-nav-icon"><ArrowLeft size={22} /></span><span>Tournaments</span></button>
       </nav>
     </div>
   );

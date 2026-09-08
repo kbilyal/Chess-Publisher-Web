@@ -11,6 +11,7 @@ import './companion-publish-v2.css';
 import './companion-registration.css';
 import './companion-setup.css';
 import './companion-conflict.css';
+import './mobile-native.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
