@@ -1,5 +1,6 @@
 name: Apply Sync False Conflict Fix
 
+# Retry after separating automatic-sync and pull base-reconstruction anchors.
 on:
   push:
     branches: [main]
