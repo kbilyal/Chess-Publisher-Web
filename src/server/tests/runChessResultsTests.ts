@@ -24,7 +24,7 @@ assert.match(publication.xml, /<tournament[^>]*currentround="1"[^>]*rankinground
 assert.match(publication.xml, /<tournament[^>]*ratednational="-"[^>]*tb1no="0"[^>]*tb5no="0"[^>]*replay="1"/);
 assert.match(publication.xml, /<tournament[^>]*endstatus="N"/);
 assert.match(publication.xml, /<round round="1" date="20261002" time="10:00" replay="1"/);
-assert.match(publication.xml, /<player[^>]*firstname=""[^>]*atitle=""/);
+assert.match(publication.xml, /<player[^>]*lastname="Carlsen"[^>]*firstname="Magnus"[^>]*atitle=""/);
 assert.match(publication.xml, /<player[^>]*board=""[^>]*teamno="0"/);
 assert.match(publication.xml, /<player[^>]*tb1=""[^>]*tb5=""[^>]*pts="1\.0"[^>]*equal="N"/);
 assert.match(publication.xml, /sid="__CP_CR_SID__"/);
@@ -33,10 +33,10 @@ assert.match(publication.xml, /sid="__CP_CR_SID__"/);
 // table index and board="1" for every player-pairing record.
 const individualPairings = [...publication.xml.matchAll(/<playerpairing\b[^>]*\/>/g)].map(match => match[0]);
 assert.equal(individualPairings.length, 2);
-assert.match(individualPairings[0], /\bpairing="1"\b[^>]*\bboard="1"/);
-assert.match(individualPairings[0], /\bwhiteno="1"[^>]*\bblackno="2"[^>]*\breswhite="1\.0"[^>]*\bresblack="0\.0"/);
-assert.match(individualPairings[1], /\bpairing="2"\b[^>]*\bboard="1"/);
-assert.match(individualPairings[1], /\bwhiteno="3"[^>]*\bblackno="-2"[^>]*\breswhite=""/);
+assert.match(individualPairings[0], /pairing="1"[^>]*board="1"/);
+assert.match(individualPairings[0], /whiteno="1"[^>]*blackno="2"[^>]*reswhite="1\.0"[^>]*resblack="0\.0"/);
+assert.match(individualPairings[1], /pairing="2"[^>]*board="1"/);
+assert.match(individualPairings[1], /whiteno="3"[^>]*blackno="-2"[^>]*reswhite=""/);
 
 const twoTables = structuredClone(tournament);
 twoTables.pairings.liveBoards = {
