@@ -12,7 +12,7 @@ const main = read('src/main.tsx');
 assert.ok(screen.includes('Search tournaments'), 'Tournament search is missing.');
 assert.ok(screen.includes('meta.name, meta.localKey, meta.id'), 'Tournament search must cover name, local key and Cloud tournament ID.');
 assert.ok(screen.includes('filtered.length === source.length'), 'Tournament search result count is missing.');
-assert.ok(screen.includes('No matching tournaments.'), 'Tournament search zero-result state is missing.');
+assert.ok(screen.includes('No tournaments match your search.'), 'Tournament search zero-result state must use the production copy.');
 assert.ok(screen.includes('Move to Trash'), 'Safe Trash confirmation is missing.');
 assert.ok(screen.includes('Recently removed'), 'Trash recovery view is missing.');
 assert.ok(screen.includes('Undo'), 'Reversible delete feedback is missing.');

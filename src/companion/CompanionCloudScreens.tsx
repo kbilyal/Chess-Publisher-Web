@@ -268,7 +268,7 @@ export function CompanionTournamentSelectScreen(props: {
                 )}
               </article>
             ))}
-            {!filtered.length && <div className="companion-tournament-empty">{showTrash ? <Archive size={30} /> : <Cloud size={30} />}<strong>{query ? 'No matching tournaments.' : (showTrash ? 'Trash is empty.' : 'No synchronized tournaments yet.')}</strong><span>{query ? 'Try another name, ID or tournament key.' : (showTrash ? 'Tournaments moved to Trash will appear here and can be restored.' : 'Create a tournament here, import TRF/TUNX, or sync one from Chess-Publisher Desktop.')}</span></div>}
+            {!filtered.length && <div className="companion-tournament-empty">{showTrash ? <Archive size={30} /> : <Cloud size={30} />}<strong>{query ? 'No tournaments match your search.' : (showTrash ? 'Trash is empty.' : 'No synchronized tournaments yet.')}</strong><span>{query ? 'Try another name, ID or tournament key.' : (showTrash ? 'Tournaments moved to Trash will appear here and can be restored.' : 'Create a tournament here, import TRF/TUNX, or sync one from Chess-Publisher Desktop.')}</span></div>}
           </div>
         </section>
       </div>
