@@ -1,0 +1,378 @@
+/* Desktop-only refinement for the Chess-Publisher Web Companion My Tournaments screen.
+   Visual/layout changes only: mobile-native behavior and tournament logic remain untouched. */
+
+@media (min-width: 821px) {
+  .companion-select-shell {
+    background:
+      radial-gradient(circle at 82% -12%, rgba(23, 105, 224, .10), transparent 30rem),
+      linear-gradient(180deg, #f6f9fd 0%, #f1f5fa 100%);
+  }
+
+  .companion-select-topbar {
+    min-height: 72px;
+    padding: 0 clamp(28px, 3vw, 48px);
+    border-bottom-color: rgba(15, 39, 68, .08);
+    background: rgba(252, 253, 255, .94);
+    box-shadow: 0 1px 0 rgba(255,255,255,.9) inset;
+  }
+
+  .companion-entry-brand.compact {
+    gap: 13px;
+  }
+
+  .companion-entry-brand.compact .companion-entry-mark {
+    width: 46px;
+    height: 46px;
+    flex-basis: 46px;
+    border-radius: 13px;
+    font-size: 14px;
+    box-shadow: 0 10px 26px rgba(23,105,224,.22);
+  }
+
+  .companion-entry-brand.compact strong {
+    font-size: 15px;
+    letter-spacing: -.015em;
+  }
+
+  .companion-entry-brand.compact span {
+    margin-top: 3px;
+    font-size: 9px;
+    letter-spacing: .09em;
+  }
+
+  .companion-select-actions {
+    gap: 10px;
+  }
+
+  .companion-select-actions button {
+    min-height: 44px;
+    padding: 0 15px;
+    gap: 8px;
+    border-color: rgba(15,39,68,.12);
+    border-radius: 12px;
+    font-size: 11px;
+    color: #314258;
+    box-shadow: 0 3px 12px rgba(8,24,45,.025);
+    transition: transform .14s ease, border-color .16s ease, box-shadow .16s ease, background .16s ease;
+  }
+
+  .companion-select-actions button:hover {
+    transform: translateY(-1px);
+    border-color: rgba(23,105,224,.22);
+    background: #fbfdff;
+    box-shadow: 0 7px 18px rgba(8,24,45,.055);
+  }
+
+  .companion-select-content {
+    width: min(1540px, calc(100% - 72px));
+    padding: 28px 0 56px;
+  }
+
+  .companion-hub-hero {
+    position: relative;
+    min-height: 148px;
+    padding: 25px 30px;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    border-radius: 19px;
+    border-color: rgba(23,105,224,.13);
+    background:
+      linear-gradient(135deg, rgba(255,255,255,.99), rgba(239,247,255,.94)),
+      #fff;
+    box-shadow: 0 16px 44px rgba(8,24,45,.055);
+  }
+
+  .companion-hub-hero::before {
+    content: "";
+    position: absolute;
+    inset: 0 16% 0 52%;
+    pointer-events: none;
+    opacity: .7;
+    background:
+      linear-gradient(135deg, transparent 0 44%, rgba(23,105,224,.035) 44% 55%, transparent 55% 100%),
+      repeating-linear-gradient(135deg, rgba(23,105,224,.035) 0 52px, transparent 52px 104px);
+    mask-image: linear-gradient(90deg, transparent, #000 28%, #000 100%);
+  }
+
+  .companion-hub-hero::after {
+    content: "♔  ♞";
+    position: absolute;
+    right: 13%;
+    bottom: -22px;
+    pointer-events: none;
+    color: rgba(23,105,224,.055);
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 118px;
+    line-height: 1;
+    letter-spacing: 12px;
+    white-space: nowrap;
+  }
+
+  .companion-hub-hero > div:first-child,
+  .companion-organizer-pill {
+    position: relative;
+    z-index: 1;
+  }
+
+  .companion-entry-eyebrow {
+    font-size: 10px;
+    letter-spacing: .14em;
+  }
+
+  .companion-select-head h1 {
+    margin: 9px 0 8px;
+    font-size: clamp(38px, 3vw, 50px);
+    line-height: 1.02;
+    letter-spacing: -.052em;
+    color: #0d1d33;
+  }
+
+  .companion-select-head p {
+    max-width: 780px;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #667892;
+  }
+
+  .companion-organizer-pill {
+    min-height: 62px;
+    padding: 11px 16px;
+    gap: 11px;
+    border-radius: 15px;
+    border-color: rgba(15,39,68,.10);
+    box-shadow: 0 8px 24px rgba(8,24,45,.04);
+  }
+
+  .companion-organizer-pill small {
+    font-size: 9px;
+  }
+
+  .companion-organizer-pill strong {
+    margin-top: 3px;
+    font-size: 12px;
+  }
+
+  .companion-start-actions {
+    margin: 18px 0 0;
+    gap: 16px;
+  }
+
+  .companion-start-action {
+    min-height: 104px;
+    padding: 17px 20px;
+    gap: 16px;
+    border-radius: 17px;
+    border-color: rgba(15,39,68,.11);
+    box-shadow: 0 8px 24px rgba(8,24,45,.035);
+    transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease, background .16s ease;
+  }
+
+  .companion-start-action.primary {
+    border-color: rgba(23,105,224,.24);
+    background: linear-gradient(135deg,#f4f9ff,#fbfdff);
+  }
+
+  .companion-start-action:hover {
+    transform: translateY(-2px);
+    border-color: rgba(23,105,224,.34);
+    box-shadow: 0 14px 30px rgba(8,24,45,.07);
+  }
+
+  .companion-start-action > svg:first-child {
+    width: 44px;
+    height: 44px;
+    padding: 10px;
+    box-sizing: border-box;
+    border-radius: 13px;
+    background: #edf5ff;
+    color: #1769e0;
+  }
+
+  .companion-start-action strong {
+    font-size: 15px;
+    letter-spacing: -.015em;
+  }
+
+  .companion-start-action small {
+    margin-top: 6px;
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  .companion-start-action > svg:last-child {
+    width: 22px;
+    height: 22px;
+    color: #1769e0;
+  }
+
+  .companion-list-tools {
+    margin: 20px 0 12px;
+    gap: 12px;
+  }
+
+  .companion-tournament-search {
+    min-height: 60px;
+    padding: 0 18px;
+    gap: 12px;
+    border-radius: 17px;
+    border-color: rgba(15,39,68,.11);
+    box-shadow: 0 8px 22px rgba(8,24,45,.035);
+  }
+
+  .companion-tournament-search input {
+    font-size: 15px;
+  }
+
+  .companion-trash-toggle {
+    min-height: 60px;
+    padding: 0 20px;
+    gap: 9px;
+    border-radius: 17px;
+    font-size: 13px;
+    box-shadow: 0 8px 22px rgba(8,24,45,.03);
+  }
+
+  .companion-select-status {
+    margin: 12px 2px 14px;
+    min-height: 34px;
+    font-size: 11px;
+  }
+
+  .companion-select-status-dot {
+    width: 9px;
+    height: 9px;
+    box-shadow: 0 0 0 5px rgba(72,200,131,.12);
+  }
+
+  .companion-tournament-list {
+    padding: 22px 20px 20px;
+    border-radius: 19px;
+    border-color: rgba(15,39,68,.10);
+    box-shadow: 0 16px 38px rgba(8,24,45,.05);
+  }
+
+  .companion-tournament-list-head {
+    margin-bottom: 16px;
+  }
+
+  .companion-tournament-list-head h2 {
+    font-size: 20px;
+    letter-spacing: -.025em;
+  }
+
+  .companion-tournament-list-head p {
+    margin-top: 5px;
+    font-size: 11px;
+  }
+
+  .companion-tournament-list-head > svg {
+    width: 23px;
+    height: 23px;
+  }
+
+  .companion-native-list .companion-tournament-grid,
+  .companion-tournament-grid {
+    gap: 12px 16px;
+  }
+
+  .companion-native-tile {
+    min-height: 90px;
+    grid-template-columns: minmax(0,1fr) 58px;
+    border-radius: 16px;
+    box-shadow: 0 6px 18px rgba(8,24,45,.025);
+  }
+
+  .companion-native-tile:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 26px rgba(8,24,45,.06);
+  }
+
+  .companion-tournament-open {
+    min-height: 88px;
+    padding: 14px 14px 14px 18px;
+    gap: 16px;
+  }
+
+  .companion-tournament-icon {
+    width: 46px;
+    height: 46px;
+    flex-basis: 46px;
+    border-radius: 13px;
+    background: #edf5ff;
+    color: #1769e0;
+  }
+
+  .companion-tournament-icon svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .companion-tournament-tile-main {
+    gap: 13px;
+  }
+
+  .companion-tournament-tile-main strong {
+    font-size: 13px;
+    font-weight: 820;
+    color: #16263d;
+  }
+
+  .companion-tournament-tile-main small {
+    margin-top: 6px;
+    font-size: 9.5px;
+    color: #7f8da0;
+  }
+
+  .companion-tournament-tile-meta {
+    gap: 9px;
+    padding-left: 10px;
+  }
+
+  .companion-tournament-tile-meta span {
+    font-size: 10px;
+    color: #1769e0;
+  }
+
+  .companion-tournament-tile-meta svg {
+    width: 20px;
+    height: 20px;
+    color: #1769e0;
+  }
+
+  .companion-tournament-delete,
+  .companion-tournament-restore {
+    min-width: 58px;
+    border-left: 1px solid rgba(15,39,68,.07);
+  }
+
+  .companion-tournament-empty {
+    min-height: 210px;
+  }
+
+  .companion-tournament-empty strong {
+    font-size: 14px;
+  }
+
+  .companion-tournament-empty span {
+    font-size: 11px;
+  }
+
+  .companion-new-dialog-card {
+    border-radius: 18px;
+  }
+}
+
+@media (min-width: 1280px) and (max-width: 1480px) {
+  .companion-select-content {
+    width: min(1320px, calc(100% - 56px));
+  }
+
+  .companion-select-head h1 {
+    font-size: 40px;
+  }
+
+  .companion-hub-hero {
+    min-height: 138px;
+  }
+}
