@@ -31,8 +31,9 @@ jobs:
           python scripts/apply-conflict-federation-fix.py
           python - <<'PY'
           from pathlib import Path
-          path = Path('src/companion/companionCloudActions.ts')
-          source = path.read_text()
+
+          actions = Path('src/companion/companionCloudActions.ts')
+          source = actions.read_text()
           original = """async function smartPullChanges(
             cloud: any,
             tournament: Tournament,
@@ -46,6 +47,7 @@ jobs:
           if original not in source:
               raise SystemExit('Strategy resolver signature anchor not found')
           source = source.replace(original, replacement, 1)
+
           sync_anchor = "\n\nasync function syncNowConfirmed(cloud: any, tournament: Tournament) {"
           wrapper = """
 
@@ -56,12 +58,41 @@ jobs:
           if sync_anchor not in source:
               raise SystemExit('syncNowConfirmed anchor not found')
           source = source.replace(sync_anchor, wrapper + sync_anchor, 1)
+
           old_facade = "resolveConflict: (tournament: Tournament, strategy: 'safe' | 'web' | 'cloud' = 'safe') => smartPullChanges(cloud, tournament, strategy),"
-          new_facade = "resolveConflict: (tournament: Tournament, strategy: 'safe' | 'web' | 'cloud' = 'safe') => strategy === 'safe' ? smartPullChanges(cloud, tournament) : smartPullChangesWithStrategy(cloud, tournament, strategy),"
+          new_facade = """resolveConflict: (tournament: Tournament) => smartPullChanges(cloud, tournament),
+              resolveConflictWithStrategy: (tournament: Tournament, strategy: 'web' | 'cloud') => smartPullChangesWithStrategy(cloud, tournament, strategy),"""
           if old_facade not in source:
               raise SystemExit('Conflict facade anchor not found')
           source = source.replace(old_facade, new_facade, 1)
-          path.write_text(source)
+          actions.write_text(source)
+
+          workspace = Path('src/companion/CompanionWorkspace.tsx')
+          source = workspace.read_text()
+          old_type = "  resolveConflict: (tournament: Tournament, strategy?: 'safe' | 'web' | 'cloud') => Promise<any>;"
+          new_type = """  resolveConflict: (tournament: Tournament) => Promise<any>;
+            resolveConflictWithStrategy: (tournament: Tournament, strategy: 'web' | 'cloud') => Promise<any>;"""
+          if old_type not in source:
+              raise SystemExit('Workspace conflict interface anchor not found')
+          source = source.replace(old_type, new_type, 1)
+          old_call = "      const result = await cloud.resolveConflict(tournamentRef.current, strategy);"
+          new_call = """      const result = strategy === 'safe'
+                ? await cloud.resolveConflict(tournamentRef.current)
+                : await cloud.resolveConflictWithStrategy(tournamentRef.current, strategy);"""
+          if old_call not in source:
+              raise SystemExit('Workspace conflict call anchor not found')
+          source = source.replace(old_call, new_call, 1)
+          workspace.write_text(source)
+
+          test = Path('src/cloud/tests/runCompanionSyncContractTests.ts')
+          source = test.read_text()
+          old_assert = "assert.match(actions, /resolveConflict: \\(tournament: Tournament, strategy: 'safe' \\| 'web' \\| 'cloud'/);"
+          new_assert = """assert.match(actions, /resolveConflict: \\(tournament: Tournament\\) => smartPullChanges/);
+          assert.match(actions, /resolveConflictWithStrategy: \\(tournament: Tournament, strategy: 'web' \\| 'cloud'\\)/);"""
+          if old_assert not in source:
+              raise SystemExit('Sync contract strategy assertion anchor not found')
+          source = source.replace(old_assert, new_assert, 1)
+          test.write_text(source)
           PY
       - name: Validate conflict, federation and protected publication paths
         shell: bash
