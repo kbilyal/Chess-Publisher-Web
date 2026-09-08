@@ -75,6 +75,11 @@ export function validateChessResultsTournament(tournament: Tournament, requireKe
     }
     usedNumbers.add(player.pairingNumber);
   });
+  const orderedNumbers = [...usedNumbers].sort((a, b) => a - b);
+  const invalidIndex = orderedNumbers.findIndex((number, index) => number !== index + 1);
+  if (invalidIndex >= 0) {
+    throw new Error(`Chess-Results starting numbers must be continuous from 1 to ${tournament.players.length}. Resort the starting list before publishing.`);
+  }
   const key = String(keyOverride || chessResults?.key || '').trim();
   if (requireKey && !/^\d+$/.test(key)) throw new Error('A numeric Chess-Results TNR is required.');
   return { federation, rounds, key };
@@ -84,7 +89,15 @@ export function buildChessResultsXml(tournament: Tournament, options: { requireK
   const { federation, rounds, key } = validateChessResultsTournament(tournament, options.requireKey, options.key);
   const settings = tournament.settings;
   const cr = tournament.chessResults;
-  const generatedRounds = Object.keys(tournament.pairings.liveBoards || {}).map(Number).filter(Number.isFinite).filter(round => round > 0).sort((a, b) => a - b);
+  const liveBoards = tournament.pairings.liveBoards || {};
+  const generatedRounds = Object.entries(liveBoards)
+    .filter(([, boards]) => Array.isArray(boards) && boards.length > 0)
+    .map(([roundKey]) => Number(roundKey))
+    .sort((a, b) => a - b);
+  const invalidRound = generatedRounds.find(round => !Number.isInteger(round) || round < 1 || round > rounds);
+  if (invalidRound !== undefined) {
+    throw new Error(`Chess-Results round ${invalidRound} is outside the declared 1-${rounds} round range. Correct the tournament rounds before publishing.`);
+  }
   const latestRound = generatedRounds.at(-1) || 0;
   const playerByKey = new Map(tournament.players.map(player => [player.localKey, player]));
   const lines = ['<?xml version="1.0" encoding="UTF-8"?>', '<chessresults>', '<tournamentdata>'];
@@ -111,20 +124,33 @@ export function buildChessResultsXml(tournament: Tournament, options: { requireK
   let pairingRecords = 0;
   const orderedPlayers = [...tournament.players].sort((a, b) => a.pairingNumber - b.pairingNumber);
   for (const round of generatedRounds) {
-    const boards = [...(tournament.pairings.liveBoards[String(round)] || [])].sort((a, b) => a.board - b.board);
+    const boards = [...(liveBoards[String(round)] || [])].sort((a, b) => a.board - b.board);
     const pairedKeys = new Set<string>();
-    let pairingNumber = 0;
-    boards.forEach((board: BoardPairing, index) => {
+    const boardNumbers = new Set<number>();
+    boards.forEach((board: BoardPairing) => {
+      const boardNumber = Number(board.board);
+      if (!Number.isInteger(boardNumber) || boardNumber < 1 || boardNumbers.has(boardNumber)) {
+        throw new Error(`Chess-Results round ${round} has an invalid or duplicate board number (${board.board}).`);
+      }
+      boardNumbers.add(boardNumber);
       const white = playerByKey.get(board.whiteKey);
-      const black = playerByKey.get(board.blackKey);
-      if (!white && !black) return;
-      if (white) pairedKeys.add(white.localKey);
+      const black = board.blackKey ? playerByKey.get(board.blackKey) : undefined;
+      if (!white) throw new Error(`Chess-Results round ${round}, board ${boardNumber} references an unknown White player.`);
+      if (board.blackKey && !black) throw new Error(`Chess-Results round ${round}, board ${boardNumber} references an unknown Black player.`);
+      if (black && black.localKey === white.localKey) throw new Error(`Chess-Results round ${round}, board ${boardNumber} pairs a player against themselves.`);
+      if (pairedKeys.has(white.localKey) || (black && pairedKeys.has(black.localKey))) {
+        throw new Error(`Chess-Results round ${round} contains a player on more than one board.`);
+      }
+      pairedKeys.add(white.localKey);
       if (black) pairedKeys.add(black.localKey);
       const result = pairingResult(board.result, !black);
       pairingRecords += 1;
-      pairingNumber += 1;
+      // Chess-Results XML defines `pairing` as the team-pairing index. For an
+      // individual tournament it must always be 1; the chessboard number is
+      // carried separately in `board`. Sending 2,3,... here can make the
+      // official upload parser index a non-existent team pairing array.
       lines.push(`<playerpairing ${[
-        attr('round', round), attr('pairing', pairingNumber), attr('board', board.board || 1), attr('whiteno', white?.pairingNumber || black!.pairingNumber),
+        attr('round', round), attr('pairing', 1), attr('board', boardNumber), attr('whiteno', white.pairingNumber),
         attr('blackno', black?.pairingNumber || result.blackNo || -2), attr('reswhite', result.white), attr('resblack', result.black), attr('forfeit', result.forfeit)
       ].join(' ')} />`);
     });
@@ -133,9 +159,8 @@ export function buildChessResultsXml(tournament: Tournament, options: { requireK
     // or make an incremental upload fail validation on Chess-Results.
     orderedPlayers.filter(player => !pairedKeys.has(player.localKey)).forEach(player => {
       pairingRecords += 1;
-      pairingNumber += 1;
       lines.push(`<playerpairing ${[
-        attr('round', round), attr('pairing', pairingNumber), attr('board', 1), attr('whiteno', player.pairingNumber),
+        attr('round', round), attr('pairing', 1), attr('board', 1), attr('whiteno', player.pairingNumber),
         attr('blackno', -2), attr('reswhite', ''), attr('resblack', ''), attr('forfeit', '')
       ].join(' ')} />`);
     });
