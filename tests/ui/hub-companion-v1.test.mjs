@@ -82,7 +82,11 @@ has(cloudScreens, 'My tournaments', 'My Tournaments navigation wording is missin
 has(cloudScreens, 'New tournament', 'Web start page must create a new private tournament.');
 has(cloudScreens, 'Import tournament', 'Web start page must expose unified tournament import.');
 has(cloudScreens, '.trf,.trf16,.trf26,.txt,.tunx,.TUNX', 'Unified TRF/TUNX import file picker is missing.');
-has(cloudScreens, 'onContinueLocal', 'My Tournaments must retain local-to-Cloud continuation.');
+has(cloudProvider, 'async function continueWithLocal()', 'Underlying browser-local continuation logic must remain available even though its old UI card is removed.');
+has(cloudProvider, 'const local = readLocalTournament();', 'Local continuation must still read the existing browser-local tournament state.');
+lacks(cloudScreens, 'onContinueLocal', 'My Tournaments must not re-expose the obsolete local continuation action.');
+lacks(cloudScreens, 'THIS BROWSER', 'The obsolete This Browser section must stay removed.');
+lacks(cloudScreens, 'companion-local-continuation', 'The obsolete local continuation card must stay removed.');
 
 const publishTargets = [...workspace.matchAll(/data-publish-target="([^"]+)"/g)].map(match => match[1]);
 assert.deepEqual(publishTargets, ['chess-results', 'online-hub'], 'Publish workspace must have exactly two primary publication targets: Chess-Results and Online Hub.');

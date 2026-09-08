@@ -4,6 +4,7 @@ on:
     paths:
       - 'src/companion/CompanionCloudScreens.tsx'
       - 'src/companion-cloud.css'
+      - 'src/mobile-native.css'
       - 'src/cloud/OnlineCloudProviderV2.tsx'
       - 'src/main.tsx'
       - 'tests/ui/companion-cloud-screens.test.mjs'
@@ -41,13 +42,12 @@ jobs:
           import React from 'react';
           import { createRoot } from 'react-dom/client';
           import { CompanionLoginScreen, CompanionTournamentSelectScreen } from './src/companion/CompanionCloudScreens.tsx';
-          import { createInitialEmptyTournament } from './src/data/initialData.ts';
           import './src/index.css';
           import './src/companion-cloud.css';
+          import './src/mobile-native.css';
 
           const params = new URLSearchParams(location.search);
           const screen = params.get('screen') || 'login';
-          const local = createInitialEmptyTournament('Local · Rhodopes Open 2026');
           const tournaments = [
             { id: 'cloud-rhodopes-2026', localKey: 'cp:rhodopes-2026', name: 'Rhodopes Open 2026', revision: 14 },
             { id: 'cloud-nedelino-2026', localKey: 'cp:nedelino-2026', name: 'Nedelino Memorial 2026', revision: 9 },
@@ -55,7 +55,22 @@ jobs:
           ];
 
           createRoot(document.getElementById('root')!).render(screen === 'select'
-            ? <CompanionTournamentSelectScreen organizerName="Organizer Preview" tournaments={tournaments} localTournament={local} busy={false} status="Connected" statusKind="ok" onRefresh={() => {}} onSignOut={() => {}} onOpen={() => {}} onContinueLocal={() => {}} />
+            ? <CompanionTournamentSelectScreen
+                organizerName="Organizer Preview"
+                tournaments={tournaments}
+                archivedTournaments={[]}
+                busy={false}
+                status="Connected"
+                statusKind="ok"
+                onRefresh={() => {}}
+                onSignOut={() => {}}
+                onOpen={() => {}}
+                onCreateNew={() => {}}
+                onImportFile={() => {}}
+                onLoadArchived={async () => {}}
+                onArchive={async () => {}}
+                onRestore={async () => {}}
+              />
             : <CompanionLoginScreen tokenInput="" rememberToken={false} busy={false} status="Organizer Token required" statusKind="warn" onTokenInput={() => {}} onRememberToken={() => {}} onConnect={() => {}} />
           );
           EOF
@@ -86,7 +101,9 @@ jobs:
               } else {
                 if (!await page.getByRole('heading', { name: 'My tournaments' }).isVisible()) throw new Error(`${label}: My tournaments heading missing.`);
                 if (await page.locator('.companion-tournament-tile').count() !== 3) throw new Error(`${label}: cloud tournament cards missing.`);
-                if (!await page.getByText('Local · Rhodopes Open 2026').isVisible()) throw new Error(`${label}: local continuation missing.`);
+                if (!await page.getByRole('textbox', { name: 'Search tournaments' }).isVisible()) throw new Error(`${label}: tournament search missing.`);
+                if (await page.getByText('THIS BROWSER').count()) throw new Error(`${label}: obsolete This Browser UI returned.`);
+                if (await page.locator('.companion-local-continuation').count()) throw new Error(`${label}: obsolete local continuation card returned.`);
               }
               const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
               if (overflow > 1) throw new Error(`${label}/${screen}: horizontal overflow ${overflow}px.`);

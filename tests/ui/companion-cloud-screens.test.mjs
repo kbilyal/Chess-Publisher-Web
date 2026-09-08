@@ -7,13 +7,18 @@ const css = fs.readFileSync('src/companion-cloud.css', 'utf8');
 const main = fs.readFileSync('src/main.tsx', 'utf8');
 
 const has = (source, marker, message) => assert.ok(source.includes(marker), message || `Missing ${marker}`);
+const lacks = (source, marker, message) => assert.ok(!source.includes(marker), message || `Forbidden ${marker}`);
 
 has(provider, "from '../companion/CompanionCloudScreens'", 'Cloud provider must use the focused Companion entry screens.');
 has(provider, '<CompanionLoginScreen', 'Organizer login is not wired to the Companion login screen.');
 has(provider, '<CompanionTournamentSelectScreen', 'My Tournaments is not wired to the Companion tournament screen.');
-has(provider, 'localTournament={readLocalTournament()}', 'My Tournaments must preserve browser-local continuation.');
+has(provider, 'function readLocalTournament()', 'Browser-local tournament persistence must remain available for continuation/sync.');
+has(provider, 'async function continueWithLocal()', 'Underlying local-to-Cloud continuation logic must remain available.');
+has(provider, 'findOwnedContinuationTournament', 'Organizer Cloud continuation discovery must remain wired.');
 has(provider, 'onOpen={meta => void openCloud(meta)}', 'Cloud tournament cards must open the authoritative private snapshot.');
-has(provider, 'onContinueLocal={() => void continueWithLocal()}', 'Local continuation must retain the existing Cloud link/sync workflow.');
+lacks(screens, 'onContinueLocal', 'The obsolete visible local-continuation action must stay removed.');
+lacks(screens, 'THIS BROWSER', 'The obsolete This Browser section must stay removed.');
+lacks(screens, 'companion-local-continuation', 'The obsolete local continuation card must stay removed.');
 has(provider, 'onConnect={() => void loginWithToken(tokenInput, rememberToken)}', 'Organizer login must reuse the existing authenticated token workflow.');
 has(provider, 'onRememberToken={setRememberToken}', 'Remember-token choice must remain explicit.');
 has(screens, 'My tournaments', 'My Tournaments heading is missing.');
@@ -32,4 +37,4 @@ has(css, '@media (max-width: 560px)', 'Entry screens need a phone-specific layou
 has(css, '.companion-tournament-grid { grid-template-columns:1fr;', 'Tournament cards must collapse to one column on phones.');
 has(main, "import './companion-cloud.css';", 'Companion entry screen styles are not loaded.');
 
-console.log('PASS Companion entry screens: polished Organizer login + My Tournaments wired to existing Cloud auth/open/continuation logic.');
+console.log('PASS Companion entry screens: polished Organizer login + My Tournaments wired to existing Cloud auth/open/continuation logic without the obsolete This Browser UI.');
