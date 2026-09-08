@@ -1,5 +1,6 @@
 name: One-time Chess-Results Identity Sync Repair
 
+# Trigger revision: 2
 on:
   push:
     branches: [main]
