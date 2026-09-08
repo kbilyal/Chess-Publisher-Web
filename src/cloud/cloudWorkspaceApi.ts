@@ -84,8 +84,15 @@ async function request(path: string, options: {
 export const cloudApi = {
   workspace: (token: string) => request('/api/v1/cloud/workspace', { token }),
   listTournaments: (token: string) => request('/api/v1/cloud/tournaments', { token }),
+  listArchivedTournaments: (token: string) => request('/api/v1/cloud/tournaments/archived', { token }),
   createTournament: (token: string, input: any) => request('/api/v1/cloud/tournaments', { method: 'POST', token, body: input }),
   getTournament: (token: string, id: string) => request(`/api/v1/cloud/tournaments/${enc(id)}`, { token }),
+  archiveTournament: (token: string, id: string, expectedRevision: number) => request(`/api/v1/cloud/tournaments/${enc(id)}`, {
+    method: 'DELETE',
+    token,
+    headers: { 'X-Expected-Revision': String(Math.max(0, Number(expectedRevision) || 0)) }
+  }),
+  restoreArchivedTournament: (token: string, id: string) => request(`/api/v1/cloud/tournaments/${enc(id)}/restore`, { method: 'POST', token }),
   getSnapshot: (token: string, id: string) => request(`/api/v1/cloud/tournaments/${enc(id)}/snapshot`, { token }),
   putSnapshot: (token: string, id: string, baseRevision: number, snapshot: any, device: { id: string; label: string }) => request(`/api/v1/cloud/tournaments/${enc(id)}/snapshot`, {
     method: 'PUT',
