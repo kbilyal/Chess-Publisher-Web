@@ -1,0 +1,263 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { CheckCircle2, Loader2, RefreshCw, ShieldCheck, Smartphone, Wifi, WifiOff } from 'lucide-react';
+import { arbiterApi, ArbiterTournamentView } from './arbiterApi';
+
+const DEVICE_KEY = 'cp.arbiter.device.v1';
+const allowedResults = ['1 - 0', '½ - ½', '0 - 1'] as const;
+
+function accessCodeFromUrl() {
+  return new URLSearchParams(window.location.search).get('arbiter')?.trim() || '';
+}
+
+function deviceId() {
+  const existing = localStorage.getItem(DEVICE_KEY);
+  if (existing) return existing;
+  const id = `arbiter-web:${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
+  localStorage.setItem(DEVICE_KEY, id);
+  return id;
+}
+
+function sessionStorageKey(accessCode: string) {
+  return `cp.arbiter.session.${accessCode.slice(0, 20)}`;
+}
+
+function latestRound(view: ArbiterTournamentView | null) {
+  if (!view) return 0;
+  return Object.keys(view.pairings?.liveBoards || {})
+    .map(Number)
+    .filter(value => Number.isFinite(value) && value > 0)
+    .reduce((max, value) => Math.max(max, value), 0);
+}
+
+function playerLabel(view: ArbiterTournamentView, key: string) {
+  const player = view.players.find(item => item.localKey === key);
+  if (!player) return { name: key || '—', meta: '' };
+  const title = player.title ? `${player.title} ` : '';
+  return {
+    name: `${title}${player.name}`.trim(),
+    meta: `${player.fed || 'FID'} · ${player.rating || '—'}${player.fideId && player.fideId !== '-' ? ` · FIDE ${player.fideId}` : ''}`
+  };
+}
+
+export const ArbiterPortal: React.FC = () => {
+  const accessCode = useMemo(accessCodeFromUrl, []);
+  const storageKey = useMemo(() => sessionStorageKey(accessCode), [accessCode]);
+  const [sessionToken, setSessionToken] = useState(() => accessCode ? localStorage.getItem(storageKey) || '' : '');
+  const [name, setName] = useState('');
+  const [view, setView] = useState<ArbiterTournamentView | null>(null);
+  const [sessionName, setSessionName] = useState('');
+  const [activeRound, setActiveRound] = useState(0);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const [online, setOnline] = useState(navigator.onLine);
+  const pollRef = useRef<number | null>(null);
+
+  const loadTournament = async (token = sessionToken, quiet = false) => {
+    if (!token) return;
+    if (!quiet) setBusy(true);
+    try {
+      const response = await arbiterApi.tournament(token);
+      setView(response.tournament);
+      setSessionName(response.session.name);
+      const newest = latestRound(response.tournament);
+      setActiveRound(current => current && response.tournament.pairings.liveBoards[String(current)] ? current : newest);
+      if (!quiet) setMessage('Connected · pairings are current.');
+    } catch (error: any) {
+      if (error?.status === 401 || error?.status === 403) {
+        localStorage.removeItem(storageKey);
+        setSessionToken('');
+        setView(null);
+        setMessage('This Arbiter Access session is no longer valid. Ask the organizer for a new QR code.');
+      } else if (!quiet) {
+        setMessage(error?.message || 'Could not refresh tournament.');
+      }
+    } finally {
+      if (!quiet) setBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    const onOnline = () => setOnline(true);
+    const onOffline = () => setOnline(false);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!sessionToken) return;
+    void loadTournament(sessionToken);
+    pollRef.current = window.setInterval(() => void loadTournament(sessionToken, true), 10000);
+    return () => {
+      if (pollRef.current) window.clearInterval(pollRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionToken]);
+
+  const join = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!accessCode || name.trim().length < 2) return;
+    setBusy(true);
+    setMessage('');
+    try {
+      const response = await arbiterApi.join(accessCode, name.trim(), deviceId());
+      localStorage.setItem(storageKey, response.sessionToken);
+      setSessionToken(response.sessionToken);
+      setSessionName(response.session.name);
+      setMessage(`Welcome, ${response.session.name}.`);
+    } catch (error: any) {
+      setMessage(error?.message || 'Could not join this tournament.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submit = async (round: number, board: number, whiteKey: string, blackKey: string, currentResult: string) => {
+    if (!view || !sessionToken) return;
+    const key = `${round}:${board}`;
+    const result = drafts[key] || currentResult;
+    if (!allowedResults.includes(result as any)) return;
+    setBusy(true);
+    setMessage('');
+    try {
+      await arbiterApi.submitResult(sessionToken, {
+        round,
+        board,
+        whiteKey,
+        blackKey,
+        result,
+        baseRevision: view.revision
+      });
+      setMessage(`${currentResult && currentResult !== '-' ? 'Updated' : 'Sent'} Board ${board}: ${result}.`);
+      setDrafts(current => {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      });
+      await loadTournament(sessionToken, true);
+    } catch (error: any) {
+      if (error?.code === 'cloud_revision_conflict') {
+        setMessage('The organizer changed the tournament or pairings. Refresh before sending this result.');
+        await loadTournament(sessionToken, true);
+      } else {
+        setMessage(error?.message || 'Result could not be sent.');
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!accessCode) {
+    return (
+      <main className="arbiter-entry-shell">
+        <section className="arbiter-entry-card">
+          <ShieldCheck size={34} />
+          <h1>Arbiter Access</h1>
+          <p>This link does not contain a valid tournament access grant.</p>
+        </section>
+      </main>
+    );
+  }
+
+  if (!sessionToken) {
+    return (
+      <main className="arbiter-entry-shell">
+        <form className="arbiter-entry-card" onSubmit={join}>
+          <div className="arbiter-brand-mark">CP</div>
+          <span className="arbiter-eyebrow">ARBITER ACCESS</span>
+          <h1>Enter your name</h1>
+          <p>The organizer will see this name while results are being entered. Access is limited to pairings and results for this tournament.</p>
+          <label className="arbiter-name-field">
+            <span>Arbiter name</span>
+            <input value={name} onChange={event => setName(event.target.value)} autoFocus autoComplete="name" maxLength={80} placeholder="e.g. Ivan Petrov" />
+          </label>
+          <button type="submit" className="arbiter-primary" disabled={busy || name.trim().length < 2}>
+            {busy ? <Loader2 size={18} className="spin" /> : <Smartphone size={18} />} Join tournament
+          </button>
+          {message && <div className="arbiter-message warn">{message}</div>}
+          <small className="arbiter-security-note"><ShieldCheck size={14} /> No publishing, tournament setup, Cloud administration or Chess-Results access.</small>
+        </form>
+      </main>
+    );
+  }
+
+  if (!view) {
+    return (
+      <main className="arbiter-entry-shell">
+        <section className="arbiter-entry-card">
+          <Loader2 size={28} className="spin" />
+          <h1>Loading tournament…</h1>
+          {message && <p>{message}</p>}
+        </section>
+      </main>
+    );
+  }
+
+  const rounds = Object.keys(view.pairings.liveBoards || {}).map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+  const boards = view.pairings.liveBoards[String(activeRound)] || [];
+  const finalized = Boolean(view.pairings.finalizedRounds?.[String(activeRound)]);
+
+  return (
+    <div className="arbiter-shell">
+      <header className="arbiter-topbar">
+        <div>
+          <span className="arbiter-eyebrow">ARBITER ACCESS</span>
+          <h1>{view.name}</h1>
+          <p>{sessionName} · Cloud revision {view.revision}</p>
+        </div>
+        <div className="arbiter-top-actions">
+          <span className={`arbiter-connection ${online ? 'online' : 'offline'}`}>{online ? <Wifi size={15} /> : <WifiOff size={15} />}{online ? 'Connected' : 'Offline'}</span>
+          <button type="button" onClick={() => void loadTournament()} disabled={busy}><RefreshCw size={17} className={busy ? 'spin' : ''} /> Refresh</button>
+        </div>
+      </header>
+
+      <main className="arbiter-main">
+        {message && <div className="arbiter-message"><CheckCircle2 size={16} /> {message}</div>}
+
+        <section className="arbiter-round-toolbar">
+          <div><strong>Pairings & Results</strong><span>{finalized ? `Round ${activeRound} is finalized and read-only.` : 'Tap a result, then Send or Update.'}</span></div>
+          <label><span>Round</span><select value={activeRound} onChange={event => setActiveRound(Number(event.target.value))}>{rounds.map(round => <option key={round} value={round}>Round {round}</option>)}</select></label>
+        </section>
+
+        <section className="arbiter-board-list">
+          {boards.length === 0 && <div className="arbiter-empty">No pairings are available for this round yet.</div>}
+          {boards.map(board => {
+            const white = playerLabel(view, board.whiteKey);
+            const black = playerLabel(view, board.blackKey);
+            const key = `${activeRound}:${board.board}`;
+            const currentResult = board.result || '-';
+            const selected = drafts[key] || currentResult;
+            const normalGame = Boolean(board.whiteKey && board.blackKey) && !['PAB', 'REQUESTED_BYE', 'ZERO_POINT_BYE', 'UNPAIRED', 'ABSENT', 'WITHDRAWN'].includes(String(board.entryType || ''));
+            const canEdit = normalGame && !finalized;
+            return (
+              <article className="arbiter-board-card" key={key}>
+                <div className="arbiter-board-number">Board {board.board}</div>
+                <div className="arbiter-player white"><strong>{white.name}</strong><span>{white.meta}</span></div>
+                <div className="arbiter-result-value">{selected === '-' ? '—' : selected}</div>
+                <div className="arbiter-player black"><strong>{black.name}</strong><span>{black.meta}</span></div>
+                {canEdit ? (
+                  <div className="arbiter-result-actions">
+                    <div className="arbiter-result-buttons">
+                      {allowedResults.map(result => <button key={result} type="button" className={selected === result ? 'selected' : ''} onClick={() => setDrafts(current => ({ ...current, [key]: result }))}>{result}</button>)}
+                    </div>
+                    <button type="button" className="arbiter-send" disabled={busy || !drafts[key] || drafts[key] === currentResult} onClick={() => void submit(activeRound, board.board, board.whiteKey, board.blackKey, currentResult)}>
+                      {busy ? <Loader2 size={16} className="spin" /> : null}{currentResult !== '-' ? 'Update result' : 'Send result'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="arbiter-readonly">{finalized ? 'Finalized' : 'Administrative pairing · result controlled by tournament rules'}</div>
+                )}
+              </article>
+            );
+          })}
+        </section>
+      </main>
+
+      <footer className="arbiter-footer"><ShieldCheck size={14} /> Pairings + Results only · Publishing is disabled for Arbiter Access</footer>
+    </div>
+  );
+};
