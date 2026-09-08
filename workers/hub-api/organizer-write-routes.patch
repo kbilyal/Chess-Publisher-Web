@@ -1,0 +1,227 @@
+--- worker.js
++++ worker.js
+@@ -173,6 +173,58 @@
+     return createOrganizerTournament(request, env);
+   }
+ 
++  let organizerTournamentMatch = path.match(
++    /^\/api\/v1\/organizer\/tournaments\/([^/]+)\/snapshot$/
++  );
++
++  if (request.method === "PUT" && organizerTournamentMatch) {
++    return publishSnapshot(
++      request,
++      env,
++      decodeURIComponent(organizerTournamentMatch[1]),
++      "organizer"
++    );
++  }
++
++  organizerTournamentMatch = path.match(
++    /^\/api\/v1\/organizer\/tournaments\/([^/]+)\/regulations-file$/
++  );
++
++  if (request.method === "POST" && organizerTournamentMatch) {
++    return uploadRegulationsFile(
++      request,
++      env,
++      decodeURIComponent(organizerTournamentMatch[1]),
++      "organizer"
++    );
++  }
++
++  organizerTournamentMatch = path.match(
++    /^\/api\/v1\/organizer\/tournaments\/([^/]+)\/restore$/
++  );
++
++  if (request.method === "POST" && organizerTournamentMatch) {
++    return restoreTournament(
++      request,
++      env,
++      decodeURIComponent(organizerTournamentMatch[1]),
++      "organizer"
++    );
++  }
++
++  organizerTournamentMatch = path.match(
++    /^\/api\/v1\/organizer\/tournaments\/([^/]+)$/
++  );
++
++  if (request.method === "DELETE" && organizerTournamentMatch) {
++    return deleteTournament(
++      request,
++      env,
++      decodeURIComponent(organizerTournamentMatch[1]),
++      "organizer"
++    );
++  }
++
+   if (
+     request.method === "POST" &&
+     path === "/api/v1/tournaments"
+@@ -4079,6 +4131,69 @@
+   };
+ }
+ 
++async function requireOrganizerTournamentOwner(request, env, tournament) {
++  const ownerId =
++    String(
++      tournament.owner_id || ""
++    ).trim();
++
++  if (!ownerId) {
++    throw new ApiError(
++      403,
++      "tournament_not_owner_bound",
++      "This tournament is not linked to an organizer account."
++    );
++  }
++
++  const organizer =
++    await organizerFromBearer(
++      request,
++      env
++    );
++
++  if (
++    !timingSafeEqual(
++      String(
++        organizer.organizer_id || ""
++      ),
++      ownerId
++    )
++  ) {
++    throw new ApiError(
++      403,
++      "organizer_not_owner",
++      "This organizer does not own the tournament."
++    );
++  }
++
++  return organizer;
++}
++
++async function authorizeTournamentWrite(
++  request,
++  env,
++  tournament,
++  authMode = "managed"
++) {
++  if (authMode === "organizer") {
++    return {
++      manageToken: null,
++      organizer:
++        await requireOrganizerTournamentOwner(
++          request,
++          env,
++          tournament
++        )
++    };
++  }
++
++  return requireManageToken(
++    request,
++    env,
++    tournament
++  );
++}
++
+ /* ============================================================
+    REGULATIONS FILE UPLOAD
+    ============================================================ */
+@@ -4132,7 +4247,8 @@
+ async function uploadRegulationsFile(
+   request,
+   env,
+-  tournamentId
++  tournamentId,
++  authMode = "managed"
+ ) {
+   const tournament =
+     await getManagedTournament(
+@@ -4140,10 +4256,11 @@
+       tournamentId
+     );
+ 
+-  await requireManageToken(
++  await authorizeTournamentWrite(
+     request,
+     env,
+-    tournament
++    tournament,
++    authMode
+   );
+ 
+   if (
+@@ -4264,7 +4381,8 @@
+ async function deleteTournament(
+   request,
+   env,
+-  tournamentId
++  tournamentId,
++  authMode = "managed"
+ ) {
+   const tournament =
+     await getManagedTournament(
+@@ -4272,10 +4390,11 @@
+       tournamentId
+     );
+ 
+-  await requireManageToken(
++  await authorizeTournamentWrite(
+     request,
+     env,
+-    tournament
++    tournament,
++    authMode
+   );
+ 
+   const confirmation =
+@@ -4471,7 +4590,8 @@
+ async function restoreTournament(
+   request,
+   env,
+-  tournamentId
++  tournamentId,
++  authMode = "managed"
+ ) {
+   const tournament =
+     await getManagedTournament(
+@@ -4479,10 +4599,11 @@
+       tournamentId
+     );
+ 
+-  await requireManageToken(
++  await authorizeTournamentWrite(
+     request,
+     env,
+-    tournament
++    tournament,
++    authMode
+   );
+ 
+   if (
+@@ -4653,7 +4774,8 @@
+ async function publishSnapshot(
+   request,
+   env,
+-  tournamentId
++  tournamentId,
++  authMode = "managed"
+ ) {
+   const row =
+     await getManagedTournament(
+@@ -4661,10 +4783,11 @@
+       tournamentId
+     );
+ 
+-  await requireManageToken(
++  await authorizeTournamentWrite(
+     request,
+     env,
+-    row
++    row,
++    authMode
+   );
+ 
+   if (
