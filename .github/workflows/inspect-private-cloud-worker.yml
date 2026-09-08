@@ -1,0 +1,56 @@
+name: Inspect Private Cloud Worker Routes
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-private-cloud-worker.yml'
+
+permissions:
+  contents: read
+
+env:
+  HUB_WORKER_NAME: chess-publisher-hub-api-beta
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Recover current Worker and print only Cloud route/schema snippets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          api="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${HUB_WORKER_NAME}"
+          curl --fail --silent --show-error --location -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" "$api" -o /tmp/live.multipart
+          python - <<'PY'
+          from pathlib import Path
+          from email.parser import BytesParser
+          from email.policy import default
+          raw=Path('/tmp/live.multipart').read_bytes()
+          first=raw.splitlines()[0].decode('ascii','strict')
+          boundary=first[2:]
+          env=(f'Content-Type: multipart/form-data; boundary={boundary}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw
+          msg=BytesParser(policy=default).parsebytes(env)
+          parts=list(msg.iter_parts())
+          if len(parts)!=1: raise SystemExit(f'unexpected modules: {len(parts)}')
+          src=(parts[0].get_payload(decode=True) or b'').decode('utf-8')
+          lines=src.splitlines()
+          needles=['/api/v1/cloud/tournaments','CREATE TABLE','cloud_tournament','cloudTournament','cloud_snapshots','cloud_revisions']
+          hits=[]
+          for i,line in enumerate(lines):
+              if any(n.lower() in line.lower() for n in needles): hits.append(i)
+          shown=set()
+          for i in hits:
+              a=max(0,i-12); b=min(len(lines),i+24)
+              key=(a,b)
+              if any(a>=x and a<=y for x,y in shown): continue
+              shown.add(key)
+              print(f'--- lines {a+1}-{b} ---')
+              for j in range(a,b): print(f'{j+1:05d}: {lines[j]}')
+          PY
