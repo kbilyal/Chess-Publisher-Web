@@ -23,6 +23,7 @@ has(provider, 'onConnect={() => void loginWithToken(tokenInput, rememberToken)}'
 has(provider, 'onRememberToken={setRememberToken}', 'Remember-token choice must remain explicit.');
 has(screens, 'My tournaments', 'My Tournaments heading is missing.');
 has(screens, 'Cloud tournaments', 'Cloud tournament list is missing.');
+has(screens, 'No tournaments match your search.', 'My Tournaments must use the specified zero-result search copy.');
 
 has(screens, 'New tournament', 'My Tournaments must expose Web tournament creation.');
 has(screens, 'Import tournament', 'My Tournaments must expose one tournament import action.');
