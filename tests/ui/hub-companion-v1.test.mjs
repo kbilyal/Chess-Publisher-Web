@@ -79,6 +79,9 @@ has(vite, 'node_modules/sql.js/dist/sql-wasm.wasm', 'Production Vite build must 
 has(cloudScreens, 'CompanionLoginScreen', 'Focused Organizer login surface is missing.');
 has(cloudScreens, 'CompanionTournamentSelectScreen', 'Focused My Tournaments surface is missing.');
 has(cloudScreens, 'My tournaments', 'My Tournaments navigation wording is missing.');
+has(cloudScreens, 'New tournament', 'Web start page must create a new private tournament.');
+has(cloudScreens, 'Import tournament', 'Web start page must expose unified tournament import.');
+has(cloudScreens, '.trf,.trf16,.trf26,.txt,.tunx,.TUNX', 'Unified TRF/TUNX import file picker is missing.');
 has(cloudScreens, 'onContinueLocal', 'My Tournaments must retain local-to-Cloud continuation.');
 
 const publishTargets = [...workspace.matchAll(/data-publish-target="([^"]+)"/g)].map(match => match[1]);

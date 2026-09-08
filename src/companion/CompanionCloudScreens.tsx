@@ -1,5 +1,5 @@
-import React from 'react';
-import { ArrowRight, CheckCircle2, Cloud, LogOut, RefreshCw, ShieldCheck, Smartphone, Trophy, WifiOff } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { ArrowRight, CheckCircle2, Cloud, FileUp, LogOut, Plus, RefreshCw, ShieldCheck, Smartphone, Trophy, WifiOff, X } from 'lucide-react';
 import { Tournament } from '../types';
 
 export type CompanionCloudTournament = {
@@ -79,8 +79,19 @@ export function CompanionTournamentSelectScreen(props: {
   onSignOut: () => void;
   onOpen: (meta: CompanionCloudTournament) => void;
   onContinueLocal: () => void;
+  onCreateNew: (name: string) => void;
+  onImportFile: (file: File) => void;
 }) {
-  const { organizerName, tournaments, localTournament, busy, status, statusKind, onRefresh, onSignOut, onOpen, onContinueLocal } = props;
+  const { organizerName, tournaments, localTournament, busy, status, statusKind, onRefresh, onSignOut, onOpen, onContinueLocal, onCreateNew, onImportFile } = props;
+  const [newDialog, setNewDialog] = useState(false);
+  const [newName, setNewName] = useState('New Tournament');
+  const importInputRef = useRef<HTMLInputElement>(null);
+  const submitNew = () => {
+    const value = newName.trim();
+    if (!value || busy) return;
+    setNewDialog(false);
+    onCreateNew(value);
+  };
   return (
     <main className="companion-select-shell">
       <header className="companion-select-topbar">
@@ -93,9 +104,40 @@ export function CompanionTournamentSelectScreen(props: {
 
       <div className="companion-select-content">
         <section className="companion-select-head">
-          <div><span className="companion-entry-eyebrow">SYNCHRONIZED WORKSPACE</span><h1>My tournaments</h1><p>Open the same private tournament used by Chess-Publisher Desktop.</p></div>
+          <div><span className="companion-entry-eyebrow">SYNCHRONIZED WORKSPACE</span><h1>My tournaments</h1><p>Create here or import a full tournament, then continue the same Cloud record in Chess-Publisher Desktop.</p></div>
           <div className="companion-organizer-pill"><ShieldCheck size={15} /><span><small>Organizer</small><strong>{organizerName}</strong></span></div>
         </section>
+
+        <section className="companion-start-actions" aria-label="Tournament start actions">
+          <button type="button" className="companion-start-action primary" disabled={busy} onClick={() => setNewDialog(true)}>
+            <Plus size={18} /><span><strong>New tournament</strong><small>Create a private Cloud tournament that Desktop can open.</small></span><ArrowRight size={16} />
+          </button>
+          <button type="button" className="companion-start-action" disabled={busy} onClick={() => importInputRef.current?.click()}>
+            <FileUp size={18} /><span><strong>Import tournament</strong><small>TRF16 · TRF26 · TUNX — full tournament import and Cloud sync.</small></span><ArrowRight size={16} />
+          </button>
+          <input
+            ref={importInputRef}
+            className="companion-import-input"
+            type="file"
+            accept=".trf,.trf16,.trf26,.txt,.tunx,.TUNX,text/plain,application/octet-stream"
+            onChange={event => {
+              const file = event.target.files?.[0];
+              event.currentTarget.value = '';
+              if (file) onImportFile(file);
+            }}
+          />
+        </section>
+
+        {newDialog && (
+          <div className="companion-new-dialog" role="dialog" aria-modal="true" aria-label="Create new tournament">
+            <div className="companion-new-dialog-card">
+              <div className="companion-new-dialog-head"><div><span className="companion-entry-eyebrow">NEW PRIVATE TOURNAMENT</span><h2>Create tournament</h2></div><button type="button" aria-label="Close" onClick={() => setNewDialog(false)}><X size={17} /></button></div>
+              <label className="companion-entry-field"><span>Tournament name</span><input autoFocus value={newName} onChange={event => setNewName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') submitNew(); if (event.key === 'Escape') setNewDialog(false); }} /></label>
+              <p>The tournament is created immediately in the private Organizer Cloud. No public Hub page or Chess-Results TNR is created automatically.</p>
+              <div className="companion-new-dialog-actions"><button type="button" onClick={() => setNewDialog(false)}>Cancel</button><button type="button" className="primary" disabled={!newName.trim() || busy} onClick={submitNew}><Plus size={15} /> Create tournament</button></div>
+            </div>
+          </div>
+        )}
 
         <div className={`companion-select-status ${statusKind}`}><span className="companion-select-status-dot" /><span>{status}</span></div>
 
@@ -116,7 +158,7 @@ export function CompanionTournamentSelectScreen(props: {
                 <div className="companion-tournament-tile-meta"><span>r{Number(meta.revision || 0)}</span><ArrowRight size={17} /></div>
               </button>
             ))}
-            {!tournaments.length && <div className="companion-tournament-empty"><Cloud size={28} /><strong>No synchronized tournaments yet.</strong><span>Create or sync a tournament from Chess-Publisher Desktop first.</span></div>}
+            {!tournaments.length && <div className="companion-tournament-empty"><Cloud size={28} /><strong>No synchronized tournaments yet.</strong><span>Create a tournament here, import TRF/TUNX, or sync one from Chess-Publisher Desktop.</span></div>}
           </div>
         </section>
       </div>

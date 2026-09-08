@@ -5,7 +5,7 @@ import { chooseInternalTournamentId } from './onlineCloudSync';
 const SCHEMA_VERSION = '1.0';
 const PRODUCT = 'Chess-Publisher';
 const CLIENT_VERSION = 'Web Companion Online & Cloud';
-const BYE_RESULTS = new Set(['PAB', '½ BYE', '1/2 BYE', '0 BYE']);
+const BYE_RESULTS = new Set(['PAB', '1 BYE', '½ BYE', '1/2 BYE', '0 BYE']);
 
 const text = (value: unknown) => value == null ? '' : String(value).trim();
 const nullableText = (value: unknown) => {
@@ -98,7 +98,7 @@ function normalizeRounds(tournament: Tournament | any) {
       .map((pairing: any, index: number) => ({
         board: Math.max(1, asInteger(pairing?.board, index + 1)),
         whiteKey: nullableText(pairing?.whiteKey),
-        blackKey: nullableText(pairing?.blackKey),
+        blackKey: isByeResult(pairing?.result) || text(pairing?.blackKey).toLowerCase() === 'bye' ? null : nullableText(pairing?.blackKey),
         result: normalizeResult(pairing?.result)
       }))
       .sort((a: any, b: any) => a.board - b.board)

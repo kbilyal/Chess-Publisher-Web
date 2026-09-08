@@ -21,6 +21,7 @@ import {
   stripContinuationHint
 } from './browserSyncPolicy';
 import { CompanionLoginScreen, CompanionTournamentSelectScreen } from '../companion/CompanionCloudScreens';
+import { createCleanTournament, importTournamentFile } from '../importers/tournamentFileImport';
 
 const TOURNAMENT_STORAGE_KEY = 'fide_tournament_manager_v2';
 const TOKEN_SESSION_KEY = 'cpstudio.organizerToken.session';
@@ -606,6 +607,82 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
     coordinatorRef.current.schedule(() => safeAutomaticSync(), 50);
   }
 
+  async function createPrivateTournamentAndOpen(seed: Tournament, sourceLabel: string) {
+    await runQueued(sourceLabel, async () => {
+      setStatus(`${sourceLabel} · creating private Cloud record…`);
+      setStatusKind('busy');
+      setConflict(false);
+      conflictRef.current = false;
+      setRemoteChangesAvailable(false);
+      setCloudDirty(false);
+
+      // Create/Import is intentionally a NEW identity. Never adopt the currently
+      // open browser tournament, an existing Hub id, or a same-name Cloud record.
+      const clean: any = clone(seed);
+      delete clean.cloud;
+      delete clean.online;
+      delete clean.hub;
+      const seeded: any = ensureLocalIdentity(clean);
+      const internalId = chooseInternalTournamentId(seeded);
+      const device = browserDevice();
+      const created = await cloudApi.createTournament(tokenRef.current, {
+        localKey: internalId,
+        name: tournamentName(seeded),
+        deviceId: device.id,
+        deviceLabel: device.label
+      });
+      const remote = created?.tournament as CloudTournamentMeta | undefined;
+      if (!remote?.id) throw new Error('Cloud Workspace did not return a tournament ID for the new tournament.');
+
+      const fingerprint = await fingerprintTournament(seeded);
+      const saved = await cloudApi.putSnapshot(
+        tokenRef.current,
+        remote.id,
+        0,
+        buildPrivateSnapshot(tournamentName(seeded), seeded),
+        device
+      );
+      const revision = Number(saved?.revision || 1);
+      const updated = withBrowserBase(seeded, remote.id, revision, fingerprint);
+      commitLocal(updated, true);
+      setActiveCloud({ ...remote, revision });
+      activeRef.current = { ...remote, revision };
+      setCloudTournaments(current => [{ ...remote, revision }, ...current.filter(item => item.id !== remote.id)]);
+      setLastSyncAt(updated.cloud?.lastSyncAt || '');
+      setPublicState(null);
+      setPhase('app');
+      phaseRef.current = 'app';
+      setStatus(`${sourceLabel} · private Cloud r${revision} · ready in Desktop`);
+      setStatusKind('ok');
+      log(`${sourceLabel}: created ${remote.id} at private Cloud revision ${revision}.`);
+    }, true);
+  }
+
+  async function createNewTournamentFromStart(name: string) {
+    try {
+      await createPrivateTournamentAndOpen(createCleanTournament(name), 'New tournament');
+    } catch (error: any) {
+      setStatus(error?.message || 'Could not create the new tournament.');
+      setStatusKind(error?.code === 'network_error' ? 'offline' : 'warn');
+    }
+  }
+
+  async function importTournamentFromStart(file: File) {
+    setBusy(true);
+    setStatus(`Importing ${file.name}…`);
+    setStatusKind('busy');
+    try {
+      const imported = await importTournamentFile(file);
+      setBusy(false);
+      await createPrivateTournamentAndOpen(imported.tournament, `Imported ${imported.kind.toUpperCase()} · ${imported.playerCount} players`);
+    } catch (error: any) {
+      setBusy(false);
+      setStatus(error?.message || 'Tournament import failed.');
+      setStatusKind('warn');
+      log(`Tournament import failed: ${error?.message || String(error)}`);
+    }
+  }
+
   async function loginWithToken(candidateRaw: string, remember: boolean) {
     const candidate = normalizeOrganizerToken(candidateRaw);
     if (!candidate) return;
@@ -931,6 +1008,8 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
         onSignOut={signOut}
         onOpen={meta => void openCloud(meta)}
         onContinueLocal={() => void continueWithLocal()}
+        onCreateNew={name => void createNewTournamentFromStart(name)}
+        onImportFile={file => void importTournamentFromStart(file)}
       />
     );
   }

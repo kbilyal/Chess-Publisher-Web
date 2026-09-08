@@ -18,6 +18,15 @@ has(provider, 'onConnect={() => void loginWithToken(tokenInput, rememberToken)}'
 has(provider, 'onRememberToken={setRememberToken}', 'Remember-token choice must remain explicit.');
 has(screens, 'My tournaments', 'My Tournaments heading is missing.');
 has(screens, 'Cloud tournaments', 'Cloud tournament list is missing.');
+
+has(screens, 'New tournament', 'My Tournaments must expose Web tournament creation.');
+has(screens, 'Import tournament', 'My Tournaments must expose one tournament import action.');
+has(screens, '.trf,.trf16,.trf26,.txt,.tunx,.TUNX', 'One file picker must accept TRF16/TRF26/TUNX.');
+has(provider, 'createPrivateTournamentAndOpen', 'Web-created/imported tournaments must create an authoritative private Cloud record.');
+has(provider, 'cloudApi.createTournament', 'Web create/import must allocate a Cloud tournament identity.');
+has(provider, 'cloudApi.putSnapshot', 'Web create/import must write initial Cloud revision r1 for Desktop continuation.');
+has(provider, 'onCreateNew={name => void createNewTournamentFromStart(name)}', 'New tournament start action is not wired.');
+has(provider, 'onImportFile={file => void importTournamentFromStart(file)}', 'TRF/TUNX import start action is not wired.');
 has(screens, 'Continue your desktop tournaments anywhere.', 'Desktop-to-Web continuation message is missing.');
 has(css, '@media (max-width: 560px)', 'Entry screens need a phone-specific layout.');
 has(css, '.companion-tournament-grid { grid-template-columns:1fr;', 'Tournament cards must collapse to one column on phones.');
