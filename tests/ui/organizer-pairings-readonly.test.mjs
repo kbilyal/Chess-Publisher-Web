@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 const component = readFileSync('src/arbiter/OrganizerPairingsReadOnly.tsx', 'utf8');
 const app = readFileSync('src/App.tsx', 'utf8');
 const css = readFileSync('src/arbiter/organizer-pairings.css', 'utf8');
+const printCss = readFileSync('src/arbiter/organizer-pairings-print.css', 'utf8');
 
 const has = (source, needle, message) => assert.ok(source.includes(needle), message || `Missing: ${needle}`);
 const lacks = (source, needle, message) => assert.ok(!source.includes(needle), message || `Forbidden: ${needle}`);
@@ -18,6 +19,9 @@ has(component, '<th>Bo.</th><th>SNo</th><th>White Player</th><th>Elo</th><th>Res
 has(component, 'Chief Arbiter Signature &amp; Stamp:', 'Printed bulletin must preserve the chief-arbiter sign-off block.');
 has(css, 'body.cp-organizer-pairings-printing *{visibility:hidden!important}', 'Print mode must hide the organizer UI.');
 has(css, '.organizer-pairings-print-sheet', 'Print mode must reveal only the official pairings sheet.');
+has(printCss, 'position: static !important', 'A4 print sheet must be detached from floating-panel positioning.');
+has(printCss, '.organizer-pairings-card', 'Interactive Organizer card must be removed from print layout.');
+has(printCss, 'display: none !important', 'Interactive Organizer controls must not reserve print-page space.');
 
 for (const forbidden of [
   'onUpdateTournament',
