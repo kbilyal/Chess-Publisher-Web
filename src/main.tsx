@@ -2,6 +2,8 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import './cloud/installOrganizerApiAuth';
 import './pwa/registerPwa';
+import './arbiter/installIsolatedPairingsPrint';
+import './arbiter/installArbiterResultFilters';
 import App from './App.tsx';
 import {OnlineCloudProvider} from './cloud/OnlineCloudProvider';
 import {ArbiterPortal} from './arbiter/ArbiterPortal';
@@ -18,6 +20,7 @@ import './arbiter/arbiter.css';
 import './arbiter/organizer-pairings.css';
 import './arbiter/organizer-pairings-print.css';
 import './arbiter/arbiter-ui-fixes.css';
+import './arbiter/arbiter-print-filter-fixes.css';
 
 const isArbiterAccess = new URLSearchParams(window.location.search).has('arbiter');
 
