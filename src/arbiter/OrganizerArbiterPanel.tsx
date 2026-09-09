@@ -1,12 +1,10 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Check, Clipboard, Loader2, QrCode, RefreshCw, ShieldCheck, UserRoundCheck, Users, X } from 'lucide-react';
 import { arbiterApi, ArbiterAccessStatus, ArbiterSubmission } from './arbiterApi';
 import { Tournament } from '../types';
 
 const TOURNAMENT_STORAGE_KEY = 'fide_tournament_manager_v2';
 const QR_MODULE_URL = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/+esm';
-
-const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
 
 function readTournament(): Tournament | null {
   try {
@@ -47,7 +45,6 @@ export const OrganizerArbiterPanel: React.FC<{ cloud: any }> = ({ cloud }) => {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [copied, setCopied] = useState(false);
-  const applyingRef = useRef(false);
 
   useEffect(() => {
     const refreshLocalIdentity = () => {
@@ -149,61 +146,6 @@ export const OrganizerArbiterPanel: React.FC<{ cloud: any }> = ({ cloud }) => {
     window.setTimeout(() => setCopied(false), 1800);
   };
 
-  const applyPending = useCallback(async (items: ArbiterSubmission[]) => {
-    if (!items.length || !token || !tournamentId || applyingRef.current || cloud?.busy || cloud?.conflict) return;
-    applyingRef.current = true;
-    setMessage(`Applying ${items.length} arbiter result${items.length === 1 ? '' : 's'}…`);
-    try {
-      const current = readTournament();
-      if (!current) throw new Error('The open tournament could not be read from this browser.');
-      const currentCloudId = String((current as any)?.cloud?.cloudTournamentId || tournamentId);
-      if (currentCloudId && currentCloudId !== tournamentId) throw new Error('Arbiter results belong to a different Cloud tournament.');
-
-      const next: any = clone(current);
-      const appliedSubmissions: ArbiterSubmission[] = [];
-      for (const submission of [...items].sort((a, b) => String(a.updatedAt || '').localeCompare(String(b.updatedAt || '')))) {
-        const roundKey = String(submission.round);
-        if (next.pairings?.finalizedRounds?.[roundKey]) continue;
-        const boards = Array.isArray(next.pairings?.liveBoards?.[roundKey]) ? [...next.pairings.liveBoards[roundKey]] : [];
-        const index = boards.findIndex((board: any) => Number(board.board) === Number(submission.board));
-        if (index < 0) continue;
-        const board = boards[index];
-        if (String(board.whiteKey || '') !== submission.whiteKey || String(board.blackKey || '') !== submission.blackKey) continue;
-        boards[index] = { ...board, result: submission.result };
-        next.pairings.liveBoards[roundKey] = boards;
-        appliedSubmissions.push(submission);
-      }
-
-      if (!appliedSubmissions.length) {
-        setMessage('Arbiter results are waiting because the pairing changed or the round is finalized.');
-        return;
-      }
-
-      localStorage.setItem(TOURNAMENT_STORAGE_KEY, JSON.stringify(next));
-      await cloud.syncNow(next);
-      const acknowledgement = await arbiterApi.acknowledgeResults(
-        token,
-        tournamentId,
-        appliedSubmissions.map(({ id, updatedAt }) => ({ id, updatedAt }))
-      );
-      if (acknowledgement.acknowledged !== appliedSubmissions.length) {
-        setMessage(`${acknowledgement.acknowledged} of ${appliedSubmissions.length} arbiter results synchronized. A newer correction remains safely pending in Cloud.`);
-      } else {
-        setMessage(`${appliedSubmissions.length} arbiter result${appliedSubmissions.length === 1 ? '' : 's'} synchronized to Cloud.`);
-      }
-      await refresh();
-    } catch (error: any) {
-      setMessage(error?.message || 'Arbiter results are waiting for organizer synchronization.');
-    } finally {
-      applyingRef.current = false;
-    }
-  }, [token, tournamentId, cloud, refresh]);
-
-  useEffect(() => {
-    if (!pending.length || cloud?.busy || cloud?.conflict) return;
-    void applyPending(pending);
-  }, [pending, cloud?.busy, cloud?.conflict, applyPending]);
-
   if (!token || !tournamentId) return null;
 
   const sessions = status?.sessions || [];
@@ -227,8 +169,14 @@ export const OrganizerArbiterPanel: React.FC<{ cloud: any }> = ({ cloud }) => {
           <div className="organizer-arbiter-summary">
             <span><strong>{sessions.length}</strong><small>joined</small></span>
             <span><strong>{onlineCount}</strong><small>active now</small></span>
-            <span><strong>{pending.length}</strong><small>result queue</small></span>
+            <span><strong>{pending.length}</strong><small>result audit</small></span>
           </div>
+
+          {pending.length > 0 && (
+            <div className="organizer-arbiter-message">
+              {pending.length} arbiter result{pending.length === 1 ? '' : 's'} saved in the private Cloud tournament state. Desktop ↕ SYNC validates tournament, round, board and player identity before applying them.
+            </div>
+          )}
 
           {sessions.length > 0 ? (
             <div className="organizer-arbiter-sessions">
