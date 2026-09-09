@@ -11,6 +11,7 @@ const patch = read('scripts/patch-arbiter-access-worker.py');
 const specialPatch = read('scripts/patch-arbiter-special-results-worker.py');
 const deploy = read('.github/workflows/deploy-hub-arbiter-access.yml');
 const specialDeploy = read('.github/workflows/deploy-hub-arbiter-special-results.yml');
+const uiFixes = read('src/arbiter/arbiter-ui-fixes.css');
 
 function has(source, needle, message) {
   assert.ok(source.includes(needle), message || `Missing: ${needle}`);
@@ -21,6 +22,7 @@ function lacks(source, needle, message) {
 
 has(main, "new URLSearchParams(window.location.search).has('arbiter')", 'QR query must route before Organizer Cloud login.');
 has(main, '<ArbiterPortal />', 'Restricted portal must be a separate entry path.');
+has(main, "import './arbiter/arbiter-ui-fixes.css'", 'Arbiter static-action and print hardening overrides must load last.');
 has(app, '<OrganizerArbiterPanel cloud={cloud} />', 'Organizer must have an Arbiter Access management panel.');
 
 has(portal, '<h1>Enter your name</h1>', 'Arbiter must identify themselves before first access.');
@@ -37,6 +39,11 @@ has(portal, 'await sendAtRevision(retryView.revision)', 'Automatic retry must us
 has(portal, 'matchingBoard(freshView, round, board, whiteKey, blackKey)', 'Every result submission must remain bound to the exact board and player identities.');
 has(portal, "'Update result' : 'Send result'", 'Arbiter must get explicit Send/Update result actions.');
 has(portal, 'Send all results', 'Arbiter must have an explicit bulk-send action for changed results.');
+has(portal, 'onClick={() => void submitAll()}', 'Static bulk action must continue to use the protected submitAll implementation.');
+has(uiFixes, '.arbiter-send-all {', 'Send All must have a dedicated permanent action style.');
+has(uiFixes, 'position: fixed;', 'Send All must stay visible while the Arbiter scrolls boards.');
+has(uiFixes, 'env(safe-area-inset-bottom)', 'Fixed mobile Send All must respect the device safe area.');
+has(uiFixes, '.arbiter-shell .arbiter-main { padding-bottom:', 'Board list must reserve space so the fixed Send All button does not cover results.');
 has(portal, 'Publishing is disabled for Arbiter Access', 'Restricted role must clearly expose no publishing permission.');
 lacks(portal, 'chessResultsApi', 'Arbiter portal must never import Chess-Results administration.');
 lacks(portal, 'publishOnline', 'Arbiter portal must never expose Hub publishing.');
