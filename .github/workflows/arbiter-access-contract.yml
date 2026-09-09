@@ -5,12 +5,16 @@ on:
     branches:
       - main
       - arbiter-access-work
+      - fix-cloud-identity-arbiter-results-sync
     paths:
       - 'src/arbiter/**'
       - 'src/App.tsx'
       - 'src/main.tsx'
+      - 'production-web/cloud/client/cloud-workspace-api.js'
+      - 'production-web/webview/ArbiterResultsDownloadAdapter.js'
       - 'scripts/patch-arbiter-access-worker.py'
       - 'tests/ui/arbiter-access.test.mjs'
+      - 'tests/ui/cloud-arbiter-sync-regression.test.mjs'
       - '.github/workflows/arbiter-access-contract.yml'
       - '.github/workflows/deploy-hub-arbiter-access.yml'
   workflow_dispatch:
@@ -38,6 +42,8 @@ jobs:
         run: npm ci
       - name: Arbiter role security contract
         run: node tests/ui/arbiter-access.test.mjs
+      - name: Cloud Arbiter sync regression
+        run: node tests/ui/cloud-arbiter-sync-regression.test.mjs
       - name: Worker patch syntax
         run: python -m py_compile scripts/patch-arbiter-access-worker.py
       - name: TypeScript compile
