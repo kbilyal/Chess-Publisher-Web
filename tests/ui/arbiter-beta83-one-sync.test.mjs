@@ -31,8 +31,12 @@ assert.match(workerPatch, /"0F - 0F", "-"/, 'Worker whitelist must explicitly ac
 assert.match(portal, /arbiter-color-badge white[^>]*aria-label="White">W</, 'White player must have a visible W badge.');
 assert.match(portal, /arbiter-color-badge black[^>]*aria-label="Black">B</, 'Black player must have a visible B badge.');
 assert.match(css, /\.arbiter-result-buttons button \{[\s\S]*?min-height: 58px !important;/, 'Desktop/tablet result buttons must be at least 58px high.');
-assert.match(css, /@media \(max-width: 640px\)[\s\S]*?\.arbiter-result-buttons button \{ min-height: 62px !important;/, 'Phone result buttons must be at least 62px high.');
-assert.match(css, /\.arbiter-clear-result \{[\s\S]*?min-height: 52px;/, 'Clear result must be a large touch target.');
+assert.match(css, /@media \(max-width: 640px\)[\s\S]*?\.arbiter-result-actions \{[\s\S]*?grid-column: 1 \/ -1 !important;[\s\S]*?width: 100% !important;/, 'Phone result entry must own the full board-card width.');
+assert.match(css, /@media \(max-width: 640px\)[\s\S]*?\.arbiter-result-buttons \{[\s\S]*?width: 100% !important;[\s\S]*?grid-template-columns: repeat\(3, minmax\(0, 1fr\)\) !important;/, 'Phone standard results must be three equal full-width columns.');
+assert.match(css, /@media \(max-width: 640px\)[\s\S]*?\.arbiter-result-buttons button \{[\s\S]*?min-height: 64px !important;[\s\S]*?font-size: 20px !important;[\s\S]*?white-space: nowrap !important;/, 'Phone result buttons must be large and never wrap vertically.');
+assert.match(css, /\.arbiter-result-buttons button\.selected \{[\s\S]*?background: #1769e0 !important;[\s\S]*?color: #fff !important;/, 'Selected result must have an unmistakable high-contrast state.');
+assert.match(css, /\.arbiter-clear-result \{[\s\S]*?min-height: 52px;/, 'Clear result must remain a large touch target.');
+assert.match(css, /\.arbiter-special-result-buttons button \{[\s\S]*?min-height: 48px !important;/, 'Special results must remain secondary to standard result entry.');
 assert.match(css, /\.arbiter-color-badge\.white/, 'White badge styling must exist.');
 assert.match(css, /\.arbiter-color-badge\.black/, 'Black badge styling must exist.');
 
