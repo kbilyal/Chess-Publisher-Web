@@ -1,0 +1,68 @@
+name: Arbiter B2 Snapshot Contract
+
+on:
+  push:
+    branches:
+      - main
+      - fix-arbiter-b2-snapshot
+    paths:
+      - 'scripts/patch-arbiter-b2-snapshot-worker.py'
+      - 'tests/ui/arbiter-b2-snapshot.test.mjs'
+      - '.github/workflows/arbiter-b2-snapshot-contract.yml'
+      - '.github/workflows/deploy-hub-arbiter-b2-snapshot.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Arbiter B2 snapshot contract
+        run: node tests/ui/arbiter-b2-snapshot.test.mjs
+      - name: Patch syntax
+        run: python -m py_compile scripts/patch-arbiter-b2-snapshot-worker.py
+      - name: Patch fixture and validate JavaScript
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/worker.js" <<'JS'
+          const arbiter_access_v1 = true;
+          class ApiError extends Error { constructor(status, code, message) { super(message); this.status=status; this.code=code; } }
+          async function b2DownloadJson(env, objectKey) { return { data: { tournaments: { T: {} } } }; }
+          function validateCloudSnapshot(snapshot) { if (!snapshot) throw new Error('invalid'); }
+          async function arbiterSnapshotObject(env, objectKey) {
+            if (!objectKey) throw new ApiError(409, "arbiter_snapshot_missing", "The organizer has not synchronized this tournament to Cloud yet.");
+            const buckets = Object.values(env).filter(binding =>
+              binding && typeof binding.get === "function" && typeof binding.put === "function" &&
+              typeof binding.delete === "function" && typeof binding.list === "function" && typeof binding.head === "function"
+            );
+            for (const bucket of buckets) {
+              try {
+                const object = await bucket.get(objectKey);
+                if (!object) continue;
+                const raw = await object.text();
+                const parsed = JSON.parse(raw);
+                if (parsed && typeof parsed === "object") return parsed;
+              } catch {
+                // Try the next R2 binding. Private snapshot discovery remains fail-closed.
+              }
+            }
+            throw new ApiError(503, "arbiter_snapshot_unavailable", "The synchronized tournament snapshot is temporarily unavailable.");
+          }
+          JS
+          python scripts/patch-arbiter-b2-snapshot-worker.py "$RUNNER_TEMP/worker.js"
+          grep -Fq 'arbiter_snapshot_b2_v1' "$RUNNER_TEMP/worker.js"
+          grep -Fq 'await b2DownloadJson(env, objectKey)' "$RUNNER_TEMP/worker.js"
+          ! grep -Fq 'Try the next R2 binding' "$RUNNER_TEMP/worker.js"
+          node --check "$RUNNER_TEMP/worker.js"
