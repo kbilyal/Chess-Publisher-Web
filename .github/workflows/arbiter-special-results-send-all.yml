@@ -1,0 +1,47 @@
+name: Arbiter Special Results and Send All
+
+on:
+  push:
+    branches:
+      - main
+      - arbiter-special-results-send-all
+    paths:
+      - 'src/arbiter/**'
+      - 'production-web/webview/ArbiterResultsDownloadAdapter.js'
+      - 'scripts/patch-arbiter-special-results-worker.py'
+      - 'tests/ui/arbiter-special-results-send-all.test.mjs'
+      - '.github/workflows/arbiter-special-results-send-all.yml'
+      - '.github/workflows/deploy-hub-arbiter-special-results.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: Special results + bulk send + compile gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: npm ci
+      - name: Special results and Send all contract
+        run: node tests/ui/arbiter-special-results-send-all.test.mjs
+      - name: Desktop downloader syntax
+        run: node --check production-web/webview/ArbiterResultsDownloadAdapter.js
+      - name: Worker upgrade patch syntax
+        run: python -m py_compile scripts/patch-arbiter-special-results-worker.py
+      - name: TypeScript compile
+        run: npm run lint
+      - name: Production build
+        run: npm run build
