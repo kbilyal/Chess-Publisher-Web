@@ -91,12 +91,12 @@ replace_once(provider,
     if (remote) return remote;
 ''', 'identity-only cloud link')
 replace_all(provider,
-'''      const revision = Number(saved?.revision || 1);
-      const updated = withBrowserBase(seeded, remote.id, revision, localFingerprint);
+'''        const revision = Number(saved?.revision || 1);
+        const updated = withBrowserBase(seeded, remote.id, revision, localFingerprint);
 ''',
-'''      const revision = Number(saved?.revision || 1);
-      const acceptedFingerprint = text(saved?.contentFingerprint) || localFingerprint;
-      const updated = withBrowserBase(seeded, remote.id, revision, acceptedFingerprint);
+'''        const revision = Number(saved?.revision || 1);
+        const acceptedFingerprint = text(saved?.contentFingerprint) || localFingerprint;
+        const updated = withBrowserBase(seeded, remote.id, revision, acceptedFingerprint);
 ''', 1, 'initial accepted fingerprint')
 replace_once(provider,
 '''      const revision = Number(saved?.revision || cloud.revision + 1);
