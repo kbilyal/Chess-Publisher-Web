@@ -194,20 +194,33 @@
 
       await verifyCloudSnapshot(token,id,applied);
 
-      const ids=applied.map(item=>text(item.id)).filter(Boolean);
+      const guardedSubmissions=applied
+        .map(item=>({id:text(item?.id),updatedAt:text(item?.updatedAt)}))
+        .filter(item=>item.id&&item.updatedAt);
+      if(guardedSubmissions.length!==applied.length){
+        throw new Error("A downloaded result has no Cloud version marker. Results are saved locally and in the Cloud snapshot, but remain pending for a safe retry.");
+      }
+      const ids=guardedSubmissions.map(item=>item.id);
       const ack=await cloudRequest(`/api/v1/cloud/tournaments/${encodeURIComponent(id)}/arbiter-results/ack`,{
-        method:"POST",token,body:{submissionIds:ids}
+        method:"POST",token,body:{submissions:guardedSubmissions}
       });
 
       const remaining=await cloudRequest(`/api/v1/cloud/tournaments/${encodeURIComponent(id)}/arbiter-results`,{token});
       const remainingIds=new Set((Array.isArray(remaining?.results)?remaining.results:[]).map(item=>text(item?.id)));
       const notAcknowledged=ids.filter(idValue=>remainingIds.has(idValue));
-      if(notAcknowledged.length)throw new Error(`${notAcknowledged.length} downloaded result(s) are still pending in Cloud. They remain safe and will be retried.`);
+      const acknowledged=Math.max(0,Number(ack?.acknowledged||0));
 
       try{await window.cpCloudRefreshList?.({quiet:true});}catch(_){ }
       try{window.cpHubRefreshUi?.();}catch(_){ }
+
+      if(notAcknowledged.length){
+        const totalWaiting=waiting.length+notAcknowledged.length;
+        setStatus(`${acknowledged} result(s) confirmed · ${totalWaiting} result(s) remain safely pending because they changed during download or no longer match. Press Download Results again.`,`warn`);
+        return {ok:true,downloaded:acknowledged,waiting:totalWaiting,retryRequired:true,acknowledged};
+      }
+
       setStatus(`${applied.length} result(s) downloaded, saved locally and confirmed in Cloud${waiting.length?` · ${waiting.length} waiting`:""}.`,`ok`);
-      return {ok:true,downloaded:applied.length,waiting:waiting.length,acknowledged:Number(ack?.acknowledged||0)};
+      return {ok:true,downloaded:applied.length,waiting:waiting.length,acknowledged};
     }finally{
       busy=false;
       window.__cpOnlineCloudBusy=false;
@@ -222,7 +235,7 @@
     button.id="cloudDownloadResultsBtn";
     button.type="button";
     button.textContent="Download Results";
-    button.title="Download pending Arbiter Access results, save them locally, synchronize them to Private Cloud, then acknowledge only verified results";
+    button.title="Download pending Arbiter Access results, save them locally, synchronize them to Private Cloud, then acknowledge only the exact verified result versions";
     button.dataset.arbiterResultsDownloadV1="1";
     button.addEventListener("click",async()=>{
       try{await downloadArbiterResults();}
