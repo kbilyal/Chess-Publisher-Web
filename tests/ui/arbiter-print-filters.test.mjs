@@ -38,11 +38,12 @@ has(filterInstaller, "currentFilter === 'missing'", 'Missing filter must hide co
 has(filterInstaller, 'cp-arbiter-filter-hidden', 'Filtered cards must use an explicit non-destructive UI class.');
 has(fixes, '.arbiter-board-card.cp-arbiter-filter-hidden', 'Filter must hide only board cards, never mutate tournament data.');
 
-has(portal, 'const submitAll = async () => {', 'Protected bulk submit must remain in ArbiterPortal.');
+has(portal, 'const submitAll = async () => {', 'Protected unified bulk submit must remain in ArbiterPortal.');
 has(portal, "const roundBoards = view.pairings.liveBoards[String(activeRound)] || []", 'Unified SYNC must continue to use all current-round boards, independent of UI filters.');
 has(portal, 'data-unified-arbiter-sync="true"', 'Arbiter must expose one unified SYNC action.');
 has(portal, '↕ SYNC', 'Unified Arbiter SYNC label must remain visible.');
-has(portal, "data-result-missing={currentResult === '-' ? 'true' : 'false'}", 'Each board must expose the non-destructive Missing marker.');
+has(portal, "data-result-missing={currentResult === CLEAR_RESULT ? 'true' : 'false'}", 'Each board must expose the non-destructive Missing marker using the canonical clear/no-result state.');
+has(portal, "const CLEAR_RESULT = '-' as const", 'Missing and Clear result must share the canonical no-result value.');
 lacks(portal, 'className="arbiter-send"', 'Per-board Send/Update actions must not return.');
 lacks(portal, 'Send all results', 'Legacy Send All label must not return beside unified SYNC.');
 lacks(filterInstaller, 'submitResult(', 'Filter helper must never submit or mutate tournament results.');
