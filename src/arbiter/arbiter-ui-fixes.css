@@ -1,30 +1,97 @@
 /* Additive UI hardening: no business logic lives here. */
 
-/* Keep the existing protected bulk-submit action permanently reachable. */
+/* Keep the existing protected unified SYNC action permanently reachable. */
 .arbiter-send-all {
   position: fixed;
   right: 20px;
   bottom: calc(20px + env(safe-area-inset-bottom));
   z-index: 30;
-  min-height: 50px;
-  padding: 0 18px;
+  min-height: 54px;
+  padding: 0 22px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 8px;
   border: 0;
   border-radius: 14px;
   background: #1769e0;
   color: #fff;
   box-shadow: 0 14px 34px rgba(23, 105, 224, .3);
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 900;
   cursor: pointer;
 }
 
 .arbiter-send-all:hover:not(:disabled) { background: #125cc7; }
 .arbiter-send-all:disabled { opacity: .48; cursor: not-allowed; box-shadow: none; }
-.arbiter-shell .arbiter-main { padding-bottom: 92px; }
+.arbiter-shell .arbiter-main { padding-bottom: 98px; }
+
+/* Beta.83 Arbiter touch targets: result entry must be comfortable on a phone. */
+.arbiter-result-groups { display: grid; gap: 10px; width: 100%; }
+.arbiter-result-buttons { gap: 10px !important; }
+.arbiter-result-buttons button {
+  min-height: 58px !important;
+  padding: 8px 12px !important;
+  border-radius: 13px !important;
+  font-size: 16px !important;
+  line-height: 1.1;
+  touch-action: manipulation;
+}
+.arbiter-special-results { display: grid; gap: 7px; }
+.arbiter-special-results > span {
+  color: #6f7f95;
+  font-size: 11px;
+  font-weight: 800;
+}
+.arbiter-clear-result {
+  min-height: 52px;
+  width: 100%;
+  padding: 8px 14px;
+  border: 1px solid #e0b9bf;
+  border-radius: 13px;
+  background: #fff7f8;
+  color: #a43c4b;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.arbiter-clear-result:hover:not(:disabled) { background: #ffeff1; }
+.arbiter-clear-result.selected { border-color: #d15a69; background: #ffe8eb; box-shadow: inset 0 0 0 1px #d15a69; }
+.arbiter-clear-result:disabled { opacity: .42; cursor: not-allowed; }
+
+/* Make board colour obvious even when scanning quickly on a small screen. */
+.arbiter-player-name-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.arbiter-player-name-row strong { min-width: 0; }
+.arbiter-player .arbiter-color-badge {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  display: inline-grid !important;
+  place-items: center;
+  margin: 0 !important;
+  overflow: visible !important;
+  border-radius: 7px;
+  font-size: 11px !important;
+  font-weight: 950;
+  line-height: 1 !important;
+  text-overflow: clip !important;
+}
+.arbiter-color-badge.white {
+  border: 1px solid #aab6c6;
+  background: #fff;
+  color: #1e2b3d;
+}
+.arbiter-color-badge.black {
+  border: 1px solid #1d2939;
+  background: #1d2939;
+  color: #fff;
+}
 
 @media (max-width: 640px) {
   .arbiter-send-all {
@@ -32,11 +99,14 @@
     right: 12px;
     bottom: calc(12px + env(safe-area-inset-bottom));
     width: auto;
-    min-height: 54px;
+    min-height: 58px;
     border-radius: 15px;
-    font-size: 14px;
+    font-size: 16px;
   }
-  .arbiter-shell .arbiter-main { padding-bottom: 104px; }
+  .arbiter-shell .arbiter-main { padding-bottom: 112px; }
+  .arbiter-result-buttons button { min-height: 62px !important; font-size: 17px !important; }
+  .arbiter-clear-result { min-height: 56px; font-size: 15px; }
+  .arbiter-player .arbiter-color-badge { width: 26px; height: 26px; font-size: 12px !important; }
 }
 
 /*
