@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Eye, Printer, X } from 'lucide-react';
-import { Tournament } from '../types';
+import { Player, Tournament } from '../types';
 
 const TOURNAMENT_STORAGE_KEY = 'fide_tournament_manager_v2';
 
@@ -74,7 +74,8 @@ export const OrganizerPairingsReadOnly: React.FC<{ cloud: any }> = ({ cloud }) =
   const liveBoards = tournament.pairings?.liveBoards || {};
   const currentBoards = liveBoards[String(selectedRound)] || [];
   const announcedRounds = Number.parseInt(String(tournament.settings?.rounds || '')) || generatedRounds.length || 1;
-  const playerByKey = new Map(tournament.players.map(player => [player.localKey, player]));
+  const playerByKey = new Map<string, Player>();
+  tournament.players.forEach(player => playerByKey.set(player.localKey, player));
 
   const handlePrint = () => {
     const className = 'cp-organizer-pairings-printing';
