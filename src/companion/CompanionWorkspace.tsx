@@ -169,11 +169,11 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
       if (result?.kind === 'resolved' || result?.kind === 'not-conflicted') {
         setPendingConflictFields([]);
         if (strategy === 'web') {
-          setNotice('ok', 'Conflict resolved. Web values were kept for overlapping fields and Cloud-only changes were merged. Push Web → Cloud when ready.');
+          setNotice('ok', 'Conflict resolved. Web values were kept for overlapping fields and Cloud-only changes were merged. Press ↕ SYNC to store the merged state.');
         } else if (strategy === 'cloud') {
-          setNotice('ok', 'Conflict resolved. Cloud values were kept for overlapping fields and Web-only changes were merged. Push Web → Cloud when ready.');
+          setNotice('ok', 'Conflict resolved. Cloud values were kept for overlapping fields and Web-only changes were merged. Press ↕ SYNC to store the merged state.');
         } else {
-          setNotice('ok', 'Safe conflict resolution completed where fields did not overlap. No same-field conflicts remain. Push Web → Cloud when ready.');
+          setNotice('ok', 'Safe conflict resolution completed where fields did not overlap. No same-field conflicts remain. Press ↕ SYNC to store the merged state.');
         }
         return;
       }
