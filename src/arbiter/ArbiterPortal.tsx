@@ -39,6 +39,14 @@ function playerLabel(view: ArbiterTournamentView, key: string) {
   };
 }
 
+function matchingBoard(view: ArbiterTournamentView, round: number, board: number, whiteKey: string, blackKey: string) {
+  const boards = view.pairings?.liveBoards?.[String(round)] || [];
+  const candidate = boards.find(item => Number(item.board) === Number(board));
+  if (!candidate) return null;
+  if (String(candidate.whiteKey || '') !== whiteKey || String(candidate.blackKey || '') !== blackKey) return null;
+  return candidate;
+}
+
 export const ArbiterPortal: React.FC = () => {
   const accessCode = useMemo(accessCodeFromUrl, []);
   const storageKey = useMemo(() => sessionStorageKey(accessCode), [accessCode]);
@@ -63,6 +71,7 @@ export const ArbiterPortal: React.FC = () => {
       const newest = latestRound(response.tournament);
       setActiveRound(current => current && response.tournament.pairings.liveBoards[String(current)] ? current : newest);
       if (!quiet) setMessage('Connected · pairings are current.');
+      return response.tournament;
     } catch (error: any) {
       if (error?.status === 401 || error?.status === 403) {
         localStorage.removeItem(storageKey);
@@ -72,6 +81,7 @@ export const ArbiterPortal: React.FC = () => {
       } else if (!quiet) {
         setMessage(error?.message || 'Could not refresh tournament.');
       }
+      throw error;
     } finally {
       if (!quiet) setBusy(false);
     }
@@ -90,10 +100,17 @@ export const ArbiterPortal: React.FC = () => {
 
   useEffect(() => {
     if (!sessionToken) return;
-    void loadTournament(sessionToken);
-    pollRef.current = window.setInterval(() => void loadTournament(sessionToken, true), 10000);
+    void loadTournament(sessionToken).catch(() => undefined);
+    pollRef.current = window.setInterval(() => void loadTournament(sessionToken, true).catch(() => undefined), 5000);
+    const refreshWhenActive = () => {
+      if (document.visibilityState === 'visible') void loadTournament(sessionToken, true).catch(() => undefined);
+    };
+    window.addEventListener('focus', refreshWhenActive);
+    document.addEventListener('visibilitychange', refreshWhenActive);
     return () => {
       if (pollRef.current) window.clearInterval(pollRef.current);
+      window.removeEventListener('focus', refreshWhenActive);
+      document.removeEventListener('visibilitychange', refreshWhenActive);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionToken]);
@@ -122,30 +139,54 @@ export const ArbiterPortal: React.FC = () => {
     const result = drafts[key] || currentResult;
     if (!allowedResults.includes(result as any)) return;
     setBusy(true);
-    setMessage('');
+    setMessage('Checking current Cloud revision…');
     try {
-      await arbiterApi.submitResult(sessionToken, {
+      let freshResponse = await arbiterApi.tournament(sessionToken);
+      let freshView = freshResponse.tournament;
+      setView(freshView);
+      setSessionName(freshResponse.session.name);
+
+      const firstBoard = matchingBoard(freshView, round, board, whiteKey, blackKey);
+      if (!firstBoard) throw new Error(`Board ${board} changed after the page was opened. The result was not sent.`);
+      if (freshView.pairings?.finalizedRounds?.[String(round)]) throw new Error(`Round ${round} is finalized. The result was not sent.`);
+
+      const sendWithRevision = (baseRevision: number) => arbiterApi.submitResult(sessionToken, {
         round,
         board,
         whiteKey,
         blackKey,
         result,
-        baseRevision: view.revision
+        baseRevision
       });
-      setMessage(`${currentResult && currentResult !== '-' ? 'Updated' : 'Sent'} Board ${board}: ${result}.`);
+
+      try {
+        await sendWithRevision(freshView.revision);
+      } catch (error: any) {
+        if (error?.code !== 'cloud_revision_conflict') throw error;
+
+        // A tournament update landed between the fresh read and the submit.
+        // Refresh once more and automatically retry the same result only if the
+        // exact board and players still match. The arbiter never needs a manual refresh.
+        freshResponse = await arbiterApi.tournament(sessionToken);
+        freshView = freshResponse.tournament;
+        setView(freshView);
+        setSessionName(freshResponse.session.name);
+        const retryBoard = matchingBoard(freshView, round, board, whiteKey, blackKey);
+        if (!retryBoard) throw new Error(`Board ${board} changed while the result was being sent. The result remains unsent.`);
+        if (freshView.pairings?.finalizedRounds?.[String(round)]) throw new Error(`Round ${round} was finalized while the result was being sent.`);
+        await sendWithRevision(freshView.revision);
+      }
+
+      setMessage(`${currentResult && currentResult !== '-' ? 'Updated' : 'Sent'} Board ${board}: ${result} · saved to Cloud.`);
       setDrafts(current => {
         const next = { ...current };
         delete next[key];
         return next;
       });
-      await loadTournament(sessionToken, true);
+      await loadTournament(sessionToken, true).catch(() => undefined);
     } catch (error: any) {
-      if (error?.code === 'cloud_revision_conflict') {
-        setMessage('The organizer changed the tournament or pairings. Refresh before sending this result.');
-        await loadTournament(sessionToken, true);
-      } else {
-        setMessage(error?.message || 'Result could not be sent.');
-      }
+      setMessage(error?.message || 'Result could not be sent.');
+      await loadTournament(sessionToken, true).catch(() => undefined);
     } finally {
       setBusy(false);
     }
@@ -211,7 +252,7 @@ export const ArbiterPortal: React.FC = () => {
         </div>
         <div className="arbiter-top-actions">
           <span className={`arbiter-connection ${online ? 'online' : 'offline'}`}>{online ? <Wifi size={15} /> : <WifiOff size={15} />}{online ? 'Connected' : 'Offline'}</span>
-          <button type="button" onClick={() => void loadTournament()} disabled={busy}><RefreshCw size={17} className={busy ? 'spin' : ''} /> Refresh</button>
+          <button type="button" onClick={() => void loadTournament().catch(() => undefined)} disabled={busy}><RefreshCw size={17} className={busy ? 'spin' : ''} /> Refresh</button>
         </div>
       </header>
 
