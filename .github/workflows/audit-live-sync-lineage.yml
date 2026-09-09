@@ -1,6 +1,12 @@
 name: Audit Live Cloud Sync Lineage
 
 on:
+  push:
+    branches:
+      - fix/unified-sync-phantom-conflict
+    paths:
+      - '.github/workflows/audit-live-sync-lineage.yml'
+      - 'scripts/patch-cloud-sync-lineage-worker.py'
   workflow_dispatch:
 
 permissions:
@@ -51,7 +57,7 @@ jobs:
           src=payload.decode('utf-8','strict')
           (work/'worker.js').write_bytes(payload)
           print('LIVE_SHA256='+hashlib.sha256(payload).hexdigest())
-          markers=['private_cloud_archive_v1','private_cloud_hard_delete_v1','arbiter_access_v1','arbiter_special_results_v1']
+          markers=['private_cloud_archive_v1','private_cloud_hard_delete_v1','arbiter_access_v1','arbiter_special_results_v1','private_cloud_sync_lineage_v1']
           print('MARKERS='+','.join(m for m in markers if m in src))
 
           funcs=[]
@@ -64,17 +70,10 @@ jobs:
               m=re.search(r'async function '+re.escape(name)+r'\s*\([^)]*\)\s*\{',src)
               if not m:return ''
               i=m.end(); depth=1; j=i
-              in_s=in_d=in_t=False; esc=False
               while j<len(src) and depth:
                   ch=src[j]
-                  if esc: esc=False; j+=1; continue
-                  if ch=='\\' and (in_s or in_d or in_t): esc=True; j+=1; continue
-                  if not in_d and not in_t and ch=="'": in_s=not in_s; j+=1; continue
-                  if not in_s and not in_t and ch=='"': in_d=not in_d; j+=1; continue
-                  if not in_s and not in_d and ch=='`': in_t=not in_t; j+=1; continue
-                  if not (in_s or in_d or in_t):
-                      if ch=='{': depth+=1
-                      elif ch=='}': depth-=1
+                  if ch=='{': depth+=1
+                  elif ch=='}': depth-=1
                   j+=1
               return src[m.start():j]
 
@@ -91,7 +90,19 @@ jobs:
               if re.search(r'updated_at',b,re.I): evidence.append('UPDATED_AT')
               if evidence: print('FUNC '+n+':'+','.join(evidence))
 
-          # Explicit known read handlers should not update the tournament row.
+          # Print exact short mutation-related lines for the snapshot writer only.
+          for n in sorted(set(targets)):
+              b=body(n)
+              if not b or not re.search(r'UPDATE\s+cloud_tournaments|current_revision|nextRevision',b,re.I): continue
+              lines=[]
+              for line in b.splitlines():
+                  s=line.strip()
+                  if any(k in s for k in ['current_revision','nextRevision','checksum','current_object_key','UPDATE cloud_tournaments','INSERT INTO cloud_']):
+                      lines.append(re.sub(r'\s+',' ',s)[:240])
+              if lines:
+                  print('MUTATION_LINES '+n)
+                  for line in lines[:30]: print('  '+line)
+
           for n in ['cloudWorkspace','listCloudTournaments','getCloudTournament','getCloudTournamentSnapshot','getArbiterTournament','listOrganizerArbiterResults']:
               b=body(n)
               if not b: continue
