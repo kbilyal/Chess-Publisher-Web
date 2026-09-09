@@ -160,7 +160,7 @@ export const OrganizerArbiterPanel: React.FC<{ cloud: any }> = ({ cloud }) => {
       if (currentCloudId && currentCloudId !== tournamentId) throw new Error('Arbiter results belong to a different Cloud tournament.');
 
       const next: any = clone(current);
-      const appliedIds: string[] = [];
+      const appliedSubmissions: ArbiterSubmission[] = [];
       for (const submission of [...items].sort((a, b) => String(a.updatedAt || '').localeCompare(String(b.updatedAt || '')))) {
         const roundKey = String(submission.round);
         if (next.pairings?.finalizedRounds?.[roundKey]) continue;
@@ -171,18 +171,26 @@ export const OrganizerArbiterPanel: React.FC<{ cloud: any }> = ({ cloud }) => {
         if (String(board.whiteKey || '') !== submission.whiteKey || String(board.blackKey || '') !== submission.blackKey) continue;
         boards[index] = { ...board, result: submission.result };
         next.pairings.liveBoards[roundKey] = boards;
-        appliedIds.push(submission.id);
+        appliedSubmissions.push(submission);
       }
 
-      if (!appliedIds.length) {
+      if (!appliedSubmissions.length) {
         setMessage('Arbiter results are waiting because the pairing changed or the round is finalized.');
         return;
       }
 
       localStorage.setItem(TOURNAMENT_STORAGE_KEY, JSON.stringify(next));
       await cloud.syncNow(next);
-      await arbiterApi.acknowledgeResults(token, tournamentId, appliedIds);
-      setMessage(`${appliedIds.length} arbiter result${appliedIds.length === 1 ? '' : 's'} synchronized to Cloud.`);
+      const acknowledgement = await arbiterApi.acknowledgeResults(
+        token,
+        tournamentId,
+        appliedSubmissions.map(({ id, updatedAt }) => ({ id, updatedAt }))
+      );
+      if (acknowledgement.acknowledged !== appliedSubmissions.length) {
+        setMessage(`${acknowledgement.acknowledged} of ${appliedSubmissions.length} arbiter results synchronized. A newer correction remains safely pending in Cloud.`);
+      } else {
+        setMessage(`${appliedSubmissions.length} arbiter result${appliedSubmissions.length === 1 ? '' : 's'} synchronized to Cloud.`);
+      }
       await refresh();
     } catch (error: any) {
       setMessage(error?.message || 'Arbiter results are waiting for organizer synchronization.');
