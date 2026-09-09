@@ -43,12 +43,7 @@ jobs:
           if len(parts) != 1: raise SystemExit(f'unexpected module count {len(parts)}')
           src = (parts[0].get_payload(decode=True) or b'').decode('utf-8', 'strict')
           print('LIVE_SHA256=' + hashlib.sha256(src.encode()).hexdigest())
-          names = sorted(set(re.findall(r'(?:async\s+)?function\s+([A-Za-z0-9_$]+)\s*\(', src)))
-          for n in names:
-            low=n.lower()
-            if 'b2' in low or 'snapshot' in low or 'cloudtournament' in low or 'revision' in low:
-              print('FUNCTION=' + n)
-          targets=['b2DownloadJson','b2UploadJson','putCloudSnapshot','createCloudTournament','cloudTournamentRecord','listCloudTournaments','cloudTournamentForOrganizer']
+          targets=['submitArbiterResult','acknowledgeOrganizerArbiterResults','buildRestrictedArbiterTournament','arbiterSnapshotObject','putCloudSnapshot']
           for target in targets:
             m=re.search(r'(?:async\s+)?function\s+'+re.escape(target)+r'\s*\([^)]*\)\s*\{',src)
             if not m: continue
@@ -62,11 +57,8 @@ jobs:
                   end=i+1; break
             if end:
               print('---BEGIN '+target+'---')
-              print(src[start:end][:22000])
+              print(src[start:end][:30000])
               print('---END '+target+'---')
-          for needle in ['/api/v1/cloud/tournaments', 'UNIQUE', 'CREATE TABLE IF NOT EXISTS cloud_tournaments']:
-            p=src.find(needle)
-            if p>=0:
-              print('---CONTEXT '+needle+'---')
-              print(src[max(0,p-2400):p+5200])
+          for marker in ['arbiter_access_v1','arbiter_snapshot_b2_v1','arbiter_special_results_v1','arbiter_results_ack_guard_v1']:
+            print(f'MARKER {marker}=' + ('YES' if marker in src else 'NO'))
           PY
