@@ -22,7 +22,7 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
-      - name: Inspect live Worker B2 snapshot implementation
+      - name: Inspect exact live B2 helper signatures
         shell: bash
         run: |
           set -euo pipefail
@@ -40,23 +40,20 @@ jobs:
 
           work = Path(os.environ['RUNNER_TEMP']) / 'arbiter-snapshot-diag'
           raw = (work / 'live.multipart').read_bytes()
-          first = raw.splitlines()[0].decode('ascii', 'strict')
-          boundary = first[2:]
+          boundary = raw.splitlines()[0].decode('ascii', 'strict')[2:]
           envelope = (f'Content-Type: multipart/form-data; boundary={boundary}\r\nMIME-Version: 1.0\r\n\r\n').encode() + raw
           msg = BytesParser(policy=default).parsebytes(envelope)
-          parts = list(msg.iter_parts())
-          payload = parts[0].get_payload(decode=True) or b''
-          source = payload.decode('utf-8', 'strict')
+          source = (list(msg.iter_parts())[0].get_payload(decode=True) or b'').decode('utf-8', 'strict')
 
           functions = list(re.finditer(r'(?:async\s+)?function\s+([A-Za-z0-9_$]+)\s*\([^)]*\)\s*\{', source))
-          print('=== B2/storage functions ===')
+          targets = {'getCloudCurrentSnapshot', 'b2DownloadJson', 'b2DownloadRaw', 'arbiterSnapshotObject'}
           for index, m in enumerate(functions):
+              name = m.group(1)
+              if name not in targets:
+                  continue
               end = functions[index + 1].start() if index + 1 < len(functions) else len(source)
               body = source[m.start():end]
-              lower = body.lower()
-              if 'b2_' in lower or 'b2 ' in lower or 'backblaze' in lower or 'current_object_key' in body or 'object_key' in body:
-                  print(f'FUNCTION {m.group(1)}')
-                  for line in body.splitlines():
-                      if any(k.lower() in line.lower() for k in ['B2_', 'B2 ', 'backblaze', 'object_key', 'current_object_key', 'download', 'upload', 'fetch(', 'snapshot']):
-                          print('  ' + line[:300])
+              print(f'=== {name} ===')
+              for line in body.splitlines()[:120]:
+                  print(line[:320])
           PY
