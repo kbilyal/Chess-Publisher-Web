@@ -27,21 +27,54 @@
 .arbiter-shell .arbiter-main { padding-bottom: 98px; }
 
 /* Beta.83 Arbiter touch targets: result entry must be comfortable on a phone. */
-.arbiter-result-groups { display: grid; gap: 10px; width: 100%; }
-.arbiter-result-buttons { gap: 10px !important; }
+.arbiter-result-actions {
+  width: 100%;
+  min-width: 0;
+}
+.arbiter-result-groups {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+.arbiter-result-buttons {
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+}
 .arbiter-result-buttons button {
+  width: 100%;
+  min-width: 0;
   min-height: 58px !important;
   padding: 8px 12px !important;
   border-radius: 13px !important;
   font-size: 16px !important;
   line-height: 1.1;
+  white-space: nowrap;
+  text-align: center;
   touch-action: manipulation;
 }
-.arbiter-special-results { display: grid; gap: 7px; }
+.arbiter-result-buttons button.selected {
+  border-color: #1769e0 !important;
+  background: #1769e0 !important;
+  color: #fff !important;
+  box-shadow: 0 0 0 2px rgba(23, 105, 224, .18) !important;
+}
+.arbiter-special-results {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
 .arbiter-special-results > span {
   color: #6f7f95;
   font-size: 11px;
   font-weight: 800;
+}
+.arbiter-special-result-buttons button {
+  min-height: 48px !important;
+  font-size: 13px !important;
+  background: #f6f8fb;
 }
 .arbiter-clear-result {
   min-height: 52px;
@@ -104,8 +137,58 @@
     font-size: 16px;
   }
   .arbiter-shell .arbiter-main { padding-bottom: 112px; }
-  .arbiter-result-buttons button { min-height: 62px !important; font-size: 17px !important; }
-  .arbiter-clear-result { min-height: 56px; font-size: 15px; }
+
+  /* Result entry owns the complete board-card width on phones. */
+  .arbiter-board-card { overflow: hidden; }
+  .arbiter-result-actions {
+    grid-area: actions !important;
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    margin-top: 6px;
+  }
+  .arbiter-result-groups {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  .arbiter-result-buttons {
+    display: grid !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+  .arbiter-result-buttons button {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 64px !important;
+    padding: 0 8px !important;
+    border-radius: 14px !important;
+    font-size: 20px !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+    overflow: hidden;
+  }
+  .arbiter-special-results {
+    margin-top: 2px;
+    padding-top: 9px;
+    border-top: 1px solid #e6ebf2;
+  }
+  .arbiter-special-results > span {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+  }
+  .arbiter-special-result-buttons button {
+    min-height: 46px !important;
+    font-size: 13px !important;
+    font-weight: 800;
+  }
+  .arbiter-clear-result {
+    min-height: 48px;
+    font-size: 13px;
+    border-radius: 12px;
+  }
   .arbiter-player .arbiter-color-badge { width: 26px; height: 26px; font-size: 12px !important; }
 }
 
