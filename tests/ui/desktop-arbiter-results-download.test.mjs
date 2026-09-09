@@ -6,7 +6,6 @@ const cloudApi = readFileSync('production-web/cloud/client/cloud-workspace-api.j
 const workerPatch = readFileSync('scripts/patch-arbiter-access-worker.py', 'utf8');
 const ackGuardPatch = readFileSync('scripts/patch-arbiter-results-ack-guard-worker.py', 'utf8');
 const webApi = readFileSync('src/arbiter/arbiterApi.ts', 'utf8');
-const webPanel = readFileSync('src/arbiter/OrganizerArbiterPanel.tsx', 'utf8');
 
 assert.match(workerPatch, /INSERT INTO cloud_arbiter_results/, 'Arbiter submission must be persisted to D1.');
 assert.match(workerPatch, /acknowledged_at\s*\n\s*\) VALUES \([^\n]+NULL\)/, 'New Arbiter submissions must start pending.');
@@ -50,9 +49,12 @@ assert.ok(positions.sync < positions.verify, 'Cloud sync must complete before ve
 assert.ok(positions.verify < positions.ack, 'ACK must never happen before exact Cloud verification.');
 assert.ok(positions.ack < positions.reread, 'Pending queue must be re-read after ACK.');
 
-assert.match(webApi, /submissions: submissions/, 'Web Companion must use guarded acknowledgement payloads.');
-assert.match(webApi, /updatedAt: clean\(item\.updatedAt\)/, 'Web Companion must include updatedAt in ACK guards.');
-assert.match(webPanel, /appliedSubmissions\.map\(\(\{ id, updatedAt \}\)/, 'Web auto-sync must ACK only exact versions it applied.');
-assert.match(webPanel, /newer correction remains safely pending in Cloud/, 'Web auto-sync must preserve concurrent corrections.');
+// Web may display/mirror pending Arbiter results, but Desktop Download Results
+// is the only acknowledgement boundary. Otherwise opening Web Companion could
+// consume the queue before the installed tournament program downloads it.
+assert.match(webApi, /Desktop Download Results is the single acknowledgement boundary/, 'Web Companion must explicitly defer acknowledgement to Desktop.');
+assert.match(webApi, /acknowledged: 0/, 'Web Companion must leave Arbiter submissions pending.');
+assert.match(webApi, /deferredToDesktop: true/, 'Web acknowledgement API must report Desktop deferral.');
+assert.doesNotMatch(webApi, /request\(`\/api\/v1\/cloud\/tournaments\/\$\{enc\(tournamentId\)\}\/arbiter-results\/ack`/, 'Web Companion must never call the result ACK endpoint.');
 
 console.log('DESKTOP_ARBITER_RESULTS_DOWNLOAD_CONTRACT=PASS');
