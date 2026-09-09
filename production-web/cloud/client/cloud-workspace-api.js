@@ -29,6 +29,15 @@
   }
   function normalizeBaseUrl(v){return required(v||DEFAULT_BASE_URL,"Cloud API base URL").replace(/\/+$/,"");}
   function clone(v){return v===undefined?undefined:JSON.parse(JSON.stringify(v));}
+  function normalizedName(v){return text(v).replace(/\s+/g," ").toLocaleLowerCase();}
+  function newestTournament(rows){
+    return [...rows].sort((a,b)=>{
+      const aTime=Date.parse(text(a?.updatedAt||a?.createdAt))||0;
+      const bTime=Date.parse(text(b?.updatedAt||b?.createdAt))||0;
+      if(aTime!==bTime)return bTime-aTime;
+      return (Number(b?.revision)||0)-(Number(a?.revision)||0);
+    })[0]||null;
+  }
 
   function createClient(options={}){
     const baseUrl=normalizeBaseUrl(options.baseUrl||DEFAULT_BASE_URL);
@@ -123,12 +132,33 @@
       },
       listTournaments(token){return request("/api/v1/cloud/tournaments",{method:"GET",headers:bearer(token)});},
       getTournament(token,tournamentId){return request(`/api/v1/cloud/tournaments/${encodeURIComponent(required(tournamentId,"Cloud tournament ID"))}`,{method:"GET",headers:bearer(token)});},
-      createTournament(token,input){
+      async createTournament(token,input){
         if(!input||typeof input!=="object")throw new Error("Cloud tournament metadata is required.");
+        const localKey=required(input.localKey,"Cloud local key");
+        const name=required(input.name,"Tournament name");
+
+        // cloud_tournament_create_idempotent_v1 — never create another private
+        // Cloud object merely because a local pairing/log operation lost its
+        // cloud linkage metadata. Recover the Organizer-owned object first.
+        const listed=await request("/api/v1/cloud/tournaments",{method:"GET",headers:bearer(token)});
+        const rows=Array.isArray(listed?.tournaments)?listed.tournaments:[];
+        const exactKey=rows.filter(row=>text(row?.localKey)===localKey);
+        if(exactKey.length){
+          const tournament=newestTournament(exactKey);
+          return {ok:true,recovered:true,recoveredBy:"localKey",tournament};
+        }
+
+        const targetName=normalizedName(name);
+        const exactName=rows.filter(row=>!row?.archivedAt&&normalizedName(row?.name)===targetName);
+        if(exactName.length){
+          const tournament=newestTournament(exactName);
+          return {ok:true,recovered:true,recoveredBy:"name",duplicateCandidates:exactName.length,tournament};
+        }
+
         return request("/api/v1/cloud/tournaments",{
           method:"POST",headers:bearer(token),body:{
-            localKey:required(input.localKey,"Cloud local key"),
-            name:required(input.name,"Tournament name"),
+            localKey,
+            name,
             deviceId:text(input.deviceId),deviceLabel:text(input.deviceLabel)
           }
         });
