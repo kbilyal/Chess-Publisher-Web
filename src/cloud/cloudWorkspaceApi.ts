@@ -33,10 +33,6 @@ async function request(path: string, options: {
 } = {}) {
   const headers = new Headers(options.headers || {});
   headers.set('Accept', 'application/json');
-  // Production Web calls the Hub Worker cross-origin. Do not add an optional
-  // X-Client-Version request header here: it expands the CORS preflight header
-  // set and can make an otherwise valid Organizer Token request fail before it
-  // reaches the Worker. Authentication remains the Bearer token.
   if (options.token) headers.set('Authorization', `Bearer ${options.token}`);
 
   let body: BodyInit | undefined;
@@ -81,11 +77,77 @@ async function request(path: string, options: {
   return data;
 }
 
+async function identitySafeCreateTournament(token: string, input: any) {
+  const internalId = clean(input?.localKey);
+  if (!internalId) {
+    throw new CloudApiError('Stable tournament identity is required before Cloud CREATE.', {
+      status: 409,
+      code: 'cloud_identity_missing'
+    });
+  }
+
+  const listed = await request('/api/v1/cloud/tournaments', { token });
+  const tournaments = Array.isArray(listed?.tournaments) ? listed.tournaments : [];
+  const matches = tournaments.filter((item: any) => clean(item?.localKey) === internalId);
+  if (matches.length > 1) {
+    throw new CloudApiError('More than one Cloud tournament has the same stable identity. Automatic selection is blocked.', {
+      status: 409,
+      code: 'cloud_identity_ambiguous',
+      payload: { internalId, matches: matches.map((item: any) => clean(item?.id)).filter(Boolean) }
+    });
+  }
+  if (matches.length === 1) return { ok: true, tournament: matches[0], reused: true };
+
+  return request('/api/v1/cloud/tournaments', { method: 'POST', token, body: input });
+}
+
+async function identitySafePutSnapshot(
+  token: string,
+  id: string,
+  baseRevision: number,
+  snapshot: any,
+  device: { id: string; label: string }
+) {
+  const internalId = clean(snapshot?.cloudWorkspace?.internalId);
+  const snapshotCloudId = clean(snapshot?.cloudWorkspace?.cloudTournamentId);
+  const metaResult = await request(`/api/v1/cloud/tournaments/${enc(id)}`, { token });
+  const remote = metaResult?.tournament || {};
+  const remoteId = clean(remote?.id);
+  const remoteInternalId = clean(remote?.localKey);
+
+  if (remoteId && remoteId !== clean(id)) {
+    throw new CloudApiError('Cloud tournament identity changed before synchronization.', {
+      status: 409,
+      code: 'cloud_identity_mismatch'
+    });
+  }
+  if (snapshotCloudId && snapshotCloudId !== clean(id)) {
+    throw new CloudApiError('Snapshot belongs to a different Cloud tournament. Write blocked.', {
+      status: 409,
+      code: 'cloud_identity_mismatch'
+    });
+  }
+  if (internalId && remoteInternalId && internalId !== remoteInternalId) {
+    throw new CloudApiError('Stable tournament identity does not match the selected Cloud tournament. Write blocked.', {
+      status: 409,
+      code: 'cloud_identity_mismatch',
+      payload: { internalId, remoteInternalId, cloudTournamentId: id }
+    });
+  }
+
+  return request(`/api/v1/cloud/tournaments/${enc(id)}/snapshot`, {
+    method: 'PUT',
+    token,
+    headers: { 'X-Expected-Revision': String(baseRevision) },
+    body: { baseRevision, snapshot, deviceId: device.id, deviceLabel: device.label }
+  });
+}
+
 export const cloudApi = {
   workspace: (token: string) => request('/api/v1/cloud/workspace', { token }),
   listTournaments: (token: string) => request('/api/v1/cloud/tournaments', { token }),
   listArchivedTournaments: (token: string) => request('/api/v1/cloud/tournaments/archived', { token }),
-  createTournament: (token: string, input: any) => request('/api/v1/cloud/tournaments', { method: 'POST', token, body: input }),
+  createTournament: identitySafeCreateTournament,
   getTournament: (token: string, id: string) => request(`/api/v1/cloud/tournaments/${enc(id)}`, { token }),
   archiveTournament: (token: string, id: string, expectedRevision: number) => request(`/api/v1/cloud/tournaments/${enc(id)}`, {
     method: 'DELETE',
@@ -94,12 +156,7 @@ export const cloudApi = {
   }),
   restoreArchivedTournament: (token: string, id: string) => request(`/api/v1/cloud/tournaments/${enc(id)}/restore`, { method: 'POST', token }),
   getSnapshot: (token: string, id: string) => request(`/api/v1/cloud/tournaments/${enc(id)}/snapshot`, { token }),
-  putSnapshot: (token: string, id: string, baseRevision: number, snapshot: any, device: { id: string; label: string }) => request(`/api/v1/cloud/tournaments/${enc(id)}/snapshot`, {
-    method: 'PUT',
-    token,
-    headers: { 'X-Expected-Revision': String(baseRevision) },
-    body: { baseRevision, snapshot, deviceId: device.id, deviceLabel: device.label }
-  }),
+  putSnapshot: identitySafePutSnapshot,
   revisions: (token: string, id: string) => request(`/api/v1/cloud/tournaments/${enc(id)}/revisions`, { token }),
   getRevisionSnapshot: (token: string, id: string, revision: number) => request(`/api/v1/cloud/tournaments/${enc(id)}/revisions/${Number(revision)}`, { token }),
   restore: (token: string, id: string, revision: number) => request(`/api/v1/cloud/tournaments/${enc(id)}/restore/${Number(revision)}`, { method: 'POST', token }),
