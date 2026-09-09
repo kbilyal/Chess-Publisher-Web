@@ -1,0 +1,60 @@
+name: beta.79 Web Unified SYNC Compatibility
+
+on:
+  push:
+    branches:
+      - beta79-web-sync-compat
+      - main
+    paths:
+      - 'src/cloud/cloudTournamentIdentity.ts'
+      - 'src/cloud/OnlineCloudProviderV2.tsx'
+      - 'src/cloud/onlineCloudSync.ts'
+      - 'src/cloud/tests/runBeta79UnifiedSyncCompatTests.ts'
+      - 'src/arbiter/**'
+      - 'scripts/patch-arbiter-results-cloud-state-worker.py'
+      - 'tests/ui/arbiter-access.test.mjs'
+      - 'docs/DESKTOP-CLOUD-SYNC-CONTRACT.md'
+      - '.github/workflows/beta79-web-sync-compat.yml'
+      - '.github/workflows/deploy-hub-beta79-results-cloud-state.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: beta.79 identity + results + compile gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact triggering commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: npm ci
+      - name: beta.79 16-scenario compatibility matrix
+        run: npx tsx src/cloud/tests/runBeta79UnifiedSyncCompatTests.ts
+      - name: Arbiter Access security/result-state contract
+        run: node tests/ui/arbiter-access.test.mjs
+      - name: Desktop pending-result durability compatibility
+        run: node tests/ui/desktop-arbiter-results-download.test.mjs
+      - name: Worker upgrade Python syntax
+        run: python -m py_compile scripts/patch-arbiter-results-cloud-state-worker.py
+      - name: Cloud roundtrip regression
+        run: npm run test:cloud-roundtrip
+      - name: Tournament create/import regression
+        run: npm run test:tournament-import
+      - name: TypeScript compile
+        run: npm run lint
+      - name: Production build
+        run: npm run build
