@@ -8,7 +8,9 @@ const api = read('src/arbiter/arbiterApi.ts');
 const main = read('src/main.tsx');
 const app = read('src/App.tsx');
 const patch = read('scripts/patch-arbiter-access-worker.py');
+const specialPatch = read('scripts/patch-arbiter-special-results-worker.py');
 const deploy = read('.github/workflows/deploy-hub-arbiter-access.yml');
+const specialDeploy = read('.github/workflows/deploy-hub-arbiter-special-results.yml');
 
 function has(source, needle, message) {
   assert.ok(source.includes(needle), message || `Missing: ${needle}`);
@@ -23,10 +25,18 @@ has(app, '<OrganizerArbiterPanel cloud={cloud} />', 'Organizer must have an Arbi
 
 has(portal, '<h1>Enter your name</h1>', 'Arbiter must identify themselves before first access.');
 has(portal, 'localStorage.setItem(storageKey, response.sessionToken)', 'Arbiter session must persist on that device.');
-has(portal, "const allowedResults = ['1 - 0', '½ - ½', '0 - 1'] as const", 'Arbiter result controls must be limited to played results.');
+has(portal, "const standardResults = ['1 - 0', '½ - ½', '0 - 1'] as const", 'Arbiter must preserve the three standard game results.');
+has(portal, "const specialResults = ['1F - 0F', '0F - 1F', '0F - 0F'] as const", 'Arbiter must expose exactly the Chess-Publisher special forfeit result codes.');
+has(portal, 'const allowedResults = [...standardResults, ...specialResults] as const', 'All Arbiter result controls must remain on one explicit whitelist.');
 has(portal, 'baseRevision', 'Every result submission must carry a Cloud revision guard.');
-has(portal, 'freshView.revision', 'Result submission must use the freshly read Cloud revision.');
+has(portal, 'sendWithRevisionGuard', 'Single and bulk result submission must share the same Cloud revision guard.');
+has(portal, 'await sendAtRevision(candidateView.revision)', 'Initial result submission must use the freshly loaded Cloud revision.');
+has(portal, "error?.code !== 'cloud_revision_conflict'", 'Only Cloud revision conflicts may enter the automatic retry path.');
+has(portal, 'const refreshed = await arbiterApi.tournament(sessionToken)', 'Revision retry must refresh the restricted tournament before resubmission.');
+has(portal, 'await sendAtRevision(retryView.revision)', 'Automatic retry must use the newly refreshed Cloud revision.');
+has(portal, 'matchingBoard(freshView, round, board, whiteKey, blackKey)', 'Every result submission must remain bound to the exact board and player identities.');
 has(portal, "'Update result' : 'Send result'", 'Arbiter must get explicit Send/Update result actions.');
+has(portal, 'Send all results', 'Arbiter must have an explicit bulk-send action for changed results.');
 has(portal, 'Publishing is disabled for Arbiter Access', 'Restricted role must clearly expose no publishing permission.');
 lacks(portal, 'chessResultsApi', 'Arbiter portal must never import Chess-Results administration.');
 lacks(portal, 'publishOnline', 'Arbiter portal must never expose Hub publishing.');
@@ -58,9 +68,17 @@ has(patch, 'arbiter_result_conflict', 'Conflicting results from different arbite
 has(patch, 'permissions: { pairings: true, results: true, publish: false }', 'Server must issue only the restricted role.');
 has(patch, '`${origin}/?arbiter=${encodeURIComponent(accessCode)}`', 'QR URL must contain only the tournament grant, never the Organizer Token.');
 
+has(specialPatch, 'arbiter_special_results_v1', 'Special-result Worker upgrade must be idempotently marked.');
+has(specialPatch, '1F - 0F', 'Worker upgrade must accept white forfeit wins.');
+has(specialPatch, '0F - 1F', 'Worker upgrade must accept black forfeit wins.');
+has(specialPatch, '0F - 0F', 'Worker upgrade must accept double-forfeit results.');
+
 has(deploy, 'Recover exact live protected Hub Worker', 'Worker deployment must patch the actual live protected source.');
 has(deploy, "'private_cloud_hard_delete_v1'", 'Arbiter deployment must preserve permanent private Cloud deletion.');
 has(deploy, 'Roll back previous Worker version if verification fails', 'Worker deployment must automatically roll back on verification failure.');
 lacks(deploy, 'deploy/hub-api/worker.js', 'Deployment must never overwrite the live Worker from a stale repository copy.');
+has(specialDeploy, 'Recover exact live protected Hub Worker', 'Special-result deployment must patch the actual live protected source.');
+has(specialDeploy, 'Roll back previous Worker version if verification fails', 'Special-result deployment must preserve automatic rollback.');
+lacks(specialDeploy, 'deploy/hub-api/worker.js', 'Special-result deployment must never use a stale repository Worker source.');
 
 console.log('ARBITER_ACCESS_CONTRACT=PASS');
