@@ -1,0 +1,66 @@
+name: Diagnose Arbiter Snapshot
+
+on:
+  push:
+    branches:
+      - diag-arbiter-snapshot
+    paths:
+      - '.github/workflows/diagnose-arbiter-snapshot.yml'
+
+permissions:
+  contents: read
+
+env:
+  HUB_WORKER_NAME: chess-publisher-hub-api-beta
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect live Worker snapshot implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/arbiter-snapshot-diag"
+          mkdir -p "$work"
+          api="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${HUB_WORKER_NAME}"
+          curl --fail --silent --show-error --location \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            "$api" -o "$work/live.multipart"
+          python - <<'PY'
+          from pathlib import Path
+          from email.parser import BytesParser
+          from email.policy import default
+          import os, re
+
+          work = Path(os.environ['RUNNER_TEMP']) / 'arbiter-snapshot-diag'
+          raw = (work / 'live.multipart').read_bytes()
+          first = raw.splitlines()[0].decode('ascii', 'strict')
+          boundary = first[2:]
+          envelope = (f'Content-Type: multipart/form-data; boundary={boundary}\r\nMIME-Version: 1.0\r\n\r\n').encode() + raw
+          msg = BytesParser(policy=default).parsebytes(envelope)
+          parts = list(msg.iter_parts())
+          payload = parts[0].get_payload(decode=True) or b''
+          source = payload.decode('utf-8', 'strict')
+
+          functions = list(re.finditer(r'(?:async\s+)?function\s+([A-Za-z0-9_$]+)\s*\([^)]*\)\s*\{', source))
+          print('=== candidate functions ===')
+          for index, m in enumerate(functions):
+              end = functions[index + 1].start() if index + 1 < len(functions) else len(source)
+              body = source[m.start():end]
+              lower = body.lower()
+              if 'current_object_key' in body or '/snapshot' in body or ('snapshot' in lower and '.get(' in body):
+                  print(f'FUNCTION {m.group(1)}')
+                  for line in body.splitlines():
+                      if any(k in line for k in ['current_object_key','object_key','snapshot','BUCKET','R2','B2','.get(','fetch(','env.']):
+                          print('  ' + line[:260])
+          print('=== top-level storage markers ===')
+          for line in source.splitlines():
+              if any(k in line for k in ['current_object_key','object_key','R2','B2','BUCKET','snapshotKey','objectKey']):
+                  print(line[:280])
+          PY
