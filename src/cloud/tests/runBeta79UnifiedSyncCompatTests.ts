@@ -138,11 +138,13 @@ const remote = { id: 'cloud:one', localKey: 'tournament:stable-beta79', name: 'O
 
 // TEST 10 — repeated SYNC -> no duplicate tournaments; ambiguity -> STOP.
 {
+  const stale: any = sampleTournament();
+  stale.cloud.cloudTournamentId = 'cloud:stale-provider-id';
   const duplicateRows = [remote, { ...remote, id: 'cloud:duplicate' }];
-  assert.throws(() => resolveOwnedCloudTournament(sampleTournament(), duplicateRows), CloudIdentityAmbiguityError);
+  assert.throws(() => resolveOwnedCloudTournament(stale, duplicateRows), CloudIdentityAmbiguityError);
   assert.ok(provider.includes('resolveOwnedCloudTournament(tournament, list)'));
   assert.ok(provider.includes('const created = await cloudApi.createTournament'), 'CREATE remains a last resort after authoritative lookup.');
-  console.log('TEST 10 PASS — repeated linking reuses one row; duplicate identity matches stop.');
+  console.log('TEST 10 PASS — repeated linking reuses one row; stale-id duplicate identity matches stop.');
 }
 
 // TEST 11 — Web-created tournament -> Desktop open -> SYNC -> same object.
