@@ -1,0 +1,246 @@
+name: Deploy Restricted Arbiter Access
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'scripts/patch-arbiter-access-worker.py'
+      - '.github/workflows/deploy-hub-arbiter-access.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  HUB_WORKER_NAME: chess-publisher-hub-api-beta
+  HUB_PUBLIC_BASE: https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev
+
+jobs:
+  deploy:
+    name: Deploy tournament-scoped Arbiter Access
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+    steps:
+      - name: Checkout exact triggering commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Verify Cloudflare credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+
+      - name: Recover exact live protected Hub Worker
+        id: inspect
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/hub-arbiter-access"
+          mkdir -p "$work"
+          api="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${HUB_WORKER_NAME}"
+          auth="Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
+          curl --fail --silent --show-error --location -H "$auth" "$api" -o "$work/live-worker.multipart"
+          curl --fail --silent --show-error -H "$auth" "$api/deployments" -o "$work/deployments-before.json"
+
+          python - <<'PY'
+          from pathlib import Path
+          from email.parser import BytesParser
+          from email.policy import default
+          import hashlib, json, os
+
+          work = Path(os.environ['RUNNER_TEMP']) / 'hub-arbiter-access'
+          raw = (work / 'live-worker.multipart').read_bytes()
+          first = raw.splitlines()[0].decode('ascii', 'strict')
+          if not first.startswith('--'):
+              raise SystemExit('Unexpected Hub Worker download format.')
+          boundary = first[2:]
+          envelope = (f'Content-Type: multipart/form-data; boundary={boundary}\r\nMIME-Version: 1.0\r\n\r\n').encode() + raw
+          msg = BytesParser(policy=default).parsebytes(envelope)
+          parts = list(msg.iter_parts())
+          if len(parts) != 1:
+              raise SystemExit(f'Expected one Worker module, got {len(parts)}.')
+          payload = parts[0].get_payload(decode=True) or b''
+          source = payload.decode('utf-8', 'strict')
+          required = [
+              'export default',
+              'private_cloud_archive_v1',
+              'private_cloud_hard_delete_v1',
+              'async function deleteCloudTournamentPermanently',
+              'async function organizerFromBearer',
+              'async function ensureCloudSchema'
+          ]
+          missing = [marker for marker in required if marker not in source]
+          if missing:
+              raise SystemExit(f'Refusing unexpected Hub Worker baseline; missing: {missing}')
+          state = 'arbiter' if 'arbiter_access_v1' in source else 'hard_delete'
+          (work / 'worker.original.js').write_bytes(payload)
+          (work / 'worker.js').write_bytes(payload)
+          sha = hashlib.sha256(payload).hexdigest()
+
+          deployments = json.loads((work / 'deployments-before.json').read_text())
+          rows = (deployments.get('result') or {}).get('deployments') or []
+          if not rows:
+              raise SystemExit('No active Hub deployment was returned by Cloudflare.')
+          versions = rows[0].get('versions') or []
+          if len(versions) != 1 or float(versions[0].get('percentage') or 0) != 100:
+              raise SystemExit('Expected one 100% active Hub Worker version.')
+          previous_version = str(versions[0].get('version_id') or '')
+          if not previous_version:
+              raise SystemExit('Active Hub deployment has no version id.')
+
+          print(f'Current live SHA256: {sha}')
+          print(f'Current Arbiter state: {state}')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              out.write(f'source_state={state}\n')
+              out.write(f'previous_version_id={previous_version}\n')
+          PY
+
+      - name: Apply restricted Arbiter Access patch
+        if: steps.inspect.outputs.source_state == 'hard_delete'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile scripts/patch-arbiter-access-worker.py
+          python scripts/patch-arbiter-access-worker.py "$RUNNER_TEMP/hub-arbiter-access/worker.js"
+
+      - name: Verify protected Worker source
+        id: verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          worker="$RUNNER_TEMP/hub-arbiter-access/worker.js"
+          node --check "$worker"
+          grep -Fq 'private_cloud_hard_delete_v1' "$worker"
+          grep -Fq 'arbiter_access_v1' "$worker"
+          grep -Fq '/api/v1/arbiter/join' "$worker"
+          grep -Fq '/api/v1/arbiter/tournament' "$worker"
+          grep -Fq '/api/v1/arbiter/results' "$worker"
+          grep -Fq 'permissions: { pairings: true, results: true, publish: false }' "$worker"
+          grep -Fq 'cloud_revision_conflict' "$worker"
+          grep -Fq 'ARBITER_ALLOWED_RESULTS' "$worker"
+          grep -Fq 'acknowledgeOrganizerArbiterResults' "$worker"
+          grep -Fq 'DELETE FROM cloud_tournaments' "$worker"
+          sha="$(sha256sum "$worker" | awk '{print $1}')"
+          echo "Target Hub SHA256: $sha"
+          echo "target_sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Upload protected Worker content when changed
+        id: upload
+        if: steps.inspect.outputs.source_state == 'hard_delete'
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/hub-arbiter-access"
+          endpoint="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${HUB_WORKER_NAME}/content"
+          status="$(curl --silent --show-error \
+            --output "$work/content-update.json" \
+            --write-out '%{http_code}' \
+            -X PUT \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -F 'metadata={"main_module":"worker.js"};type=application/json' \
+            -F "worker.js=@${work}/worker.js;type=application/javascript+module" \
+            "$endpoint")"
+          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+            cat "$work/content-update.json"
+            exit 1
+          fi
+          echo 'changed=true' >> "$GITHUB_OUTPUT"
+
+      - name: Verify live role restrictions and CORS
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/hub-arbiter-access"
+          dummy='cloud_00000000000000000000000000000000'
+          ready=false
+          fake_code='arb_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890'
+
+          for attempt in $(seq 1 30); do
+            health="$(curl --silent --show-error --output "$work/health.json" --write-out '%{http_code}' "$HUB_PUBLIC_BASE/api/v1/health")"
+            owner="$(curl --silent --show-error --output "$work/owner.json" --write-out '%{http_code}' "$HUB_PUBLIC_BASE/api/v1/cloud/tournaments/$dummy/arbiter-access")"
+            tournament="$(curl --silent --show-error --output "$work/tournament.json" --write-out '%{http_code}' "$HUB_PUBLIC_BASE/api/v1/arbiter/tournament")"
+            result="$(curl --silent --show-error --output "$work/result.json" --write-out '%{http_code}' -X POST -H 'Content-Type: application/json' --data '{}' "$HUB_PUBLIC_BASE/api/v1/arbiter/results")"
+            join="$(curl --silent --show-error --output "$work/join.json" --write-out '%{http_code}' -X POST -H 'Content-Type: application/json' --data "{\"accessCode\":\"$fake_code\",\"name\":\"Smoke Arbiter\",\"deviceId\":\"smoke-device\"}" "$HUB_PUBLIC_BASE/api/v1/arbiter/join")"
+            if [ "$health" = '200' ] && [ "$owner" = '401' ] && [ "$tournament" = '401' ] && [ "$result" = '401' ] && [ "$join" = '404' ]; then
+              ready=true
+              break
+            fi
+            echo "Waiting for Arbiter route propagation: health=$health owner=$owner tournament=$tournament result=$result join=$join"
+            sleep 3
+          done
+          test "$ready" = true
+
+          cors="$(curl --silent --show-error --dump-header - --output /dev/null -X OPTIONS \
+            -H 'Origin: https://web.chess-publisher.org' \
+            -H 'Access-Control-Request-Method: POST' \
+            -H 'Access-Control-Request-Headers: content-type' \
+            "$HUB_PUBLIC_BASE/api/v1/arbiter/join")"
+          printf '%s\n' "$cors" | grep -qi '^access-control-allow-origin: https://web.chess-publisher.org'
+          printf '%s\n' "$cors" | grep -qi 'content-type'
+          printf '%s\n' "$cors" | grep -qi 'POST'
+          echo 'ARBITER_ACCESS_LIVE_SMOKE=PASS'
+
+      - name: Verify exact live Worker content
+        shell: bash
+        env:
+          TARGET_SHA: ${{ steps.verify.outputs.target_sha }}
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/hub-arbiter-access/live-check"
+          mkdir -p "$work"
+          api="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${HUB_WORKER_NAME}"
+          curl --fail --silent --show-error --location -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" "$api" -o "$work/live.multipart"
+          python - <<'PY'
+          from pathlib import Path
+          from email.parser import BytesParser
+          from email.policy import default
+          import hashlib, os
+          work = Path(os.environ['RUNNER_TEMP']) / 'hub-arbiter-access' / 'live-check'
+          raw = (work / 'live.multipart').read_bytes()
+          boundary = raw.splitlines()[0].decode()[2:]
+          envelope = (f'Content-Type: multipart/form-data; boundary={boundary}\r\nMIME-Version: 1.0\r\n\r\n').encode() + raw
+          msg = BytesParser(policy=default).parsebytes(envelope)
+          parts = list(msg.iter_parts())
+          if len(parts) != 1:
+              raise SystemExit('Unexpected live Worker module count.')
+          payload = parts[0].get_payload(decode=True) or b''
+          actual = hashlib.sha256(payload).hexdigest()
+          expected = os.environ['TARGET_SHA']
+          print(f'Live Hub SHA256: {actual}')
+          if actual != expected:
+              raise SystemExit(f'Live Hub content mismatch: expected {expected}, got {actual}')
+          if b'arbiter_access_v1' not in payload:
+              raise SystemExit('Live Worker is missing Arbiter Access marker.')
+          PY
+
+      - name: Roll back previous Worker version if verification fails
+        if: failure() && steps.upload.outputs.changed == 'true'
+        shell: bash
+        env:
+          PREVIOUS_VERSION: ${{ steps.inspect.outputs.previous_version_id }}
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/hub-arbiter-access"
+          endpoint="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${HUB_WORKER_NAME}/deployments?force=true"
+          python - <<'PY' > "$work/rollback-body.json"
+          import json, os
+          print(json.dumps({
+            'strategy': 'percentage',
+            'versions': [{'percentage': 100, 'version_id': os.environ['PREVIOUS_VERSION']}],
+            'annotations': {'workers/message': 'Automatic rollback after restricted Arbiter Access verification failure'}
+          }))
+          PY
+          curl --fail --silent --show-error -X POST \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H 'Content-Type: application/json' \
+            --data-binary "@$work/rollback-body.json" \
+            "$endpoint" >/dev/null
+          echo 'Previous active Hub Worker version restored.'
