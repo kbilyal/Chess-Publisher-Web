@@ -127,19 +127,21 @@ export const arbiterApi = {
   organizerPendingResults: (organizerToken: string, tournamentId: string) =>
     request(`/api/v1/cloud/tournaments/${enc(tournamentId)}/arbiter-results`, { token: organizerToken }) as Promise<{ ok: boolean; results: ArbiterSubmission[] }>,
 
-  acknowledgeResults: (
-    organizerToken: string,
-    tournamentId: string,
+  acknowledgeResults: async (
+    _organizerToken: string,
+    _tournamentId: string,
     submissions: Array<Pick<ArbiterSubmission, 'id' | 'updatedAt'>>
-  ) => request(`/api/v1/cloud/tournaments/${enc(tournamentId)}/arbiter-results/ack`, {
-    method: 'POST',
-    token: organizerToken,
-    body: {
-      submissions: submissions
-        .map(item => ({ id: clean(item.id), updatedAt: clean(item.updatedAt) }))
-        .filter(item => item.id && item.updatedAt)
-    }
-  }) as Promise<{ ok: boolean; acknowledged: number; guarded?: boolean; requested?: number }>,
+  ) => {
+    // Desktop Download Results is the single acknowledgement boundary.
+    // Web Companion may mirror a submitted result into its working snapshot,
+    // but it must never remove that submission from the pending Cloud queue.
+    // This guarantees the desktop program can still download, persist, verify
+    // and only then ACK the exact id + updatedAt version.
+    const requested = submissions
+      .map(item => ({ id: clean(item.id), updatedAt: clean(item.updatedAt) }))
+      .filter(item => item.id && item.updatedAt).length;
+    return { ok: true, acknowledged: 0, guarded: true, requested, deferredToDesktop: true };
+  },
 
   join: (accessCode: string, name: string, deviceId: string) =>
     request('/api/v1/arbiter/join', {
