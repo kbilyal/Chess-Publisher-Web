@@ -23,6 +23,11 @@ import {
 } from './browserSyncPolicy';
 import { CompanionLoginScreen, CompanionTournamentSelectScreen } from '../companion/CompanionCloudScreens';
 import { createCleanTournament, importTournamentFile } from '../importers/tournamentFileImport';
+import {
+  bindOwnedCloudIdentity,
+  existingStableInternalId,
+  resolveOwnedCloudTournament
+} from './cloudTournamentIdentity';
 
 const TOURNAMENT_STORAGE_KEY = 'fide_tournament_manager_v2';
 const TOKEN_SESSION_KEY = 'cpstudio.organizerToken.session';
@@ -270,13 +275,9 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
   }
 
   function chooseExistingRemote(tournament: Tournament | any, list = cloudTournaments) {
-    const cloudId = text(tournament?.cloud?.cloudTournamentId);
-    if (cloudId) {
-      const byId = list.find(item => item.id === cloudId);
-      if (byId) return byId;
-    }
-    const internalId = chooseInternalTournamentId(tournament);
-    return list.find(item => text(item.localKey) === internalId) || null;
+    // beta79_unified_identity_v1 — only the authenticated organizer-owned list
+    // may resolve a private tournament. Name/revision/active UI state are never identity.
+    return resolveOwnedCloudTournament(tournament, list);
   }
 
   async function getCloudState(remote: CloudTournamentMeta) {
@@ -313,8 +314,11 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
   }
 
   async function ensureCloudLink(tournament: Tournament) {
+    // beta79_unified_identity_v1 — activeRef is presentation state, never tournament identity.
+    // Before CREATE, resolve against the authoritative organizer-owned list, refresh it once,
+    // then rely on the server UNIQUE(organizer_id, local_key) gate for concurrent creates.
     let list = cloudTournaments;
-    let remote = chooseExistingRemote(tournament, list) || activeRef.current;
+    let remote = chooseExistingRemote(tournament, list);
     if (remote) return remote;
 
     list = await refreshWorkspace();
@@ -325,19 +329,20 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
       return remote;
     }
 
-    const internalId = chooseInternalTournamentId(tournament);
+    const internalId = existingStableInternalId(tournament) || chooseInternalTournamentId(tournament);
+    const device = browserDevice();
     const created = await cloudApi.createTournament(tokenRef.current, {
       localKey: internalId,
       name: tournamentName(tournament),
-      deviceId: browserDevice().id,
-      deviceLabel: browserDevice().label
+      deviceId: device.id,
+      deviceLabel: device.label
     });
     remote = created?.tournament;
     if (!remote?.id) throw new Error('Cloud Workspace did not return a tournament ID.');
     setCloudTournaments(current => [remote!, ...current.filter(item => item.id !== remote!.id)]);
     setActiveCloud(remote);
     activeRef.current = remote;
-    log(`Created private Cloud Workspace link ${remote.id}.`);
+    log(`${created?.created === false ? 'Reused' : 'Created'} private Cloud Workspace link ${remote.id}.`);
     return remote;
   }
 
@@ -362,12 +367,14 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
     setStatusKind('busy');
 
     try {
-      const seeded = ensureLocalIdentity(local, {
+      let seeded = ensureLocalIdentity(local, {
         internalIdCandidates: [(local as any)?.online?.hubTournamentId]
       });
       commitLocal(seeded, false);
-      const localFingerprint = await fingerprintTournament(seeded);
       const remote = await ensureCloudLink(seeded);
+      seeded = bindOwnedCloudIdentity(seeded, remote);
+      commitLocal(seeded, false);
+      const localFingerprint = await fingerprintTournament(seeded);
       const cloud = await getCloudState(remote);
 
       if (cloud.revision === 0 || !cloud.tournament) {
@@ -497,12 +504,14 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
     await runQueued('Pull Changes', async () => {
       try {
         const current = readLocalTournament() || tournamentInput;
-        const seeded = ensureLocalIdentity(current, {
+        let seeded = ensureLocalIdentity(current, {
           internalIdCandidates: [(current as any)?.online?.hubTournamentId]
         });
         commitLocal(seeded, false);
-        const localFingerprint = await fingerprintTournament(seeded);
         const remote = await ensureCloudLink(seeded);
+        seeded = bindOwnedCloudIdentity(seeded, remote);
+        commitLocal(seeded, false);
+        const localFingerprint = await fingerprintTournament(seeded);
         const cloud = await getCloudState(remote);
 
         if (cloud.revision === 0 || !cloud.tournament) {
@@ -679,10 +688,8 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
       return;
     }
     const remote = chooseExistingRemote(local);
-    const identity: any = ensureLocalIdentity(local, {
-      internalIdCandidates: [remote?.localKey, remote?.id],
-      cloudTournamentId: remote?.id
-    });
+    let identity: any = ensureLocalIdentity(local);
+    if (remote) identity = bindOwnedCloudIdentity(identity, remote);
     identity.cloud = { ...(identity.cloud || {}), schemaVersion: 4, autoBackup: true };
     setActiveCloud(remote);
     activeRef.current = remote;
@@ -693,59 +700,77 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
     commitLocal(identity, true);
     setPhase('app');
     phaseRef.current = 'app';
-    setStatus(remote ? `Cloud linked · r${Number(remote.revision || 0)} · syncing…` : 'Local tournament · creating Cloud link…');
+    setStatus(remote ? `Cloud linked · r${Number(remote.revision || 0)} · checking unified sync…` : 'Local tournament · checking Cloud identity…');
     setStatusKind('busy');
     coordinatorRef.current.schedule(() => safeAutomaticSync(), 50);
   }
 
-  async function createPrivateTournamentAndOpen(seed: Tournament, sourceLabel: string) {
+  async function createPrivateTournamentAndOpen(
+    seed: Tournament,
+    sourceLabel: string,
+    options: { preserveStableIdentity?: boolean } = {}
+  ) {
     await runQueued(sourceLabel, async () => {
-      setStatus(`${sourceLabel} · creating private Cloud record…`);
+      setStatus(`${sourceLabel} · checking private Cloud identity…`);
       setStatusKind('busy');
       setConflict(false);
       conflictRef.current = false;
       setRemoteChangesAvailable(false);
-      setCloudDirty(false);
+      setCloudDirty(true);
 
-      // Create/Import is intentionally a NEW identity. Never adopt the currently
-      // open browser tournament, an existing Hub id, or a same-name Cloud record.
       const clean: any = clone(seed);
-      delete clean.cloud;
-      delete clean.online;
-      delete clean.hub;
-      const seeded: any = ensureLocalIdentity(clean);
-      const internalId = chooseInternalTournamentId(seeded);
-      const device = browserDevice();
-      const created = await cloudApi.createTournament(tokenRef.current, {
-        localKey: internalId,
-        name: tournamentName(seeded),
-        deviceId: device.id,
-        deviceLabel: device.label
-      });
-      const remote = created?.tournament as CloudTournamentMeta | undefined;
-      if (!remote?.id) throw new Error('Cloud Workspace did not return a tournament ID for the new tournament.');
+      if (options.preserveStableIdentity) {
+        // Imported TUNX/TRF continuation may already carry a stable private identity.
+        // Keep sync-base metadata, but never keep installation-local localKey or Public Hub linkage.
+        const importedCloud = clean.cloud && typeof clean.cloud === 'object' ? { ...clean.cloud } : {};
+        delete importedCloud.localKey;
+        delete importedCloud.autoBackup;
+        clean.cloud = importedCloud;
+        delete clean.online;
+        delete clean.hub;
+        delete clean.publication;
+      } else {
+        // A user-requested New tournament is a genuinely new identity.
+        delete clean.cloud;
+        delete clean.online;
+        delete clean.hub;
+        delete clean.publication;
+      }
 
-      const fingerprint = await fingerprintTournament(seeded);
-      const saved = await cloudApi.putSnapshot(
-        tokenRef.current,
-        remote.id,
-        0,
-        buildPrivateSnapshot(tournamentName(seeded), seeded),
-        device
-      );
-      const revision = Number(saved?.revision || 1);
-      const updated = withBrowserBase(seeded, remote.id, revision, fingerprint);
-      commitLocal(updated, true);
-      setActiveCloud({ ...remote, revision });
-      activeRef.current = { ...remote, revision };
-      setCloudTournaments(current => [{ ...remote, revision }, ...current.filter(item => item.id !== remote.id)]);
-      setLastSyncAt(updated.cloud?.lastSyncAt || '');
+      let seeded: any = ensureLocalIdentity(clean);
+      const list = await refreshWorkspace();
+      let remote = chooseExistingRemote(seeded, list);
+      if (!remote) {
+        const internalId = existingStableInternalId(seeded) || chooseInternalTournamentId(seeded);
+        const device = browserDevice();
+        const created = await cloudApi.createTournament(tokenRef.current, {
+          localKey: internalId,
+          name: tournamentName(seeded),
+          deviceId: device.id,
+          deviceLabel: device.label
+        });
+        remote = created?.tournament as CloudTournamentMeta | undefined;
+        if (!remote?.id) throw new Error('Cloud Workspace did not return a tournament ID for the tournament.');
+        setCloudTournaments(current => [remote!, ...current.filter(item => item.id !== remote!.id)]);
+        log(`${sourceLabel}: ${created?.created === false ? 'reused' : 'created'} ${remote.id}.`);
+      } else {
+        log(`${sourceLabel}: linked to existing Organizer Cloud tournament ${remote.id}.`);
+      }
+
+      seeded = bindOwnedCloudIdentity(seeded, remote);
+      seeded.cloud = { ...(seeded.cloud || {}), schemaVersion: 4, autoBackup: true };
+      commitLocal(seeded, true);
+      setActiveCloud(remote);
+      activeRef.current = remote;
       setPublicState(null);
       setPhase('app');
       phaseRef.current = 'app';
-      setStatus(`${sourceLabel} · private Cloud r${revision} · ready in Desktop`);
-      setStatusKind('ok');
-      log(`${sourceLabel}: created ${remote.id} at private Cloud revision ${revision}.`);
+      setStatus(`${sourceLabel} · Cloud identity linked · running unified sync…`);
+      setStatusKind('busy');
+
+      // Do not invent a special create/upload workflow. The same automatic sync
+      // path handles r0 creation, remote-only/local-only changes and conflicts.
+      coordinatorRef.current.schedule(() => safeAutomaticSync(), 50);
     }, true);
   }
 
@@ -765,7 +790,7 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
     try {
       const imported = await importTournamentFile(file);
       setBusy(false);
-      await createPrivateTournamentAndOpen(imported.tournament, `Imported ${imported.kind.toUpperCase()} · ${imported.playerCount} players`);
+      await createPrivateTournamentAndOpen(imported.tournament, `Imported ${imported.kind.toUpperCase()} · ${imported.playerCount} players`, { preserveStableIdentity: true });
     } catch (error: any) {
       setBusy(false);
       setStatus(error?.message || 'Tournament import failed.');
@@ -921,9 +946,8 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
           revision: Number(published?.revision || revision),
           lastPublishedAt: new Date().toISOString()
         };
-        if (!text(tournament.cloud?.internalId) || String(tournament.cloud.internalId).startsWith('tournament:')) {
-          tournament.cloud = { ...(tournament.cloud || {}), internalId: hub.id };
-        }
+        // Public Hub identity is publication metadata only. Never rewrite the
+        // stable private Cloud internalId when a tournament is published.
         setPublicState(tournament.online);
         // Publishing updates persisted Hub metadata but must not remount the
         // Companion workspace: remounting resets the active Publish tab to Setup.

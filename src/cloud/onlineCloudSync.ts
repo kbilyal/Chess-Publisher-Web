@@ -209,7 +209,7 @@ export function buildPrivateSnapshot(name: string, tournament: Tournament | any)
       internalId,
       ...(cloudTournamentId ? { cloudTournamentId } : {}),
       fingerprintContentSchema: PORTABLE_FINGERPRINT_SCHEMA,
-      clientVersion: 'chess-publisher-web-online-cloud-directional-v1'
+      clientVersion: 'chess-publisher-web-beta79-unified-sync-compat-v1'
     }
   };
 }
