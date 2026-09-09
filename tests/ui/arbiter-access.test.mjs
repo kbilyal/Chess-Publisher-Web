@@ -9,8 +9,10 @@ const main = read('src/main.tsx');
 const app = read('src/App.tsx');
 const patch = read('scripts/patch-arbiter-access-worker.py');
 const specialPatch = read('scripts/patch-arbiter-special-results-worker.py');
+const cloudStatePatch = read('scripts/patch-arbiter-results-cloud-state-worker.py');
 const deploy = read('.github/workflows/deploy-hub-arbiter-access.yml');
 const specialDeploy = read('.github/workflows/deploy-hub-arbiter-special-results.yml');
+const cloudStateDeploy = read('.github/workflows/deploy-hub-beta79-results-cloud-state.yml');
 const uiFixes = read('src/arbiter/arbiter-ui-fixes.css');
 
 function has(source, needle, message) {
@@ -53,9 +55,10 @@ has(panel, 'Tournament arbiters', 'Organizer must see joined arbiters.');
 has(panel, 'Last active', 'Organizer must see arbiter activity.');
 has(panel, 'Generate QR', 'Organizer must be able to create a tournament-scoped QR.');
 has(panel, 'Revoke', 'Organizer must be able to revoke all sessions immediately.');
-has(panel, 'board.whiteKey', 'Organizer application must verify white-player identity.');
-has(panel, 'board.blackKey', 'Organizer application must verify black-player identity.');
-has(panel, 'cloud.syncNow(next)', 'Accepted result queue must synchronize through protected Cloud sync.');
+has(panel, 'saved in the private Cloud tournament state', 'Organizer must be told that Arbiter results are already part of private Cloud state.');
+lacks(panel, 'cloud.syncNow(', 'beta.79 Web Organizer must not mirror Arbiter results through a second sync path.');
+lacks(panel, 'acknowledgeResults(', 'Web Organizer must never acknowledge results before Desktop beta.79 validates them.');
+lacks(panel, 'applyPending', 'Web Organizer must not maintain a second result-application algorithm.');
 
 has(api, '/api/v1/arbiter/join', 'Client API must have a dedicated join route.');
 has(api, '/api/v1/arbiter/tournament', 'Client API must have a restricted tournament route.');
@@ -80,6 +83,16 @@ has(specialPatch, '1F - 0F', 'Worker upgrade must accept white forfeit wins.');
 has(specialPatch, '0F - 1F', 'Worker upgrade must accept black forfeit wins.');
 has(specialPatch, '0F - 0F', 'Worker upgrade must accept double-forfeit results.');
 
+has(cloudStatePatch, 'arbiter_results_cloud_state_v1', 'beta.79 result-state Worker upgrade must be idempotently marked.');
+has(cloudStatePatch, 'board.result = result', 'Arbiter submission must mutate only the validated board result in the tournament snapshot.');
+has(cloudStatePatch, 'validateCloudSnapshot(snapshot)', 'Mutated tournament snapshot must pass the standard Cloud validator.');
+has(cloudStatePatch, 'b2UploadJson(env, objectKey, bytes)', 'Arbiter result must use the existing private B2 revision storage.');
+has(cloudStatePatch, 'INSERT INTO cloud_revisions', 'Arbiter result must create a normal Cloud revision.');
+has(cloudStatePatch, "'arbiter-result'", 'Arbiter-created revision must carry an explicit audit reason.');
+has(cloudStatePatch, 'UPDATE cloud_tournaments', 'Arbiter result must atomically advance the same Cloud tournament object.');
+has(cloudStatePatch, 'cloud_arbiter_results', 'Pending result queue must remain for Desktop compatibility/audit.');
+has(cloudStatePatch, 'cloudTournamentForOrganizer', 'Result write must remain organizer/tournament scoped server-side.');
+
 has(deploy, 'Recover exact live protected Hub Worker', 'Worker deployment must patch the actual live protected source.');
 has(deploy, "'private_cloud_hard_delete_v1'", 'Arbiter deployment must preserve permanent private Cloud deletion.');
 has(deploy, 'Roll back previous Worker version if verification fails', 'Worker deployment must automatically roll back on verification failure.');
@@ -87,5 +100,8 @@ lacks(deploy, 'deploy/hub-api/worker.js', 'Deployment must never overwrite the l
 has(specialDeploy, 'Recover exact live protected Hub Worker', 'Special-result deployment must patch the actual live protected source.');
 has(specialDeploy, 'Roll back previous Worker version if verification fails', 'Special-result deployment must preserve automatic rollback.');
 lacks(specialDeploy, 'deploy/hub-api/worker.js', 'Special-result deployment must never use a stale repository Worker source.');
+has(cloudStateDeploy, 'Recover exact live protected Hub Worker', 'beta.79 deployment must patch the actual live protected source.');
+has(cloudStateDeploy, 'Roll back previous Worker version if verification fails', 'beta.79 deployment must preserve automatic rollback.');
+lacks(cloudStateDeploy, 'deploy/hub-api/worker.js', 'beta.79 deployment must never use a stale repository Worker source.');
 
 console.log('ARBITER_ACCESS_CONTRACT=PASS');
