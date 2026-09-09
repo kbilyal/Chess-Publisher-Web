@@ -1,0 +1,65 @@
+name: Desktop Arbiter Results Download
+
+on:
+  push:
+    branches:
+      - main
+      - fix-desktop-arbiter-download-results
+    paths:
+      - 'production-web/webview/ArbiterResultsDownloadAdapter.js'
+      - 'production-web/cloud/client/cloud-workspace-api.js'
+      - 'scripts/patch-arbiter-access-worker.py'
+      - 'scripts/patch-arbiter-results-ack-guard-worker.py'
+      - 'src/arbiter/arbiterApi.ts'
+      - 'src/arbiter/OrganizerArbiterPanel.tsx'
+      - 'tests/ui/desktop-arbiter-results-download.test.mjs'
+      - '.github/workflows/desktop-arbiter-results-download.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact triggering commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: JavaScript syntax
+        run: |
+          node --check production-web/webview/ArbiterResultsDownloadAdapter.js
+          node --check production-web/cloud/client/cloud-workspace-api.js
+
+      - name: Worker patch syntax
+        run: python -m py_compile scripts/patch-arbiter-results-ack-guard-worker.py
+
+      - name: Result durability contract
+        run: node tests/ui/desktop-arbiter-results-download.test.mjs
+
+      - name: TypeScript check
+        run: npm run lint
+
+      - name: Desktop beta.34 parity guard
+        run: npm run test:desktop-beta34-web-parity
+
+      - name: Cloud roundtrip regression
+        run: npm run test:cloud-roundtrip
