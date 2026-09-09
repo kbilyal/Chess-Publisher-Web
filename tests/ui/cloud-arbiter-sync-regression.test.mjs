@@ -15,8 +15,11 @@ assert.ok(cloudApi.indexOf('const exactKey=') < cloudApi.indexOf('return request
 
 assert.match(arbiterPortal, /Checking current Cloud revision/, 'Arbiter submit must refresh the Cloud revision automatically.');
 assert.match(arbiterPortal, /freshResponse = await arbiterApi\.tournament\(sessionToken\)/, 'Arbiter submit must fetch a fresh tournament before sending.');
+assert.match(arbiterPortal, /sendWithRevisionGuard/, 'Single and bulk Arbiter submissions must use the shared revision guard.');
+assert.match(arbiterPortal, /await sendAtRevision\(candidateView\.revision\)/, 'Arbiter submit must start with the freshly loaded Cloud revision.');
 assert.match(arbiterPortal, /if \(error\?\.code !== 'cloud_revision_conflict'\) throw error;/, 'Arbiter submit must explicitly handle revision races.');
-assert.match(arbiterPortal, /await sendWithRevision\(freshView\.revision\)/, 'Arbiter submit must automatically retry with the refreshed revision.');
+assert.match(arbiterPortal, /const refreshed = await arbiterApi\.tournament\(sessionToken\)/, 'Revision conflict retry must refresh the tournament automatically.');
+assert.match(arbiterPortal, /await sendAtRevision\(retryView\.revision\)/, 'Arbiter submit must automatically retry with the refreshed revision.');
 assert.match(arbiterPortal, /matchingBoard\(freshView, round, board, whiteKey, blackKey\)/, 'Automatic retry must verify board/player identity.');
 assert.doesNotMatch(arbiterPortal, /Refresh before sending this result/, 'Manual refresh must not be required after a revision conflict.');
 
