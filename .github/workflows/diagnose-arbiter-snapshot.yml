@@ -22,7 +22,7 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
-      - name: Inspect live Worker snapshot implementation
+      - name: Inspect live Worker B2 snapshot implementation
         shell: bash
         run: |
           set -euo pipefail
@@ -49,18 +49,14 @@ jobs:
           source = payload.decode('utf-8', 'strict')
 
           functions = list(re.finditer(r'(?:async\s+)?function\s+([A-Za-z0-9_$]+)\s*\([^)]*\)\s*\{', source))
-          print('=== candidate functions ===')
+          print('=== B2/storage functions ===')
           for index, m in enumerate(functions):
               end = functions[index + 1].start() if index + 1 < len(functions) else len(source)
               body = source[m.start():end]
               lower = body.lower()
-              if 'current_object_key' in body or '/snapshot' in body or ('snapshot' in lower and '.get(' in body):
+              if 'b2_' in lower or 'b2 ' in lower or 'backblaze' in lower or 'current_object_key' in body or 'object_key' in body:
                   print(f'FUNCTION {m.group(1)}')
                   for line in body.splitlines():
-                      if any(k in line for k in ['current_object_key','object_key','snapshot','BUCKET','R2','B2','.get(','fetch(','env.']):
-                          print('  ' + line[:260])
-          print('=== top-level storage markers ===')
-          for line in source.splitlines():
-              if any(k in line for k in ['current_object_key','object_key','R2','B2','BUCKET','snapshotKey','objectKey']):
-                  print(line[:280])
+                      if any(k.lower() in line.lower() for k in ['B2_', 'B2 ', 'backblaze', 'object_key', 'current_object_key', 'download', 'upload', 'fetch(', 'snapshot']):
+                          print('  ' + line[:300])
           PY
