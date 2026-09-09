@@ -1,0 +1,73 @@
+name: Audit beta.79 live Worker
+
+on:
+  push:
+    branches:
+      - audit-beta79-live-worker
+    paths:
+      - '.github/workflows/audit-beta79-live-worker.yml'
+
+permissions:
+  contents: read
+
+env:
+  HUB_WORKER_NAME: chess-publisher-hub-api-beta
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Recover live Worker and print safe contract excerpts
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          api="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${HUB_WORKER_NAME}"
+          curl --fail --silent --show-error --location -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" "$api" -o "$RUNNER_TEMP/live.multipart"
+          python - <<'PY'
+          from pathlib import Path
+          from email.parser import BytesParser
+          from email.policy import default
+          import re, hashlib, os
+          raw = Path(os.environ['RUNNER_TEMP'], 'live.multipart').read_bytes()
+          boundary = raw.splitlines()[0].decode('ascii', 'strict')[2:]
+          env = (f'Content-Type: multipart/form-data; boundary={boundary}\r\nMIME-Version: 1.0\r\n\r\n').encode() + raw
+          msg = BytesParser(policy=default).parsebytes(env)
+          parts = list(msg.iter_parts())
+          if len(parts) != 1: raise SystemExit(f'unexpected module count {len(parts)}')
+          src = (parts[0].get_payload(decode=True) or b'').decode('utf-8', 'strict')
+          print('LIVE_SHA256=' + hashlib.sha256(src.encode()).hexdigest())
+          names = sorted(set(re.findall(r'(?:async\s+)?function\s+([A-Za-z0-9_$]+)\s*\(', src)))
+          for n in names:
+            low=n.lower()
+            if 'b2' in low or 'snapshot' in low or 'cloudtournament' in low or 'revision' in low:
+              print('FUNCTION=' + n)
+          targets=['b2DownloadJson','b2UploadJson','putCloudTournamentSnapshot','putCloudSnapshot','updateCloudTournament','saveCloud','cloudTournamentSnapshot']
+          for target in targets:
+            m=re.search(r'(?:async\s+)?function\s+'+re.escape(target)+r'\s*\([^)]*\)\s*\{',src)
+            if not m: continue
+            start=m.start(); depth=0; end=None
+            for i in range(m.end()-1,len(src)):
+              c=src[i]
+              if c=='{': depth+=1
+              elif c=='}':
+                depth-=1
+                if depth==0:
+                  end=i+1; break
+            if end:
+              print('---BEGIN '+target+'---')
+              print(src[start:end][:16000])
+              print('---END '+target+'---')
+          # Also print the router block around /snapshot to reveal the existing handler name.
+          for needle in ['/snapshot', 'X-Expected-Revision']:
+            p=src.find(needle)
+            if p>=0:
+              print('---CONTEXT '+needle+'---')
+              print(src[max(0,p-1800):p+2600])
+          PY
