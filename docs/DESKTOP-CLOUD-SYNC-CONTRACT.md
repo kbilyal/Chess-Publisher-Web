@@ -1,132 +1,133 @@
-# Chess-Publisher Desktop ↔ Cloud ↔ Web directional sync contract
+# Chess-Publisher Desktop v1.06.00-beta.79 ↔ Cloud ↔ Web unified SYNC contract
 
-Status: normative implementation contract for Desktop and Web continuation.
+Status: normative compatibility contract. Desktop beta.79 owns the unified SYNC algorithm; Web Companion must provide compatible state and must not reconstruct, bypass or replace the Desktop algorithm.
 
-## Invariants
+## Core invariant: one tournament = one private Cloud object
 
-- Tournament identity is `internalId` + `cloudTournamentId`, never the tournament name.
+- Tournament identity is stable `internalId` linked to one organizer-owned `cloudTournamentId`.
+- The server `local_key` stores the stable logical internal identity for that organizer.
+- Tournament name, filename and revision are never identity.
 - Rename never creates a new Cloud record.
-- Local autosave and Cloud transport are separate concepts.
-- Pull never uploads local tournament content.
-- Push never downloads or silently merges a newer Cloud tournament.
-- Resolve Conflict is the only operation allowed to perform a three-way merge.
-- Every Cloud write uses `X-Expected-Revision`.
-- Installation-local secrets and hardware state never enter the portable snapshot.
+- A stale `cloudTournamentId` may be repaired only by exactly one organizer-owned stable-internalId match.
+- More than one valid identity match is an ambiguity: stop/fail closed; never pick the first row.
+- Before CREATE, Web refreshes the authenticated organizer-owned list. The server additionally enforces `UNIQUE (organizer_id, local_key)` and returns the existing row for an idempotent CREATE.
+- UI state such as the currently open/active tournament is never an identity fallback.
 
-## Exact buttons
+## Desktop beta.79 unified `↕ SYNC`
 
-Desktop:
+Desktop exposes one normal synchronization action. The Desktop algorithm determines the direction:
 
-1. `↓ Pull Cloud → Desktop`
-2. `↑ Push Desktop → Cloud`
-3. `Check Cloud Status`
-4. `Resolve Conflict` — only for a true two-sided conflict
-5. `Open in Web`
+| State | Desktop beta.79 action |
+|---|---|
+| Desktop only changed | Desktop → Cloud |
+| Cloud/Web only changed | Cloud → Desktop |
+| Portable content equal | no-op / refresh base metadata |
+| Compatible changes | safe merge through the protected Desktop algorithm |
+| True conflict | fail closed / conflict resolution; never silent overwrite |
 
-Web is symmetric: `Pull Cloud → Web` / `Push Web → Cloud`.
+Web must not add a second Desktop-facing Pull/Push algorithm. Web must supply correct revision, complete portable snapshot, stable identity and current state so this existing Desktop logic can decide correctly.
 
-## State machine
+## Cloud revision contract
 
-| Condition | State | Action |
-|---|---|---|
-| `LOCAL == REMOTE` | `IN_SYNC` | none |
-| `LOCAL != BASE && REMOTE == BASE` | `LOCAL_CHANGES` | Push |
-| `LOCAL == BASE && REMOTE != BASE` | `REMOTE_CHANGES` | Pull |
-| both changed and differ | `CONFLICT` | Resolve Conflict |
-| no network | `OFFLINE` | local save only |
+Every changed private snapshot is stored through the existing private Cloud revision transaction:
 
-Never show a generic `Synced` unless portable fingerprints are equal.
+1. validate complete Cloud snapshot;
+2. serialize and checksum;
+3. compare expected revision to current revision;
+4. upload the new revision object to private B2;
+5. insert `cloud_revisions` history;
+6. optimistic-update the same `cloud_tournaments` row;
+7. if the row changed concurrently, fail closed with `cloud_revision_conflict`.
 
-## Pull Cloud → Desktop
+An unchanged checksum is a no-op and does not increase revision. Revision is version state only; it is never tournament identity.
 
-```text
-save local state
-GET latest Cloud snapshot
-compute LOCAL / BASE / REMOTE fingerprints
+## Web and Arbiter results
 
-no remote snapshot:
-  do not upload; request Push
+A Web/Arbiter result is part of the same private tournament snapshot that Desktop beta.79 downloads.
 
-LOCAL == REMOTE:
-  refresh base metadata only
+A result submission must identify and validate:
 
-LOCAL == BASE and REMOTE != BASE:
-  preserve installation-local fields
-  load REMOTE portable tournament locally
-  update base revision/fingerprint
+- Cloud tournament/organizer ownership;
+- round;
+- board;
+- white player identity (`whiteKey`);
+- black player identity (`blackKey`);
+- explicit allowed result.
 
-LOCAL != BASE and REMOTE == BASE:
-  do not upload
-  show Desktop changes not pushed
+After those checks, only `board.result` may change. The submission must not change pairings, player identity, round structure, starting numbers, or generate a next round/pairing.
 
-both changed:
-  do not overwrite
-  status = CONFLICT
-```
+The Arbiter compatibility/audit queue (`cloud_arbiter_results`) may remain pending so Desktop Pairings `↕ SYNC` can perform its own protected validation and guarded acknowledgement. The queue is not the authoritative tournament state; the private tournament snapshot is authoritative.
 
-## Push Desktop → Cloud
+Web Organizer UI must never be required to be open for an Arbiter result to reach Cloud state and must never ACK a result before Desktop beta.79 validation.
 
-```text
-saveAll()
-GET current Cloud revision/snapshot
-compute LOCAL / BASE / REMOTE
+## Result safety
 
-LOCAL == REMOTE:
-  refresh base metadata only
+- A blank Web value has no result-write path and cannot erase a non-empty Desktop result.
+- If Desktop and Cloud contain different non-empty changes from a common base, the Desktop unified algorithm treats this as conflict; Web must not silently choose one.
+- Board mismatch -> reject.
+- White/black player identity mismatch -> reject.
+- Finalized/administrative pairing -> reject result write when protected rules require it.
+- Result synchronization never creates a pairing or round.
 
-REMOTE == BASE and LOCAL != BASE:
-  PUT complete portable snapshot with X-Expected-Revision
-  save returned revision and new base fingerprint
+## New, Web-created and imported tournaments
 
-REMOTE != BASE:
-  stop
-  do not Pull
-  do not merge
-  request Pull Cloud → Desktop
-```
+### Desktop-created
 
-A background Cloud push, if enabled, must use the same Push preflight. It can never behave as Pull.
+Desktop creates → `↕ SYNC` → if no owned row matches stable identity, one private counterpart is created. Every later SYNC targets that same object.
 
-## Resolve Conflict
+### Web-created
 
-Use exact three-way merge: BASE = baseRevision snapshot, LOCAL = Desktop, REMOTE = latest Cloud.
+Web generates a fresh stable private identity, creates/reuses the matching organizer-owned row, stores the complete tournament snapshot, and Desktop later relinks to that same Cloud object.
 
-```text
-LOCAL == BASE && REMOTE != BASE -> REMOTE
-REMOTE == BASE && LOCAL != BASE -> LOCAL
-LOCAL == REMOTE                 -> either
-otherwise                       -> FIELD CONFLICT
-```
+### Imported TRF16 / TRF26 / TUNX
 
-Same-field conflicts require explicit `Keep Desktop` / `Keep Cloud`. Save merged result locally; do not auto-Push.
+If the imported tournament already contains a stable private identity, preserve it. Discard installation-local `cloud.localKey` and never use filename/name as permanent identity. If the authenticated organizer already has exactly one matching Cloud row, relink to it. Otherwise create one counterpart. Public Hub linkage is not private identity.
 
-## Portable tournament
+## Public Hub separation
 
-Synchronize the complete portable object: name, settings, regulations, schedule, players, portable pairings/round lifecycle, requested byes, attendance, starting numbers, standings/tie-break configuration, special prizes, Chess-Results state, Online Hub identity/public metadata, `internalId`, and `cloudTournamentId`.
+Private Cloud is the working copy. Public Hub is a separate explicit publication workflow.
 
-Legacy Desktop snapshots that store the visible name only in `data.currentTournament` / tournament-map key must hydrate it into `tournament.name`.
+- `↕ SYNC` never publishes to Hub.
+- Private Cloud creation/update never makes a tournament public.
+- `Publish Online` / `Publish to Hub` is explicit.
+- Hub tournament id/public slug are publication metadata only and must never rewrite `cloud.internalId`.
+- Deleting or updating private Cloud does not implicitly delete/update the public Hub except through an explicit public action.
 
-## Never transport installation-local fields
+## Organizer isolation
 
-Organizer/auth tokens, Hub manage/admin token, AES key/IV, file paths, executable paths, DGT ports/serial/USB mappings, machine secrets, temporary UI/runtime state.
+All My tournaments and private Cloud operations are scoped by the authenticated Organizer Token. Browser-supplied tournament id alone is never authorization. Server routes validate organizer ownership before read/write.
 
-## Player sorting
+## Portable tournament payload
 
-Starting #, Rating ↓ and Name A–Z are view sorting only. They never mutate `pairingNumber`, `id`, `localKey`, pairings or official starting ranks. Resort Starting List remains a separate official operation.
+Synchronize the complete portable tournament object, including settings, regulations metadata, schedule, players, portable pairings/round lifecycle, requested byes, attendance, starting numbers, standings/tie-break configuration, special prizes, relevant publication metadata, stable `internalId` and `cloudTournamentId`.
 
-## Publish gate
+Never transport installation-local secrets/hardware state: Organizer/auth tokens, Hub manage/admin tokens, AES key/IV, file paths, executable paths, DGT/serial/USB mappings, machine secrets, temporary UI/runtime state.
 
-```text
-IN_SYNC        -> publish
-LOCAL_CHANGES  -> safe Push, verify equality, publish
-REMOTE_CHANGES -> stop; Pull required
-CONFLICT       -> stop; Resolve Conflict required
-```
+## My tournaments UX
 
-No hidden direction reversal inside Publish.
+Keep the Web Companion simple: My tournaments, New tournament, Import tournament, Search, Refresh, Trash and tournament cards/list. Do not expose normal users to raw internal IDs, local keys, base fingerprints, Cloud record IDs or revision-base internals. `PUBLIC LIST` is not part of My tournaments.
 
-## Required parity fixture
+## Protected areas
 
-`Tournament Ubuntu`, chief arbiter `Kyamran Bilyal`, Sofia, BUL, 90+30, 7 rounds, Test tournament, 83 players. Desktop → Cloud → Web → Cloud → Desktop must preserve every portable field, all 83 players, `internalId`, `cloudTournamentId`, while keeping installation-local fields local.
+This Web compatibility layer does not modify Gacrux 1.9.57, Swiss Dutch pairing core, TRF16/TRF26 core, BBP checker, Tie-Break core, Chess-Results protocol/core, pairing identity semantics, or protected Desktop tournament algorithms.
 
-Protected gates: TypeScript, Cloud roundtrip, Chess-Results, TRF16/TRF26, pairing parity, FIDE, production build.
+## Required beta.79 compatibility matrix
+
+1. Desktop creates → SYNC → Web sees exactly one tournament.
+2. Desktop modifies → SYNC → same Cloud object revision increases.
+3. Web modifies → Desktop SYNC receives changes.
+4. Web/Arbiter enters result → Pairings SYNC → Desktop gets result.
+5. Desktop enters result → SYNC → Web gets result.
+6. Blank Web result does not erase Desktop result.
+7. Different non-empty results → conflict.
+8. Board identity mismatch → reject.
+9. Player identity mismatch → reject.
+10. Repeated SYNC → no duplicate tournaments; ambiguous duplicate identity → stop.
+11. Web-created tournament → Desktop open → SYNC → same object.
+12. Imported tournament → first SYNC → exactly one Cloud object.
+13. Rename tournament → same identity.
+14. `PUBLIC LIST` absent from My tournaments.
+15. Private Cloud SYNC does not publish to Public Hub.
+16. Organizer ownership isolation.
+
+Protected release gates remain TypeScript, Cloud roundtrip, tournament import, Arbiter security/results, FIDE, TRF16/TRF26, Chess-Results, pairing parity and production build.
