@@ -6,6 +6,7 @@ on:
       - main
       - integration/cloud-workspace-2026-09-03
       - prep/cloud-browser-autosync-beta5
+      - beta79-unified-sync-compat
   pull_request:
     branches:
       - main
@@ -35,6 +36,9 @@ jobs:
 
       - name: TypeScript check
         run: npm run lint
+
+      - name: beta79 Desktop-Web unified SYNC compatibility
+        run: node tests/cloud/beta79-unified-sync-compat.test.mjs
 
       - name: Online & Cloud beta4 regression
         run: npm run test:online-cloud
@@ -83,6 +87,7 @@ jobs:
           test -f src/cloud/tests/runCloudRoundtripTests.ts
           test -f src/cloud/tests/runDesktopBeta34WebParityTests.ts
           test -f src/cloud/tests/runChessResultsWebContractTests.ts
+          test -f tests/cloud/beta79-unified-sync-compat.test.mjs
           test -f cloudrun.ts
           grep -q "OnlineCloudProvider" src/main.tsx
           grep -q "classifyThreeWay" src/cloud/onlineCloudSync.ts
