@@ -1,0 +1,46 @@
+name: Arbiter Access Contract
+
+on:
+  push:
+    branches:
+      - main
+      - arbiter-access-work
+    paths:
+      - 'src/arbiter/**'
+      - 'src/App.tsx'
+      - 'src/main.tsx'
+      - 'scripts/patch-arbiter-access-worker.py'
+      - 'tests/ui/arbiter-access.test.mjs'
+      - '.github/workflows/arbiter-access-contract.yml'
+      - '.github/workflows/deploy-hub-arbiter-access.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: Restricted role + compile gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: npm ci
+      - name: Arbiter role security contract
+        run: node tests/ui/arbiter-access.test.mjs
+      - name: Worker patch syntax
+        run: python -m py_compile scripts/patch-arbiter-access-worker.py
+      - name: TypeScript compile
+        run: npm run lint
+      - name: Production build
+        run: npm run build
