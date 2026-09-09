@@ -9,8 +9,10 @@ const main = read('src/main.tsx');
 const app = read('src/App.tsx');
 const patch = read('scripts/patch-arbiter-access-worker.py');
 const specialPatch = read('scripts/patch-arbiter-special-results-worker.py');
+const clearPatch = read('scripts/patch-arbiter-clear-result-worker.py');
 const deploy = read('.github/workflows/deploy-hub-arbiter-access.yml');
 const specialDeploy = read('.github/workflows/deploy-hub-arbiter-special-results.yml');
+const clearDeploy = read('.github/workflows/deploy-hub-arbiter-clear-result.yml');
 const uiFixes = read('src/arbiter/arbiter-ui-fixes.css');
 
 function has(source, needle, message) {
@@ -29,25 +31,34 @@ has(portal, '<h1>Enter your name</h1>', 'Arbiter must identify themselves before
 has(portal, 'localStorage.setItem(storageKey, response.sessionToken)', 'Arbiter session must persist on that device.');
 has(portal, "const standardResults = ['1 - 0', '½ - ½', '0 - 1'] as const", 'Arbiter must preserve the three standard game results.');
 has(portal, "const specialResults = ['1F - 0F', '0F - 1F', '0F - 0F'] as const", 'Arbiter must expose exactly the Chess-Publisher special forfeit result codes.');
-has(portal, 'const allowedResults = [...standardResults, ...specialResults] as const', 'All Arbiter result controls must remain on one explicit whitelist.');
+has(portal, 'const allowedResults = [...standardResults, ...specialResults] as const', 'Normal Arbiter results must remain on one explicit whitelist.');
+has(portal, "const CLEAR_RESULT = '-' as const", 'Clear result must use the canonical no-result representation.');
 has(portal, 'baseRevision', 'Every result submission must carry a Cloud revision guard.');
 has(portal, 'sendWithRevisionGuard', 'Unified result synchronization must use the protected Cloud revision guard.');
-has(portal, 'const response = await sendAtRevision(candidateView.revision)', 'Initial result submission must use the freshly loaded Cloud revision.');
+has(portal, 'const response = await sendAtRevision(candidateView.revision)', 'Initial result submission must use the current Cloud revision.');
 has(portal, "error?.code !== 'cloud_revision_conflict'", 'Only Cloud revision conflicts may enter the automatic retry path.');
-has(portal, 'const refreshed = await arbiterApi.tournament(sessionToken)', 'Revision retry must refresh the restricted tournament before resubmission.');
-has(portal, 'const response = await sendAtRevision(retryView.revision)', 'Automatic retry must use the newly refreshed Cloud revision.');
+has(portal, 'const synchronized = await arbiterApi.tournament(sessionToken)', 'Revision retry/unified SYNC must refresh the restricted tournament automatically.');
+has(portal, 'const response = await sendAtRevision(retryView.revision)', 'Automatic retry must use the newly synchronized Cloud revision.');
 has(portal, 'matchingBoard(freshView, round, board, whiteKey, blackKey)', 'Every result submission must remain bound to the exact board and player identities.');
 has(portal, 'data-unified-arbiter-sync="true"', 'Arbiter must have exactly one visible unified SYNC action.');
 has(portal, '↕ SYNC', 'Unified Arbiter SYNC label must remain visible.');
 has(portal, 'onClick={() => void submitAll()}', 'Unified Arbiter SYNC must continue to use the protected submitAll implementation.');
-has(portal, "data-result-missing={currentResult === '-' ? 'true' : 'false'}", 'Board result state must remain explicit for non-destructive filtering.');
+has(portal, "data-result-missing={currentResult === CLEAR_RESULT ? 'true' : 'false'}", 'Board result state must remain explicit for non-destructive filtering.');
+has(portal, 'Clear result', 'Each editable board must expose a clear-result action.');
+has(portal, 'arbiter-color-badge white', 'White player must be visibly marked W.');
+has(portal, 'arbiter-color-badge black', 'Black player must be visibly marked B.');
+lacks(portal, 'RefreshCw', 'Manual Refresh must not return beside unified SYNC.');
+lacks(portal, '> Refresh<', 'Manual Refresh button must not return beside unified SYNC.');
 lacks(portal, 'className="arbiter-send"', 'Per-board Send/Update actions must not return beside unified SYNC.');
 lacks(portal, "'Update result' : 'Send result'", 'Legacy per-board result actions must not return.');
 lacks(portal, 'Send all results', 'Legacy Send All label must not return beside unified SYNC.');
 has(uiFixes, '.arbiter-send-all {', 'Unified Arbiter SYNC must keep the dedicated permanent action style.');
 has(uiFixes, 'position: fixed;', 'Unified Arbiter SYNC must stay visible while the Arbiter scrolls boards.');
 has(uiFixes, 'env(safe-area-inset-bottom)', 'Fixed mobile unified SYNC must respect the device safe area.');
-has(uiFixes, '.arbiter-shell .arbiter-main { padding-bottom:', 'Board list must reserve space so the fixed unified SYNC button does not cover results.');
+has(uiFixes, 'min-height: 58px !important;', 'Normal result controls must have large phone touch targets.');
+has(uiFixes, '.arbiter-clear-result {', 'Clear result must have a dedicated large touch action.');
+has(uiFixes, '.arbiter-color-badge.white', 'W badge styling must exist.');
+has(uiFixes, '.arbiter-color-badge.black', 'B badge styling must exist.');
 has(portal, 'Publishing is disabled for Arbiter Access', 'Restricted role must clearly expose no publishing permission.');
 lacks(portal, 'chessResultsApi', 'Arbiter portal must never import Chess-Results administration.');
 lacks(portal, 'publishOnline', 'Arbiter portal must never expose Hub publishing.');
@@ -59,7 +70,7 @@ has(panel, 'Generate QR', 'Organizer must be able to create a tournament-scoped 
 has(panel, 'Revoke', 'Organizer must be able to revoke all sessions immediately.');
 has(panel, 'waiting for Desktop ↕ SYNC', 'Organizer must show that pending results belong to the Desktop unified SYNC workflow.');
 has(panel, 'safely stored in Cloud', 'Pending Arbiter results must be visibly durable until Desktop SYNC.');
-lacks(panel, 'cloud.syncNow(', 'Organizer Web must not consume pending Arbiter results before Desktop beta79 SYNC.');
+lacks(panel, 'cloud.syncNow(', 'Organizer Web must not consume pending Arbiter results before Desktop unified SYNC.');
 lacks(panel, 'acknowledgeResults(', 'Only the validated Desktop result-download path may acknowledge pending Arbiter results.');
 lacks(panel, 'localStorage.setItem(TOURNAMENT_STORAGE_KEY', 'Organizer panel must not mutate the tournament payload from the pending queue.');
 
@@ -85,6 +96,8 @@ has(specialPatch, 'arbiter_special_results_v1', 'Special-result Worker upgrade m
 has(specialPatch, '1F - 0F', 'Worker upgrade must accept white forfeit wins.');
 has(specialPatch, '0F - 1F', 'Worker upgrade must accept black forfeit wins.');
 has(specialPatch, '0F - 0F', 'Worker upgrade must accept double-forfeit results.');
+has(clearPatch, 'arbiter_clear_result_v1', 'Clear-result Worker upgrade must be idempotently marked.');
+has(clearPatch, 'currentBoardResult = arbiterText(board.result) || "-"', 'Clear-result Worker upgrade must normalize legacy empty no-result values.');
 
 has(deploy, 'Recover exact live protected Hub Worker', 'Worker deployment must patch the actual live protected source.');
 has(deploy, "'private_cloud_hard_delete_v1'", 'Arbiter deployment must preserve permanent private Cloud deletion.');
@@ -93,5 +106,7 @@ lacks(deploy, 'deploy/hub-api/worker.js', 'Deployment must never overwrite the l
 has(specialDeploy, 'Recover exact live protected Hub Worker', 'Special-result deployment must patch the actual live protected source.');
 has(specialDeploy, 'Roll back previous Worker version if verification fails', 'Special-result deployment must preserve automatic rollback.');
 lacks(specialDeploy, 'deploy/hub-api/worker.js', 'Special-result deployment must never use a stale repository Worker source.');
+has(clearDeploy, 'BASELINE_SHA256', 'Clear-result deployment must classify the exact live baseline before patching.');
+has(clearDeploy, 'Roll back previous Worker version if verification fails', 'Clear-result deployment must preserve automatic rollback.');
 
 console.log('ARBITER_ACCESS_UNIFIED_SYNC_CONTRACT=PASS');
