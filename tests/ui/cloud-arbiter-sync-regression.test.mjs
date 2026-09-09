@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
+// Regression bundle for the production workflow:
+// one Cloud identity, refresh-free Arbiter submit, desktop-only result ACK.
 const arbiterPortal = readFileSync('src/arbiter/ArbiterPortal.tsx', 'utf8');
 const arbiterApi = readFileSync('src/arbiter/arbiterApi.ts', 'utf8');
 const cloudApi = readFileSync('production-web/cloud/client/cloud-workspace-api.js', 'utf8');
