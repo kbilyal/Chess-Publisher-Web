@@ -1,0 +1,27 @@
+@media print {
+  body.cp-organizer-pairings-printing .organizer-pairings-panel {
+    position: static !important;
+    inset: auto !important;
+    width: auto !important;
+    height: auto !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body.cp-organizer-pairings-printing .organizer-pairings-fab,
+  body.cp-organizer-pairings-printing .organizer-pairings-card {
+    display: none !important;
+  }
+
+  body.cp-organizer-pairings-printing .organizer-pairings-print-sheet {
+    position: static !important;
+    inset: auto !important;
+    width: 100% !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+  }
+}
