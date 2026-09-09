@@ -127,12 +127,19 @@ export const arbiterApi = {
   organizerPendingResults: (organizerToken: string, tournamentId: string) =>
     request(`/api/v1/cloud/tournaments/${enc(tournamentId)}/arbiter-results`, { token: organizerToken }) as Promise<{ ok: boolean; results: ArbiterSubmission[] }>,
 
-  acknowledgeResults: (organizerToken: string, tournamentId: string, submissionIds: string[]) =>
-    request(`/api/v1/cloud/tournaments/${enc(tournamentId)}/arbiter-results/ack`, {
-      method: 'POST',
-      token: organizerToken,
-      body: { submissionIds }
-    }) as Promise<{ ok: boolean; acknowledged: number }>,
+  acknowledgeResults: (
+    organizerToken: string,
+    tournamentId: string,
+    submissions: Array<Pick<ArbiterSubmission, 'id' | 'updatedAt'>>
+  ) => request(`/api/v1/cloud/tournaments/${enc(tournamentId)}/arbiter-results/ack`, {
+    method: 'POST',
+    token: organizerToken,
+    body: {
+      submissions: submissions
+        .map(item => ({ id: clean(item.id), updatedAt: clean(item.updatedAt) }))
+        .filter(item => item.id && item.updatedAt)
+    }
+  }) as Promise<{ ok: boolean; acknowledged: number; guarded?: boolean; requested?: number }>,
 
   join: (accessCode: string, name: string, deviceId: string) =>
     request('/api/v1/arbiter/join', {
