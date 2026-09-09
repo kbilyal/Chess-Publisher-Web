@@ -14,15 +14,20 @@ for (const result of ['1F - 0F', '0F - 1F', '0F - 0F']) {
 }
 
 assert.match(portal, /const specialResults = \['1F - 0F', '0F - 1F', '0F - 0F'\] as const;/, 'Special results must match Chess-Publisher core result codes exactly.');
-assert.match(portal, /Send all results/, 'Arbiter Portal must expose Send all results.');
-assert.match(portal, /pendingDraftCount/, 'Send all must count only changed result drafts.');
-assert.match(portal, /result === currentResult/, 'Send all must skip unchanged results.');
-assert.match(portal, /for \(const item of pending\)/, 'Send all must process every changed board.');
-assert.match(portal, /sendWithRevisionGuard/, 'Single and bulk send must share the same revision guard.');
-assert.match(portal, /error\?\.code !== 'cloud_revision_conflict'/, 'Revision conflicts must trigger the guarded retry path.');
+assert.match(portal, /data-unified-arbiter-sync="true"/, 'Arbiter Portal must expose one unified SYNC action.');
+assert.match(portal, /↕ SYNC/, 'Unified Arbiter SYNC label must remain visible.');
+assert.doesNotMatch(portal, /Send all results/, 'Legacy Send all results action must not return beside unified SYNC.');
+assert.doesNotMatch(portal, /className="arbiter-send"/, 'Per-board Send/Update actions must not return beside unified SYNC.');
+assert.match(portal, /pendingDraftCount/, 'Unified SYNC must count only changed result drafts.');
+assert.match(portal, /result === currentResult/, 'Unified SYNC must skip unchanged results.');
+assert.match(portal, /for \(const item of pending\)/, 'Unified SYNC must process every changed board.');
+assert.match(portal, /sendWithRevisionGuard/, 'Unified bulk result submission must use the protected revision guard.');
+assert.match(portal, /error\?\.code !== 'cloud_revision_conflict'/, 'Revision conflicts must trigger only the guarded retry path.');
 assert.match(portal, /const refreshed = await arbiterApi\.tournament\(sessionToken\)/, 'Retry must fetch a fresh Cloud tournament automatically.');
-assert.match(portal, /matchingBoard\(freshView, round, board, whiteKey, blackKey\)/, 'Every send must revalidate board/player identity.');
-assert.match(portal, /sentKeys\.length/, 'Partial bulk success must be tracked so unsent drafts remain available for retry.');
+assert.match(portal, /matchingBoard\(freshView, round, board, whiteKey, blackKey\)/, 'Every result send must revalidate board/player identity.');
+assert.match(portal, /sentKeys\.length/, 'Partial unified-SYNC success must be tracked so unsent drafts remain available for retry.');
+assert.match(portal, /const response = await sendAtRevision\(candidateView\.revision\)/, 'Each accepted result must use the current Cloud revision.');
+assert.match(portal, /next\.revision = Number\.isInteger\(revision\)/, 'Accepted result responses must advance the local Arbiter revision before the next bulk item.');
 
 assert.match(adapter, /ALLOWED_RESULTS=new Set\(\["1 - 0","½ - ½","0 - 1","1F - 0F","0F - 1F","0F - 0F"\]\)/, 'Desktop downloader must accept all six supported two-player result codes.');
 assert.match(adapter, /body:\{submissions:guardedSubmissions\}/, 'Desktop must keep version-guarded ACK after save/sync/verification.');
@@ -36,4 +41,4 @@ assert.match(deploy, /previous_version_id/, 'Deployment must capture the current
 assert.match(deploy, /Roll back previous Worker version if verification fails/, 'Worker deployment must automatically roll back on verification failure.');
 assert.doesNotMatch(deploy, /deploy\/hub-api\/worker\.js/, 'Special-results deployment must never use the stale repository Worker source.');
 
-console.log('ARBITER_SPECIAL_RESULTS_SEND_ALL=PASS');
+console.log('ARBITER_SPECIAL_RESULTS_UNIFIED_SYNC=PASS');
