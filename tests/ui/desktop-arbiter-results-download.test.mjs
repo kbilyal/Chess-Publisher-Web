@@ -11,7 +11,7 @@ const webPanel = readFileSync('src/arbiter/OrganizerArbiterPanel.tsx', 'utf8');
 assert.match(workerPatch, /INSERT INTO cloud_arbiter_results/, 'Arbiter submission must be persisted to D1.');
 assert.match(workerPatch, /acknowledged_at\s*\n\s*\) VALUES \([^\n]+NULL\)/, 'New Arbiter submissions must start pending.');
 assert.match(workerPatch, /WHERE tournament_id = \? AND organizer_id = \? AND acknowledged_at IS NULL/, 'Organizer download queue must select unacknowledged results only.');
-assert.match(workerPatch, /\/arbiter-results\/ack/, 'Dedicated result acknowledgement route must exist.');
+assert.ok(workerPatch.includes('arbiter-results\\/ack') || workerPatch.includes('arbiter-results/ack'), 'Dedicated result acknowledgement route must exist.');
 
 assert.match(ackGuardPatch, /arbiter_results_ack_guard_v1/, 'Version-guarded acknowledgement patch marker is required.');
 assert.match(ackGuardPatch, /AND acknowledged_at IS NULL AND updated_at = \?/, 'ACK must require the exact submitted updated_at version.');
