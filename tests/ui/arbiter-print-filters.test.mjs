@@ -33,14 +33,18 @@ has(fixes, 'min-height: 0 !important', 'Print root must not preserve viewport-he
 has(filterInstaller, "type ArbiterResultFilter = 'all' | 'missing'", 'Arbiter must expose exactly All and Missing filters.');
 has(filterInstaller, "data-filter=\"all\"", 'All filter button must exist.');
 has(filterInstaller, "data-filter=\"missing\"", 'Missing filter button must exist.');
-has(filterInstaller, '/send result/i.test', 'Missing must mean a normal board with no server-confirmed result yet.');
+has(filterInstaller, "card.getAttribute('data-result-missing') === 'true'", 'Missing must be derived from the server-confirmed board result marker, not a removed send button.');
 has(filterInstaller, "currentFilter === 'missing'", 'Missing filter must hide completed boards.');
 has(filterInstaller, 'cp-arbiter-filter-hidden', 'Filtered cards must use an explicit non-destructive UI class.');
 has(fixes, '.arbiter-board-card.cp-arbiter-filter-hidden', 'Filter must hide only board cards, never mutate tournament data.');
 
 has(portal, 'const submitAll = async () => {', 'Protected bulk submit must remain in ArbiterPortal.');
-has(portal, "const roundBoards = view.pairings.liveBoards[String(activeRound)] || []", 'Send All must continue to use all current-round boards, independent of UI filters.');
-has(portal, 'Send all results', 'Static Send All action must remain available.');
+has(portal, "const roundBoards = view.pairings.liveBoards[String(activeRound)] || []", 'Unified SYNC must continue to use all current-round boards, independent of UI filters.');
+has(portal, 'data-unified-arbiter-sync="true"', 'Arbiter must expose one unified SYNC action.');
+has(portal, '↕ SYNC', 'Unified Arbiter SYNC label must remain visible.');
+has(portal, "data-result-missing={currentResult === '-' ? 'true' : 'false'}", 'Each board must expose the non-destructive Missing marker.');
+lacks(portal, 'className="arbiter-send"', 'Per-board Send/Update actions must not return.');
+lacks(portal, 'Send all results', 'Legacy Send All label must not return beside unified SYNC.');
 lacks(filterInstaller, 'submitResult(', 'Filter helper must never submit or mutate tournament results.');
 lacks(filterInstaller, 'localStorage.setItem', 'Filter helper must never write tournament state.');
 
