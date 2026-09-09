@@ -1,0 +1,126 @@
+/* Isolated Organizer Pairings print root. It lives directly under <body>, outside the React App tree. */
+#cp-organizer-pairings-print-root { display: none; }
+
+@media print {
+  @page { size: A4 portrait; margin: 12mm; }
+
+  body.cp-organizer-pairings-isolated-print {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  body.cp-organizer-pairings-isolated-print > * {
+    display: none !important;
+  }
+
+  body.cp-organizer-pairings-isolated-print > #cp-organizer-pairings-print-root {
+    display: block !important;
+    position: static !important;
+    inset: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+    transform: none !important;
+    background: #fff !important;
+  }
+
+  #cp-organizer-pairings-print-root .organizer-pairings-print-sheet {
+    display: block !important;
+    position: static !important;
+    inset: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+    transform: none !important;
+    box-shadow: none !important;
+    break-before: auto !important;
+    page-break-before: auto !important;
+    break-after: auto !important;
+    page-break-after: auto !important;
+    visibility: visible !important;
+    color: #111 !important;
+    background: #fff !important;
+    font-family: Arial, Helvetica, sans-serif !important;
+  }
+
+  #cp-organizer-pairings-print-root .organizer-pairings-print-sheet,
+  #cp-organizer-pairings-print-root .organizer-pairings-print-sheet * {
+    visibility: visible !important;
+  }
+
+  #cp-organizer-pairings-print-root .organizer-pairings-print-sheet > :first-child {
+    margin-top: 0 !important;
+  }
+}
+
+/* Arbiter All / Missing filter. Kept outside the React root so rerenders cannot remove it. */
+.cp-arbiter-result-filter {
+  position: fixed;
+  right: 20px;
+  bottom: calc(82px + env(safe-area-inset-bottom));
+  z-index: 31;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px;
+  border: 1px solid #d8e0eb;
+  border-radius: 13px;
+  background: rgba(255,255,255,.96);
+  box-shadow: 0 12px 30px rgba(15,23,42,.16);
+  backdrop-filter: blur(8px);
+}
+
+.cp-arbiter-result-filter > span {
+  padding: 0 4px 0 2px;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.cp-arbiter-result-filter button {
+  min-height: 34px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 9px;
+  background: #eef2f7;
+  color: #445064;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.cp-arbiter-result-filter button.active {
+  background: #1769e0;
+  color: #fff;
+}
+
+.arbiter-board-card.cp-arbiter-filter-hidden { display: none !important; }
+
+@media (max-width: 640px) {
+  .cp-arbiter-result-filter {
+    left: 12px;
+    right: 12px;
+    bottom: calc(78px + env(safe-area-inset-bottom));
+    justify-content: center;
+  }
+
+  .cp-arbiter-result-filter button { flex: 1; }
+  .arbiter-shell .arbiter-main { padding-bottom: 154px; }
+}
