@@ -1,0 +1,116 @@
+/* Additive UI hardening: no business logic lives here. */
+
+/* Keep the existing protected bulk-submit action permanently reachable. */
+.arbiter-send-all {
+  position: fixed;
+  right: 20px;
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  z-index: 30;
+  min-height: 50px;
+  padding: 0 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 14px;
+  background: #1769e0;
+  color: #fff;
+  box-shadow: 0 14px 34px rgba(23, 105, 224, .3);
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.arbiter-send-all:hover:not(:disabled) { background: #125cc7; }
+.arbiter-send-all:disabled { opacity: .48; cursor: not-allowed; box-shadow: none; }
+.arbiter-shell .arbiter-main { padding-bottom: 92px; }
+
+@media (max-width: 640px) {
+  .arbiter-send-all {
+    left: 12px;
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    width: auto;
+    min-height: 54px;
+    border-radius: 15px;
+    font-size: 14px;
+  }
+  .arbiter-shell .arbiter-main { padding-bottom: 104px; }
+}
+
+/*
+ * Print pagination fix.
+ * The previous visibility:hidden strategy hid the Web UI visually but kept its
+ * full layout height, which produced blank pages before the bulletin. Remove
+ * every sibling from print layout and leave only the official A4 sheet.
+ */
+@media print {
+  html,
+  body.cp-organizer-pairings-printing {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  body.cp-organizer-pairings-printing #root {
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  body.cp-organizer-pairings-printing #root > :not(.organizer-pairings-panel) {
+    display: none !important;
+  }
+
+  body.cp-organizer-pairings-printing .organizer-pairings-panel > :not(.organizer-pairings-print-sheet) {
+    display: none !important;
+  }
+
+  body.cp-organizer-pairings-printing .organizer-pairings-panel {
+    display: block !important;
+    position: static !important;
+    inset: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+    transform: none !important;
+  }
+
+  body.cp-organizer-pairings-printing .organizer-pairings-print-sheet {
+    display: block !important;
+    position: static !important;
+    inset: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    transform: none !important;
+    break-before: auto !important;
+    page-break-before: auto !important;
+  }
+
+  body.cp-organizer-pairings-printing .organizer-pairings-print-sheet,
+  body.cp-organizer-pairings-printing .organizer-pairings-print-sheet * {
+    visibility: visible !important;
+  }
+
+  body.cp-organizer-pairings-printing .organizer-pairings-print-sheet > :first-child {
+    margin-top: 0 !important;
+  }
+}
