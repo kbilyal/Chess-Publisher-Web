@@ -117,9 +117,12 @@ const goldenFingerprintTournament: any = {
   cloud: { schemaVersion: 4, internalId: 'tournament:ABC', cloudTournamentId: 'cloud-77' },
   adminToken: 'LOCAL-ADMIN'
 };
-const GOLDEN_PAYLOAD = '{"hub":{"tournamentId":"hub-42"},"name":"Tournament Ubuntu","online":{"hubTournamentId":"hub-42"},"players":[{"id":"p1","localKey":"player:1","name":"Alpha","pairingNumber":1}],"settings":{"city":"Sofia","organizer":"Chess Club"},"telegram":{"chatId":"123"}}';
-const GOLDEN_HASH = '80b55443d01dd5de0f128dfa022bbbf829656707d2ae06914ced013c4511c8ff';
-assert.equal(fingerprintPayload(goldenFingerprintTournament), GOLDEN_PAYLOAD, 'Web fingerprint payload must exactly match the shared Desktop schema');
+// Desktop beta.79 explicitly excludes private-cloud linkage and public Hub/
+// publication metadata from the tournament-content hash. Keep this vector tied
+// to production-web/webview/CloudWorkspaceAdapter.js, not to transport content.
+const GOLDEN_PAYLOAD = '{"name":"Tournament Ubuntu","players":[{"id":"p1","localKey":"player:1","name":"Alpha","pairingNumber":1}],"settings":{"city":"Sofia","organizer":"Chess Club"},"telegram":{"chatId":"123"}}';
+const GOLDEN_HASH = '9e01b268585f29a680087aad3039ddea06e50468d5e3fb714225e0256c43b781';
+assert.equal(fingerprintPayload(goldenFingerprintTournament), GOLDEN_PAYLOAD, 'Web fingerprint payload must exactly match the protected Desktop beta.79 content projection');
 assert.equal(await fingerprintTournament(goldenFingerprintTournament), GOLDEN_HASH, 'Web golden fingerprint hash mismatch');
 
 console.log('DESKTOP_WEB_FULL_SNAPSHOT_PARITY=PASS');
