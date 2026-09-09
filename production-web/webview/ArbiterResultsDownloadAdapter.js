@@ -6,7 +6,7 @@
 
   const BASE_URL="https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev";
   const ORGANIZER_SECRET_KEY="organizer-primary";
-  const ALLOWED_RESULTS=new Set(["1 - 0","½ - ½","0 - 1","1F - 0F","0F - 1F","0F - 0F"]);
+  const ALLOWED_RESULTS=new Set(["1 - 0","½ - ½","0 - 1","1F - 0F","0F - 1F","0F - 0F","-"]);
   let busy=false;
 
   const text=value=>value==null?"":String(value).trim();
