@@ -53,9 +53,11 @@ has(panel, 'Tournament arbiters', 'Organizer must see joined arbiters.');
 has(panel, 'Last active', 'Organizer must see arbiter activity.');
 has(panel, 'Generate QR', 'Organizer must be able to create a tournament-scoped QR.');
 has(panel, 'Revoke', 'Organizer must be able to revoke all sessions immediately.');
-has(panel, 'board.whiteKey', 'Organizer application must verify white-player identity.');
-has(panel, 'board.blackKey', 'Organizer application must verify black-player identity.');
-has(panel, 'cloud.syncNow(next)', 'Accepted result queue must synchronize through protected Cloud sync.');
+has(panel, 'waiting for Desktop ↕ SYNC', 'Organizer must show that pending results belong to the Desktop unified SYNC workflow.');
+has(panel, 'safely stored in Cloud', 'Pending Arbiter results must be visibly durable until Desktop SYNC.');
+lacks(panel, 'cloud.syncNow(', 'Organizer Web must not consume pending Arbiter results before Desktop beta79 SYNC.');
+lacks(panel, 'acknowledgeResults(', 'Only the validated Desktop result-download path may acknowledge pending Arbiter results.');
+lacks(panel, 'localStorage.setItem(TOURNAMENT_STORAGE_KEY', 'Organizer panel must not mutate the tournament payload from the pending queue.');
 
 has(api, '/api/v1/arbiter/join', 'Client API must have a dedicated join route.');
 has(api, '/api/v1/arbiter/tournament', 'Client API must have a restricted tournament route.');
