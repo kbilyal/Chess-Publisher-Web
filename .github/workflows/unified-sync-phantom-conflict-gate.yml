@@ -3,6 +3,7 @@ name: Unified SYNC Phantom Conflict Gate
 on:
   push:
     branches:
+      - main
       - fix/unified-sync-phantom-conflict
     paths:
       - 'src/cloud/**'
@@ -24,7 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: fix/unified-sync-phantom-conflict
+          ref: ${{ github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
