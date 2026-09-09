@@ -17,6 +17,11 @@ function readTournament(): Tournament | null {
   }
 }
 
+function readCloudTournamentId() {
+  const tournament: any = readTournament();
+  return String(tournament?.cloud?.cloudTournamentId || '').trim();
+}
+
 function relativeTime(value?: string) {
   if (!value) return 'never';
   const time = Date.parse(value);
@@ -32,7 +37,8 @@ function relativeTime(value?: string) {
 
 export const OrganizerArbiterPanel: React.FC<{ cloud: any }> = ({ cloud }) => {
   const token = String(cloud?.token || '').trim();
-  const tournamentId = String(cloud?.activeCloud?.id || '').trim();
+  const [localTournamentId, setLocalTournamentId] = useState(readCloudTournamentId);
+  const tournamentId = String(cloud?.activeCloud?.id || localTournamentId || '').trim();
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<ArbiterAccessStatus | null>(null);
   const [pending, setPending] = useState<ArbiterSubmission[]>([]);
@@ -42,6 +48,26 @@ export const OrganizerArbiterPanel: React.FC<{ cloud: any }> = ({ cloud }) => {
   const [message, setMessage] = useState('');
   const [copied, setCopied] = useState(false);
   const applyingRef = useRef(false);
+
+  useEffect(() => {
+    const refreshLocalIdentity = () => {
+      const next = readCloudTournamentId();
+      setLocalTournamentId(current => current === next ? current : next);
+    };
+    refreshLocalIdentity();
+    const timer = window.setInterval(refreshLocalIdentity, 500);
+    window.addEventListener('storage', refreshLocalIdentity);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('storage', refreshLocalIdentity);
+    };
+  }, []);
+
+  useEffect(() => {
+    const openPanel = () => setOpen(true);
+    window.addEventListener('cp:open-arbiter-access', openPanel);
+    return () => window.removeEventListener('cp:open-arbiter-access', openPanel);
+  }, []);
 
   const refresh = useCallback(async () => {
     if (!token || !tournamentId) return;
@@ -176,11 +202,11 @@ export const OrganizerArbiterPanel: React.FC<{ cloud: any }> = ({ cloud }) => {
   const onlineCount = sessions.filter(session => session.online).length;
 
   return (
-    <div className={`organizer-arbiter-panel ${open ? 'is-open' : ''}`} data-arbiter-organizer-panel>
+    <div className={`organizer-arbiter-panel ${open ? 'is-open' : ''}`} data-arbiter-organizer-panel data-cloud-tournament-id={tournamentId}>
       {!open ? (
         <button type="button" className="organizer-arbiter-fab" onClick={() => setOpen(true)} title="Manage Arbiter Access">
           <UserRoundCheck size={20} />
-          <span><strong>Arbiters</strong><small>{onlineCount ? `${onlineCount} active` : status?.grant ? 'Access ready' : 'No access'}</small></span>
+          <span><strong>Arbiter Access</strong><small>{onlineCount ? `${onlineCount} active` : status?.grant ? 'Access ready' : 'Generate QR'}</small></span>
           {pending.length > 0 && <b>{pending.length}</b>}
         </button>
       ) : (
