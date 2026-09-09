@@ -1,0 +1,52 @@
+name: Apply beta.79 Web sync compatibility
+
+on:
+  push:
+    branches:
+      - beta79-web-sync-compat
+    paths:
+      - 'scripts/apply-beta79-web-sync-compat.py'
+      - '.github/workflows/apply-beta79-web-sync-compat.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: beta79-web-sync-compat
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply deterministic source patch
+        run: python scripts/apply-beta79-web-sync-compat.py
+      - name: Verify intended provider invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'beta79_unified_identity_v1' src/cloud/OnlineCloudProviderV2.tsx
+          grep -q 'resolveOwnedCloudTournament' src/cloud/OnlineCloudProviderV2.tsx
+          grep -q 'bindOwnedCloudIdentity' src/cloud/OnlineCloudProviderV2.tsx
+          grep -q 'preserveStableIdentity: true' src/cloud/OnlineCloudProviderV2.tsx
+          grep -q 'chess-publisher-web-beta79-unified-sync-compat-v1' src/cloud/onlineCloudSync.ts
+          ! grep -q '|| activeRef.current' src/cloud/OnlineCloudProviderV2.tsx
+          ! grep -q 'internalId: hub.id' src/cloud/OnlineCloudProviderV2.tsx
+      - name: Commit generated source
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- src/cloud/OnlineCloudProviderV2.tsx src/cloud/onlineCloudSync.ts; then
+            echo 'No generated changes.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/cloud/OnlineCloudProviderV2.tsx src/cloud/onlineCloudSync.ts
+          git commit -m 'Align Web private identity with beta.79 unified SYNC'
+          git push origin HEAD:beta79-web-sync-compat
