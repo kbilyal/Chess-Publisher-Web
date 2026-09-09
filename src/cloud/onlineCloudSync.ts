@@ -151,7 +151,7 @@ export function classifyThreeWay(localFingerprint: string, baseFingerprint: stri
 }
 
 export function stripForPrivateCloud(tournament: Tournament | any) {
-  const source: any = sanitizePortableValue(clone(tournament || {}));
+  const source: any = stripVolatileSyncMetadata(sanitizePortableValue(clone(tournament || {})));
   const internalId = chooseInternalTournamentId(tournament || source);
   const cloudTournamentId = text(tournament?.cloud?.cloudTournamentId || source?.cloud?.cloudTournamentId);
   source.cloud = { schemaVersion: 4, internalId, ...(cloudTournamentId ? { cloudTournamentId } : {}) };
