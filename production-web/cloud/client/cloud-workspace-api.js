@@ -167,3 +167,22 @@
 
   return Object.freeze({DEFAULT_BASE_URL,DEFAULT_CLIENT_VERSION,DEFAULT_REQUEST_TIMEOUT_MS,CloudWorkspaceApiError,createClient});
 });
+
+// desktop_arbiter_results_loader_v1 — the desktop Cloud shell loads the
+// verified pending-result downloader without changing the protected Hub code.
+if(typeof document!=="undefined"){
+  try{
+    if(!document.getElementById("cpArbiterResultsDownloadAdapterScript")){
+      const current=document.currentScript;
+      const script=document.createElement("script");
+      script.id="cpArbiterResultsDownloadAdapterScript";
+      script.async=false;
+      script.src=current?.src
+        ? new URL("../../webview/ArbiterResultsDownloadAdapter.js",current.src).href
+        : "/webview/ArbiterResultsDownloadAdapter.js";
+      document.head.appendChild(script);
+    }
+  }catch(error){
+    console.warn("Chess-Publisher Arbiter Results loader:",error);
+  }
+}
