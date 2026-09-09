@@ -67,15 +67,29 @@ jobs:
           print('SYNC_FUNCTIONS='+','.join(sorted(set(funcs))))
 
           def body(name):
-              m=re.search(r'async function '+re.escape(name)+r'\s*\([^)]*\)\s*\{',src)
-              if not m:return ''
-              i=m.end(); depth=1; j=i
-              while j<len(src) and depth:
+              marker='async function '+name+'('
+              start=src.find(marker)
+              if start<0:return ''
+              brace=src.find('{',start)
+              if brace<0:return ''
+              depth=0; quote=None; esc=False; template_expr=0
+              j=brace
+              while j<len(src):
                   ch=src[j]
+                  if esc:
+                      esc=False; j+=1; continue
+                  if quote:
+                      if ch=='\\': esc=True
+                      elif ch==quote: quote=None
+                      j+=1; continue
+                  if ch in ('"',"'",'`'):
+                      quote=ch; j+=1; continue
                   if ch=='{': depth+=1
-                  elif ch=='}': depth-=1
+                  elif ch=='}':
+                      depth-=1
+                      if depth==0:return src[start:j+1]
                   j+=1
-              return src[m.start():j]
+              return ''
 
           targets=[n for n in funcs if any(k in n.lower() for k in ['snapshot','tournament','arbiterresult','arbiter_result'])]
           for n in sorted(set(targets)):
@@ -90,22 +104,16 @@ jobs:
               if re.search(r'updated_at',b,re.I): evidence.append('UPDATED_AT')
               if evidence: print('FUNC '+n+':'+','.join(evidence))
 
-          # Print exact short mutation-related lines for the snapshot writer only.
-          for n in sorted(set(targets)):
-              b=body(n)
-              if not b or not re.search(r'UPDATE\s+cloud_tournaments|current_revision|nextRevision',b,re.I): continue
-              lines=[]
-              for line in b.splitlines():
-                  s=line.strip()
-                  if any(k in s for k in ['current_revision','nextRevision','checksum','current_object_key','UPDATE cloud_tournaments','INSERT INTO cloud_']):
-                      lines.append(re.sub(r'\s+',' ',s)[:240])
-              if lines:
-                  print('MUTATION_LINES '+n)
-                  for line in lines[:30]: print('  '+line)
-
-          for n in ['cloudWorkspace','listCloudTournaments','getCloudTournament','getCloudTournamentSnapshot','getArbiterTournament','listOrganizerArbiterResults']:
+          for n in ['getCloudWorkspace','listCloudTournaments','getCloudTournament','getCloudCurrentSnapshot','getArbiterTournament','listOrganizerArbiterResults']:
               b=body(n)
               if not b: continue
               mut=bool(re.search(r'UPDATE\s+cloud_tournaments|INSERT\s+INTO\s+cloud_[A-Za-z0-9_]*revision|\.put\s*\(',b,re.I))
               print(f'READ_HANDLER {n}:TOURNAMENT_MUTATION={"YES" if mut else "NO"}')
+
+          for n in ['putCloudSnapshot','submitArbiterResult','touchCloudDevice']:
+              b=body(n)
+              if not b: continue
+              print(f'----- BEGIN {n} -----')
+              print(b[:18000])
+              print(f'----- END {n} -----')
           PY
