@@ -1,0 +1,81 @@
+name: Arbiter beta83 One SYNC UX
+
+on:
+  push:
+    branches:
+      - main
+      - fix-arbiter-all-in-one-beta83
+    paths:
+      - 'src/arbiter/ArbiterPortal.tsx'
+      - 'src/arbiter/arbiter-ui-fixes.css'
+      - 'production-web/webview/ArbiterResultsDownloadAdapter.js'
+      - 'scripts/patch-arbiter-clear-result-worker.py'
+      - 'tests/ui/arbiter-beta83-one-sync.test.mjs'
+      - 'tests/ui/arbiter-access.test.mjs'
+      - 'tests/ui/arbiter-special-results-send-all.test.mjs'
+      - '.github/workflows/arbiter-beta83-one-sync.yml'
+      - '.github/workflows/deploy-hub-arbiter-clear-result.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    name: One SYNC + clear + touch UX
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: npm ci
+      - name: beta83 Arbiter UX contract
+        run: node tests/ui/arbiter-beta83-one-sync.test.mjs
+      - name: Existing Arbiter access security contract
+        run: node tests/ui/arbiter-access.test.mjs
+      - name: Existing special-result unified SYNC contract
+        run: node tests/ui/arbiter-special-results-send-all.test.mjs
+      - name: Desktop adapter syntax
+        run: node --check production-web/webview/ArbiterResultsDownloadAdapter.js
+      - name: Clear-result Worker patch fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile scripts/patch-arbiter-clear-result-worker.py
+          cat > "$RUNNER_TEMP/worker.js" <<'JS'
+          // private_cloud_hard_delete_v1
+          // arbiter_access_v1
+          // arbiter_special_results_v1
+          // private_cloud_sync_lineage_v1
+          const ARBITER_ALLOWED_RESULTS = new Set(["1 - 0", "½ - ½", "0 - 1", "1F - 0F", "0F - 1F", "0F - 0F"]);
+          function cloudSyncSnapshotContentFingerprint() {}
+          function arbiterText(value) { return value == null ? "" : String(value).trim(); }
+          async function submitArbiterResult() {
+            const board = { result: "1 - 0" };
+            const resultValue = "0 - 1";
+            const currentBoardResult = arbiterText(board.result);
+            const changed = currentBoardResult !== resultValue;
+            if (!ARBITER_ALLOWED_RESULTS.has(resultValue)) {
+              throw new Error("Arbiter Access accepts 1-0, 1/2-1/2, 0-1, 1F-0F, 0F-1F or 0F-0F results.");
+            }
+            return changed;
+          }
+          JS
+          python scripts/patch-arbiter-clear-result-worker.py "$RUNNER_TEMP/worker.js"
+          grep -Fq 'arbiter_clear_result_v1' "$RUNNER_TEMP/worker.js"
+          grep -Fq '"0F - 0F", "-"]' "$RUNNER_TEMP/worker.js"
+          grep -Fq 'const currentBoardResult = arbiterText(board.result) || "-";' "$RUNNER_TEMP/worker.js"
+          node --check "$RUNNER_TEMP/worker.js"
+      - name: TypeScript
+        run: npx tsc --noEmit
+      - name: Production build
+        run: npm run build
