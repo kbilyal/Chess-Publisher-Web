@@ -6,6 +6,7 @@ on:
       - fix/unified-sync-phantom-conflict
     paths:
       - 'scripts/apply-web-sync-lineage-fix.py'
+      - '.github/workflows/apply-web-sync-lineage-fix.yml'
   workflow_dispatch:
 
 permissions:
