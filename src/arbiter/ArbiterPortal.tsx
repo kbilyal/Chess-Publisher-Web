@@ -3,7 +3,12 @@ import { CheckCircle2, Loader2, RefreshCw, ShieldCheck, Smartphone, Wifi, WifiOf
 import { arbiterApi, ArbiterTournamentView } from './arbiterApi';
 
 const DEVICE_KEY = 'cp.arbiter.device.v1';
-const allowedResults = ['1 - 0', '½ - ½', '0 - 1'] as const;
+const standardResults = ['1 - 0', '½ - ½', '0 - 1'] as const;
+const specialResults = ['1F - 0F', '0F - 1F', '0F - 0F'] as const;
+const allowedResults = [...standardResults, ...specialResults] as const;
+const administrativeEntryTypes = new Set(['PAB', 'REQUESTED_BYE', 'ZERO_POINT_BYE', 'UNPAIRED', 'ABSENT', 'WITHDRAWN']);
+
+type ArbiterResult = typeof allowedResults[number];
 
 function accessCodeFromUrl() {
   return new URLSearchParams(window.location.search).get('arbiter')?.trim() || '';
@@ -45,6 +50,14 @@ function matchingBoard(view: ArbiterTournamentView, round: number, board: number
   if (!candidate) return null;
   if (String(candidate.whiteKey || '') !== whiteKey || String(candidate.blackKey || '') !== blackKey) return null;
   return candidate;
+}
+
+function isNormalGame(board: { whiteKey?: string; blackKey?: string; entryType?: string }) {
+  return Boolean(board.whiteKey && board.blackKey) && !administrativeEntryTypes.has(String(board.entryType || ''));
+}
+
+function isAllowedResult(result: string): result is ArbiterResult {
+  return allowedResults.includes(result as ArbiterResult);
 }
 
 export const ArbiterPortal: React.FC = () => {
@@ -133,49 +146,62 @@ export const ArbiterPortal: React.FC = () => {
     }
   };
 
+  const sendWithRevisionGuard = async (
+    candidateView: ArbiterTournamentView,
+    round: number,
+    board: number,
+    whiteKey: string,
+    blackKey: string,
+    result: ArbiterResult
+  ) => {
+    if (!sessionToken) throw new Error('Arbiter session is not available.');
+
+    const validate = (freshView: ArbiterTournamentView) => {
+      const boardMatch = matchingBoard(freshView, round, board, whiteKey, blackKey);
+      if (!boardMatch) throw new Error(`Board ${board} changed after the page was opened. The result was not sent.`);
+      if (!isNormalGame(boardMatch)) throw new Error(`Board ${board} is now an administrative pairing. The result was not sent.`);
+      if (freshView.pairings?.finalizedRounds?.[String(round)]) throw new Error(`Round ${round} is finalized. The result was not sent.`);
+    };
+
+    const sendAtRevision = (baseRevision: number) => arbiterApi.submitResult(sessionToken, {
+      round,
+      board,
+      whiteKey,
+      blackKey,
+      result,
+      baseRevision
+    });
+
+    validate(candidateView);
+    try {
+      await sendAtRevision(candidateView.revision);
+      return candidateView;
+    } catch (error: any) {
+      if (error?.code !== 'cloud_revision_conflict') throw error;
+
+      const refreshed = await arbiterApi.tournament(sessionToken);
+      const retryView = refreshed.tournament;
+      setView(retryView);
+      setSessionName(refreshed.session.name);
+      validate(retryView);
+      await sendAtRevision(retryView.revision);
+      return retryView;
+    }
+  };
+
   const submit = async (round: number, board: number, whiteKey: string, blackKey: string, currentResult: string) => {
     if (!view || !sessionToken) return;
     const key = `${round}:${board}`;
     const result = drafts[key] || currentResult;
-    if (!allowedResults.includes(result as any)) return;
+    if (!isAllowedResult(result)) return;
     setBusy(true);
     setMessage('Checking current Cloud revision…');
     try {
-      let freshResponse = await arbiterApi.tournament(sessionToken);
-      let freshView = freshResponse.tournament;
+      const freshResponse = await arbiterApi.tournament(sessionToken);
+      const freshView = freshResponse.tournament;
       setView(freshView);
       setSessionName(freshResponse.session.name);
-
-      const firstBoard = matchingBoard(freshView, round, board, whiteKey, blackKey);
-      if (!firstBoard) throw new Error(`Board ${board} changed after the page was opened. The result was not sent.`);
-      if (freshView.pairings?.finalizedRounds?.[String(round)]) throw new Error(`Round ${round} is finalized. The result was not sent.`);
-
-      const sendWithRevision = (baseRevision: number) => arbiterApi.submitResult(sessionToken, {
-        round,
-        board,
-        whiteKey,
-        blackKey,
-        result,
-        baseRevision
-      });
-
-      try {
-        await sendWithRevision(freshView.revision);
-      } catch (error: any) {
-        if (error?.code !== 'cloud_revision_conflict') throw error;
-
-        // A tournament update landed between the fresh read and the submit.
-        // Refresh once more and automatically retry the same result only if the
-        // exact board and players still match. The arbiter never needs a manual refresh.
-        freshResponse = await arbiterApi.tournament(sessionToken);
-        freshView = freshResponse.tournament;
-        setView(freshView);
-        setSessionName(freshResponse.session.name);
-        const retryBoard = matchingBoard(freshView, round, board, whiteKey, blackKey);
-        if (!retryBoard) throw new Error(`Board ${board} changed while the result was being sent. The result remains unsent.`);
-        if (freshView.pairings?.finalizedRounds?.[String(round)]) throw new Error(`Round ${round} was finalized while the result was being sent.`);
-        await sendWithRevision(freshView.revision);
-      }
+      await sendWithRevisionGuard(freshView, round, board, whiteKey, blackKey, result);
 
       setMessage(`${currentResult && currentResult !== '-' ? 'Updated' : 'Sent'} Board ${board}: ${result} · saved to Cloud.`);
       setDrafts(current => {
@@ -186,6 +212,69 @@ export const ArbiterPortal: React.FC = () => {
       await loadTournament(sessionToken, true).catch(() => undefined);
     } catch (error: any) {
       setMessage(error?.message || 'Result could not be sent.');
+      await loadTournament(sessionToken, true).catch(() => undefined);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitAll = async () => {
+    if (!view || !sessionToken || !activeRound) return;
+    const roundBoards = view.pairings.liveBoards[String(activeRound)] || [];
+    const pending = roundBoards.flatMap(board => {
+      const key = `${activeRound}:${board.board}`;
+      const currentResult = board.result || '-';
+      const result = drafts[key];
+      if (!isNormalGame(board) || !result || result === currentResult || !isAllowedResult(result)) return [];
+      return [{ key, board: Number(board.board), whiteKey: board.whiteKey, blackKey: board.blackKey, result }];
+    });
+
+    if (!pending.length) {
+      setMessage('No changed results are waiting to be sent for this round.');
+      return;
+    }
+
+    setBusy(true);
+    setMessage(`Checking current Cloud revision for ${pending.length} result(s)…`);
+    const sentKeys: string[] = [];
+    try {
+      const freshResponse = await arbiterApi.tournament(sessionToken);
+      let workingView = freshResponse.tournament;
+      setView(workingView);
+      setSessionName(freshResponse.session.name);
+      if (workingView.pairings?.finalizedRounds?.[String(activeRound)]) throw new Error(`Round ${activeRound} is finalized. No remaining results were sent.`);
+
+      for (const item of pending) {
+        workingView = await sendWithRevisionGuard(
+          workingView,
+          activeRound,
+          item.board,
+          item.whiteKey,
+          item.blackKey,
+          item.result
+        );
+        sentKeys.push(item.key);
+      }
+
+      setDrafts(current => {
+        const next = { ...current };
+        for (const key of sentKeys) delete next[key];
+        return next;
+      });
+      setMessage(`Sent all ${sentKeys.length} changed result(s) for Round ${activeRound} · saved to Cloud.`);
+      await loadTournament(sessionToken, true).catch(() => undefined);
+    } catch (error: any) {
+      if (sentKeys.length) {
+        setDrafts(current => {
+          const next = { ...current };
+          for (const key of sentKeys) delete next[key];
+          return next;
+        });
+      }
+      const detail = error?.message || 'Result batch could not be completed.';
+      setMessage(sentKeys.length
+        ? `${sentKeys.length} of ${pending.length} result(s) were sent. Unsent changes remain selected. ${detail}`
+        : detail);
       await loadTournament(sessionToken, true).catch(() => undefined);
     } finally {
       setBusy(false);
@@ -241,6 +330,12 @@ export const ArbiterPortal: React.FC = () => {
   const rounds = Object.keys(view.pairings.liveBoards || {}).map(Number).filter(Number.isFinite).sort((a, b) => a - b);
   const boards = view.pairings.liveBoards[String(activeRound)] || [];
   const finalized = Boolean(view.pairings.finalizedRounds?.[String(activeRound)]);
+  const pendingDraftCount = finalized ? 0 : boards.filter(board => {
+    const key = `${activeRound}:${board.board}`;
+    const currentResult = board.result || '-';
+    const result = drafts[key];
+    return isNormalGame(board) && Boolean(result) && result !== currentResult && isAllowedResult(result);
+  }).length;
 
   return (
     <div className="arbiter-shell">
@@ -260,8 +355,13 @@ export const ArbiterPortal: React.FC = () => {
         {message && <div className="arbiter-message"><CheckCircle2 size={16} /> {message}</div>}
 
         <section className="arbiter-round-toolbar">
-          <div><strong>Pairings & Results</strong><span>{finalized ? `Round ${activeRound} is finalized and read-only.` : 'Tap a result, then Send or Update.'}</span></div>
-          <label><span>Round</span><select value={activeRound} onChange={event => setActiveRound(Number(event.target.value))}>{rounds.map(round => <option key={round} value={round}>Round {round}</option>)}</select></label>
+          <div><strong>Pairings & Results</strong><span>{finalized ? `Round ${activeRound} is finalized and read-only.` : 'Tap results, then send one board or all changed boards.'}</span></div>
+          <div className="arbiter-round-actions">
+            <button type="button" className="arbiter-send-all" disabled={busy || finalized || pendingDraftCount === 0} onClick={() => void submitAll()}>
+              {busy ? <Loader2 size={15} className="spin" /> : null} Send all results{pendingDraftCount ? ` (${pendingDraftCount})` : ''}
+            </button>
+            <label><span>Round</span><select value={activeRound} onChange={event => setActiveRound(Number(event.target.value))}>{rounds.map(round => <option key={round} value={round}>Round {round}</option>)}</select></label>
+          </div>
         </section>
 
         <section className="arbiter-board-list">
@@ -272,8 +372,7 @@ export const ArbiterPortal: React.FC = () => {
             const key = `${activeRound}:${board.board}`;
             const currentResult = board.result || '-';
             const selected = drafts[key] || currentResult;
-            const normalGame = Boolean(board.whiteKey && board.blackKey) && !['PAB', 'REQUESTED_BYE', 'ZERO_POINT_BYE', 'UNPAIRED', 'ABSENT', 'WITHDRAWN'].includes(String(board.entryType || ''));
-            const canEdit = normalGame && !finalized;
+            const canEdit = isNormalGame(board) && !finalized;
             return (
               <article className="arbiter-board-card" key={key}>
                 <div className="arbiter-board-number">Board {board.board}</div>
@@ -282,8 +381,16 @@ export const ArbiterPortal: React.FC = () => {
                 <div className="arbiter-player black"><strong>{black.name}</strong><span>{black.meta}</span></div>
                 {canEdit ? (
                   <div className="arbiter-result-actions">
-                    <div className="arbiter-result-buttons">
-                      {allowedResults.map(result => <button key={result} type="button" className={selected === result ? 'selected' : ''} onClick={() => setDrafts(current => ({ ...current, [key]: result }))}>{result}</button>)}
+                    <div className="arbiter-result-groups">
+                      <div className="arbiter-result-buttons">
+                        {standardResults.map(result => <button key={result} type="button" className={selected === result ? 'selected' : ''} onClick={() => setDrafts(current => ({ ...current, [key]: result }))}>{result}</button>)}
+                      </div>
+                      <div className="arbiter-special-results">
+                        <span>Special results</span>
+                        <div className="arbiter-result-buttons arbiter-special-result-buttons">
+                          {specialResults.map(result => <button key={result} type="button" className={selected === result ? 'selected' : ''} onClick={() => setDrafts(current => ({ ...current, [key]: result }))}>{result}</button>)}
+                        </div>
+                      </div>
                     </div>
                     <button type="button" className="arbiter-send" disabled={busy || !drafts[key] || drafts[key] === currentResult} onClick={() => void submit(activeRound, board.board, board.whiteKey, board.blackKey, currentResult)}>
                       {busy ? <Loader2 size={16} className="spin" /> : null}{currentResult !== '-' ? 'Update result' : 'Send result'}
