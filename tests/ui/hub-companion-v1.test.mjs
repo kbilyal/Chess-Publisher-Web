@@ -37,11 +37,13 @@ has(workspace, '<CompanionRegistration', 'Focused Player Registration workspace 
 lacks(workspace, '<PlayersTab', 'Desktop Players workspace must not be embedded in the focused Web Companion.');
 has(workspace, 'publishChessResults', 'Chess-Results publication must remain available.');
 has(workspace, 'cloud.publishOnline', 'Online Hub publication must remain available.');
-has(workspace, 'cloud.syncNow', 'Web edits must synchronize through the private Cloud Workspace.');
-has(workspace, 'cloud.pullChanges', 'Desktop changes must be pullable into Web.');
+has(workspace, 'cloud.syncNow', 'Unified Web SYNC must retain a protected Web-to-Cloud primitive.');
+has(workspace, 'cloud.pullChanges', 'Unified Web SYNC must retain a protected Cloud-to-Web primitive.');
 lacks(workspace, "window.addEventListener('focus'", 'Returning to the browser must not silently Pull Cloud data over the open tournament.');
-has(workspace, 'Pull Cloud → Web', 'Web must expose an explicit Cloud-to-Web Pull action.');
-has(workspace, 'Push Web → Cloud', 'Web must expose an explicit Web-to-Cloud Push action.');
+has(workspace, 'data-unified-sync="true"', 'Web must expose one unified SYNC action.');
+has(workspace, '↕ SYNC', 'Unified SYNC label must remain visible.');
+lacks(workspace, 'Pull Cloud → Web', 'Legacy visible Pull action must not return beside unified SYNC.');
+lacks(workspace, 'Push Web → Cloud', 'Legacy visible Push action must not return beside unified SYNC.');
 has(workspace, 'companion-mobile-nav', 'Mobile must use a dedicated app navigation surface.');
 has(workspace, '>Tournaments</span>', 'Mobile must provide a direct return to synchronized tournament list.');
 has(workspace, 'companion-conflict-action', 'A sync conflict must expose an actionable phone-friendly resolver.');
@@ -51,7 +53,7 @@ has(workspace, 'Safe conflict resolution completed where fields did not overlap.
 has(cloudActions, 'mergeCompanionTournamentChanges', 'Companion-safe three-way merge helper is missing.');
 has(cloudActions, 'cloudApi.getRevisionSnapshot', 'Smart merge must reconstruct the exact common base revision.');
 has(cloudActions, 'cloudApi.getSnapshot', 'Smart merge must read the latest remote tournament before merging.');
-lacks(cloudActions, 'cloudApi.putSnapshot', 'Resolve Conflict must never auto-Push a merged tournament; Push remains an explicit user action.');
+lacks(cloudActions, 'cloudApi.putSnapshot', 'Resolve Conflict must never auto-Push a merged tournament; unified SYNC remains an explicit user action.');
 has(cloudActions, 'return cloud.pullChanges(hydrated)', 'Existing provider must refresh conflict state after a local-only safe merge without uploading it.');
 has(cloudActions, 'return cloud.pullChanges(tournament)', 'Unproven merges must fail closed through the existing three-way workflow.');
 has(cloudActions, 'hubApi.listOrganizerTournaments', 'Open public Hub page must recover an existing organizer-owned Hub link.');
@@ -152,7 +154,7 @@ has(setupCss, '@media (max-width: 640px)', 'Setup must have a dedicated phone la
 has(setupCss, 'grid-template-columns: 1fr', 'Setup fields must collapse to one column on phones.');
 has(setupCss, 'font-size: 16px', 'Mobile setup inputs must avoid browser zoom and remain finger-friendly.');
 
-has(sync, 'PORTABLE_FINGERPRINT_SCHEMA = 6', 'Shared Desktop/Web directional tournament fingerprint contract must remain present.');
+has(sync, 'PORTABLE_FINGERPRINT_SCHEMA = 7', 'Shared Desktop/Web canonical tournament-content fingerprint contract must remain present.');
 has(sync, "export type ThreeWayDecision = 'equal' | 'cloud-only' | 'local-only' | 'conflict'", 'Three-way sync conflict protection must remain authoritative.');
 has(sync, 'buildPrivateSnapshot', 'Full private tournament snapshot must remain the synchronization payload.');
 has(sync, 'delete next.dgt', 'DGT remains device-local and excluded from private Web sync.');
@@ -163,4 +165,4 @@ has(cloudApi, "'X-Expected-Revision'", 'Cloud optimistic revision guard is missi
 has(hubApi, 'publishOwnedTournament', 'Organizer-owned Online Hub publication API is missing.');
 has(chessApi, '/api/chess-results/', 'Chess-Results must remain behind the server-side product API.');
 
-console.log('PASS Hub Companion v1 contract: focused Setup + Registration + My Tournaments + exactly two guarded publication targets, safe Desktop/Web conflict merge, source-safe Chess-Results TNR recovery, recoverable public Hub page action, browser FIDE fallback and responsive mobile/desktop shell.');
+console.log('PASS Hub Companion v1 contract: focused Setup + Registration + My Tournaments + one unified guarded SYNC + exactly two publication targets, safe Desktop/Web conflict merge, source-safe Chess-Results TNR recovery, recoverable public Hub page action, browser FIDE fallback and responsive mobile/desktop shell.');
