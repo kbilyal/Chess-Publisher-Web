@@ -7,6 +7,7 @@ on:
       - arbiter-access-work
       - fix-cloud-identity-arbiter-results-sync
       - organizer-pairings-readonly
+      - fix/isolated-print-arbiter-filters
     paths:
       - 'src/arbiter/**'
       - 'src/App.tsx'
@@ -17,6 +18,7 @@ on:
       - 'tests/ui/arbiter-access.test.mjs'
       - 'tests/ui/cloud-arbiter-sync-regression.test.mjs'
       - 'tests/ui/organizer-pairings-readonly.test.mjs'
+      - 'tests/ui/arbiter-print-filters.test.mjs'
       - '.github/workflows/arbiter-access-contract.yml'
       - '.github/workflows/deploy-hub-arbiter-access.yml'
   workflow_dispatch:
@@ -48,6 +50,8 @@ jobs:
         run: node tests/ui/cloud-arbiter-sync-regression.test.mjs
       - name: Organizer pairings read-only contract
         run: node tests/ui/organizer-pairings-readonly.test.mjs
+      - name: Isolated print and Arbiter result filters
+        run: node tests/ui/arbiter-print-filters.test.mjs
       - name: Worker patch syntax
         run: python -m py_compile scripts/patch-arbiter-access-worker.py
       - name: TypeScript compile
