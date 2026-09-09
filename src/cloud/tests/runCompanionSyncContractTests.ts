@@ -55,9 +55,22 @@ assert.match(registration, /'starting' \| 'rating' \| 'name'/, 'Web roster must 
 assert.match(registration, /Rating ↓/);
 assert.match(registration, /Name A–Z/);
 assert.match(registration, /sorting never changes official starting numbers or pairing numbers/);
-assert.match(workspace, /Pull Cloud → Web/);
-assert.match(workspace, /Push Web → Cloud/);
+
+// Visible Organizer UI has one safe bidirectional action. Directional Pull/Push
+// remain internal primitives only, so the dispatcher can preserve beta.79 safety.
+assert.match(workspace, /const unifiedSync = async \(\) =>/);
+assert.match(workspace, /data-unified-sync="true"/);
+assert.match(workspace, /Unified ↕ SYNC/);
+assert.doesNotMatch(workspace, /Pull Cloud → Web/, 'Legacy visible Pull action must not return beside unified SYNC.');
+assert.doesNotMatch(workspace, /Push Web → Cloud/, 'Legacy visible Push action must not return beside unified SYNC.');
+assert.doesNotMatch(workspace, /Pull latest Cloud → Web/, 'Legacy publish-page Pull action must not return.');
+assert.match(workspace, /state\?\.kind === 'remote-changes'[\s\S]*cloud\.pullChanges\(current\)/, 'Unified SYNC must Pull a proven Cloud-only change.');
+assert.match(workspace, /state\?\.kind === 'local-changes'[\s\S]*cloud\.syncNow\(current\)/, 'Unified SYNC must Push a proven Web-only change.');
+assert.match(workspace, /state\?\.kind === 'in-sync'[\s\S]*↕ SYNC: no changes/, 'Unified SYNC must have an explicit no-op path.');
+assert.match(workspace, /Desktop\/Cloud and Web both changed after the common base/, 'Unified SYNC must stop safely on a true two-sided conflict.');
 assert.doesNotMatch(workspace, /window\.addEventListener\('focus', onFocus\)/, 'Web must not silently Pull merely because the browser regained focus.');
+
+// Internal directional helpers remain protected and are not exposed as competing UI actions.
 assert.match(actions, /async function pullChangesOnly/);
 assert.match(actions, /A Pull command must never upload Web changes/);
 assert.match(actions, /Cloud has newer Desktop changes or a synchronization conflict\. Pull Cloud → Web before pushing or publishing\./);
@@ -76,4 +89,4 @@ assert.doesNotMatch(setup, /getFederationFlag\(code\)/, 'Companion native select
 assert.match(workspace, /Keep Web/, 'Same-field conflict UI must expose an explicit Web winner.');
 assert.match(workspace, /Use Cloud/, 'Same-field conflict UI must expose an explicit Cloud winner.');
 assert.match(actions, /kind: 'needs-choice'/, 'Safe conflict resolution must stop for explicit same-field choice.');
-console.log('PASS Companion sync contract: full Desktop/Web tournament parity + directional Pull/Push + safe roster view sorting.');
+console.log('PASS Companion sync contract: full Desktop/Web tournament parity + one unified SYNC UI + protected directional internals + safe roster sorting.');
