@@ -1,0 +1,47 @@
+name: Unified SYNC Phantom Conflict Gate
+
+on:
+  push:
+    branches:
+      - fix/unified-sync-phantom-conflict
+    paths:
+      - 'src/cloud/**'
+      - 'src/companion/**'
+      - 'src/arbiter/**'
+      - 'tests/cloud/unified-sync-phantom-conflict.test.mjs'
+      - 'tests/ui/arbiter-print-filters.test.mjs'
+      - 'scripts/patch-cloud-sync-lineage-worker.py'
+      - '.github/workflows/unified-sync-phantom-conflict-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/unified-sync-phantom-conflict
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Phantom conflict scenarios A-D
+        run: node tests/cloud/unified-sync-phantom-conflict.test.mjs
+      - name: Arbiter print/filter + single SYNC contract
+        run: node tests/ui/arbiter-print-filters.test.mjs
+      - name: Cloud roundtrip and three-way safety
+        run: npm run test:cloud-roundtrip
+      - name: Browser Cloud regression
+        run: npm run test:online-cloud-beta5
+      - name: Production Web Cloud adapter regression
+        run: npm run test:production-web-beta7
+      - name: TypeScript
+        run: npm run lint
+      - name: Production build
+        run: npm run build
