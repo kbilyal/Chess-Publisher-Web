@@ -1,0 +1,65 @@
+name: Test beta.79 Worker patch against live source
+
+on:
+  push:
+    branches:
+      - beta79-web-sync-compat
+    paths:
+      - 'scripts/patch-arbiter-results-cloud-state-worker.py'
+      - '.github/workflows/test-beta79-worker-patch.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  HUB_WORKER_NAME: chess-publisher-hub-api-beta
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Recover exact live protected Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          api="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${HUB_WORKER_NAME}"
+          curl --fail --silent --show-error --location -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" "$api" -o "$RUNNER_TEMP/live.multipart"
+          python - <<'PY'
+          from pathlib import Path
+          from email.parser import BytesParser
+          from email.policy import default
+          import os
+          raw = Path(os.environ['RUNNER_TEMP'], 'live.multipart').read_bytes()
+          boundary = raw.splitlines()[0].decode('ascii', 'strict')[2:]
+          envelope = (f'Content-Type: multipart/form-data; boundary={boundary}\r\nMIME-Version: 1.0\r\n\r\n').encode() + raw
+          msg = BytesParser(policy=default).parsebytes(envelope)
+          parts = list(msg.iter_parts())
+          if len(parts) != 1: raise SystemExit(f'Unexpected live module count: {len(parts)}')
+          Path(os.environ['RUNNER_TEMP'], 'worker.js').write_bytes(parts[0].get_payload(decode=True) or b'')
+          PY
+      - name: Apply patch locally only
+        run: |
+          python -m py_compile scripts/patch-arbiter-results-cloud-state-worker.py
+          python scripts/patch-arbiter-results-cloud-state-worker.py "$RUNNER_TEMP/worker.js"
+      - name: Verify generated live candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check "$RUNNER_TEMP/worker.js"
+          grep -Fq 'arbiter_results_cloud_state_v1' "$RUNNER_TEMP/worker.js"
+          grep -Fq 'b2UploadJson(env, objectKey, bytes)' "$RUNNER_TEMP/worker.js"
+          grep -Fq 'INSERT INTO cloud_revisions' "$RUNNER_TEMP/worker.js"
+          grep -Fq "'arbiter-result'" "$RUNNER_TEMP/worker.js"
+          grep -Fq 'arbiter_results_ack_guard_v1' "$RUNNER_TEMP/worker.js"
+          echo 'BETA79_LIVE_WORKER_PATCH_CANDIDATE=PASS'
