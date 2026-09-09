@@ -14,7 +14,7 @@ export type CloudIdentity = {
   fingerprintContentSchema?: number;
 };
 
-export const PORTABLE_FINGERPRINT_SCHEMA = 6;
+export const PORTABLE_FINGERPRINT_SCHEMA = 7;
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
 const text = (value: unknown) => value == null ? '' : String(value).trim();
 const INSTALLATION_LOCAL_KEYS = new Set([
@@ -86,17 +86,37 @@ function restoreInstallationLocalKeys(remote: any, local: any) {
   }
 }
 
+const VOLATILE_SYNC_KEYS = new Set([
+  'updatedat', 'lastviewedat', 'lastaccess', 'requesttimestamp', 'requesttimestamps',
+  'cachetimestamp', 'cachetimestamps', 'generatedat', 'serverprocessingmetadata',
+  'processingmetadata', 'browserstate', 'browserdata', 'sessionstate', 'sessiondata'
+]);
+
+function stripVolatileSyncMetadata(value: any): any {
+  if (Array.isArray(value)) return value.map(stripVolatileSyncMetadata);
+  if (!value || typeof value !== 'object') return value;
+  const out: Record<string, any> = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (VOLATILE_SYNC_KEYS.has(key.toLowerCase())) continue;
+    out[key] = stripVolatileSyncMetadata(item);
+  }
+  return out;
+}
+
 export function tournamentContentForFingerprint(tournament: Tournament | any) {
-  const next: any = sanitizePortableValue(clone(tournament || {}));
+  // beta79_reference_projection_v1 — this projection intentionally matches the
+  // protected Desktop beta.79 CloudWorkspaceAdapter content hash. Public Hub
+  // publication metadata remains transportable, but it is not private tournament
+  // content and therefore cannot manufacture a private Cloud conflict.
+  const next: any = stripVolatileSyncMetadata(sanitizePortableValue(clone(tournament || {})));
   delete next.cloud;
+  delete next.online;
+  delete next.hub;
+  delete next.publication;
   delete next.savedAt;
   delete next.dgt;
   delete next.uiState;
   delete next.runtimeState;
-  if (next.online && typeof next.online === 'object') {
-    delete next.online.revision;
-    delete next.online.lastPublishedAt;
-  }
   if (next.telegram && typeof next.telegram === 'object') {
     delete next.telegram.token;
     delete next.telegram.botToken;

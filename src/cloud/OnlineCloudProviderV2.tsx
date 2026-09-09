@@ -314,7 +314,9 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
 
   async function ensureCloudLink(tournament: Tournament) {
     let list = cloudTournaments;
-    let remote = chooseExistingRemote(tournament, list) || activeRef.current;
+    // Stable identity only. The currently-open Cloud record is never a fallback
+    // for a tournament whose cloudTournamentId/internalId does not match it.
+    let remote = chooseExistingRemote(tournament, list);
     if (remote) return remote;
 
     list = await refreshWorkspace();
@@ -373,7 +375,8 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
       if (cloud.revision === 0 || !cloud.tournament) {
         const saved = await cloudApi.putSnapshot(tokenRef.current, remote.id, 0, buildPrivateSnapshot(tournamentName(seeded), seeded), browserDevice());
         const revision = Number(saved?.revision || 1);
-        const updated = withBrowserBase(seeded, remote.id, revision, localFingerprint);
+        const acceptedFingerprint = text(saved?.contentFingerprint) || localFingerprint;
+        const updated = withBrowserBase(seeded, remote.id, revision, acceptedFingerprint);
         commitLocal(updated, false);
         setActiveCloud({ ...remote, revision });
         activeRef.current = { ...remote, revision };
@@ -456,7 +459,8 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
         browserDevice()
       );
       const revision = Number(saved?.revision || cloud.revision + 1);
-      const updated = withBrowserBase(seeded, remote.id, revision, localFingerprint);
+      const acceptedFingerprint = text(saved?.contentFingerprint) || localFingerprint;
+      const updated = withBrowserBase(seeded, remote.id, revision, acceptedFingerprint);
       commitLocal(updated, false);
       setActiveCloud({ ...remote, ...cloud.meta, revision });
       activeRef.current = { ...remote, ...cloud.meta, revision };
@@ -734,7 +738,8 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
         device
       );
       const revision = Number(saved?.revision || 1);
-      const updated = withBrowserBase(seeded, remote.id, revision, fingerprint);
+      const acceptedFingerprint = text(saved?.contentFingerprint) || fingerprint;
+      const updated = withBrowserBase(seeded, remote.id, revision, acceptedFingerprint);
       commitLocal(updated, true);
       setActiveCloud({ ...remote, revision });
       activeRef.current = { ...remote, revision };

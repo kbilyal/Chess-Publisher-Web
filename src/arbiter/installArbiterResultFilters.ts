@@ -5,9 +5,7 @@ let currentFilter: ArbiterResultFilter = 'all';
 let observer: MutationObserver | null = null;
 
 function isMissingResultCard(card: Element) {
-  const sendButton = card.querySelector<HTMLButtonElement>('.arbiter-send');
-  if (!sendButton) return false;
-  return /send result/i.test(sendButton.textContent || '');
+  return card.getAttribute('data-result-missing') === 'true';
 }
 
 function applyFilter() {

@@ -35,6 +35,7 @@ export type CompanionCloud = {
   pullChanges: (tournament: Tournament) => Promise<any>;
   resolveConflict: (tournament: Tournament) => Promise<any>;
   resolveConflictWithStrategy: (tournament: Tournament, strategy: 'web' | 'cloud') => Promise<any>;
+  checkStatus: (tournament: Tournament) => Promise<any>;
   publishOnline: (tournament: Tournament) => Promise<void>;
   openPublicPage: (tournament: Tournament) => void | Promise<void>;
   returnToCloudList: () => Promise<void>;
@@ -113,32 +114,37 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   };
 
-  const syncNow = async () => {
+  const unifiedSync = async () => {
     setBusy('sync');
     setMessage('');
     try {
-      await cloud.syncNow(tournamentRef.current);
-      adoptSynchronizedTournament();
-      setNotice('ok', 'Push complete: Web → Cloud. Desktop can continue from this Cloud revision.');
+      const current = tournamentRef.current;
+      const state = await cloud.checkStatus(current);
+      if (state?.kind === 'remote-changes') {
+        const result = await cloud.pullChanges(current);
+        adoptSynchronizedTournament();
+        setNotice(result?.kind === 'pulled' ? 'ok' : 'warn', result?.kind === 'pulled'
+          ? `↕ SYNC complete: Cloud-only change pulled at r${state.revision}.`
+          : '↕ SYNC stopped safely while checking the Cloud-only change.');
+        return;
+      }
+      if (state?.kind === 'local-changes' || state?.kind === 'no-cloud-snapshot' || state?.kind === 'unlinked') {
+        await cloud.syncNow(current);
+        adoptSynchronizedTournament();
+        setNotice('ok', '↕ SYNC complete: Web-only change pushed to Cloud.');
+        return;
+      }
+      if (state?.kind === 'in-sync') {
+        // Read-only equality refresh: provider updates the common revision/base
+        // without a PUT. Repeated SYNC is therefore a true no-op.
+        await cloud.pullChanges(current);
+        adoptSynchronizedTournament();
+        setNotice('ok', `↕ SYNC: no changes${state.revision ? ` · common base r${state.revision}` : ''}.`);
+        return;
+      }
+      setNotice('warn', 'Desktop/Cloud and Web both changed after the common base. ↕ SYNC stopped safely; resolve the true conflict below.');
     } catch (error: any) {
-      setNotice('error', error?.message || 'Synchronization failed.');
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const pullDesktopChanges = async () => {
-    setBusy('pull');
-    setMessage('');
-    try {
-      const result = await cloud.pullChanges(tournamentRef.current);
-      adoptSynchronizedTournament();
-      if (result?.kind === 'pulled') setNotice('ok', 'Pull complete: Cloud → Web. The latest Desktop/Cloud revision is now open in Web.');
-      else if (result?.kind === 'equal') setNotice('ok', 'No pull needed: Web already matches the current Cloud revision.');
-      else if (result?.kind === 'local-only') setNotice('warn', 'Web has local changes that are not in Cloud. Pull did not upload them. Use Push Web → Cloud when ready.');
-      else setNotice('warn', 'Both Web and Cloud changed. Nothing was overwritten. Resolve the conflict before Pull, Push or Publish.');
-    } catch (error: any) {
-      setNotice('error', error?.message || 'Could not check the latest revision.');
+      setNotice('error', error?.message || '↕ SYNC failed.');
     } finally {
       setBusy(null);
     }
@@ -536,11 +542,8 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
           <strong>{displayName}</strong>
         </div>
         <div className="companion-top-actions">
-          <button type="button" className="companion-button secondary" onClick={pullDesktopChanges} disabled={busy !== null || cloud.busy} title="Download the current Cloud/Desktop revision into Web. Never uploads Web edits.">
-            <RefreshCw size={16} className={busy === 'pull' ? 'spin' : ''} /> {busy === 'pull' ? 'Pulling…' : 'Pull Cloud → Web'}
-          </button>
-          <button type="button" className="companion-button primary" onClick={syncNow} disabled={busy !== null || cloud.busy || cloud.conflict} title="Upload Web edits to Cloud. Never downloads a newer Cloud revision.">
-            <Cloud size={16} /> {busy === 'sync' ? 'Pushing…' : 'Push Web → Cloud'}
+          <button type="button" className="companion-button primary" data-unified-sync="true" onClick={unifiedSync} disabled={busy !== null || cloud.busy} title="Unified safe SYNC: no-op, pull Cloud-only, push Web-only, or stop on a true two-sided conflict.">
+            <Cloud size={16} /> {busy === 'sync' ? '↕ SYNC…' : '↕ SYNC'}
           </button>
         </div>
       </header>
@@ -711,9 +714,9 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
               </section>
             </div>
 
-            <section className="companion-sync-card">
-              <div><Smartphone size={20} /><span><strong>One tournament, explicit direction</strong><small>Pull = Cloud → Web only. Push = Web → Cloud only. Neither command silently reverses direction.</small></span></div>
-              <button type="button" className="companion-button secondary" onClick={pullDesktopChanges} disabled={busy !== null || cloud.busy}><RefreshCw size={16} /> Pull latest Cloud → Web</button>
+            <section className="companion-sync-card" data-unified-sync-status="true">
+              <div><Smartphone size={20} /><span><strong>Unified ↕ SYNC</strong><small>One safe action: no-op when equal, pull Cloud-only changes, push Web-only changes, and stop on a true two-sided conflict.</small></span></div>
+              <button type="button" className="companion-button primary" onClick={unifiedSync} disabled={busy !== null || cloud.busy}><Cloud size={16} /> {busy === 'sync' ? '↕ SYNC…' : '↕ SYNC'}</button>
             </section>
           </div>
         )}

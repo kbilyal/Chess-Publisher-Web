@@ -171,11 +171,19 @@ export const ArbiterPortal: React.FC = () => {
       result,
       baseRevision
     });
+    const advanceView = (source: ArbiterTournamentView, response: any) => {
+      const revision = Number(response?.revision ?? source.revision);
+      const next = JSON.parse(JSON.stringify(source)) as ArbiterTournamentView;
+      next.revision = Number.isInteger(revision) && revision >= 0 ? revision : source.revision;
+      const matched = matchingBoard(next, round, board, whiteKey, blackKey);
+      if (matched) matched.result = result;
+      return next;
+    };
 
     validate(candidateView);
     try {
-      await sendAtRevision(candidateView.revision);
-      return candidateView;
+      const response = await sendAtRevision(candidateView.revision);
+      return advanceView(candidateView, response);
     } catch (error: any) {
       if (error?.code !== 'cloud_revision_conflict') throw error;
 
@@ -184,8 +192,8 @@ export const ArbiterPortal: React.FC = () => {
       setView(retryView);
       setSessionName(refreshed.session.name);
       validate(retryView);
-      await sendAtRevision(retryView.revision);
-      return retryView;
+      const response = await sendAtRevision(retryView.revision);
+      return advanceView(retryView, response);
     }
   };
 
@@ -230,7 +238,8 @@ export const ArbiterPortal: React.FC = () => {
     });
 
     if (!pending.length) {
-      setMessage('No changed results are waiting to be sent for this round.');
+      await loadTournament(sessionToken, true).catch(() => undefined);
+      setMessage('↕ SYNC complete · no result changes are waiting to be sent.');
       return;
     }
 
@@ -357,8 +366,8 @@ export const ArbiterPortal: React.FC = () => {
         <section className="arbiter-round-toolbar">
           <div><strong>Pairings & Results</strong><span>{finalized ? `Round ${activeRound} is finalized and read-only.` : 'Tap results, then send one board or all changed boards.'}</span></div>
           <div className="arbiter-round-actions">
-            <button type="button" className="arbiter-send-all" disabled={busy || finalized || pendingDraftCount === 0} onClick={() => void submitAll()}>
-              {busy ? <Loader2 size={15} className="spin" /> : null} Send all results{pendingDraftCount ? ` (${pendingDraftCount})` : ''}
+            <button type="button" className="arbiter-send-all" data-unified-arbiter-sync="true" disabled={busy} onClick={() => void submitAll()} title="Send all changed results with revision protection, or refresh when nothing changed.">
+              {busy ? <Loader2 size={15} className="spin" /> : null} ↕ SYNC{pendingDraftCount ? ` (${pendingDraftCount})` : ''}
             </button>
             <label><span>Round</span><select value={activeRound} onChange={event => setActiveRound(Number(event.target.value))}>{rounds.map(round => <option key={round} value={round}>Round {round}</option>)}</select></label>
           </div>
@@ -374,7 +383,7 @@ export const ArbiterPortal: React.FC = () => {
             const selected = drafts[key] || currentResult;
             const canEdit = isNormalGame(board) && !finalized;
             return (
-              <article className="arbiter-board-card" key={key}>
+              <article className="arbiter-board-card" data-result-missing={currentResult === '-' ? 'true' : 'false'} key={key}>
                 <div className="arbiter-board-number">Board {board.board}</div>
                 <div className="arbiter-player white"><strong>{white.name}</strong><span>{white.meta}</span></div>
                 <div className="arbiter-result-value">{selected === '-' ? '—' : selected}</div>
@@ -392,9 +401,6 @@ export const ArbiterPortal: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                    <button type="button" className="arbiter-send" disabled={busy || !drafts[key] || drafts[key] === currentResult} onClick={() => void submit(activeRound, board.board, board.whiteKey, board.blackKey, currentResult)}>
-                      {busy ? <Loader2 size={16} className="spin" /> : null}{currentResult !== '-' ? 'Update result' : 'Send result'}
-                    </button>
                   </div>
                 ) : (
                   <div className="arbiter-readonly">{finalized ? 'Finalized' : 'Administrative pairing · result controlled by tournament rules'}</div>
