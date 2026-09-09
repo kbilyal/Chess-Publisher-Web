@@ -16,6 +16,7 @@ import './mobile-native.css';
 import './companion-desktop.css';
 import './arbiter/arbiter.css';
 import './arbiter/organizer-pairings.css';
+import './arbiter/organizer-pairings-print.css';
 
 const isArbiterAccess = new URLSearchParams(window.location.search).has('arbiter');
 
