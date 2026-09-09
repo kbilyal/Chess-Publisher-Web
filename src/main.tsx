@@ -15,6 +15,7 @@ import './companion-conflict.css';
 import './mobile-native.css';
 import './companion-desktop.css';
 import './arbiter/arbiter.css';
+import './arbiter/organizer-pairings.css';
 
 const isArbiterAccess = new URLSearchParams(window.location.search).has('arbiter');
 
