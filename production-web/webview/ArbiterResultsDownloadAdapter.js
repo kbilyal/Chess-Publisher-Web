@@ -185,10 +185,10 @@
       }
 
       if(typeof stateDirty!=="undefined")stateDirty=true;
-      setStatus(`Saving ${applied.length} result(s) locally…","busy");
+      setStatus(`Saving ${applied.length} result(s) locally…`,"busy");
       await saveLocalTournament();
 
-      setStatus(`Synchronizing ${applied.length} result(s) to Cloud…","busy");
+      setStatus(`Synchronizing ${applied.length} result(s) to Cloud…`,"busy");
       const syncResult=await window.cpCloudSyncCurrent({force:true,quiet:false,allowPull:true});
       if(syncResult?.ok===false||syncResult?.conflict)throw new Error("Results were saved locally, but Cloud synchronization did not complete. They remain pending in Cloud and were not acknowledged.");
 
