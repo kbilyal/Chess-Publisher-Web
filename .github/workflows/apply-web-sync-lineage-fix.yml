@@ -8,6 +8,7 @@ on:
       - 'scripts/apply-web-sync-lineage-fix.py'
       - 'scripts/apply-web-sync-lineage-ui-tail-fix.py'
       - 'scripts/apply-web-sync-portable-snapshot-fix.py'
+      - 'scripts/apply-unified-sync-final-cleanup.py'
       - '.github/workflows/apply-web-sync-lineage-fix.yml'
   workflow_dispatch:
 
@@ -38,6 +39,7 @@ jobs:
             python scripts/apply-web-sync-lineage-ui-tail-fix.py
           fi
           python scripts/apply-web-sync-portable-snapshot-fix.py
+          python scripts/apply-unified-sync-final-cleanup.py
       - name: Install dependencies
         run: npm ci
       - name: TypeScript
@@ -56,5 +58,5 @@ jobs:
             echo 'No source changes to commit.'
             exit 0
           fi
-          git commit -m "Align private snapshots with unified SYNC content contract"
+          git commit -m "Finish unified SYNC content contract cleanup"
           git push origin HEAD:fix/unified-sync-phantom-conflict
