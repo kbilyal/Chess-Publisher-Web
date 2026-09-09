@@ -24,7 +24,8 @@ has(app, '<OrganizerArbiterPanel cloud={cloud} />', 'Organizer must have an Arbi
 has(portal, '<h1>Enter your name</h1>', 'Arbiter must identify themselves before first access.');
 has(portal, 'localStorage.setItem(storageKey, response.sessionToken)', 'Arbiter session must persist on that device.');
 has(portal, "const allowedResults = ['1 - 0', '½ - ½', '0 - 1'] as const", 'Arbiter result controls must be limited to played results.');
-has(portal, 'baseRevision: view.revision', 'Every result submission must be tied to the viewed Cloud revision.');
+has(portal, 'baseRevision', 'Every result submission must carry a Cloud revision guard.');
+has(portal, 'freshView.revision', 'Result submission must use the freshly read Cloud revision.');
 has(portal, "'Update result' : 'Send result'", 'Arbiter must get explicit Send/Update result actions.');
 has(portal, 'Publishing is disabled for Arbiter Access', 'Restricted role must clearly expose no publishing permission.');
 lacks(portal, 'chessResultsApi', 'Arbiter portal must never import Chess-Results administration.');
