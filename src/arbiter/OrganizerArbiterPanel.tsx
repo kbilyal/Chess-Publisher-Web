@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Check, Clipboard, Loader2, QrCode, RefreshCw, ShieldCheck, UserRoundCheck, Users, X } from 'lucide-react';
+import { Check, Clipboard, Link2, Loader2, QrCode, RefreshCw, ShieldCheck, UserRoundCheck, Users, X } from 'lucide-react';
 import { arbiterApi, ArbiterAccessStatus, ArbiterSubmission } from './arbiterApi';
 import { Tournament } from '../types';
 
@@ -115,9 +115,9 @@ export const OrganizerArbiterPanel: React.FC<{ cloud: any }> = ({ cloud }) => {
       setStatus(result);
       setAccessUrl(result.accessUrl);
       await renderQr(result.accessUrl);
-      setMessage('New Arbiter Access QR created. Previous arbiter sessions for this tournament were revoked.');
+      setMessage('New Arbiter Access link created. Previous arbiter sessions for this tournament were revoked.');
     } catch (error: any) {
-      setMessage(error?.message || 'Could not create Arbiter Access.');
+      setMessage(error?.message || 'Could not create Arbiter Access link.');
     } finally {
       setBusy(false);
     }
@@ -159,7 +159,7 @@ export const OrganizerArbiterPanel: React.FC<{ cloud: any }> = ({ cloud }) => {
       {!open ? (
         <button type="button" className="organizer-arbiter-fab" onClick={() => setOpen(true)} title="Manage Arbiter Access">
           <UserRoundCheck size={20} />
-          <span><strong>Arbiter Access</strong><small>{onlineCount ? `${onlineCount} active` : status?.grant ? 'Access ready' : 'Generate QR'}</small></span>
+          <span><strong>Arbiter Access</strong><small>{onlineCount ? `${onlineCount} active` : status?.grant ? 'Access ready' : 'Generate link'}</small></span>
           {pending.length > 0 && <b>{pending.length}</b>}
         </button>
       ) : (
@@ -191,7 +191,7 @@ export const OrganizerArbiterPanel: React.FC<{ cloud: any }> = ({ cloud }) => {
           {accessUrl && (
             <div className="organizer-arbiter-share">
               {qrSvg ? <div className="organizer-arbiter-qr" dangerouslySetInnerHTML={{ __html: qrSvg }} /> : <div className="organizer-arbiter-qr fallback"><QrCode size={56} /></div>}
-              <div><strong>Scan on the arbiter's phone</strong><small>The arbiter enters a name once. The device keeps access until it is revoked.</small></div>
+              <div><strong>Arbiter link ready</strong><small>Copy the secure link or scan the QR on the arbiter's phone. The arbiter enters a name once and keeps access until it is revoked.</small></div>
             </div>
           )}
 
@@ -202,7 +202,7 @@ export const OrganizerArbiterPanel: React.FC<{ cloud: any }> = ({ cloud }) => {
           )}
 
           <div className="organizer-arbiter-actions">
-            <button type="button" className="primary" disabled={busy} onClick={() => void createGrant()}>{busy ? <Loader2 size={16} className="spin" /> : <QrCode size={16} />}{status?.grant ? 'Generate new QR' : 'Generate QR'}</button>
+            <button type="button" className="primary" disabled={busy} onClick={() => void createGrant()}>{busy ? <Loader2 size={16} className="spin" /> : <Link2 size={16} />}{status?.grant ? 'Generate new link' : 'Generate link'}</button>
             {accessUrl && <button type="button" disabled={busy} onClick={() => void copyLink()}>{copied ? <Check size={16} /> : <Clipboard size={16} />}{copied ? 'Copied' : 'Copy link'}</button>}
             {status?.grant && <button type="button" className="danger" disabled={busy} onClick={() => void revoke()}><ShieldCheck size={16} /> Revoke</button>}
             <button type="button" disabled={busy} onClick={() => void refresh()}><RefreshCw size={16} /> Refresh</button>
