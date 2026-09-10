@@ -1,0 +1,55 @@
+name: Players XML Import Export
+
+on:
+  push:
+    branches:
+      - main
+      - feature-players-xml-import-export
+    paths:
+      - 'src/importers/playersXml.ts'
+      - 'src/importers/tournamentFileImport.ts'
+      - 'src/companion/CompanionCloudScreens.tsx'
+      - 'src/companion/CompanionRegistration.tsx'
+      - 'tests/import/players-xml-roundtrip.test.ts'
+      - 'tests/ui/players-xml-import-export.test.mjs'
+      - '.github/workflows/players-xml-import-export.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/importers/playersXml.ts'
+      - 'src/importers/tournamentFileImport.ts'
+      - 'src/companion/CompanionCloudScreens.tsx'
+      - 'src/companion/CompanionRegistration.tsx'
+      - 'tests/import/players-xml-roundtrip.test.ts'
+      - 'tests/ui/players-xml-import-export.test.mjs'
+      - '.github/workflows/players-xml-import-export.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  players-xml:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Players XML parser and round-trip regression
+        run: npx tsx tests/import/players-xml-roundtrip.test.ts
+      - name: Players XML UI contract
+        run: node tests/ui/players-xml-import-export.test.mjs
+      - name: Existing My Tournaments import contract
+        run: node tests/ui/companion-cloud-screens.test.mjs
+      - name: Existing tournament import regression
+        run: npm run test:tournament-import
+      - name: TypeScript
+        run: npm run lint
+      - name: Production build
+        run: npm run build
