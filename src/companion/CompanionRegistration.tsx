@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUpDown, Check, Loader2, Search, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { ArrowUpDown, Check, Download, Loader2, Search, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { Attendance, FideTitle, Gender, Tournament } from '../types';
 import { FidePlayerRecord } from '../server/fide/types';
 import { TransactionManager } from '../transactions/TransactionManager';
@@ -9,6 +9,7 @@ import {
   executeRegisterPlayerTransaction,
   isStartingRankLocked
 } from '../transactions/playerWorkflow';
+import { downloadPlayersXml } from '../importers/playersXml';
 import { searchFideBrowserDatabase } from './fideBrowserDatabase';
 
 interface Props {
@@ -107,6 +108,15 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
   }, [players, listQuery, sortMode]);
 
   const commitTournament = (next: Tournament) => onUpdateTournament(() => next);
+
+  const handleExportPlayersXml = () => {
+    try {
+      downloadPlayersXml(tournament);
+      setNotice({ kind: 'ok', text: `Exported ${players.length} players to Players.XML.` });
+    } catch (error: any) {
+      setNotice({ kind: 'error', text: error?.message || 'Players XML export failed.' });
+    }
+  };
 
   const registerFide = async (record: FidePlayerRecord) => {
     const key = `fide:${record.fideId}`;
@@ -266,7 +276,10 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
       <section className="companion-registration-card">
         <div className="companion-registration-heading">
           <div><span className="companion-eyebrow">TOURNAMENT ROSTER</span><h2>Registered players</h2><p>{rankLocked ? `Starting numbers are locked. New players join from round ${latestRound + 1}.` : 'Changes here use the same protected desktop player transactions.'}</p></div>
-          <div className="companion-roster-count"><Users size={16} /><strong>{players.length}</strong></div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <button type="button" className="companion-button secondary" disabled={!players.length} onClick={handleExportPlayersXml} title="Export the current roster as Players.XML"><Download size={16} /> Export players (XML)</button>
+            <div className="companion-roster-count"><Users size={16} /><strong>{players.length}</strong></div>
+          </div>
         </div>
         <div className="companion-roster-toolbar">
           <label className="companion-searchbox small"><Search size={16} /><input value={listQuery} onChange={event => setListQuery(event.target.value)} placeholder="Filter registered players" /></label>
