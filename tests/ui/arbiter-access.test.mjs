@@ -66,7 +66,10 @@ lacks(portal, 'Organizer Token', 'Arbiter portal must not request the Organizer 
 
 has(panel, 'Tournament arbiters', 'Organizer must see joined arbiters.');
 has(panel, 'Last active', 'Organizer must see arbiter activity.');
-has(panel, 'Generate QR', 'Organizer must be able to create a tournament-scoped QR.');
+has(panel, "status?.grant ? 'Generate new link' : 'Generate link'", 'Organizer must have a clear Generate link action for tournament-scoped Arbiter access.');
+has(panel, 'setAccessUrl(result.accessUrl)', 'Generated Arbiter access URL must be retained for sharing.');
+has(panel, 'renderQr(result.accessUrl)', 'Generate link must continue to produce the QR representation from the same secure URL.');
+has(panel, 'navigator.clipboard.writeText(accessUrl)', 'Generated Arbiter link must remain directly copyable.');
 has(panel, 'Revoke', 'Organizer must be able to revoke all sessions immediately.');
 has(panel, 'waiting for Desktop ↕ SYNC', 'Organizer must show that pending results belong to the Desktop unified SYNC workflow.');
 has(panel, 'safely stored in Cloud', 'Pending Arbiter results must be visibly durable until Desktop SYNC.');
