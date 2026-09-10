@@ -40,6 +40,9 @@ jobs:
       - name: beta79 Desktop-Web unified SYNC compatibility
         run: node tests/cloud/beta79-unified-sync-compat.test.mjs
 
+      - name: beta96 checker runtime metadata SYNC freeze
+        run: node tests/cloud/beta96-checker-runtime-metadata-sync.test.mjs
+
       - name: Online & Cloud beta4 regression
         run: npm run test:online-cloud
 
@@ -88,9 +91,13 @@ jobs:
           test -f src/cloud/tests/runDesktopBeta34WebParityTests.ts
           test -f src/cloud/tests/runChessResultsWebContractTests.ts
           test -f tests/cloud/beta79-unified-sync-compat.test.mjs
+          test -f tests/cloud/beta96-checker-runtime-metadata-sync.test.mjs
           test -f cloudrun.ts
           grep -q "OnlineCloudProvider" src/main.tsx
           grep -q "classifyThreeWay" src/cloud/onlineCloudSync.ts
+          grep -q "lastcheckeruisource" src/cloud/onlineCloudSync.ts
+          grep -q "lastcheckeruibuildversion" src/cloud/onlineCloudSync.ts
+          grep -q "lastcheckeruicheckedat" src/cloud/onlineCloudSync.ts
           grep -q "X-Expected-Revision" src/cloud/cloudWorkspaceApi.ts
           grep -q "Automatic Cloud Sync" src/cloud/OnlineCloudTabV2.tsx
           grep -q "Pull Changes" src/cloud/OnlineCloudProviderV2.tsx
