@@ -57,6 +57,11 @@ has(uiFixes, 'position: fixed;', 'Unified Arbiter SYNC must stay visible while t
 has(uiFixes, 'env(safe-area-inset-bottom)', 'Fixed mobile unified SYNC must respect the device safe area.');
 has(uiFixes, 'min-height: 58px !important;', 'Normal result controls must have large phone touch targets.');
 has(uiFixes, '.arbiter-clear-result {', 'Clear result must have a dedicated large touch action.');
+assert.match(
+  uiFixes,
+  /\.arbiter-clear-result\.selected\s*\{[^}]*opacity:\s*\.42;[^}]*cursor:\s*not-allowed;[^}]*pointer-events:\s*none;[^}]*\}/s,
+  'A pending Clear result action must become visually inactive and ignore repeat pointer activation.'
+);
 has(uiFixes, '.arbiter-color-badge.white', 'W badge styling must exist.');
 has(uiFixes, '.arbiter-color-badge.black', 'B badge styling must exist.');
 has(portal, 'Publishing is disabled for Arbiter Access', 'Restricted role must clearly expose no publishing permission.');

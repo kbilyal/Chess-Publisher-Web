@@ -90,7 +90,15 @@
   touch-action: manipulation;
 }
 .arbiter-clear-result:hover:not(:disabled) { background: #ffeff1; }
-.arbiter-clear-result.selected { border-color: #d15a69; background: #ffe8eb; box-shadow: inset 0 0 0 1px #d15a69; }
+/* Clear is an action, not a result state. Once a clear draft is selected it must stop looking/clicking like an active action until the user chooses another result or synchronizes. */
+.arbiter-clear-result.selected {
+  border-color: #e0b9bf;
+  background: #fff7f8;
+  box-shadow: none;
+  opacity: .42;
+  cursor: not-allowed;
+  pointer-events: none;
+}
 .arbiter-clear-result:disabled { opacity: .42; cursor: not-allowed; }
 
 /* Make board colour obvious even when scanning quickly on a small screen. */
