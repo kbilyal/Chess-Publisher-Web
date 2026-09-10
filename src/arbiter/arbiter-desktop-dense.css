@@ -1,0 +1,251 @@
+/*
+ * Desktop-only dense Arbiter workspace.
+ * Intentionally isolated from phone layouts: no rule below 900px.
+ * Business logic, result semantics and unified SYNC are untouched.
+ */
+@media screen and (min-width: 900px) {
+  .arbiter-shell .arbiter-topbar {
+    min-height: 58px;
+    padding: 9px 18px;
+  }
+
+  .arbiter-shell .arbiter-topbar h1 {
+    margin-top: 2px;
+    font-size: 17px;
+  }
+
+  .arbiter-shell .arbiter-topbar p {
+    margin-top: 2px;
+    font-size: 10px;
+  }
+
+  .arbiter-shell .arbiter-eyebrow {
+    font-size: 9px;
+  }
+
+  .arbiter-shell .arbiter-connection {
+    min-height: 30px;
+    padding: 0 9px;
+    font-size: 9px;
+  }
+
+  .arbiter-shell .arbiter-main {
+    width: min(1540px, calc(100% - 24px));
+    padding: 10px 0 76px;
+  }
+
+  .arbiter-shell .arbiter-message {
+    margin-bottom: 7px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    font-size: 10px;
+  }
+
+  .arbiter-shell .arbiter-round-toolbar {
+    position: sticky;
+    top: 58px;
+    z-index: 4;
+    min-height: 44px;
+    margin-bottom: 7px;
+    padding: 7px 10px;
+    gap: 10px;
+    border-radius: 9px;
+    box-shadow: 0 5px 16px rgba(31, 55, 92, .06);
+  }
+
+  .arbiter-shell .arbiter-round-toolbar > div {
+    gap: 1px;
+  }
+
+  .arbiter-shell .arbiter-round-toolbar strong {
+    font-size: 12px;
+  }
+
+  .arbiter-shell .arbiter-round-toolbar span {
+    font-size: 9px;
+  }
+
+  .arbiter-shell .arbiter-round-toolbar select {
+    min-height: 32px;
+    padding: 0 28px 0 9px;
+    border-radius: 7px;
+    font-size: 11px;
+  }
+
+  .arbiter-shell .arbiter-board-list {
+    gap: 5px;
+  }
+
+  .arbiter-shell .arbiter-board-card {
+    min-height: 62px;
+    padding: 6px 8px;
+    gap: 7px;
+    border-radius: 9px;
+    box-shadow: none;
+  }
+
+  .arbiter-shell .arbiter-board-number {
+    font-size: 10px;
+    line-height: 1.15;
+    white-space: nowrap;
+  }
+
+  .arbiter-shell .arbiter-player-name-row {
+    gap: 5px;
+  }
+
+  .arbiter-shell .arbiter-player .arbiter-color-badge {
+    width: 20px;
+    height: 20px;
+    border-radius: 5px;
+    font-size: 9px !important;
+  }
+
+  .arbiter-shell .arbiter-player strong {
+    font-size: 11px;
+    line-height: 1.2;
+  }
+
+  .arbiter-shell .arbiter-player > span {
+    margin-top: 2px;
+    font-size: 8px;
+  }
+
+  .arbiter-shell .arbiter-result-value {
+    min-width: 42px;
+    padding: 5px 4px;
+    border-radius: 6px;
+    background: #f3f6fa;
+    font-size: 11px;
+    line-height: 1;
+  }
+
+  .arbiter-shell .arbiter-result-actions {
+    width: auto;
+    min-width: 0;
+    margin: 0;
+  }
+
+  .arbiter-shell .arbiter-result-groups {
+    width: 100%;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(190px, 1.15fr) minmax(190px, 1fr) 82px;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .arbiter-shell .arbiter-result-buttons {
+    width: 100%;
+    gap: 4px !important;
+  }
+
+  .arbiter-shell .arbiter-result-buttons button {
+    min-height: 34px !important;
+    height: 34px;
+    padding: 0 6px !important;
+    border-radius: 7px !important;
+    font-size: 12px !important;
+    line-height: 1 !important;
+  }
+
+  .arbiter-shell .arbiter-result-buttons button.selected {
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.2) !important;
+  }
+
+  .arbiter-shell .arbiter-special-results {
+    display: block;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .arbiter-shell .arbiter-special-results > span {
+    display: none;
+  }
+
+  .arbiter-shell .arbiter-special-result-buttons button {
+    min-height: 34px !important;
+    height: 34px;
+    font-size: 10px !important;
+    font-weight: 800;
+  }
+
+  .arbiter-shell .arbiter-clear-result {
+    width: 82px;
+    min-height: 34px;
+    height: 34px;
+    padding: 0 7px;
+    border-radius: 7px;
+    font-size: 10px;
+    line-height: 1.05;
+  }
+
+  .arbiter-shell .arbiter-readonly {
+    font-size: 9px;
+  }
+
+  .arbiter-shell .arbiter-send-all {
+    right: 14px;
+    bottom: 14px;
+    min-height: 42px;
+    padding: 0 16px;
+    border-radius: 10px;
+    font-size: 12px;
+    box-shadow: 0 8px 22px rgba(23, 105, 224, .24);
+  }
+
+  .cp-arbiter-result-filter {
+    right: 14px;
+    bottom: 62px;
+    gap: 4px;
+    padding: 5px;
+    border-radius: 10px;
+    box-shadow: 0 8px 22px rgba(15,23,42,.12);
+  }
+
+  .cp-arbiter-result-filter > span {
+    font-size: 9px;
+  }
+
+  .cp-arbiter-result-filter button {
+    min-height: 30px;
+    padding: 0 9px;
+    border-radius: 7px;
+    font-size: 10px;
+  }
+
+  .arbiter-shell .arbiter-confirmation-dialog,
+  .arbiter-shell .arbiter-external-result-dialog {
+    max-width: 460px;
+  }
+}
+
+/* Standard desktop: keep identity on row one and controls on a compact row two. */
+@media screen and (min-width: 900px) and (max-width: 1199px) {
+  .arbiter-shell .arbiter-board-card {
+    grid-template-columns: 56px minmax(0, 1fr) 48px minmax(0, 1fr);
+  }
+
+  .arbiter-shell .arbiter-result-actions {
+    grid-column: 1 / -1 !important;
+    margin-top: 1px;
+  }
+
+  .arbiter-shell .arbiter-result-groups {
+    grid-template-columns: minmax(220px, 1.15fr) minmax(220px, 1fr) 82px;
+  }
+}
+
+/* Wide desktop: each board becomes one dense operational row. */
+@media screen and (min-width: 1200px) {
+  .arbiter-shell .arbiter-board-card {
+    grid-template-columns: 62px minmax(150px, .9fr) 46px minmax(150px, .9fr) minmax(470px, 1.7fr);
+    align-items: center;
+  }
+
+  .arbiter-shell .arbiter-result-actions {
+    grid-column: 5 !important;
+    grid-row: 1;
+  }
+}
