@@ -1,0 +1,207 @@
+name: Deploy Arbiter Pending Result Replace
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'scripts/patch-arbiter-pending-replace-worker.py'
+      - '.github/workflows/deploy-hub-arbiter-pending-replace.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  HUB_WORKER_NAME: chess-publisher-hub-api-beta
+  HUB_PUBLIC_BASE: https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev
+  BASELINE_SHA256: 4853fb7cbc3563b4380c6c8922f36fedcc2c337dfd9646a5a5cd060d6b56304c
+
+jobs:
+  deploy:
+    name: Deploy latest pending delivery replacement
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Checkout exact triggering commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Verify credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+
+      - name: Recover exact live protected Hub Worker
+        id: inspect
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/arbiter-pending-replace"
+          mkdir -p "$work"
+          api="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${HUB_WORKER_NAME}"
+          auth="Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
+          curl --fail --silent --show-error --location -H "$auth" "$api" -o "$work/live.multipart"
+          curl --fail --silent --show-error -H "$auth" "$api/deployments" -o "$work/deployments-before.json"
+
+          python - <<'PY'
+          from pathlib import Path
+          from email.parser import BytesParser
+          from email.policy import default
+          import hashlib, json, os
+          work=Path(os.environ['RUNNER_TEMP'])/'arbiter-pending-replace'
+          raw=(work/'live.multipart').read_bytes(); first=raw.splitlines()[0].decode('ascii','strict')
+          if not first.startswith('--'): raise SystemExit('Unexpected Hub Worker download format.')
+          boundary=first[2:]
+          msg=BytesParser(policy=default).parsebytes((f'Content-Type: multipart/form-data; boundary={boundary}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw)
+          parts=list(msg.iter_parts())
+          if len(parts)!=1: raise SystemExit(f'Expected one Worker module, got {len(parts)}.')
+          payload=parts[0].get_payload(decode=True) or b''; source=payload.decode('utf-8','strict')
+          sha=hashlib.sha256(payload).hexdigest()
+          required=['private_cloud_hard_delete_v1','arbiter_access_v1','arbiter_snapshot_b2_v1','private_cloud_sync_lineage_v1','arbiter_clear_result_v1','arbiter_canonical_snapshot_read_v1']
+          for marker in required:
+              if marker not in source: raise SystemExit(f'Missing protected live Worker marker: {marker}')
+          if 'arbiter_pending_delivery_replace_v1' in source:
+              state='target'
+          elif sha == os.environ['BASELINE_SHA256']:
+              state='baseline'
+          else:
+              raise SystemExit(f'Refusing unknown/drifted live Worker SHA256: {sha}')
+          (work/'worker.js').write_bytes(payload)
+          deployments=json.loads((work/'deployments-before.json').read_text())
+          rows=(deployments.get('result') or {}).get('deployments') or []
+          if not rows: raise SystemExit('No active Hub deployment returned by Cloudflare.')
+          versions=rows[0].get('versions') or []
+          if len(versions)!=1 or float(versions[0].get('percentage') or 0)!=100: raise SystemExit('Expected one 100% active Hub Worker version.')
+          previous=str(versions[0].get('version_id') or '')
+          if not previous: raise SystemExit('Active deployment has no version id.')
+          print('LIVE_BEFORE_SHA256='+sha); print('SOURCE_STATE='+state)
+          with open(os.environ['GITHUB_OUTPUT'],'a') as out:
+              out.write(f'source_state={state}\nprevious_version_id={previous}\n')
+              if state=='target': out.write(f'target_sha={sha}\n')
+          PY
+
+      - name: Apply pending delivery replacement point fix
+        if: steps.inspect.outputs.source_state == 'baseline'
+        id: patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          worker="$RUNNER_TEMP/arbiter-pending-replace/worker.js"
+          python -m py_compile scripts/patch-arbiter-pending-replace-worker.py
+          python scripts/patch-arbiter-pending-replace-worker.py "$worker"
+          sha="$(sha256sum "$worker" | awk '{print $1}')"
+          echo "target_sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "PATCHED_TARGET_SHA256=$sha"
+
+      - name: Verify protected target source
+        shell: bash
+        env:
+          INSPECT_TARGET_SHA: ${{ steps.inspect.outputs.target_sha }}
+          PATCH_TARGET_SHA: ${{ steps.patch.outputs.target_sha }}
+        run: |
+          set -euo pipefail
+          worker="$RUNNER_TEMP/arbiter-pending-replace/worker.js"
+          target_sha="${PATCH_TARGET_SHA:-${INSPECT_TARGET_SHA:-}}"
+          test -n "$target_sha"
+          node --check "$worker"
+          python - <<'PY'
+          from pathlib import Path
+          import os
+          src=(Path(os.environ['RUNNER_TEMP'])/'arbiter-pending-replace'/'worker.js').read_text()
+          for marker in ['arbiter_snapshot_b2_v1','private_cloud_sync_lineage_v1','arbiter_clear_result_v1','arbiter_canonical_snapshot_read_v1','arbiter_pending_delivery_replace_v1']:
+              if marker not in src: raise SystemExit('Missing protected marker: '+marker)
+          start=src.find('async function submitArbiterResult(')
+          end=src.find('\nasync function ', start+10)
+          if start < 0: raise SystemExit('submitArbiterResult missing.')
+          body=src[start:end if end>start else len(src)]
+          if 'arbiter_result_conflict' in body: raise SystemExit('Obsolete pending result lock remains.')
+          if 'if (existing) {' not in body: raise SystemExit('Latest pending delivery replacement path missing.')
+          if 'SET session_id = ?, result = ?' not in body: raise SystemExit('Pending delivery session transfer missing.')
+          if 'baseRevision !== currentRevision' not in body: raise SystemExit('Protected revision guard missing.')
+          print('ARBITER_PENDING_REPLACE_SOURCE=PASS')
+          PY
+          sha="$(sha256sum "$worker" | awk '{print $1}')"
+          test "$sha" = "$target_sha"
+          echo "TARGET_SOURCE_SHA256=$sha"
+
+      - name: Upload Worker only from exact baseline
+        id: upload
+        if: steps.inspect.outputs.source_state == 'baseline'
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/arbiter-pending-replace"
+          endpoint="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${HUB_WORKER_NAME}/content"
+          status="$(curl --silent --show-error --output "$work/update.json" --write-out '%{http_code}' -X PUT \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -F 'metadata={"main_module":"worker.js"};type=application/json' \
+            -F "worker.js=@${work}/worker.js;type=application/javascript+module" \
+            "$endpoint")"
+          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then cat "$work/update.json"; exit 1; fi
+          echo 'changed=true' >> "$GITHUB_OUTPUT"
+
+      - name: Verify exact active Worker and route safety
+        shell: bash
+        env:
+          INSPECT_TARGET_SHA: ${{ steps.inspect.outputs.target_sha }}
+          PATCH_TARGET_SHA: ${{ steps.patch.outputs.target_sha }}
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/arbiter-pending-replace"
+          target_sha="${PATCH_TARGET_SHA:-${INSPECT_TARGET_SHA:-}}"
+          api="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${HUB_WORKER_NAME}"
+          auth="Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
+          live_ok=false
+          for attempt in $(seq 1 30); do
+            curl --fail --silent --show-error --location -H "$auth" "$api" -o "$work/live-after.multipart"
+            if TARGET_SHA="$target_sha" python - <<'PY'
+          from pathlib import Path
+          from email.parser import BytesParser
+          from email.policy import default
+          import hashlib, os
+          p=Path(os.environ['RUNNER_TEMP'])/'arbiter-pending-replace'/'live-after.multipart'; raw=p.read_bytes(); boundary=raw.splitlines()[0].decode()[2:]
+          msg=BytesParser(policy=default).parsebytes((f'Content-Type: multipart/form-data; boundary={boundary}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw)
+          parts=list(msg.iter_parts()); payload=(parts[0].get_payload(decode=True) or b'') if len(parts)==1 else b''
+          src=payload.decode('utf-8','strict') if payload else ''
+          if hashlib.sha256(payload).hexdigest()!=os.environ['TARGET_SHA'] or 'arbiter_pending_delivery_replace_v1' not in src: raise SystemExit(1)
+          print('LIVE_AFTER_SHA256='+hashlib.sha256(payload).hexdigest())
+          PY
+            then live_ok=true; break; fi
+            sleep 3
+          done
+          test "$live_ok" = true
+          health="$(curl --silent --show-error --output "$work/health.json" --write-out '%{http_code}' "$HUB_PUBLIC_BASE/api/v1/health")"
+          unauth="$(curl --silent --show-error --output "$work/arbiter.json" --write-out '%{http_code}' -X POST -H 'Content-Type: application/json' --data '{"result":"-"}' "$HUB_PUBLIC_BASE/api/v1/arbiter/results")"
+          test "$health" = '200'
+          test "$unauth" = '401'
+          echo 'ARBITER_PENDING_DELIVERY_REPLACE_PRODUCTION=PASS'
+
+      - name: Roll back previous Worker version if verification fails
+        if: failure() && steps.upload.outputs.changed == 'true'
+        shell: bash
+        env:
+          PREVIOUS_VERSION: ${{ steps.inspect.outputs.previous_version_id }}
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/arbiter-pending-replace"
+          endpoint="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${HUB_WORKER_NAME}/deployments?force=true"
+          python - <<'PY' > "$work/rollback.json"
+          import json, os
+          print(json.dumps({
+            'strategy': 'percentage',
+            'versions': [{'percentage': 100, 'version_id': os.environ['PREVIOUS_VERSION']}],
+            'annotations': {'workers/message': 'Automatic rollback after Arbiter pending replacement verification failure'}
+          }))
+          PY
+          curl --fail --silent --show-error -X POST \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H 'Content-Type: application/json' \
+            --data-binary "@$work/rollback.json" "$endpoint" >/dev/null
+          echo 'Previous active Hub Worker version restored.'
