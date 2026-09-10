@@ -15,13 +15,16 @@ assert.ok(cloudApi.indexOf('const exactKey=') < cloudApi.indexOf('return request
 
 assert.match(arbiterPortal, /data-unified-arbiter-sync="true"/, 'Arbiter must expose one unified SYNC action.');
 assert.doesNotMatch(arbiterPortal, /RefreshCw/, 'Arbiter must not require a manual Refresh control.');
-assert.match(arbiterPortal, /const submitAll = async \(\) => \{[\s\S]*?const synchronized = await arbiterApi\.tournament\(sessionToken\);[\s\S]*?for \(const item of requested\)/, 'Unified Arbiter SYNC must fetch current Cloud state before sending changed results.');
+assert.match(arbiterPortal, /const submitAll = async \(\) => \{[\s\S]*?const synchronized = await arbiterApi\.tournament\(sessionToken\);[\s\S]*?const prepared = requested\.map[\s\S]*?for \(const item of prepared\)/, 'Unified Arbiter SYNC must fetch current Cloud state, preflight every requested result and only then send changed results.');
+assert.match(arbiterPortal, /const unconfirmedOverwrite = prepared\.find/, 'Unified Arbiter SYNC must detect an existing fresh Cloud result before any overwrite write.');
+assert.match(arbiterPortal, /approval\.from !== item\.expectedCurrentResult \|\| approval\.to !== item\.result/, 'Overwrite approval must be bound to the exact fresh Cloud current→new result pair.');
 assert.match(arbiterPortal, /sendWithRevisionGuard/, 'Unified Arbiter submissions must use the shared revision guard.');
 assert.match(arbiterPortal, /const response = await sendAtRevision\(candidateView\.revision\)/, 'Arbiter send must start with the current synchronized Cloud revision.');
 assert.match(arbiterPortal, /if \(error\?\.code !== 'cloud_revision_conflict'\) throw error;/, 'Arbiter send must explicitly handle revision races.');
 assert.match(arbiterPortal, /const synchronized = await arbiterApi\.tournament\(sessionToken\);\n      const retryView = synchronized\.tournament;/, 'Revision conflict retry must fetch the tournament automatically.');
 assert.match(arbiterPortal, /const response = await sendAtRevision\(retryView\.revision\)/, 'Arbiter send must automatically retry with the newly synchronized revision.');
 assert.match(arbiterPortal, /matchingBoard\(freshView, round, board, whiteKey, blackKey\)/, 'Automatic retry must verify board/player identity.');
+assert.match(arbiterPortal, /liveResult !== expectedCurrentResult/, 'Automatic retry must fail closed if the result changed after overwrite preflight.');
 assert.doesNotMatch(arbiterPortal, /Refresh before sending this result/, 'Manual refresh must not be required after a revision conflict.');
 
 assert.match(arbiterApi, /Desktop Download Results is the single acknowledgement boundary/, 'Web Companion must defer result acknowledgement to desktop.');
