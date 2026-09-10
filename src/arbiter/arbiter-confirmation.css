@@ -1,0 +1,145 @@
+.arbiter-confirmation-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, .52);
+  backdrop-filter: blur(6px);
+}
+
+.arbiter-confirmation-dialog {
+  width: min(100%, 440px);
+  padding: 22px;
+  display: grid;
+  gap: 14px;
+  border: 1px solid #d7e1ec;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 28px 90px rgba(15, 23, 42, .28);
+}
+
+.arbiter-confirmation-dialog h2,
+.arbiter-confirmation-dialog p {
+  margin: 0;
+}
+
+.arbiter-confirmation-dialog h2 {
+  color: #1f2d43;
+  font-size: 22px;
+  letter-spacing: -.03em;
+}
+
+.arbiter-confirmation-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #a64b22;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .1em;
+}
+
+.arbiter-confirmation-pairing {
+  color: #617087;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+.arbiter-confirmation-change {
+  padding: 14px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #dfe7f0;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.arbiter-confirmation-change > div {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  text-align: center;
+}
+
+.arbiter-confirmation-change span {
+  color: #7b8798;
+  font-size: 9px;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.arbiter-confirmation-change strong {
+  color: #1f2d43;
+  font: 900 19px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.arbiter-confirmation-change b {
+  color: #7a8798;
+  font-size: 20px;
+}
+
+.arbiter-confirmation-warning {
+  padding: 12px 13px;
+  border: 1px solid #f0d6b7;
+  border-radius: 12px;
+  background: #fff8ef;
+  color: #80552d;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.arbiter-confirmation-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.arbiter-confirmation-actions button {
+  min-height: 50px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.arbiter-confirmation-actions .cancel {
+  border: 1px solid #ccd7e4;
+  background: #fff;
+  color: #33445c;
+}
+
+.arbiter-confirmation-actions .cancel:focus-visible {
+  outline: 3px solid rgba(23, 105, 224, .25);
+  outline-offset: 2px;
+}
+
+.arbiter-confirmation-actions .confirm {
+  border: 1px solid #b85050;
+  background: #b85050;
+  color: #fff;
+}
+
+@media (max-width: 640px) {
+  .arbiter-confirmation-backdrop {
+    align-items: end;
+    padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
+  }
+
+  .arbiter-confirmation-dialog {
+    width: 100%;
+    padding: 18px;
+    border-radius: 20px;
+  }
+
+  .arbiter-confirmation-actions button {
+    min-height: 56px;
+    font-size: 15px;
+  }
+}
