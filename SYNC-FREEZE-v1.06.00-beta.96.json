@@ -1,0 +1,52 @@
+{
+  "freeze": "Chess-Publisher unified Desktop-Web/Cloud SYNC protected core",
+  "version": "1.06.00-beta.96",
+  "candidateRevision": "r4",
+  "status": "ACTIVE — USER RUNTIME CONFIRMED",
+  "activatedAt": "2026-09-10",
+  "testedWindowsPortableSha256": "5e18d6f9e02dc68e7af0df25ed0a1da17a1f11692fafedbdf8120f1869f8c803",
+  "fingerprintContentSchema": 7,
+  "policy": "Future beta/RC/TEC/UI releases must preserve this SYNC contract. Protected SYNC changes require a concrete reproduced defect, explicit user approval, a point fix, mandatory Desktop-Web/Cloud regression evidence, and new real runtime confirmation before replacing this baseline.",
+  "webBaselineCommit": "1dac6498a279e4ea3445bd4acf9fdca63ba13df1",
+  "protectedGitBlobs": {
+    "src/cloud/onlineCloudSync.ts": "743ed57a9fd12bac1749ff7cfdb6fafae0d9ec4f",
+    "src/cloud/OnlineCloudProviderV2.tsx": "c1e2e4a4882fc4c5e48686fdaef0108ddf96d140",
+    "src/cloud/cloudWorkspaceApi.ts": "f6adbfb385a61d2daf5702935f912dc89d350975",
+    "src/cloud/browserSyncPolicy.ts": "c85ecaaf3467811e718e4122be6c782304a5bc0c",
+    "src/companion/companionCloudActions.ts": "8bdd1a6e9c47f2700eb6693368b7ac5f68ba4ef8",
+    "production-web/webview/CloudWorkspaceAdapter.js": "282a5bdbc0da3de0f232e44c77c2b9740b80e583",
+    "production-web/cloud/client/cloud-workspace-api.js": "314f7e350c7bf5a78ef96295a972d32c1dc323d7",
+    "scripts/patch-cloud-sync-lineage-worker.py": "8e9548253114688b8f74e5f1d22dbb3338210bd8",
+    "scripts/patch-cloud-sync-checker-provenance-worker.py": "dd9312605baeeac31d43c40552d3f580ea148091",
+    ".github/workflows/deploy-cloud-sync-lineage.yml": "ff6df2162fc0021dcbfd3a0d1cc6c32a44d445e6",
+    ".github/workflows/deploy-cloud-sync-checker-provenance.yml": "9e8a030dcc144fff562ec099baeda84cb2ad0fd2"
+  },
+  "semanticGuards": {
+    "src/companion/CompanionWorkspace.tsx": [
+      "await cloud.pullChanges(current);",
+      "SYNC"
+    ],
+    "production-web/browser-dev-host.js": [
+      "const ORGANIZER_KEY=\"organizer-primary\";",
+      "const prefix=\"cp:web-dev:secret:\";"
+    ]
+  },
+  "liveWorker": {
+    "name": "chess-publisher-hub-api-beta",
+    "sha256": "13773e265867f802631d03bcecd8bd259a74f5fdff87fd3fa52a663a5264fa22",
+    "deploymentCommit": "b2ad2cba2a3da06c51830a9a912a3efb5941cb86",
+    "deploymentRunId": "34516377753",
+    "deploymentJobId": "103002706618",
+    "productionGate": "PASS"
+  },
+  "mandatoryRules": [
+    "one organizer-scoped tournament identity; never select by name alone",
+    "schema-7 portable fingerprint contract",
+    "X-Expected-Revision guarded writes",
+    "no last-write-wins or silent stale overwrite",
+    "same-board differing results remain true conflicts",
+    "Desktop and Web continue the same cloudTournamentId/internalId",
+    "checker provenance remains runtime-only",
+    "real runtime confirmation is mandatory after any approved SYNC core change"
+  ]
+}
