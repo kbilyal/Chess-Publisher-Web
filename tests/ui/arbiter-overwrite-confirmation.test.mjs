@@ -34,6 +34,6 @@ assert.doesNotMatch(portal, />\s*Refresh\s*</, 'Manual Refresh must not return.'
 
 assert.match(css, /\.arbiter-confirmation-backdrop \{[\s\S]*?position: fixed;/, 'Confirmation must block accidental interaction with the page behind it.');
 assert.match(css, /\.arbiter-confirmation-actions \.cancel:focus-visible/, 'Cancel must have a visible keyboard focus state.');
-assert.match(css, /@media \(max-width: 640px\)[\s\S]*?\.arbiter-confirmation-actions button \{[\s\S]*?min-height: 56px;/, 'Confirmation actions must remain large touch targets on phones.');
+assert.match(css, /@media \(max-width: 640px\)[\s\S]*?\.arbiter-confirmation-actions button,[\s\S]*?\.arbiter-external-result-actions button \{[\s\S]*?min-height: 56px;/, 'Confirmation actions must remain large touch targets on phones.');
 
 console.log('ARBITER_OVERWRITE_CONFIRMATION=PASS');
