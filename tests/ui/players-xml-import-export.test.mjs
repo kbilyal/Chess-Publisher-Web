@@ -17,8 +17,8 @@ has(screens, 'application/xml,text/xml', 'The existing file picker must accept X
 has(importer, "export type TournamentImportKind = 'trf' | 'tunx' | 'players-xml'", 'Players XML must use the normal tournament import pipeline.');
 has(importer, 'importPlayersXmlText', 'Players XML importer is missing.');
 has(importer, "sourceType: 'players-xml'", 'Players XML source metadata must be preserved.');
-has(importer, "settings: { ...next.settings, tnr: '' }", 'Imported source Tournament Key must not become an active Chess-Results TNR.');
-has(importer, "chessResults = { ...next.chessResults, key: '', freshTnrRequired: false }", 'Players XML import must not claim Chess-Results ownership.');
+has(importer, "next.settings = { ...next.settings, tnr: '' }", 'Imported source Tournament Key must not become an active Chess-Results TNR.');
+has(importer, "next.chessResults = { ...next.chessResults, key: '', freshTnrRequired: false }", 'Players XML import must not claim Chess-Results ownership.');
 has(importer, "liveBoards: {}", 'Players-only XML must not fabricate pairings.');
 
 has(playersXml, 'export function parsePlayersXml', 'Players XML parser is missing.');
