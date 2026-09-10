@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, Loader2, ShieldCheck, Smartphone, Wifi, WifiOff } from 'lucide-react';
 import { arbiterApi, ArbiterTournamentView } from './arbiterApi';
+import './arbiter-confirmation.css';
 
 const DEVICE_KEY = 'cp.arbiter.device.v1';
 const standardResults = ['1 - 0', '½ - ½', '0 - 1'] as const;
@@ -11,6 +12,19 @@ const administrativeEntryTypes = new Set(['PAB', 'REQUESTED_BYE', 'ZERO_POINT_BY
 
 type ArbiterResult = typeof allowedResults[number];
 type ArbiterSubmissionResult = ArbiterResult | typeof CLEAR_RESULT;
+type OverwriteApproval = { from: string; to: ArbiterSubmissionResult };
+type OverwriteConfirmation = {
+  key: string;
+  round: number;
+  board: number;
+  whiteKey: string;
+  blackKey: string;
+  whiteName: string;
+  blackName: string;
+  currentResult: string;
+  nextResult: ArbiterSubmissionResult;
+  source: 'selection' | 'sync-preflight';
+};
 
 function accessCodeFromUrl() {
   return new URLSearchParams(window.location.search).get('arbiter')?.trim() || '';
@@ -66,6 +80,14 @@ function isAllowedSubmissionResult(result: string): result is ArbiterSubmissionR
   return result === CLEAR_RESULT || isAllowedResult(result);
 }
 
+function recordedResult(result: unknown) {
+  return String(result || CLEAR_RESULT);
+}
+
+function resultLabel(result: string) {
+  return result === CLEAR_RESULT ? 'No result' : result;
+}
+
 export const ArbiterPortal: React.FC = () => {
   const accessCode = useMemo(accessCodeFromUrl, []);
   const storageKey = useMemo(() => sessionStorageKey(accessCode), [accessCode]);
@@ -75,10 +97,12 @@ export const ArbiterPortal: React.FC = () => {
   const [sessionName, setSessionName] = useState('');
   const [activeRound, setActiveRound] = useState(0);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [overwriteConfirmation, setOverwriteConfirmation] = useState<OverwriteConfirmation | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [online, setOnline] = useState(navigator.onLine);
   const pollRef = useRef<number | null>(null);
+  const overwriteApprovalsRef = useRef<Record<string, OverwriteApproval>>({});
 
   const loadTournament = async (token = sessionToken, quiet = false) => {
     if (!token) return;
@@ -152,13 +176,88 @@ export const ArbiterPortal: React.FC = () => {
     }
   };
 
+  const applyDraftChange = (
+    key: string,
+    currentResult: string,
+    nextResult: ArbiterSubmissionResult,
+    approvedFrom?: string
+  ) => {
+    setDrafts(current => {
+      const next = { ...current };
+      if (nextResult === currentResult) delete next[key];
+      else next[key] = nextResult;
+      return next;
+    });
+    if (nextResult === currentResult || !approvedFrom || approvedFrom === CLEAR_RESULT) {
+      delete overwriteApprovalsRef.current[key];
+    } else {
+      overwriteApprovalsRef.current[key] = { from: approvedFrom, to: nextResult };
+    }
+  };
+
+  const requestResultChange = (
+    key: string,
+    round: number,
+    board: number,
+    whiteKey: string,
+    blackKey: string,
+    whiteName: string,
+    blackName: string,
+    currentResult: string,
+    nextResult: ArbiterSubmissionResult
+  ) => {
+    if (nextResult === currentResult) {
+      applyDraftChange(key, currentResult, nextResult);
+      return;
+    }
+    if (currentResult !== CLEAR_RESULT) {
+      setOverwriteConfirmation({
+        key,
+        round,
+        board,
+        whiteKey,
+        blackKey,
+        whiteName,
+        blackName,
+        currentResult,
+        nextResult,
+        source: 'selection'
+      });
+      return;
+    }
+    applyDraftChange(key, currentResult, nextResult);
+  };
+
+  const confirmOverwrite = () => {
+    const pending = overwriteConfirmation;
+    if (!pending || !view) return;
+    const latestBoard = matchingBoard(view, pending.round, pending.board, pending.whiteKey, pending.blackKey);
+    if (!latestBoard) {
+      setOverwriteConfirmation(null);
+      delete overwriteApprovalsRef.current[pending.key];
+      setMessage(`Board ${pending.board} changed while confirmation was open. Review the current pairing before trying again.`);
+      return;
+    }
+    const latestResult = recordedResult(latestBoard.result);
+    if (latestResult !== pending.currentResult) {
+      setOverwriteConfirmation(null);
+      delete overwriteApprovalsRef.current[pending.key];
+      setMessage(`Board ${pending.board} result changed to ${resultLabel(latestResult)} while confirmation was open. Review the latest result before correcting it.`);
+      return;
+    }
+    applyDraftChange(pending.key, latestResult, pending.nextResult, latestResult);
+    setOverwriteConfirmation(null);
+    setMessage(`Board ${pending.board}: result change confirmed. Press ↕ SYNC to save it.`);
+  };
+
   const sendWithRevisionGuard = async (
     candidateView: ArbiterTournamentView,
     round: number,
     board: number,
     whiteKey: string,
     blackKey: string,
-    result: ArbiterSubmissionResult
+    result: ArbiterSubmissionResult,
+    expectedCurrentResult: string
   ) => {
     if (!sessionToken) throw new Error('Arbiter session is not available.');
 
@@ -167,6 +266,10 @@ export const ArbiterPortal: React.FC = () => {
       if (!boardMatch) throw new Error(`Board ${board} changed after the page was opened. ↕ SYNC stopped safely.`);
       if (!isNormalGame(boardMatch)) throw new Error(`Board ${board} is now an administrative pairing. ↕ SYNC stopped safely.`);
       if (freshView.pairings?.finalizedRounds?.[String(round)]) throw new Error(`Round ${round} is finalized. ↕ SYNC stopped safely.`);
+      const liveResult = recordedResult(boardMatch.result);
+      if (liveResult !== expectedCurrentResult) {
+        throw new Error(`Board ${board} result changed from ${resultLabel(expectedCurrentResult)} to ${resultLabel(liveResult)} while ↕ SYNC was running. Review the latest result and confirm before overwriting it.`);
+      }
     };
 
     const sendAtRevision = (baseRevision: number) => arbiterApi.submitResult(sessionToken, {
@@ -208,17 +311,24 @@ export const ArbiterPortal: React.FC = () => {
     const roundBoards = view.pairings.liveBoards[String(activeRound)] || [];
     const requested = roundBoards.flatMap(board => {
       const key = `${activeRound}:${board.board}`;
-      const currentResult = board.result || CLEAR_RESULT;
+      const currentResult = recordedResult(board.result);
       const result = drafts[key];
       if (!isNormalGame(board) || !result || result === currentResult || !isAllowedSubmissionResult(result)) return [];
-      return [{ key, board: Number(board.board), whiteKey: board.whiteKey, blackKey: board.blackKey, result }];
+      return [{
+        key,
+        board: Number(board.board),
+        whiteKey: board.whiteKey,
+        blackKey: board.blackKey,
+        currentResult,
+        result
+      }];
     });
 
     setBusy(true);
     setMessage(requested.length
       ? `↕ SYNC · checking current Cloud revision for ${requested.length} change(s)…`
       : '↕ SYNC · checking current Cloud state…');
-    const sentKeys: string[] = [];
+    const completedKeys: string[] = [];
     try {
       const synchronized = await arbiterApi.tournament(sessionToken);
       let workingView = synchronized.tournament;
@@ -233,37 +343,77 @@ export const ArbiterPortal: React.FC = () => {
         throw new Error(`Round ${activeRound} is finalized. No result changes were sent.`);
       }
 
-      for (const item of requested) {
+      const prepared = requested.map(item => {
+        const freshBoard = matchingBoard(workingView, activeRound, item.board, item.whiteKey, item.blackKey);
+        if (!freshBoard) throw new Error(`Board ${item.board} changed after the page was opened. ↕ SYNC stopped safely.`);
+        if (!isNormalGame(freshBoard)) throw new Error(`Board ${item.board} is now an administrative pairing. ↕ SYNC stopped safely.`);
+        const expectedCurrentResult = recordedResult(freshBoard.result);
+        return { ...item, expectedCurrentResult };
+      });
+
+      const unconfirmedOverwrite = prepared.find(item => {
+        if (item.result === item.expectedCurrentResult || item.expectedCurrentResult === CLEAR_RESULT) return false;
+        const approval = overwriteApprovalsRef.current[item.key];
+        return !approval || approval.from !== item.expectedCurrentResult || approval.to !== item.result;
+      });
+
+      if (unconfirmedOverwrite) {
+        const white = playerLabel(workingView, unconfirmedOverwrite.whiteKey);
+        const black = playerLabel(workingView, unconfirmedOverwrite.blackKey);
+        setOverwriteConfirmation({
+          key: unconfirmedOverwrite.key,
+          round: activeRound,
+          board: unconfirmedOverwrite.board,
+          whiteKey: unconfirmedOverwrite.whiteKey,
+          blackKey: unconfirmedOverwrite.blackKey,
+          whiteName: white.name,
+          blackName: black.name,
+          currentResult: unconfirmedOverwrite.expectedCurrentResult,
+          nextResult: unconfirmedOverwrite.result,
+          source: 'sync-preflight'
+        });
+        setMessage(`↕ SYNC stopped safely · Board ${unconfirmedOverwrite.board} already has ${resultLabel(unconfirmedOverwrite.expectedCurrentResult)} in current Cloud state. Confirm the overwrite before synchronizing.`);
+        return;
+      }
+
+      for (const item of prepared) {
+        if (item.result === item.expectedCurrentResult) {
+          completedKeys.push(item.key);
+          continue;
+        }
         workingView = await sendWithRevisionGuard(
           workingView,
           activeRound,
           item.board,
           item.whiteKey,
           item.blackKey,
-          item.result
+          item.result,
+          item.expectedCurrentResult
         );
-        sentKeys.push(item.key);
+        completedKeys.push(item.key);
       }
 
       setView(workingView);
       setDrafts(current => {
         const next = { ...current };
-        for (const key of sentKeys) delete next[key];
+        for (const key of completedKeys) delete next[key];
         return next;
       });
-      setMessage(`↕ SYNC complete · ${sentKeys.length} result change(s) saved to Cloud.`);
+      for (const key of completedKeys) delete overwriteApprovalsRef.current[key];
+      setMessage(`↕ SYNC complete · ${completedKeys.length} result change(s) synchronized with Cloud.`);
       await loadTournament(sessionToken, true).catch(() => undefined);
     } catch (error: any) {
-      if (sentKeys.length) {
+      if (completedKeys.length) {
         setDrafts(current => {
           const next = { ...current };
-          for (const key of sentKeys) delete next[key];
+          for (const key of completedKeys) delete next[key];
           return next;
         });
+        for (const key of completedKeys) delete overwriteApprovalsRef.current[key];
       }
       const detail = error?.message || '↕ SYNC could not be completed.';
-      setMessage(sentKeys.length
-        ? `↕ SYNC partial · ${sentKeys.length} of ${requested.length} change(s) saved. Unsent changes remain selected. ${detail}`
+      setMessage(completedKeys.length
+        ? `↕ SYNC partial · ${completedKeys.length} of ${requested.length} change(s) synchronized. Unsent changes remain selected. ${detail}`
         : detail);
       await loadTournament(sessionToken, true).catch(() => undefined);
     } finally {
@@ -322,7 +472,7 @@ export const ArbiterPortal: React.FC = () => {
   const finalized = Boolean(view.pairings.finalizedRounds?.[String(activeRound)]);
   const pendingDraftCount = finalized ? 0 : boards.filter(board => {
     const key = `${activeRound}:${board.board}`;
-    const currentResult = board.result || CLEAR_RESULT;
+    const currentResult = recordedResult(board.result);
     const result = drafts[key];
     return isNormalGame(board) && Boolean(result) && result !== currentResult && isAllowedSubmissionResult(result);
   }).length;
@@ -344,7 +494,7 @@ export const ArbiterPortal: React.FC = () => {
         {message && <div className="arbiter-message"><CheckCircle2 size={16} /> {message}</div>}
 
         <section className="arbiter-round-toolbar">
-          <div><strong>Pairings & Results</strong><span>{finalized ? `Round ${activeRound} is finalized and read-only.` : 'Choose results or Clear result, then press ↕ SYNC once. No manual refresh is required.'}</span></div>
+          <div><strong>Pairings & Results</strong><span>{finalized ? `Round ${activeRound} is finalized and read-only.` : 'Choose results or Clear result, then press ↕ SYNC once. Existing results require confirmation before overwrite.'}</span></div>
           <div className="arbiter-round-actions">
             <button type="button" className="arbiter-send-all" data-unified-arbiter-sync="true" disabled={busy || !online} onClick={() => void submitAll()} title="Synchronize the current tournament state and send every changed result with revision protection.">
               {busy ? <Loader2 size={17} className="spin" /> : null} ↕ SYNC{pendingDraftCount ? ` (${pendingDraftCount})` : ''}
@@ -359,10 +509,21 @@ export const ArbiterPortal: React.FC = () => {
             const white = playerLabel(view, board.whiteKey);
             const black = playerLabel(view, board.blackKey);
             const key = `${activeRound}:${board.board}`;
-            const currentResult = board.result || CLEAR_RESULT;
+            const currentResult = recordedResult(board.result);
             const selected = drafts[key] || currentResult;
             const canEdit = isNormalGame(board) && !finalized;
             const clearSelected = selected === CLEAR_RESULT && currentResult !== CLEAR_RESULT;
+            const chooseResult = (result: ArbiterSubmissionResult) => requestResultChange(
+              key,
+              activeRound,
+              Number(board.board),
+              board.whiteKey,
+              board.blackKey,
+              white.name,
+              black.name,
+              currentResult,
+              result
+            );
             return (
               <article className="arbiter-board-card" data-result-missing={currentResult === CLEAR_RESULT ? 'true' : 'false'} key={key}>
                 <div className="arbiter-board-number">Board {board.board}</div>
@@ -379,19 +540,19 @@ export const ArbiterPortal: React.FC = () => {
                   <div className="arbiter-result-actions">
                     <div className="arbiter-result-groups">
                       <div className="arbiter-result-buttons">
-                        {standardResults.map(result => <button key={result} type="button" className={selected === result ? 'selected' : ''} onClick={() => setDrafts(current => ({ ...current, [key]: result }))}>{result}</button>)}
+                        {standardResults.map(result => <button key={result} type="button" className={selected === result ? 'selected' : ''} onClick={() => chooseResult(result)}>{result}</button>)}
                       </div>
                       <div className="arbiter-special-results">
                         <span>Special results</span>
                         <div className="arbiter-result-buttons arbiter-special-result-buttons">
-                          {specialResults.map(result => <button key={result} type="button" className={selected === result ? 'selected' : ''} onClick={() => setDrafts(current => ({ ...current, [key]: result }))}>{result}</button>)}
+                          {specialResults.map(result => <button key={result} type="button" className={selected === result ? 'selected' : ''} onClick={() => chooseResult(result)}>{result}</button>)}
                         </div>
                       </div>
                       <button
                         type="button"
                         className={`arbiter-clear-result${clearSelected ? ' selected' : ''}`}
                         disabled={selected === CLEAR_RESULT && currentResult === CLEAR_RESULT}
-                        onClick={() => setDrafts(current => ({ ...current, [key]: CLEAR_RESULT }))}
+                        onClick={() => chooseResult(CLEAR_RESULT)}
                       >
                         Clear result
                       </button>
@@ -405,6 +566,38 @@ export const ArbiterPortal: React.FC = () => {
           })}
         </section>
       </main>
+
+      {overwriteConfirmation && (
+        <div
+          className="arbiter-confirmation-backdrop"
+          role="presentation"
+          onMouseDown={event => {
+            if (event.currentTarget === event.target) setOverwriteConfirmation(null);
+          }}
+          onKeyDown={event => {
+            if (event.key === 'Escape') setOverwriteConfirmation(null);
+          }}
+        >
+          <section className="arbiter-confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="arbiter-confirmation-title">
+            <span className="arbiter-confirmation-eyebrow"><ShieldCheck size={15} /> RESULT CHANGE PROTECTION</span>
+            <h2 id="arbiter-confirmation-title">Confirm result change</h2>
+            <p className="arbiter-confirmation-pairing">Board {overwriteConfirmation.board} · W {overwriteConfirmation.whiteName} vs B {overwriteConfirmation.blackName}</p>
+            <div className="arbiter-confirmation-change" aria-label="Result change">
+              <div><span>Current</span><strong>{resultLabel(overwriteConfirmation.currentResult)}</strong></div>
+              <b aria-hidden="true">→</b>
+              <div><span>New</span><strong>{resultLabel(overwriteConfirmation.nextResult)}</strong></div>
+            </div>
+            <p className="arbiter-confirmation-warning">
+              A result is already recorded for this game. Confirm only if this correction is intentional.
+              {overwriteConfirmation.source === 'sync-preflight' ? ' The Cloud result changed since this page selection was made.' : ''}
+            </p>
+            <div className="arbiter-confirmation-actions">
+              <button type="button" className="cancel" autoFocus onClick={() => setOverwriteConfirmation(null)}>Cancel</button>
+              <button type="button" className="confirm" onClick={confirmOverwrite}>Change result</button>
+            </div>
+          </section>
+        </div>
+      )}
 
       <footer className="arbiter-footer"><ShieldCheck size={14} /> Pairings + Results only · Publishing is disabled for Arbiter Access</footer>
     </div>
