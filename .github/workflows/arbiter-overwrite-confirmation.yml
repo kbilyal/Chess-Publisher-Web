@@ -1,0 +1,47 @@
+name: Arbiter Result Overwrite Confirmation
+
+on:
+  push:
+    branches:
+      - main
+      - fix-arbiter-overwrite-confirmation
+    paths:
+      - 'src/arbiter/ArbiterPortal.tsx'
+      - 'src/arbiter/arbiter-confirmation.css'
+      - 'tests/ui/arbiter-overwrite-confirmation.test.mjs'
+      - 'tests/ui/arbiter-beta83-one-sync.test.mjs'
+      - 'tests/ui/arbiter-access.test.mjs'
+      - 'tests/ui/arbiter-special-results-send-all.test.mjs'
+      - '.github/workflows/arbiter-overwrite-confirmation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    name: Result overwrite safety
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Result overwrite confirmation contract
+        run: node tests/ui/arbiter-overwrite-confirmation.test.mjs
+      - name: beta83 one-SYNC contract
+        run: node tests/ui/arbiter-beta83-one-sync.test.mjs
+      - name: Arbiter security contract
+        run: node tests/ui/arbiter-access.test.mjs
+      - name: Special-result unified SYNC contract
+        run: node tests/ui/arbiter-special-results-send-all.test.mjs
+      - name: TypeScript
+        run: npx tsc --noEmit
+      - name: Production build
+        run: npm run build
