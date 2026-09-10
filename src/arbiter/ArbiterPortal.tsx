@@ -25,6 +25,26 @@ type OverwriteConfirmation = {
   nextResult: ArbiterSubmissionResult;
   source: 'selection' | 'sync-preflight';
 };
+type ResultObservation = {
+  key: string;
+  round: number;
+  board: number;
+  whiteKey: string;
+  blackKey: string;
+  result: string;
+};
+type ExternalResultNotice = {
+  key: string;
+  round: number;
+  board: number;
+  whiteKey: string;
+  blackKey: string;
+  whiteName: string;
+  blackName: string;
+  previousResult: string;
+  currentResult: string;
+  pendingDraft?: ArbiterSubmissionResult;
+};
 
 function accessCodeFromUrl() {
   return new URLSearchParams(window.location.search).get('arbiter')?.trim() || '';
@@ -88,6 +108,35 @@ function resultLabel(result: string) {
   return result === CLEAR_RESULT ? 'No result' : result;
 }
 
+function resultObservationKey(round: number, board: number, whiteKey: string, blackKey: string) {
+  return `${round}:${board}:${whiteKey}:${blackKey}`;
+}
+
+function snapshotResults(view: ArbiterTournamentView) {
+  const snapshot: Record<string, ResultObservation> = {};
+  for (const [roundText, boards] of Object.entries(view.pairings?.liveBoards || {})) {
+    const round = Number(roundText);
+    if (!Number.isInteger(round) || round <= 0) continue;
+    for (const board of boards) {
+      if (!isNormalGame(board)) continue;
+      const boardNumber = Number(board.board);
+      if (!Number.isInteger(boardNumber) || boardNumber <= 0) continue;
+      const whiteKey = String(board.whiteKey || '');
+      const blackKey = String(board.blackKey || '');
+      const identity = resultObservationKey(round, boardNumber, whiteKey, blackKey);
+      snapshot[identity] = {
+        key: `${round}:${boardNumber}`,
+        round,
+        board: boardNumber,
+        whiteKey,
+        blackKey,
+        result: recordedResult(board.result)
+      };
+    }
+  }
+  return snapshot;
+}
+
 export const ArbiterPortal: React.FC = () => {
   const accessCode = useMemo(accessCodeFromUrl, []);
   const storageKey = useMemo(() => sessionStorageKey(accessCode), [accessCode]);
@@ -98,11 +147,14 @@ export const ArbiterPortal: React.FC = () => {
   const [activeRound, setActiveRound] = useState(0);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [overwriteConfirmation, setOverwriteConfirmation] = useState<OverwriteConfirmation | null>(null);
+  const [externalResultNotices, setExternalResultNotices] = useState<ExternalResultNotice[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [online, setOnline] = useState(navigator.onLine);
   const pollRef = useRef<number | null>(null);
   const overwriteApprovalsRef = useRef<Record<string, OverwriteApproval>>({});
+  const observedResultsRef = useRef<Record<string, ResultObservation> | null>(null);
+  const ownResultWritesRef = useRef<Record<string, string>>({});
 
   const loadTournament = async (token = sessionToken, quiet = false) => {
     if (!token) return;
@@ -157,6 +209,71 @@ export const ArbiterPortal: React.FC = () => {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionToken]);
+
+  useEffect(() => {
+    if (!view) {
+      observedResultsRef.current = null;
+      return;
+    }
+
+    const nextSnapshot = snapshotResults(view);
+    const previousSnapshot = observedResultsRef.current;
+    observedResultsRef.current = nextSnapshot;
+    if (!previousSnapshot) return;
+
+    const notices: ExternalResultNotice[] = [];
+    const draftsAlreadyApplied: string[] = [];
+
+    for (const [identity, current] of Object.entries(nextSnapshot)) {
+      const previous = previousSnapshot[identity];
+      if (!previous || previous.result === current.result) continue;
+
+      const ownExpectedResult = ownResultWritesRef.current[current.key];
+      if (ownExpectedResult === current.result) {
+        delete ownResultWritesRef.current[current.key];
+        continue;
+      }
+      if (ownExpectedResult) delete ownResultWritesRef.current[current.key];
+
+      delete overwriteApprovalsRef.current[current.key];
+
+      // First-time result entry from Desktop/Cloud is synchronized silently.
+      // A correction/clear of an already recorded result requires an explicit warning.
+      if (previous.result === CLEAR_RESULT) continue;
+
+      const rawDraft = drafts[current.key];
+      const pendingDraft = rawDraft && isAllowedSubmissionResult(rawDraft) && rawDraft !== current.result
+        ? rawDraft
+        : undefined;
+      if (rawDraft && rawDraft === current.result) draftsAlreadyApplied.push(current.key);
+
+      const white = playerLabel(view, current.whiteKey);
+      const black = playerLabel(view, current.blackKey);
+      notices.push({
+        key: current.key,
+        round: current.round,
+        board: current.board,
+        whiteKey: current.whiteKey,
+        blackKey: current.blackKey,
+        whiteName: white.name,
+        blackName: black.name,
+        previousResult: previous.result,
+        currentResult: current.result,
+        pendingDraft
+      });
+    }
+
+    if (draftsAlreadyApplied.length) {
+      setDrafts(current => {
+        const next = { ...current };
+        for (const key of draftsAlreadyApplied) delete next[key];
+        return next;
+      });
+    }
+    if (notices.length) {
+      setExternalResultNotices(current => [...current, ...notices]);
+    }
+  }, [view, drafts]);
 
   const join = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -272,14 +389,23 @@ export const ArbiterPortal: React.FC = () => {
       }
     };
 
-    const sendAtRevision = (baseRevision: number) => arbiterApi.submitResult(sessionToken, {
-      round,
-      board,
-      whiteKey,
-      blackKey,
-      result,
-      baseRevision
-    });
+    const resultKey = `${round}:${board}`;
+    const sendAtRevision = async (baseRevision: number) => {
+      ownResultWritesRef.current[resultKey] = result;
+      try {
+        return await arbiterApi.submitResult(sessionToken, {
+          round,
+          board,
+          whiteKey,
+          blackKey,
+          result,
+          baseRevision
+        });
+      } catch (error) {
+        if (ownResultWritesRef.current[resultKey] === result) delete ownResultWritesRef.current[resultKey];
+        throw error;
+      }
+    };
     const advanceView = (source: ArbiterTournamentView, response: any) => {
       const revision = Number(response?.revision ?? source.revision);
       const next = JSON.parse(JSON.stringify(source)) as ArbiterTournamentView;
@@ -419,6 +545,28 @@ export const ArbiterPortal: React.FC = () => {
     } finally {
       setBusy(false);
     }
+  };
+
+  const externalResultNotice = externalResultNotices[0] || null;
+  const dismissExternalResultNotice = () => {
+    setExternalResultNotices(current => current.slice(1));
+  };
+  const useCloudResult = () => {
+    if (!externalResultNotice) return;
+    setDrafts(current => {
+      const next = { ...current };
+      delete next[externalResultNotice.key];
+      return next;
+    });
+    delete overwriteApprovalsRef.current[externalResultNotice.key];
+    setMessage(`Board ${externalResultNotice.board}: current Cloud result ${resultLabel(externalResultNotice.currentResult)} accepted.`);
+    dismissExternalResultNotice();
+  };
+  const keepPendingResult = () => {
+    if (!externalResultNotice) return;
+    delete overwriteApprovalsRef.current[externalResultNotice.key];
+    setMessage(`Board ${externalResultNotice.board}: your pending Web choice is kept. ↕ SYNC will require confirmation before changing the current Cloud result.`);
+    dismissExternalResultNotice();
   };
 
   if (!accessCode) {
@@ -595,6 +743,37 @@ export const ArbiterPortal: React.FC = () => {
               <button type="button" className="cancel" autoFocus onClick={() => setOverwriteConfirmation(null)}>Cancel</button>
               <button type="button" className="confirm" onClick={confirmOverwrite}>Change result</button>
             </div>
+          </section>
+        </div>
+      )}
+
+      {externalResultNotice && !overwriteConfirmation && (
+        <div className="arbiter-external-result-backdrop" role="presentation">
+          <section className="arbiter-external-result-dialog" role="dialog" aria-modal="true" aria-labelledby="arbiter-external-result-title">
+            <span className="arbiter-external-result-eyebrow"><ShieldCheck size={15} /> DESKTOP / CLOUD UPDATE</span>
+            <h2 id="arbiter-external-result-title">Result updated in Cloud</h2>
+            <p className="arbiter-confirmation-pairing">Round {externalResultNotice.round} · Board {externalResultNotice.board} · W {externalResultNotice.whiteName} vs B {externalResultNotice.blackName}</p>
+            <div className="arbiter-confirmation-change" aria-label="External result change">
+              <div><span>Previous</span><strong>{resultLabel(externalResultNotice.previousResult)}</strong></div>
+              <b aria-hidden="true">→</b>
+              <div><span>Cloud now</span><strong>{resultLabel(externalResultNotice.currentResult)}</strong></div>
+            </div>
+            <p className="arbiter-external-result-warning">
+              This result changed outside this Arbiter page. The current Cloud result is already active. This notification does not write or overwrite tournament data.
+            </p>
+            {externalResultNotice.pendingDraft ? (
+              <>
+                <p className="arbiter-external-result-pending">Your unsent Web choice is <strong>{resultLabel(externalResultNotice.pendingDraft)}</strong>. Choose whether to discard it or keep it pending for a later protected ↕ SYNC.</p>
+                <div className="arbiter-external-result-actions two">
+                  <button type="button" className="use-cloud" autoFocus onClick={useCloudResult}>Use Cloud result</button>
+                  <button type="button" className="keep-pending" onClick={keepPendingResult}>Keep my pending change</button>
+                </div>
+              </>
+            ) : (
+              <div className="arbiter-external-result-actions">
+                <button type="button" className="acknowledge" autoFocus onClick={dismissExternalResultNotice}>Acknowledge</button>
+              </div>
+            )}
           </section>
         </div>
       )}
