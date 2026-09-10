@@ -1,0 +1,59 @@
+name: SYNC Protected Core Freeze Guard
+
+on:
+  push:
+    branches:
+      - main
+      - sync-freeze-beta96-r4
+    paths:
+      - 'SYNC-FREEZE-v1.06.00-beta.96.json'
+      - 'src/cloud/onlineCloudSync.ts'
+      - 'src/cloud/OnlineCloudProviderV2.tsx'
+      - 'src/cloud/cloudWorkspaceApi.ts'
+      - 'src/cloud/browserSyncPolicy.ts'
+      - 'src/companion/companionCloudActions.ts'
+      - 'src/companion/CompanionWorkspace.tsx'
+      - 'production-web/browser-dev-host.js'
+      - 'production-web/webview/CloudWorkspaceAdapter.js'
+      - 'production-web/cloud/client/cloud-workspace-api.js'
+      - 'scripts/patch-cloud-sync-lineage-worker.py'
+      - 'scripts/patch-cloud-sync-checker-provenance-worker.py'
+      - '.github/workflows/deploy-cloud-sync-lineage.yml'
+      - '.github/workflows/deploy-cloud-sync-checker-provenance.yml'
+      - 'tests/cloud/beta96-sync-freeze-protected-contract.test.mjs'
+      - '.github/workflows/sync-freeze-guard.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'SYNC-FREEZE-v1.06.00-beta.96.json'
+      - 'src/cloud/**'
+      - 'src/companion/**'
+      - 'production-web/browser-dev-host.js'
+      - 'production-web/webview/CloudWorkspaceAdapter.js'
+      - 'production-web/cloud/client/cloud-workspace-api.js'
+      - 'scripts/patch-cloud-sync-lineage-worker.py'
+      - 'scripts/patch-cloud-sync-checker-provenance-worker.py'
+      - '.github/workflows/deploy-cloud-sync-lineage.yml'
+      - '.github/workflows/deploy-cloud-sync-checker-provenance.yml'
+      - 'tests/cloud/beta96-sync-freeze-protected-contract.test.mjs'
+      - '.github/workflows/sync-freeze-guard.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync-freeze:
+    name: Verify beta.96 r4 protected SYNC core
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+      - name: Enforce frozen Web/Cloud contract
+        run: node tests/cloud/beta96-sync-freeze-protected-contract.test.mjs
+      - name: Run existing checker provenance regression
+        run: node tests/cloud/beta96-checker-runtime-metadata-sync.test.mjs
+      - name: Run existing phantom-conflict regression
+        run: node tests/cloud/unified-sync-phantom-conflict.test.mjs
