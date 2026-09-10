@@ -20,7 +20,11 @@ const text = (value: unknown) => value == null ? '' : String(value).trim();
 const INSTALLATION_LOCAL_KEYS = new Set([
   'organizertoken','managetoken','managekey','admintoken','authtoken','accesstoken','refreshtoken','devicetoken',
   'password','secret','devicesecret','aeskey','aes','iv','filepath','folderpath','installationpath','windowspath',
-  'linuxpath','executablepath','workingdirectory','serialport','usbpath','dgtport'
+  'linuxpath','executablepath','workingdirectory','serialport','usbpath','dgtport',
+  // beta.96 SYNC freeze repair: Gacrux checker provenance is runtime/UI state,
+  // not portable tournament content. beta.95 persisted these keys and a new
+  // checkedAt timestamp could manufacture a false schema-7 local/cloud change.
+  'lastcheckeruisource','lastcheckeruibuildversion','lastcheckeruicheckedat'
 ]);
 
 export function newUuid() {
