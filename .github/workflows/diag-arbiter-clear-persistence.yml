@@ -1,0 +1,145 @@
+name: DIAG Arbiter Clear Persistence
+
+on:
+  push:
+    branches:
+      - 'diag/arbiter-clear-persistence-e151'
+    paths:
+      - '.github/workflows/diag-arbiter-clear-persistence.yml'
+
+permissions:
+  contents: read
+
+env:
+  HUB_WORKER_NAME: chess-publisher-hub-api-beta
+
+jobs:
+  inspect:
+    name: Inspect active Arbiter persistence path
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Checkout exact diagnostic commit
+        uses: actions/checkout@v4
+
+      - name: Recover active Worker read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          work="$RUNNER_TEMP/arbiter-clear-diag"
+          mkdir -p "$work"
+          api="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${HUB_WORKER_NAME}"
+          curl --fail --silent --show-error --location \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            "$api" -o "$work/live-worker.multipart"
+          python - <<'PY'
+          from pathlib import Path
+          from email.parser import BytesParser
+          from email.policy import default
+          import hashlib, os
+
+          work = Path(os.environ['RUNNER_TEMP']) / 'arbiter-clear-diag'
+          raw = (work / 'live-worker.multipart').read_bytes()
+          first = raw.splitlines()[0].decode('ascii', 'strict')
+          if not first.startswith('--'):
+              raise SystemExit('Unexpected Hub Worker download format.')
+          boundary = first[2:]
+          envelope = (
+              f'Content-Type: multipart/form-data; boundary={boundary}\r\n'
+              'MIME-Version: 1.0\r\n\r\n'
+          ).encode() + raw
+          msg = BytesParser(policy=default).parsebytes(envelope)
+          parts = list(msg.iter_parts())
+          if len(parts) != 1:
+              raise SystemExit(f'Expected one Worker module, got {len(parts)}.')
+          payload = parts[0].get_payload(decode=True) or b''
+          if b'export default' not in payload:
+              raise SystemExit('Recovered module is not expected Hub Worker source.')
+          (work / 'worker.js').write_bytes(payload)
+          print('LIVE_WORKER_SHA256=' + hashlib.sha256(payload).hexdigest())
+          PY
+
+      - name: Inspect Arbiter source-of-truth contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib, os
+
+          source = (Path(os.environ['RUNNER_TEMP']) / 'arbiter-clear-diag' / 'worker.js').read_text(encoding='utf-8')
+
+          def function_span(name):
+              needle = f'async function {name}('
+              start = source.find(needle)
+              if start < 0:
+                  raise SystemExit(f'MISSING_FUNCTION={name}')
+              brace = source.find('{', start)
+              depth = 0
+              mode = 'code'
+              quote = ''
+              escaped = False
+              i = brace
+              while i < len(source):
+                  ch = source[i]
+                  nxt = source[i + 1] if i + 1 < len(source) else ''
+                  if mode == 'line':
+                      if ch == '\n': mode = 'code'
+                      i += 1; continue
+                  if mode == 'block':
+                      if ch == '*' and nxt == '/': mode = 'code'; i += 2; continue
+                      i += 1; continue
+                  if mode == 'string':
+                      if escaped: escaped = False
+                      elif ch == '\\': escaped = True
+                      elif ch == quote: mode = 'code'; quote = ''
+                      i += 1; continue
+                  if ch == '/' and nxt == '/': mode = 'line'; i += 2; continue
+                  if ch == '/' and nxt == '*': mode = 'block'; i += 2; continue
+                  if ch in ('"', "'", '`'): mode = 'string'; quote = ch; i += 1; continue
+                  if ch == '{': depth += 1
+                  elif ch == '}':
+                      depth -= 1
+                      if depth == 0: return source[start:i+1]
+                  i += 1
+              raise SystemExit(f'UNCLOSED_FUNCTION={name}')
+
+          snapshot = function_span('arbiterSnapshotObject')
+          submit = function_span('submitArbiterResult')
+          restricted = function_span('buildRestrictedArbiterTournament')
+
+          checks = {
+              'MARKER_ARBITER_B2': 'arbiter_snapshot_b2_v1' in source,
+              'MARKER_SYNC_LINEAGE': 'private_cloud_sync_lineage_v1' in source,
+              'MARKER_CLEAR_RESULT': 'arbiter_clear_result_v1' in source,
+              'SNAPSHOT_READS_B2': 'b2DownloadJson(env, objectKey)' in snapshot,
+              'SNAPSHOT_VALIDATES': 'validateCloudSnapshot(snapshot)' in snapshot,
+              'SUBMIT_CANONICAL_CLEAR': 'const currentBoardResult = arbiterText(board.result) || "-";' in submit,
+              'SUBMIT_MUTATES_SNAPSHOT_RESULT': 'board.result = resultValue;' in submit,
+              'SUBMIT_WRITES_B2': 'await b2UploadJson(env, objectKey, bytes);' in submit,
+              'SUBMIT_ADVANCES_OBJECT_KEY': 'current_object_key = ?' in submit,
+              'SUBMIT_UPDATES_PENDING_RESULT': 'SET result = ?, base_revision = ?' in submit,
+              'RESTRICTED_OVERLAYS_PENDING': 'FROM cloud_arbiter_results' in restricted and 'acknowledged_at IS NULL' in restricted,
+              'RESTRICTED_OVERLAY_IS_LITERAL_RESULT': 'board.result = arbiterText(submission.result);' in restricted,
+          }
+          for key, value in checks.items():
+              print(f'{key}={"YES" if value else "NO"}')
+          for name, body in [('arbiterSnapshotObject', snapshot), ('submitArbiterResult', submit), ('buildRestrictedArbiterTournament', restricted)]:
+              print(f'{name.upper()}_SHA256=' + hashlib.sha256(body.encode()).hexdigest())
+
+          required = [
+              'MARKER_ARBITER_B2', 'MARKER_SYNC_LINEAGE', 'MARKER_CLEAR_RESULT',
+              'SNAPSHOT_READS_B2', 'SNAPSHOT_VALIDATES', 'SUBMIT_CANONICAL_CLEAR',
+              'SUBMIT_MUTATES_SNAPSHOT_RESULT', 'SUBMIT_WRITES_B2', 'SUBMIT_ADVANCES_OBJECT_KEY',
+              'SUBMIT_UPDATES_PENDING_RESULT', 'RESTRICTED_OVERLAYS_PENDING', 'RESTRICTED_OVERLAY_IS_LITERAL_RESULT'
+          ]
+          missing = [key for key in required if not checks[key]]
+          if missing:
+              raise SystemExit('ARBITER_CLEAR_PERSISTENCE_CONTRACT=FAIL missing=' + ','.join(missing))
+          print('ARBITER_CLEAR_PERSISTENCE_CONTRACT=PASS')
+          PY
