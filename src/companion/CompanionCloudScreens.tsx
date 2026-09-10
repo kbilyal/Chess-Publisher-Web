@@ -202,13 +202,13 @@ export function CompanionTournamentSelectScreen(props: {
               <Plus size={20} /><span><strong>New tournament</strong><small>Create a private Cloud tournament that Desktop can open.</small></span><ArrowRight size={18} />
             </button>
             <button type="button" className="companion-start-action" disabled={busy} onClick={() => importInputRef.current?.click()}>
-              <FileUp size={20} /><span><strong>Import tournament</strong><small>TRF16 · TRF26 · TUNX — full tournament import and Cloud sync.</small></span><ArrowRight size={18} />
+              <FileUp size={20} /><span><strong>Import tournament</strong><small>TRF16 · TRF26 · TUNX · Players XML — tournament/roster import and Cloud sync.</small></span><ArrowRight size={18} />
             </button>
             <input
               ref={importInputRef}
               className="companion-import-input"
               type="file"
-              accept=".trf,.trf16,.trf26,.txt,.tunx,.TUNX,text/plain,application/octet-stream"
+              accept=".trf,.trf16,.trf26,.txt,.tunx,.TUNX,.xml,.XML,text/plain,application/xml,text/xml,application/octet-stream"
               onChange={event => {
                 const file = event.target.files?.[0];
                 event.currentTarget.value = '';
@@ -269,7 +269,7 @@ export function CompanionTournamentSelectScreen(props: {
                 )}
               </article>
             ))}
-            {!filtered.length && <div className="companion-tournament-empty">{showTrash ? <Archive size={30} /> : <Cloud size={30} />}<strong>{query ? 'No tournaments match your search.' : (showTrash ? 'Trash is empty.' : 'No synchronized tournaments yet.')}</strong><span>{query ? 'Try another name, ID or tournament key.' : (showTrash ? 'Previously archived tournaments appear here and can be restored.' : 'Create a tournament here, import TRF/TUNX, or sync one from Chess-Publisher Desktop.')}</span></div>}
+            {!filtered.length && <div className="companion-tournament-empty">{showTrash ? <Archive size={30} /> : <Cloud size={30} />}<strong>{query ? 'No tournaments match your search.' : (showTrash ? 'Trash is empty.' : 'No synchronized tournaments yet.')}</strong><span>{query ? 'Try another name, ID or tournament key.' : (showTrash ? 'Previously archived tournaments appear here and can be restored.' : 'Create a tournament here, import TRF/TUNX/Players XML, or sync one from Chess-Publisher Desktop.')}</span></div>}
           </div>
         </section>
       </div>
