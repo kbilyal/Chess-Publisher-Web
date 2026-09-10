@@ -2,8 +2,9 @@ import { parse as parseTunx } from '@echecs/tunx';
 import { Tournament, BoardPairing, FideTitle, Gender, RatingType } from '../types';
 import { createInitialEmptyTournament } from '../data/initialData';
 import { calculateTrfImportPreflight } from '../transactions/trfImportWorkflow';
+import { looksLikePlayersXml, parsePlayersXml } from './playersXml';
 
-export type TournamentImportKind = 'trf' | 'tunx';
+export type TournamentImportKind = 'trf' | 'tunx' | 'players-xml';
 export type TournamentImportResult = {
   tournament: Tournament;
   kind: TournamentImportKind;
@@ -399,14 +400,48 @@ export function importTunxBytes(bytes: Uint8Array, sourceFileName = 'tournament.
   };
 }
 
+export function importPlayersXmlText(xmlContent: string, sourceFileName = 'Players.XML'): TournamentImportResult {
+  const parsed = parsePlayersXml(xmlContent);
+  const next: any = createCleanTournament(parsed.tournamentName || fileStem(sourceFileName));
+  next.players = parsed.players;
+  next.settings = { ...next.settings, tnr: '' };
+  next.chessResults = { ...next.chessResults, key: '', freshTnrRequired: false };
+  next.pairings = {
+    ...next.pairings,
+    round: '-1',
+    results: 'NO',
+    liveBoards: {},
+    trfImportMeta: {
+      sourceType: 'players-xml',
+      sourceFileName,
+      sourceTournamentKey: parsed.sourceTournamentKey,
+      importedAt: new Date().toISOString(),
+      playersOnly: true,
+      completePortableImport: false
+    }
+  };
+  return {
+    tournament: next as Tournament,
+    kind: 'players-xml',
+    fileName: sourceFileName,
+    playerCount: next.players.length,
+    roundsImported: 0,
+    warnings: parsed.warnings
+  };
+}
+
 export async function importTournamentFile(file: File): Promise<TournamentImportResult> {
   const bytes = new Uint8Array(await file.arrayBuffer());
   const lowerName = file.name.toLowerCase();
   const isTunxMagic = bytes.length >= 4 && bytes[0] === 0x93 && bytes[1] === 0xff && bytes[2] === 0x89 && bytes[3] === 0x44;
   if (lowerName.endsWith('.tunx') || isTunxMagic) return importTunxBytes(bytes, file.name);
-  const trf = decodeText(bytes);
-  if (!/(^|\r?\n)001\s/.test(trf) && !/(^|\r?\n)012\s/.test(trf)) {
-    throw new Error('Unsupported tournament file. Select TRF16, TRF26 or TUNX.');
+  const decoded = decodeText(bytes);
+  if (lowerName.endsWith('.xml') || looksLikePlayersXml(decoded)) {
+    if (!looksLikePlayersXml(decoded)) throw new Error('Unsupported XML file. Select a Players XML roster.');
+    return importPlayersXmlText(decoded, file.name);
   }
-  return importTrfText(trf, file.name);
+  if (!/(^|\r?\n)001\s/.test(decoded) && !/(^|\r?\n)012\s/.test(decoded)) {
+    throw new Error('Unsupported tournament file. Select TRF16, TRF26, TUNX or Players XML.');
+  }
+  return importTrfText(decoded, file.name);
 }
