@@ -5,10 +5,12 @@ on:
     branches:
       - main
       - fix-arbiter-overwrite-confirmation
+      - fix/arbiter-cloud-result-notification
     paths:
       - 'src/arbiter/ArbiterPortal.tsx'
       - 'src/arbiter/arbiter-confirmation.css'
       - 'tests/ui/arbiter-overwrite-confirmation.test.mjs'
+      - 'tests/ui/arbiter-external-result-notification.test.mjs'
       - 'tests/ui/arbiter-beta83-one-sync.test.mjs'
       - 'tests/ui/arbiter-access.test.mjs'
       - 'tests/ui/arbiter-special-results-send-all.test.mjs'
@@ -35,6 +37,8 @@ jobs:
         run: npm ci
       - name: Result overwrite confirmation contract
         run: node tests/ui/arbiter-overwrite-confirmation.test.mjs
+      - name: External result notification contract
+        run: node tests/ui/arbiter-external-result-notification.test.mjs
       - name: beta83 one-SYNC contract
         run: node tests/ui/arbiter-beta83-one-sync.test.mjs
       - name: Arbiter security contract
