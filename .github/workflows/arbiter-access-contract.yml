@@ -10,6 +10,7 @@ on:
       - fix/isolated-print-arbiter-filters
       - fix/restore-arbiter-generate-link
       - ui/arbiter-desktop-dense
+      - fix/arbiter-clear-persistence-canonical-read
     paths:
       - 'src/arbiter/**'
       - 'src/App.tsx'
@@ -17,13 +18,16 @@ on:
       - 'production-web/cloud/client/cloud-workspace-api.js'
       - 'production-web/webview/ArbiterResultsDownloadAdapter.js'
       - 'scripts/patch-arbiter-access-worker.py'
+      - 'scripts/patch-arbiter-canonical-read-worker.py'
       - 'tests/ui/arbiter-access.test.mjs'
       - 'tests/ui/cloud-arbiter-sync-regression.test.mjs'
       - 'tests/ui/organizer-pairings-readonly.test.mjs'
       - 'tests/ui/arbiter-print-filters.test.mjs'
       - 'tests/ui/arbiter-desktop-dense.test.mjs'
+      - 'tests/ui/arbiter-canonical-read.test.mjs'
       - '.github/workflows/arbiter-access-contract.yml'
       - '.github/workflows/deploy-hub-arbiter-access.yml'
+      - '.github/workflows/deploy-hub-arbiter-canonical-read.yml'
   workflow_dispatch:
 
 permissions:
@@ -51,6 +55,8 @@ jobs:
         run: node tests/ui/arbiter-access.test.mjs
       - name: Cloud Arbiter sync regression
         run: node tests/ui/cloud-arbiter-sync-regression.test.mjs
+      - name: Canonical Arbiter Cloud read contract
+        run: node tests/ui/arbiter-canonical-read.test.mjs
       - name: Organizer pairings read-only contract
         run: node tests/ui/organizer-pairings-readonly.test.mjs
       - name: Isolated print and Arbiter result filters
@@ -58,7 +64,7 @@ jobs:
       - name: Dense desktop Arbiter UI
         run: node tests/ui/arbiter-desktop-dense.test.mjs
       - name: Worker patch syntax
-        run: python -m py_compile scripts/patch-arbiter-access-worker.py
+        run: python -m py_compile scripts/patch-arbiter-access-worker.py scripts/patch-arbiter-canonical-read-worker.py
       - name: TypeScript compile
         run: npm run lint
       - name: Production build
