@@ -8,7 +8,7 @@ assert.match(patch, /baseRevision\) \|\| baseRevision !== currentRevision/, 'rev
 assert.match(patch, /body\.replace\(same_session, "  if \(existing\) \{"/, 'any latest pending delivery row must be replaceable');
 assert.match(patch, /SET session_id = \?, result = \?/, 'replacement must move the delivery record to the current session');
 assert.match(patch, /bind\(session\.id, resultValue/, 'replacement must bind the current session id');
-assert.match(patch, /if \("arbiter_result_conflict" in body\)/, 'patch must reject leaving the obsolete pending lock behind');
+assert.match(patch, /if "arbiter_result_conflict" in body:/, 'patch must reject leaving the obsolete pending lock behind');
 assert.match(patch, /arbiter_canonical_snapshot_read_v1/, 'canonical B2 read fix must be a required baseline');
 assert.match(patch, /arbiter_clear_result_v1/, 'Clear result support must be a required baseline');
 
