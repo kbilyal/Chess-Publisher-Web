@@ -8,6 +8,7 @@ on:
       - fix-cloud-identity-arbiter-results-sync
       - organizer-pairings-readonly
       - fix/isolated-print-arbiter-filters
+      - fix/restore-arbiter-generate-link
     paths:
       - 'src/arbiter/**'
       - 'src/App.tsx'
