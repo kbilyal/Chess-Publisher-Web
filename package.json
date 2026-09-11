@@ -29,7 +29,7 @@
     "test:desktop-beta34-web-parity": "tsx src/cloud/tests/runDesktopBeta34WebParityTests.ts",
     "test:web-engine": "tsx src/cloud/tests/runWebEngineIntegrationTests.ts",
     "test:chess-results-web-contract": "tsx src/cloud/tests/runChessResultsWebContractTests.ts",
-    "test:chess-results-companion": "tsx src/cloud/tests/runCompanionChessResultsTransportTests.ts",
+    "test:chess-results-companion": "tsx src/cloud/tests/runCompanionChessResultsTransportTests.ts && tsx src/cloud/tests/runChessResultsPinBoardTests.ts",
     "test:cloud-roundtrip": "tsx src/cloud/tests/runCloudRoundtripTests.ts && tsx src/cloud/tests/runCompanionConflictMergeTests.ts && tsx src/cloud/tests/runPublicHubSnapshotParityTests.ts && tsx src/cloud/tests/runHubRegulationsRepublishTests.ts && tsx src/cloud/tests/runCompanionSyncContractTests.ts && tsx src/cloud/tests/runDirectionalDesktopParityTests.ts && tsx src/cloud/tests/runWebCloudLineageHandoffTests.ts && tsx src/cloud/tests/runSyncFullLifecycleGateTests.ts && tsx src/cloud/tests/runPublicationPlayerOrderTests.ts && tsx src/cloud/tests/runPublishSyncGuardTests.ts",
     "test:chess-results": "tsx src/server/tests/runChessResultsTests.ts && tsx src/server/tests/runChessResultsRouteTests.ts",
     "test:tournament-import": "tsx src/cloud/tests/runTournamentCreateImportTests.ts"
