@@ -89,6 +89,23 @@ function normalizedNameTokens(value: string) {
     .filter(Boolean);
 }
 
+function foldSearchToken(value: string) {
+  return String(value || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase()
+    .trim();
+}
+
+function searchTokenVariants(token: string) {
+  const variants = generateTransliterationVariants(token)
+    .flatMap(value => normalizedNameTokens(value))
+    .map(foldSearchToken)
+    .filter(Boolean);
+  variants.push(foldSearchToken(token));
+  return [...new Set(variants)];
+}
+
 /**
  * Build equivalent FIDE name queries without requiring the user to know
  * whether the source list stores "Surname, Given" or "Given Surname".
@@ -119,6 +136,88 @@ export function buildFideNameQueryVariants(query: string): string[] {
   }
 
   return Array.from(variants).slice(0, MAX_REMOTE_NAME_VARIANTS);
+}
+
+/**
+ * Order-independent, comma-independent relevance score.
+ * Every typed token must match a different token in the FIDE name.
+ * Exact token matches outrank prefix/substring matches so a high-rated but
+ * unrelated fuzzy result cannot hide the intended player.
+ */
+export function scoreFideNameMatch(query: string, playerName: string): number {
+  const queryTokens = normalizedNameTokens(query);
+  const playerTokens = normalizedNameTokens(playerName).map(foldSearchToken).filter(Boolean);
+  if (!queryTokens.length || !playerTokens.length) return -1;
+
+  const usedPlayerTokens = new Set<number>();
+  let score = 0;
+
+  for (const queryToken of queryTokens) {
+    const variants = searchTokenVariants(queryToken);
+    let bestIndex = -1;
+    let bestScore = -1;
+
+    for (let playerIndex = 0; playerIndex < playerTokens.length; playerIndex += 1) {
+      if (usedPlayerTokens.has(playerIndex)) continue;
+      const candidate = playerTokens[playerIndex];
+
+      for (const variant of variants) {
+        let tokenScore = -1;
+        if (candidate === variant) tokenScore = 100;
+        else if (variant.length >= 2 && candidate.startsWith(variant)) tokenScore = 72;
+        else if (variant.length >= 3 && candidate.includes(variant)) tokenScore = 48;
+
+        if (tokenScore > bestScore) {
+          bestScore = tokenScore;
+          bestIndex = playerIndex;
+        }
+      }
+    }
+
+    if (bestIndex < 0) return -1;
+    usedPlayerTokens.add(bestIndex);
+    score += bestScore;
+  }
+
+  if (queryTokens.length === playerTokens.length) score += 40;
+
+  const foldedQueryTokens = queryTokens.map(foldSearchToken).sort((a, b) => a.localeCompare(b));
+  const foldedPlayerTokens = [...playerTokens].sort((a, b) => a.localeCompare(b));
+  if (foldedQueryTokens.join(' ') === foldedPlayerTokens.join(' ')) score += 120;
+
+  return score;
+}
+
+export function rankFideSearchResults(
+  query: string,
+  players: FidePlayerRecord[],
+  tournamentType: 'Standard' | 'Rapid' | 'Blitz',
+  limit: number
+): FidePlayerRecord[] {
+  const q = String(query || '').trim();
+  const numeric = /^\d+$/.test(q);
+  const safeLimit = Math.max(1, Math.min(50, Number(limit) || 20));
+
+  return players
+    .map(player => {
+      const playerId = String(player.fideId || '');
+      const relevance = numeric
+        ? (playerId === q ? 10000 : playerId.startsWith(q) ? 1000 : -1)
+        : scoreFideNameMatch(q, player.name);
+      return { player, relevance };
+    })
+    .filter(item => item.relevance >= 0)
+    .sort((a, b) => {
+      if (b.relevance !== a.relevance) return b.relevance - a.relevance;
+      const ratingDifference = ratingForTournament(b.player, tournamentType) - ratingForTournament(a.player, tournamentType);
+      if (ratingDifference !== 0) return ratingDifference;
+      if (Number(b.player.ratingStandard || 0) !== Number(a.player.ratingStandard || 0)) {
+        return Number(b.player.ratingStandard || 0) - Number(a.player.ratingStandard || 0);
+      }
+      return String(a.player.name || '').localeCompare(String(b.player.name || ''), undefined, { sensitivity: 'base' });
+    })
+    .slice(0, safeLimit)
+    .map(item => item.player);
 }
 
 function normalizePublicFidePlayer(raw: any): FidePlayerRecord | null {
@@ -169,7 +268,7 @@ async function searchFidePublicMirror(query: string, limit: number): Promise<Fid
   const q = String(query || '').trim();
   if (q.length < 2) return [];
   const numeric = /^\d+$/.test(q);
-  const nameTokens = numeric ? [] : normalizedNameTokens(q).map(token => token.toLocaleLowerCase());
+  const nameTokens = numeric ? [] : normalizedNameTokens(q).map(token => foldSearchToken(token));
   const cacheIdentity = numeric
     ? q
     : [...nameTokens].sort((a, b) => a.localeCompare(b)).join(' ');
@@ -179,20 +278,23 @@ async function searchFidePublicMirror(query: string, limit: number): Promise<Fid
 
   const pending = (async () => {
     if (numeric) {
-      return (await fetchPublicFideQuery(q)).slice(0, limit);
+      return rankFideSearchResults(q, await fetchPublicFideQuery(q), 'Standard', limit);
     }
 
     const merged = new Map<number, FidePlayerRecord>();
     const variants = buildFideNameQueryVariants(q);
 
-    // Sequential by design. This keeps the public fallback polite while still
-    // accepting both Given Surname and Surname Given/Surname, Given input.
+    // Sequential by design. Lichess API guidance asks clients to make one
+    // request at a time. Every returned candidate is also locally validated
+    // against all typed name tokens before it can enter the result set.
     for (const variant of variants) {
       const players = await fetchPublicFideQuery(variant);
-      players.forEach(player => merged.set(player.fideId, player));
+      players.forEach(player => {
+        if (scoreFideNameMatch(q, player.name) >= 0) merged.set(player.fideId, player);
+      });
     }
 
-    return Array.from(merged.values()).slice(0, Math.max(limit, 50));
+    return Array.from(merged.values());
   })();
 
   remoteSearchCache.set(cacheKey, pending);
@@ -201,19 +303,6 @@ async function searchFidePublicMirror(query: string, limit: number): Promise<Fid
     if (oldestKey) remoteSearchCache.delete(oldestKey);
   }
   return pending;
-}
-
-function sortAndLimitPlayers(players: FidePlayerRecord[], tournamentType: 'Standard' | 'Rapid' | 'Blitz', limit: number) {
-  return players
-    .sort((a, b) => {
-      const ratingDifference = ratingForTournament(b, tournamentType) - ratingForTournament(a, tournamentType);
-      if (ratingDifference !== 0) return ratingDifference;
-      if (Number(b.ratingStandard || 0) !== Number(a.ratingStandard || 0)) {
-        return Number(b.ratingStandard || 0) - Number(a.ratingStandard || 0);
-      }
-      return String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' });
-    })
-    .slice(0, limit);
 }
 
 export async function getFideBrowserDatabaseInfo(): Promise<BrowserFideManifest | null> {
@@ -289,11 +378,11 @@ export async function searchFideBrowserDatabase(query: string, tournamentType: '
   }
 
   if (trustedLocal && localResults.length > 0) {
-    return localResults;
+    return rankFideSearchResults(q, localResults, tournamentType, safeLimit);
   }
 
   const remoteResults = await searchFidePublicMirror(q, safeLimit);
-  if (!remoteResults.length) return localResults;
+  if (!remoteResults.length) return rankFideSearchResults(q, localResults, tournamentType, safeLimit);
 
   const merged = new Map<number, FidePlayerRecord>();
   if (trustedLocal) {
@@ -306,7 +395,7 @@ export async function searchFideBrowserDatabase(query: string, tournamentType: '
     remoteResults.forEach(player => merged.set(player.fideId, player));
   }
 
-  return sortAndLimitPlayers(Array.from(merged.values()), tournamentType, safeLimit);
+  return rankFideSearchResults(q, Array.from(merged.values()), tournamentType, safeLimit);
 }
 
 export function resetFideBrowserDatabaseForTests() {

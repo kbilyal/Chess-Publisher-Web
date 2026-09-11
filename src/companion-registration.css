@@ -51,9 +51,21 @@
   background: #f9fbfd;
   color: #6f7f94;
 }
+.companion-registration-search > .companion-searchbox {
+  border-color: #bdd5f1;
+  background: #f1f7ff;
+  color: #4f78a8;
+  box-shadow: inset 0 0 0 1px rgba(57, 119, 190, .035);
+}
 .companion-searchbox:focus-within { border-color: #8ab9f3; box-shadow: 0 0 0 3px rgba(23,105,224,.08); background: #fff; }
+.companion-registration-search > .companion-searchbox:focus-within {
+  border-color: #72a9e7;
+  background: #f8fbff;
+  box-shadow: 0 0 0 3px rgba(23,105,224,.10);
+}
 .companion-searchbox input { min-width: 0; flex: 1; height: 44px; border: 0; outline: 0; background: transparent; color: #152137; font-size: 12px; }
 .companion-searchbox input::placeholder { color: #9ba8b8; }
+.companion-registration-search > .companion-searchbox input::placeholder { color: #7893b3; }
 .companion-searchbox.small { min-height: 40px; margin-bottom: 0; }
 .companion-searchbox.small input { height: 38px; font-size: 11px; }
 .companion-roster-toolbar { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 9px; align-items: center; margin-bottom: 5px; }
