@@ -142,6 +142,15 @@ const publicPublishMutation = {
     internalId: 'hub-public-99'
   }
 };
+
+const storageGuardedPublish = preserveNewestCloudLineage(base as any, publicPublishMutation as any) as any;
+assert.equal(
+  storageGuardedPublish.cloud.internalId,
+  'tournament-1',
+  'The localStorage write guard must block a Public Hub id before it can replace the permanent private internalId.'
+);
+assert.equal(storageGuardedPublish.online.hubTournamentId, 'hub-public-99', 'The Public Hub id must still be persisted under online metadata.');
+
 const afterPublicPublish = preservePrivateIdentityAfterPublicPublish(base as any, publicPublishMutation as any) as any;
 assert.equal(
   afterPublicPublish.cloud.internalId,
@@ -172,6 +181,8 @@ assert.ok(appSource.includes('protectCompanionCloudFacade(createCompanionCloudFa
 
 const handoffSource = fs.readFileSync(path.join(process.cwd(), 'src', 'companion', 'webCloudLineageHandoff.ts'), 'utf8');
 assert.ok(handoffSource.includes('repairPrivateIdentityFromActiveCloud'), 'Companion handoff must repair legacy public-Hub identity overwrites from active private Cloud metadata.');
+assert.ok(handoffSource.includes('preservePrivateIdentityAgainstPublicWrite'), 'The localStorage boundary must reject a direct Public Hub identity overwrite.');
+assert.ok(handoffSource.includes('publicHubIds'), 'The storage-boundary guard must identify the Public Hub namespace without changing the frozen SYNC core.');
 assert.ok(handoffSource.includes('publishWithPrivateIdentityGuard'), 'Publish Online must be wrapped by the private-identity guard.');
 assert.ok(handoffSource.includes('preservePrivateIdentityAfterPublicPublish'), 'Public publish completion must restore private identity if an older provider path mutates it.');
 assert.ok(handoffSource.includes('repairSameRevisionAuthoritativeBase'), 'Companion handoff must repair a stale same-revision common-base fingerprint before SYNC.');

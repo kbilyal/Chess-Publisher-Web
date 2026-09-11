@@ -44,6 +44,41 @@ function sameLinkedTournament(existing: any, incoming: any) {
   return Boolean(left.internalId && right.internalId && left.internalId === right.internalId);
 }
 
+function publicHubIds(tournament: any) {
+  return new Set([
+    text(tournament?.online?.hubTournamentId),
+    text(tournament?.hub?.tournamentId),
+    text(tournament?.publication?.hubTournamentId)
+  ].filter(Boolean));
+}
+
+/**
+ * The storage boundary is the last line of defence against old publish paths
+ * that still attempt to copy a Public Hub id into cloud.internalId. If both
+ * objects point at the same private cloudTournamentId, preserve the existing
+ * private identity when the incoming replacement is demonstrably a Public Hub
+ * identity. A legacy corrupted stored value is still allowed to be repaired by
+ * an incoming private identity because the rule is intentionally one-way.
+ */
+function preservePrivateIdentityAgainstPublicWrite(existing: any, incoming: any) {
+  if (!existing || !incoming || !sameLinkedTournament(existing, incoming)) return incoming;
+  const existingInternalId = linkedIdentity(existing).internalId;
+  const incomingInternalId = linkedIdentity(incoming).internalId;
+  if (!existingInternalId || !incomingInternalId || existingInternalId === incomingInternalId) return incoming;
+
+  const incomingPublicIds = publicHubIds(incoming);
+  const existingPublicIds = publicHubIds(existing);
+  if (!incomingPublicIds.has(incomingInternalId) || existingPublicIds.has(existingInternalId)) return incoming;
+
+  const guarded: any = clone(incoming);
+  guarded.cloud = {
+    ...(guarded.cloud || {}),
+    cloudTournamentId: text(existing?.cloud?.cloudTournamentId),
+    internalId: existingInternalId
+  };
+  return guarded;
+}
+
 function shouldPreserveStoredLineage(existing: any, incoming: any) {
   if (!sameLinkedTournament(existing, incoming)) return false;
   const existingCloud = existing?.cloud || {};
@@ -77,9 +112,11 @@ function shouldPreserveStoredLineage(existing: any, incoming: any) {
 }
 
 export function preserveNewestCloudLineage(existing: Tournament | any, incoming: Tournament | any): Tournament {
-  if (!existing || !incoming || !shouldPreserveStoredLineage(existing, incoming)) return incoming as Tournament;
+  if (!existing || !incoming) return incoming as Tournament;
+  const identityGuarded: any = preservePrivateIdentityAgainstPublicWrite(existing, incoming);
+  if (!shouldPreserveStoredLineage(existing, identityGuarded)) return identityGuarded as Tournament;
 
-  const next: any = clone(incoming);
+  const next: any = clone(identityGuarded);
   const storedCloud = existing?.cloud || {};
   next.cloud = { ...(next.cloud || {}) };
   for (const key of LINEAGE_KEYS) {
