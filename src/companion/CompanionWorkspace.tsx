@@ -19,6 +19,7 @@ import { chessResultsApi } from '../chessResults/api';
 import { buildChessResultsXml } from '../chessResults/publication';
 import { CompanionRegistration } from './CompanionRegistration';
 import { CompanionSetup } from './CompanionSetup';
+import { ChessResultsPinBoard } from './ChessResultsPinBoard';
 
 const STORAGE_KEY = 'fide_tournament_manager_v2';
 type CompanionTab = 'setup' | 'players' | 'publish';
@@ -686,6 +687,11 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
                   <span><small>Players</small><strong>{tournament.players.length}</strong></span>
                   <span><small>Status</small><strong>{tournament.chessResults?.lastUpload ? 'Published' : 'Ready'}</strong></span>
                 </div>
+                <ChessResultsPinBoard
+                  tournament={tournament}
+                  onUpdateTournament={updateTournament}
+                  disabled={publishBlocked}
+                />
                 <div className="companion-card-actions">
                   <button type="button" className="companion-button secondary" onClick={testChessResults} disabled={busy !== null}><ShieldCheck size={16} /> Test bridge</button>
                   {isTnr(tnr) && <>
