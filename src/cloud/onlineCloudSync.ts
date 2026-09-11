@@ -37,9 +37,19 @@ export function createInternalTournamentId() { return `tournament:${newUuid()}`;
 export function chooseInternalTournamentId(tournament: Tournament | any, candidates: Array<unknown> = []) {
   const existing = text(tournament?.cloud?.internalId);
   if (existing) return existing;
-  // Private Cloud identity is intentionally independent from Public Hub identity.
-  // Only explicitly trusted private-identity candidates may seed it.
-  for (const candidate of candidates) { const value = text(candidate); if (value) return value; }
+
+  // Public Hub publication identities are a separate namespace and must never
+  // seed the permanent Private Cloud internalId, even when older call sites pass
+  // them as compatibility candidates.
+  const publicIds = new Set([
+    text(tournament?.online?.hubTournamentId),
+    text(tournament?.hub?.tournamentId),
+    text(tournament?.publication?.hubTournamentId)
+  ].filter(Boolean));
+  for (const candidate of candidates) {
+    const value = text(candidate);
+    if (value && !publicIds.has(value)) return value;
+  }
   return createInternalTournamentId();
 }
 
