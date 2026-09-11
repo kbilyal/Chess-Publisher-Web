@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { preserveNewestCloudLineage } from '../../companion/webCloudLineageHandoff';
+import {
+  preserveNewestCloudLineage,
+  preservePrivateIdentityAfterPublicPublish,
+  repairPrivateIdentityFromActiveCloud
+} from '../../companion/webCloudLineageHandoff';
 
 const base = {
   name: 'Web lineage test',
@@ -64,11 +68,83 @@ assert.equal(
   'Lineage must never leak across tournament identities.'
 );
 
+const historicallyCorrupted = {
+  ...base,
+  cloud: {
+    ...base.cloud,
+    internalId: 'hub-public-99'
+  }
+};
+const repairedIdentity = repairPrivateIdentityFromActiveCloud(
+  historicallyCorrupted as any,
+  { id: 'cloud-1', localKey: 'tournament-1', revision: 12 }
+) as any;
+assert.equal(
+  repairedIdentity.cloud.internalId,
+  'tournament-1',
+  'The organizer-owned private Cloud localKey must repair an old public-Hub identity overwrite.'
+);
+assert.equal(repairedIdentity.cloud.cloudTournamentId, 'cloud-1');
+assert.equal(repairedIdentity.cloud.baseRevision, 12, 'Identity repair must not alter accepted revision lineage.');
+assert.equal(repairedIdentity.players[0].rating, 1800, 'Identity repair must not alter tournament content.');
+
+const unrelatedActive = repairPrivateIdentityFromActiveCloud(
+  historicallyCorrupted as any,
+  { id: 'cloud-2', localKey: 'tournament-2', revision: 12 }
+);
+assert.equal(
+  unrelatedActive,
+  historicallyCorrupted,
+  'A different active Cloud record must never rewrite this tournament identity.'
+);
+
+const publicPublishMutation = {
+  ...base,
+  online: {
+    hubTournamentId: 'hub-public-99',
+    publicSlug: 'web-lineage-test-99',
+    revision: 4,
+    lastPublishedAt: '2026-09-11T11:00:00.000Z'
+  },
+  cloud: {
+    ...base.cloud,
+    internalId: 'hub-public-99'
+  }
+};
+const afterPublicPublish = preservePrivateIdentityAfterPublicPublish(base as any, publicPublishMutation as any) as any;
+assert.equal(
+  afterPublicPublish.cloud.internalId,
+  'tournament-1',
+  'Public Hub publish must never replace the permanent private internalId.'
+);
+assert.equal(afterPublicPublish.cloud.cloudTournamentId, 'cloud-1');
+assert.equal(afterPublicPublish.cloud.baseRevision, 12);
+assert.equal(afterPublicPublish.online.hubTournamentId, 'hub-public-99', 'Public Hub identity must remain in online metadata.');
+assert.equal(afterPublicPublish.online.revision, 4, 'Public publish acknowledgement must be preserved.');
+
+const differentPrivateRecord = {
+  ...publicPublishMutation,
+  cloud: {
+    ...publicPublishMutation.cloud,
+    cloudTournamentId: 'cloud-2'
+  }
+};
+assert.equal(
+  preservePrivateIdentityAfterPublicPublish(base as any, differentPrivateRecord as any),
+  differentPrivateRecord,
+  'Private identity must never be copied across different Cloud records.'
+);
+
 const appSource = fs.readFileSync(path.join(process.cwd(), 'src', 'App.tsx'), 'utf8');
 assert.ok(appSource.includes('installWebCloudLineageWriteGuard()'), 'App must install the Web lineage write guard before Companion use.');
 assert.ok(appSource.includes('protectCompanionCloudFacade(createCompanionCloudFacade(cloud))'), 'Companion Cloud actions must receive refreshed lineage.');
 
+const handoffSource = fs.readFileSync(path.join(process.cwd(), 'src', 'companion', 'webCloudLineageHandoff.ts'), 'utf8');
+assert.ok(handoffSource.includes('repairPrivateIdentityFromActiveCloud'), 'Companion handoff must repair legacy public-Hub identity overwrites from active private Cloud metadata.');
+assert.ok(handoffSource.includes('publishWithPrivateIdentityGuard'), 'Publish Online must be wrapped by the private-identity guard.');
+assert.ok(handoffSource.includes('preservePrivateIdentityAfterPublicPublish'), 'Public publish completion must restore private identity if an older provider path mutates it.');
+
 const protectedManifest = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'SYNC-FREEZE-v1.06.00-beta.96.json'), 'utf8'));
 assert.equal(protectedManifest.fingerprintContentSchema, 7, 'SYNC schema 7 must remain unchanged.');
 
-console.log('PASS Web Cloud lineage handoff: stale Web state cannot manufacture a phantom Desktop/Cloud conflict.');
+console.log('PASS Web Cloud lineage handoff: stale Web state and public Hub publish cannot corrupt private Cloud identity.');
