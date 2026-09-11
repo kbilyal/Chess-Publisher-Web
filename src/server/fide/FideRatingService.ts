@@ -357,22 +357,25 @@ export class FideRatingService {
           cur[m[1]] = m[2];
         } else if (line.includes('</player>')) {
           const fideId = parseInt(cur.fideid || '0', 10);
-          const std = parseInt(cur.rating || '0', 10);
-          const rpd = parseInt(cur.rapid_rating || '0', 10);
-          const blz = parseInt(cur.blitz_rating || '0', 10);
-          const fed = cur.country || '';
-          const title = cur.title || '';
-          const isBul = fed === 'BUL';
-          const isTitled = Boolean(title && title.trim());
-          const isTop = (std >= 2100 || rpd >= 2100 || blz >= 2100);
+          const name = String(cur.name || '').trim();
+          const std = parseInt(cur.rating || '0', 10) || 0;
+          const rpd = parseInt(cur.rapid_rating || '0', 10) || 0;
+          const blz = parseInt(cur.blitz_rating || '0', 10) || 0;
+          const fed = String(cur.country || '').trim().toUpperCase();
+          const title = String(cur.title || '').trim();
+          const sexRaw = String(cur.sex || '').trim().toLowerCase();
+          const gender: 'm' | 'f' | 'w' | undefined = sexRaw === 'm' ? 'm' : (sexRaw === 'f' || sexRaw === 'w' ? 'f' : undefined);
 
-          if (fideId > 0 && (isBul || isTitled || isTop)) {
+          // The official XML list is a complete player list. Never trim it by
+          // federation, title or rating threshold: doing so makes ordinary
+          // untitled / lower-rated players impossible to find in Web search.
+          if (fideId > 0 && name) {
             records.push({
               fideId,
-              name: cur.name || 'Unknown',
+              name,
               federation: fed,
               title: title || undefined,
-              gender: (cur.sex || '').toLowerCase() as any,
+              gender,
               birth: cur.birthday || undefined,
               ratingStandard: std,
               ratingRapid: rpd,
