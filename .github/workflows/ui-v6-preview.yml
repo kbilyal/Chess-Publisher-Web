@@ -166,7 +166,7 @@ jobs:
             if (await page.locator('.companion-sidebar').isVisible()) throw new Error(`Desktop sidebar leaked into ${name}.`);
             const nav = page.locator('.companion-mobile-nav');
             if (!await nav.isVisible()) throw new Error(`Mobile bottom navigation missing at ${width}px.`);
-            const labels = await nav.locator('button span').allTextContents();
+            const labels = (await nav.locator('button span').allTextContents()).map(label => label.trim()).filter(Boolean);
             if (labels.join('|') !== 'Setup|Players|Publish|Tournaments') throw new Error(`Unexpected mobile navigation: ${labels.join('|')}`);
             await verifySetup(page, name);
             await page.screenshot({ path: `hub-companion-preview/${name}-setup.png`, fullPage: true });
