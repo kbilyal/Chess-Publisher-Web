@@ -449,9 +449,8 @@ async function retryPublishAgainstAuthoritativeHub(cloud: any, tournament: Tourn
     revision: Number(published?.revision ?? revision),
     lastPublishedAt: new Date().toISOString()
   };
-  if (!text(current.cloud?.internalId) || String(current.cloud.internalId).startsWith('tournament:')) {
-    current.cloud = { ...(current.cloud || {}), internalId: hub.id };
-  }
+  // Public publication acknowledgement belongs only to online.*. The permanent
+  // Private Cloud internalId must remain untouched here.
   localStorage.setItem(TOURNAMENT_STORAGE_KEY, JSON.stringify(current));
   return current;
 }
