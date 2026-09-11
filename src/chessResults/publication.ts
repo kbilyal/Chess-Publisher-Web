@@ -1,4 +1,5 @@
 import { BoardPairing, Tournament } from '../types';
+import { buildPublicationNumberMap, orderPlayersForPublication } from '../publication/playerPublicationOrder';
 
 export type ChessResultsPublication = {
   xml: string;
@@ -164,6 +165,8 @@ export function buildChessResultsXml(tournament: Tournament, options: { requireK
   const rankingRound = latestRound === 0 ? 0 : latestFinalized ? latestRound : Math.max(0, latestRound - 1);
   const playerByKey = new Map(tournament.players.map(player => [player.localKey, player]));
   const pointsByKey = new Map(tournament.players.map(player => [player.localKey, 0]));
+  const orderedPlayers = orderPlayersForPublication(tournament);
+  const publicationNumberByKey = buildPublicationNumberMap(tournament);
 
   for (const round of generatedRounds.filter(round => round <= rankingRound)) {
     const pairedKeys = new Set<string>();
@@ -211,18 +214,18 @@ export function buildChessResultsXml(tournament: Tournament, options: { requireK
   }
 
   lines.push('</rounds>', '<players>');
-  const orderedPlayers = [...tournament.players].sort((a, b) => a.pairingNumber - b.pairingNumber);
   orderedPlayers.forEach(player => {
     const names = playerNameParts(player.name);
-    const internalId = /^\d{1,12}$/.test(String(player.id || '')) ? player.id : player.pairingNumber;
+    const publicationNumber = publicationNumberByKey.get(player.localKey) || player.pairingNumber;
+    const internalId = /^\d{1,12}$/.test(String(player.id || '')) ? player.id : publicationNumber;
     const points = pointsByKey.get(player.localKey) || 0;
     lines.push(`<player ${[
-      attr('no', player.pairingNumber), attr('id', internalId), attr('lastname', names.lastname), attr('firstname', names.firstname), attr('atitle', ''),
+      attr('no', publicationNumber), attr('id', internalId), attr('lastname', names.lastname), attr('firstname', names.firstname), attr('atitle', ''),
       attr('title', text(player.title, 4)), attr('rtg', numericOrEmpty(player.rating)), attr('rtgfide', numericOrEmpty(player.stdRating || player.rating)),
       attr('rtgnat', numericOrEmpty(player.nationalRating)), attr('dob', birth(player.birth)), attr('sex', player.gender === 'f' ? 'W' : player.gender === 'm' ? 'M' : ''),
       attr('fed', text(player.fed, 3).toUpperCase()), attr('board', ''), attr('teamno', 0), attr('clubname', text(player.club, 40)),
       attr('fideid', String(player.fideId || '').replace(/^-$/, '')), attr('club', ''), attr('typ', text(player.type, 4)), attr('group', text(player.group, 4)),
-      attr('rank', player.pairingNumber), attr('tb1', ''), attr('tb2', ''), attr('tb3', ''), attr('tb4', ''), attr('tb5', ''),
+      attr('rank', publicationNumber), attr('tb1', ''), attr('tb2', ''), attr('tb3', ''), attr('tb4', ''), attr('tb5', ''),
       attr('pts', points.toFixed(1)), attr('equal', 'N'), attr('kfaktor', player.fideK || ''), attr('state', '')
     ].join(' ')} />`);
   });
@@ -257,8 +260,8 @@ export function buildChessResultsXml(tournament: Tournament, options: { requireK
       // Official 2026 Individual Swiss XML uses pairing as the sequential
       // pairing/table index and board="1" for every player pairing.
       lines.push(`<playerpairing ${[
-        attr('round', round), attr('pairing', pairingNumber), attr('board', 1), attr('whiteno', white.pairingNumber),
-        attr('blackno', black?.pairingNumber || result.blackNo || -2), attr('reswhite', result.white), attr('resblack', result.black), attr('forfeit', result.forfeit)
+        attr('round', round), attr('pairing', pairingNumber), attr('board', 1), attr('whiteno', publicationNumberByKey.get(white.localKey) || white.pairingNumber),
+        attr('blackno', black ? (publicationNumberByKey.get(black.localKey) || black.pairingNumber) : (result.blackNo || -2)), attr('reswhite', result.white), attr('resblack', result.black), attr('forfeit', result.forfeit)
       ].join(' ')} />`);
     });
 
@@ -268,7 +271,7 @@ export function buildChessResultsXml(tournament: Tournament, options: { requireK
       const requestedBye = player.requestedByes?.[String(round)];
       const whiteResult = requestedBye === 'half' ? '0.5' : requestedBye === 'zero' ? '0.0' : '';
       lines.push(`<playerpairing ${[
-        attr('round', round), attr('pairing', pairingNumber), attr('board', 1), attr('whiteno', player.pairingNumber),
+        attr('round', round), attr('pairing', pairingNumber), attr('board', 1), attr('whiteno', publicationNumberByKey.get(player.localKey) || player.pairingNumber),
         attr('blackno', -2), attr('reswhite', whiteResult), attr('resblack', ''), attr('forfeit', '')
       ].join(' ')} />`);
     });

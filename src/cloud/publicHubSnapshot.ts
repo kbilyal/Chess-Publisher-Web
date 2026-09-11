@@ -1,6 +1,7 @@
 import { Tournament } from '../types';
 import { calculateTournamentStandings, getStandingTieBreakValue } from '../engine/tiebreaks';
 import { chooseInternalTournamentId } from './onlineCloudSync';
+import { orderPlayersForPublication } from '../publication/playerPublicationOrder';
 
 const SCHEMA_VERSION = '1.0';
 const PRODUCT = 'Chess-Publisher';
@@ -76,7 +77,7 @@ function playerStableKey(player: any, index: number) {
 }
 
 function normalizePlayers(tournament: Tournament | any) {
-  return (tournament?.players || []).map((player: any, index: number) => ({
+  return orderPlayersForPublication(tournament).map((player: any, index: number) => ({
     key: playerStableKey(player, index),
     name: text(player?.name),
     fideId: nullableText(player?.fideId),
