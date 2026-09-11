@@ -142,6 +142,15 @@ const publicPublishMutation = {
     internalId: 'hub-public-99'
   }
 };
+
+const storageGuardedPublish = preserveNewestCloudLineage(base as any, publicPublishMutation as any) as any;
+assert.equal(
+  storageGuardedPublish.cloud.internalId,
+  'tournament-1',
+  'The localStorage write guard must block a Public Hub id before it can replace the permanent private internalId.'
+);
+assert.equal(storageGuardedPublish.online.hubTournamentId, 'hub-public-99', 'The Public Hub id must still be persisted under online metadata.');
+
 const afterPublicPublish = preservePrivateIdentityAfterPublicPublish(base as any, publicPublishMutation as any) as any;
 assert.equal(
   afterPublicPublish.cloud.internalId,
@@ -172,6 +181,7 @@ assert.ok(appSource.includes('protectCompanionCloudFacade(createCompanionCloudFa
 
 const handoffSource = fs.readFileSync(path.join(process.cwd(), 'src', 'companion', 'webCloudLineageHandoff.ts'), 'utf8');
 assert.ok(handoffSource.includes('repairPrivateIdentityFromActiveCloud'), 'Companion handoff must repair legacy public-Hub identity overwrites from active private Cloud metadata.');
+assert.ok(handoffSource.includes('preservePrivateIdentityAgainstPublicWrite'), 'The localStorage boundary must reject a direct Public Hub identity overwrite.');
 assert.ok(handoffSource.includes('publishWithPrivateIdentityGuard'), 'Publish Online must be wrapped by the private-identity guard.');
 assert.ok(handoffSource.includes('preservePrivateIdentityAfterPublicPublish'), 'Public publish completion must restore private identity if an older provider path mutates it.');
 assert.ok(handoffSource.includes('repairSameRevisionAuthoritativeBase'), 'Companion handoff must repair a stale same-revision common-base fingerprint before SYNC.');
@@ -179,6 +189,11 @@ assert.ok(handoffSource.includes('revision !== baseRevision'), 'Same-revision re
 assert.ok(handoffSource.includes('baseFingerprint: remoteFingerprint'), 'The authoritative current Cloud fingerprint must replace stale same-revision lineage.');
 assert.ok(handoffSource.includes('clearLatchedPhantomConflict'), 'A previously latched phantom conflict must be cleared before retrying SYNC.');
 assert.ok(handoffSource.includes('facade.pullChanges(prepared.tournament)'), 'Phantom-conflict recovery must clear the provider latch through the existing pull-only path, never by a hidden PUT.');
+
+const syncSource = fs.readFileSync(path.join(process.cwd(), 'src', 'cloud', 'onlineCloudSync.ts'), 'utf8');
+assert.ok(syncSource.includes('const publicIds = new Set'), 'Private identity selection must explicitly recognize the Public Hub namespace.');
+assert.ok(syncSource.includes('!publicIds.has(value)'), 'Public Hub IDs must be rejected even when an older call site supplies them as identity candidates.');
+assert.ok(!syncSource.includes('if (hubId) return hubId'), 'Private internalId must never fall back directly to a Public Hub ID.');
 
 const protectedManifest = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'SYNC-FREEZE-v1.06.00-beta.96.json'), 'utf8'));
 assert.equal(protectedManifest.fingerprintContentSchema, 7, 'SYNC schema 7 must remain unchanged.');
