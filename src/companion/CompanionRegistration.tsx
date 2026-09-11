@@ -13,6 +13,7 @@ import {
 } from '../transactions/playerWorkflow';
 import { downloadPlayersXml } from '../importers/playersXml';
 import { getFideBrowserDatabaseInfo, searchFideBrowserDatabase } from './fideBrowserDatabase';
+import { getPlayerPublicationOrder } from '../publication/playerPublicationOrder';
 
 interface Props {
   tournament: Tournament;
@@ -20,6 +21,7 @@ interface Props {
 }
 
 type Notice = { kind: 'ok' | 'warn' | 'error'; text: string } | null;
+type RosterSortMode = 'starting' | 'rating' | 'name';
 type FideListInfo = { listVersion: string; label: string; recordCount: number; source: 'service' | 'browser' | 'live' };
 
 const RATING_FIELDS = ['ratingStandard', 'ratingRapid', 'ratingBlitz'] as const;
@@ -92,7 +94,7 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
   const [results, setResults] = useState<FidePlayerRecord[]>([]);
   const [searching, setSearching] = useState(false);
   const [listQuery, setListQuery] = useState('');
-  const [sortMode, setSortMode] = useState<'starting' | 'rating' | 'name'>('starting');
+  const sortMode: RosterSortMode = getPlayerPublicationOrder(tournament);
   const [notice, setNotice] = useState<Notice>(null);
   const [manualOpen, setManualOpen] = useState(false);
   const [busyKey, setBusyKey] = useState('');
@@ -178,6 +180,13 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
   }, [players, listQuery, sortMode]);
 
   const commitTournament = (next: Tournament) => onUpdateTournament(() => next);
+
+  const handleSortModeChange = (mode: RosterSortMode) => {
+    onUpdateTournament(previous => ({
+      ...previous,
+      settings: { ...(previous.settings as any), playerPublicationOrder: mode } as any
+    }));
+  };
 
   const handleExportPlayersXml = () => {
     try {
@@ -485,15 +494,15 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
           <label className="companion-searchbox small"><Search size={16} /><input value={listQuery} onChange={event => setListQuery(event.target.value)} placeholder="Filter registered players" /></label>
           <label className="companion-sort-control">
             <ArrowUpDown size={15} />
-            <span>Sort view</span>
-            <select value={sortMode} onChange={event => setSortMode(event.target.value as 'starting' | 'rating' | 'name')}>
+            <span>Sort & publish</span>
+            <select value={sortMode} onChange={event => handleSortModeChange(event.target.value as RosterSortMode)}>
               <option value="starting">Starting #</option>
               <option value="rating">Rating ↓</option>
               <option value="name">Name A–Z</option>
             </select>
           </label>
         </div>
-        <div className="companion-sort-note">View only — sorting never changes official starting numbers or pairing numbers.</div>
+        <div className="companion-sort-note">This order is also used for Chess-Results and Online Hub publication; sorting never changes official starting numbers or pairing numbers.</div>
 
         <div className="companion-roster-list">
           {filteredPlayers.map(player => (
