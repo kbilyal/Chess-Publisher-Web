@@ -2,6 +2,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import AdmZip from 'adm-zip';
+import { buildFideNameQueryVariants } from '../../companion/fideBrowserDatabase';
 import { FideRatingRepository } from '../fide/FideRatingRepository';
 import { FideRatingService } from '../fide/FideRatingService';
 
@@ -66,6 +67,15 @@ async function main() {
     assert(rapidPlayer.ratingBlitz === 1511, `Blitz rating mismatch: ${rapidPlayer.ratingBlitz}`);
     assert(rapidPlayer.gender === 'f', `Gender normalization mismatch: ${rapidPlayer.gender}`);
 
+    const givenSurnameVariants = buildFideNameQueryVariants('Kyamran Bilyal');
+    const surnameGivenVariants = buildFideNameQueryVariants('Bilyal Kyamran');
+    const commaVariants = buildFideNameQueryVariants('Bilyal, Kyamran');
+    for (const variants of [givenSurnameVariants, surnameGivenVariants, commaVariants]) {
+      assert(variants.includes('Kyamran Bilyal'), 'FIDE name search must accept Given Surname without a comma.');
+      assert(variants.includes('Bilyal Kyamran'), 'FIDE name search must accept Surname Given without a comma.');
+      assert(variants.includes('Bilyal, Kyamran'), 'FIDE name search fallback must generate the canonical comma form automatically.');
+    }
+
     const browserSearchSource = fs.readFileSync(
       path.join(process.cwd(), 'src', 'companion', 'fideBrowserDatabase.ts'),
       'utf8'
@@ -80,7 +90,7 @@ async function main() {
     );
 
     repository.close();
-    console.log('PASS FIDE complete-list regression: ordinary players preserved + Standard/Rapid/Blitz fields retained.');
+    console.log('PASS FIDE complete-list regression: ordinary players preserved + Standard/Rapid/Blitz fields retained + name order/comma-independent search variants preserved.');
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
