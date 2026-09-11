@@ -7,6 +7,7 @@ const MANIFEST_URL = '/fide/fide_latest_manifest.json';
 const SQL_WASM_URL = '/vendor/sql-wasm.wasm';
 const FIDE_PUBLIC_SEARCH_API = 'https://lichess.org/api/fide/player';
 const MIN_TRUSTED_LOCAL_RECORDS = 100000;
+const MAX_REMOTE_NAME_VARIANTS = 8;
 
 export interface BrowserFideManifest {
   schemaVersion?: number;
@@ -79,6 +80,47 @@ function ratingForTournament(record: FidePlayerRecord, tournamentType: 'Standard
   return Number(record.ratingStandard || 0);
 }
 
+function normalizedNameTokens(value: string) {
+  return String(value || '')
+    .replace(/,/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .map(token => token.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Build equivalent FIDE name queries without requiring the user to know
+ * whether the source list stores "Surname, Given" or "Given Surname".
+ * Commas are treated as formatting only, never as a search requirement.
+ */
+export function buildFideNameQueryVariants(query: string): string[] {
+  const tokens = normalizedNameTokens(query);
+  if (!tokens.length) return [];
+  if (tokens.length === 1) return [tokens[0]];
+
+  const variants = new Set<string>();
+  const add = (value: string) => {
+    const cleaned = value.replace(/\s+/g, ' ').replace(/\s*,\s*/g, ', ').trim();
+    if (cleaned) variants.add(cleaned);
+  };
+
+  add(tokens.join(' '));
+  add([...tokens].reverse().join(' '));
+
+  // Treat every token as a possible surname. Keep the remaining given-name
+  // tokens in the order typed, and try both comma and no-comma FIDE forms.
+  for (let index = 0; index < tokens.length; index += 1) {
+    const surname = tokens[index];
+    const given = tokens.filter((_, tokenIndex) => tokenIndex !== index).join(' ');
+    add(`${surname} ${given}`);
+    add(`${surname}, ${given}`);
+    if (variants.size >= MAX_REMOTE_NAME_VARIANTS) break;
+  }
+
+  return Array.from(variants).slice(0, MAX_REMOTE_NAME_VARIANTS);
+}
+
 function normalizePublicFidePlayer(raw: any): FidePlayerRecord | null {
   if (!raw || typeof raw !== 'object') return null;
   const fideId = Number(raw.id ?? raw.fideId ?? raw.fide_id ?? 0);
@@ -102,33 +144,55 @@ function normalizePublicFidePlayer(raw: any): FidePlayerRecord | null {
   };
 }
 
+async function fetchPublicFideQuery(query: string): Promise<FidePlayerRecord[]> {
+  try {
+    const numeric = /^\d+$/.test(query);
+    const url = numeric
+      ? `${FIDE_PUBLIC_SEARCH_API}/${encodeURIComponent(query)}`
+      : `${FIDE_PUBLIC_SEARCH_API}?q=${encodeURIComponent(query)}`;
+    const response = await fetch(url, {
+      headers: { Accept: 'application/json' },
+      cache: 'no-store'
+    });
+    if (!response.ok) return [];
+    const payload = await response.json();
+    const rawPlayers = Array.isArray(payload) ? payload : [payload];
+    return rawPlayers
+      .map(normalizePublicFidePlayer)
+      .filter((player): player is FidePlayerRecord => Boolean(player));
+  } catch {
+    return [];
+  }
+}
+
 async function searchFidePublicMirror(query: string, limit: number): Promise<FidePlayerRecord[]> {
   const q = String(query || '').trim();
   if (q.length < 2) return [];
-  const cacheKey = `${q.toLocaleLowerCase()}::${limit}`;
+  const numeric = /^\d+$/.test(q);
+  const nameTokens = numeric ? [] : normalizedNameTokens(q).map(token => token.toLocaleLowerCase());
+  const cacheIdentity = numeric
+    ? q
+    : [...nameTokens].sort((a, b) => a.localeCompare(b)).join(' ');
+  const cacheKey = `${cacheIdentity}::${limit}`;
   const cached = remoteSearchCache.get(cacheKey);
   if (cached) return cached;
 
   const pending = (async () => {
-    try {
-      const numeric = /^\d+$/.test(q);
-      const url = numeric
-        ? `${FIDE_PUBLIC_SEARCH_API}/${encodeURIComponent(q)}`
-        : `${FIDE_PUBLIC_SEARCH_API}?q=${encodeURIComponent(q)}`;
-      const response = await fetch(url, {
-        headers: { Accept: 'application/json' },
-        cache: 'no-store'
-      });
-      if (!response.ok) return [];
-      const payload = await response.json();
-      const rawPlayers = Array.isArray(payload) ? payload : [payload];
-      return rawPlayers
-        .map(normalizePublicFidePlayer)
-        .filter((player): player is FidePlayerRecord => Boolean(player))
-        .slice(0, limit);
-    } catch {
-      return [];
+    if (numeric) {
+      return (await fetchPublicFideQuery(q)).slice(0, limit);
     }
+
+    const merged = new Map<number, FidePlayerRecord>();
+    const variants = buildFideNameQueryVariants(q);
+
+    // Sequential by design. This keeps the public fallback polite while still
+    // accepting both Given Surname and Surname Given/Surname, Given input.
+    for (const variant of variants) {
+      const players = await fetchPublicFideQuery(variant);
+      players.forEach(player => merged.set(player.fideId, player));
+    }
+
+    return Array.from(merged.values()).slice(0, Math.max(limit, 50));
   })();
 
   remoteSearchCache.set(cacheKey, pending);
@@ -175,7 +239,9 @@ export async function searchFideBrowserDatabase(query: string, tournamentType: '
       bindings[':exact_id'] = Number(q);
       bindings[':prefix_id'] = `${q}%`;
     } else {
-      const tokens = q.split(/[\s,]+/).map(token => token.trim()).filter(Boolean);
+      // Every typed token must occur somewhere in the stored FIDE name.
+      // Token order and commas therefore have no semantic meaning locally.
+      const tokens = normalizedNameTokens(q);
       for (let tokenIndex = 0; tokenIndex < tokens.length; tokenIndex += 1) {
         const variants = [...new Set(generateTransliterationVariants(tokens[tokenIndex]).map(value => value.trim()).filter(Boolean))].slice(0, 8);
         if (!variants.length) continue;
