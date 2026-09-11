@@ -2,7 +2,8 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import AdmZip from 'adm-zip';
-import { buildFideNameQueryVariants } from '../../companion/fideBrowserDatabase';
+import { buildFideNameQueryVariants, rankFideSearchResults, scoreFideNameMatch } from '../../companion/fideBrowserDatabase';
+import { FidePlayerRecord } from '../fide/types';
 import { FideRatingRepository } from '../fide/FideRatingRepository';
 import { FideRatingService } from '../fide/FideRatingService';
 
@@ -76,6 +77,51 @@ async function main() {
       assert(variants.includes('Bilyal, Kyamran'), 'FIDE name search fallback must generate the canonical comma form automatically.');
     }
 
+    assert(scoreFideNameMatch('Kyamran Bilyal', 'Bilyal, Kyamran') > 0, 'Order-independent exact name match failed.');
+    assert(scoreFideNameMatch('Bilyal Kyamran', 'Bilyal, Kyamran') > 0, 'Surname-first no-comma match failed.');
+    assert(scoreFideNameMatch('Bilyal, Kyamran', 'Bilyal, Kyamran') > 0, 'Canonical comma match failed.');
+    assert(scoreFideNameMatch('Kyamran Bilyal', 'Bilyal, Someone Else') < 0, 'Unrelated fuzzy result must be rejected.');
+
+    const relevanceCandidates: FidePlayerRecord[] = [
+      {
+        fideId: 9911001,
+        name: 'Bilyal, Kyamran',
+        federation: 'BUL',
+        ratingStandard: 1800,
+        ratingRapid: 1750,
+        ratingBlitz: 1700
+      },
+      {
+        fideId: 9911002,
+        name: 'Bilyal, Someone Else',
+        federation: 'BUL',
+        ratingStandard: 2600,
+        ratingRapid: 2600,
+        ratingBlitz: 2600
+      },
+      {
+        fideId: 9911003,
+        name: 'Kyamranov, Highrated',
+        federation: 'FID',
+        ratingStandard: 2700,
+        ratingRapid: 2700,
+        ratingBlitz: 2700
+      }
+    ];
+
+    for (const query of ['Kyamran Bilyal', 'Bilyal Kyamran', 'Bilyal, Kyamran']) {
+      const ranked = rankFideSearchResults(query, relevanceCandidates, 'Standard', 20);
+      assert(ranked.length === 1, `Expected one relevant player for ${query}, got ${ranked.length}.`);
+      assert(ranked[0].fideId === 9911001, `Wrong player ranked first for ${query}.`);
+    }
+
+    const idCandidates: FidePlayerRecord[] = [
+      { ...relevanceCandidates[1], fideId: 12345678 },
+      { ...relevanceCandidates[0], fideId: 1234567 }
+    ];
+    const idRanked = rankFideSearchResults('1234567', idCandidates, 'Standard', 20);
+    assert(idRanked[0]?.fideId === 1234567, 'Exact FIDE ID must rank ahead of a higher-rated prefix match.');
+
     const browserSearchSource = fs.readFileSync(
       path.join(process.cwd(), 'src', 'companion', 'fideBrowserDatabase.ts'),
       'utf8'
@@ -88,9 +134,13 @@ async function main() {
       browserSearchSource.includes('ratingRapid') && browserSearchSource.includes('ratingBlitz') && browserSearchSource.includes('ratingStandard'),
       'Web fallback must preserve separate Standard, Rapid and Blitz ratings.'
     );
+    assert(
+      browserSearchSource.includes('scoreFideNameMatch(q, player.name) >= 0'),
+      'Public FIDE fallback candidates must be locally relevance-filtered before display.'
+    );
 
     repository.close();
-    console.log('PASS FIDE complete-list regression: ordinary players preserved + Standard/Rapid/Blitz fields retained + name order/comma-independent search variants preserved.');
+    console.log('PASS FIDE complete-list regression: complete list + rating fields + order/comma-independent relevance-filtered search preserved.');
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
