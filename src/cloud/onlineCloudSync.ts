@@ -37,8 +37,8 @@ export function createInternalTournamentId() { return `tournament:${newUuid()}`;
 export function chooseInternalTournamentId(tournament: Tournament | any, candidates: Array<unknown> = []) {
   const existing = text(tournament?.cloud?.internalId);
   if (existing) return existing;
-  const hubId = text(tournament?.online?.hubTournamentId || tournament?.hub?.tournamentId || tournament?.publication?.hubTournamentId);
-  if (hubId) return hubId;
+  // Private Cloud identity is intentionally independent from Public Hub identity.
+  // Only explicitly trusted private-identity candidates may seed it.
   for (const candidate of candidates) { const value = text(candidate); if (value) return value; }
   return createInternalTournamentId();
 }
@@ -175,7 +175,7 @@ export function preserveInstallationLocalFields(remoteTournament: Tournament | a
   const remote: any = clone(remoteTournament || {});
   const current: any = currentLocal || {};
   restoreInstallationLocalKeys(remote, current);
-  const internalId = chooseInternalTournamentId(remote, [current?.cloud?.internalId, current?.online?.hubTournamentId, options.cloudTournamentId]);
+  const internalId = chooseInternalTournamentId(remote, [current?.cloud?.internalId]);
   remote.cloud = {
     ...(current?.cloud && typeof current.cloud === 'object' ? clone(current.cloud) : {}),
     schemaVersion: 4,
