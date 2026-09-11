@@ -1,9 +1,9 @@
 {
-  "baseCommit": "64aa29e0f0e2ca5a1b19083ccfb05ffc54f91045",
+  "baseCommit": "bbb51874bcef60de2f4cf596b46c8a0d947793ad",
   "htmlSha256": "c9ad45390908b7e1b7f96b58a85cc79537d0b22b022cf07ed4258833cba33eb7",
   "scripts": {
     "production-web/browser-dev-host.js": "a7b4affb46aabecbb8cf878044c90c8ea4ddf4f17f5f237281b1477e6cd102a9",
-    "production-web/cloud/client/cloud-workspace-api.js": "ff1ac911a563980509647ddfea4294692089029aa5f1fb5b50170fca983d4a13",
+    "production-web/cloud/client/cloud-workspace-api.js": "06bab3564df5587f596fbd4001ff211345f4e58abe6dfe1c1325d2640bdc6e7b",
     "production-web/hub/client/hub-api-client.js": "2311446a69c16a14e041dbf08d4e198280d3a3f1232b739bf8e089d8ffdac9f0",
     "production-web/hub/client/hub-snapshot.js": "d980c520d74a71e66b3a3aa2a54e5ed626ea3618c53159145f9e48b445effac9",
     "production-web/web/browser-dev-host.js": "a7b4affb46aabecbb8cf878044c90c8ea4ddf4f17f5f237281b1477e6cd102a9",
