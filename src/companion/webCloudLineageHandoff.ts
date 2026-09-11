@@ -76,6 +76,105 @@ export function withLatestStoredCloudLineage(tournament: Tournament): Tournament
 }
 
 /**
+ * The private Cloud record owns the permanent internalId through its `localKey`.
+ * Public Hub IDs are separate publication identities and must never replace it.
+ * If an older Web publish path already wrote a Hub ID into cloud.internalId,
+ * repair it from the currently-open organizer-owned private Cloud metadata.
+ */
+export function repairPrivateIdentityFromActiveCloud(
+  tournament: Tournament | any,
+  activeCloud: any
+): Tournament {
+  if (!tournament || !activeCloud) return tournament as Tournament;
+
+  const linkedCloudId = text(tournament?.cloud?.cloudTournamentId);
+  const activeCloudId = text(activeCloud?.id);
+  const activeInternalId = text(activeCloud?.localKey);
+  if (!linkedCloudId || !activeCloudId || linkedCloudId !== activeCloudId || !activeInternalId) {
+    return tournament as Tournament;
+  }
+
+  const currentInternalId = text(tournament?.cloud?.internalId || tournament?.internalId);
+  if (currentInternalId === activeInternalId) return tournament as Tournament;
+
+  const repaired: any = clone(tournament);
+  repaired.cloud = {
+    ...(repaired.cloud || {}),
+    cloudTournamentId: activeCloudId,
+    internalId: activeInternalId
+  };
+  return repaired as Tournament;
+}
+
+/**
+ * A public publish may update online.* metadata, but it is never allowed to
+ * rewrite the private Cloud lineage. Preserve the exact private identity that
+ * existed immediately before Publish Online while retaining all public metadata.
+ */
+export function preservePrivateIdentityAfterPublicPublish(
+  beforePublish: Tournament | any,
+  afterPublish: Tournament | any
+): Tournament {
+  if (!beforePublish || !afterPublish) return afterPublish as Tournament;
+
+  const privateCloudId = text(beforePublish?.cloud?.cloudTournamentId);
+  const privateInternalId = text(beforePublish?.cloud?.internalId || beforePublish?.internalId);
+  const afterCloudId = text(afterPublish?.cloud?.cloudTournamentId);
+  if (!privateCloudId || !privateInternalId || afterCloudId !== privateCloudId) {
+    return afterPublish as Tournament;
+  }
+
+  const afterInternalId = text(afterPublish?.cloud?.internalId || afterPublish?.internalId);
+  if (afterInternalId === privateInternalId) return afterPublish as Tournament;
+
+  const repaired: any = clone(afterPublish);
+  repaired.cloud = {
+    ...(repaired.cloud || {}),
+    cloudTournamentId: privateCloudId,
+    internalId: privateInternalId
+  };
+  return repaired as Tournament;
+}
+
+function readStoredTournament(): Tournament | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(TOURNAMENT_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistTournament(tournament: Tournament) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(TOURNAMENT_STORAGE_KEY, JSON.stringify(tournament));
+}
+
+function freshTournamentForCloudFacade(facade: Record<string, any>, tournament: Tournament) {
+  const latest = withLatestStoredCloudLineage(tournament);
+  const repaired = repairPrivateIdentityFromActiveCloud(latest, facade?.activeCloud);
+  if (repaired !== latest) persistTournament(repaired);
+  return repaired;
+}
+
+async function publishWithPrivateIdentityGuard(facade: Record<string, any>, tournament: Tournament) {
+  const beforePublish = freshTournamentForCloudFacade(facade, tournament);
+  const result = await facade.publishOnline(beforePublish);
+
+  const storedAfterPublish = readStoredTournament();
+  if (storedAfterPublish) {
+    const repairedStored = preservePrivateIdentityAfterPublicPublish(beforePublish, storedAfterPublish);
+    if (repairedStored !== storedAfterPublish) persistTournament(repairedStored);
+  }
+
+  if (result && typeof result === 'object') {
+    return preservePrivateIdentityAfterPublicPublish(beforePublish, result as Tournament);
+  }
+  return result;
+}
+
+/**
  * Web Companion has its own React tournament state while the authoritative
  * Cloud provider persists accepted revision lineage directly to localStorage.
  * A later render of stale React state must never write an older common base
@@ -108,7 +207,7 @@ export function installWebCloudLineageWriteGuard() {
 }
 
 export function protectCompanionCloudFacade<T extends Record<string, any>>(facade: T): T {
-  const fresh = (tournament: Tournament) => withLatestStoredCloudLineage(tournament);
+  const fresh = (tournament: Tournament) => freshTournamentForCloudFacade(facade, tournament);
   return {
     ...facade,
     syncNow: (tournament: Tournament) => facade.syncNow(fresh(tournament)),
@@ -117,6 +216,6 @@ export function protectCompanionCloudFacade<T extends Record<string, any>>(facad
     resolveConflict: (tournament: Tournament) => facade.resolveConflict(fresh(tournament)),
     resolveConflictWithStrategy: (tournament: Tournament, strategy: 'web' | 'cloud') =>
       facade.resolveConflictWithStrategy(fresh(tournament), strategy),
-    publishOnline: (tournament: Tournament) => facade.publishOnline(fresh(tournament))
+    publishOnline: (tournament: Tournament) => publishWithPrivateIdentityGuard(facade, tournament)
   } as T;
 }
