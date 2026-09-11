@@ -15,7 +15,7 @@
     "test:parity": "tsx src/server/tests/runParitySuite.ts",
     "test:transactions": "tsx src/server/tests/runTransactionTests.ts",
     "test:finalization": "tsx src/server/tests/runRoundFinalizationTests.ts",
-    "test:fide": "tsx src/server/tests/runFideRatingTests.ts && tsx src/server/tests/runFideCompleteListRegression.ts",
+    "test:fide": "tsx src/server/tests/runFideRatingTests.ts && tsx src/server/tests/runFideCompleteListRegression.ts && tsx src/server/tests/runFideRatingRefreshTests.ts",
     "test:fide-sync": "tsx src/server/tests/runFideSyncTests.ts",
     "test:fide-latest": "tsx src/server/tests/runFideLatestListTests.ts",
     "test:trf": "tsx src/server/tests/runTrfRegressionTests.ts",
