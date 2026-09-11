@@ -15,27 +15,32 @@ path = 'src/companion/CompanionRegistration.tsx'
 replace_once(
     path,
     "import { getFideBrowserDatabaseInfo, searchFideBrowserDatabase } from './fideBrowserDatabase';",
-    "import { getFideBrowserDatabaseInfo, searchFideBrowserDatabase } from './fideBrowserDatabase';\nimport { getPlayerPublicationOrder, PlayerPublicationOrder } from '../publication/playerPublicationOrder';"
+    "import { getFideBrowserDatabaseInfo, searchFideBrowserDatabase } from './fideBrowserDatabase';\nimport { getPlayerPublicationOrder } from '../publication/playerPublicationOrder';"
+)
+replace_once(
+    path,
+    "type Notice = { kind: 'ok' | 'warn' | 'error'; text: string } | null;",
+    "type Notice = { kind: 'ok' | 'warn' | 'error'; text: string } | null;\ntype RosterSortMode = 'starting' | 'rating' | 'name';"
 )
 replace_once(
     path,
     "  const [sortMode, setSortMode] = useState<'starting' | 'rating' | 'name'>('starting');",
-    "  const sortMode = getPlayerPublicationOrder(tournament);"
+    "  const sortMode: RosterSortMode = getPlayerPublicationOrder(tournament);"
 )
 replace_once(
     path,
     "  const commitTournament = (next: Tournament) => onUpdateTournament(() => next);",
-    "  const commitTournament = (next: Tournament) => onUpdateTournament(() => next);\n\n  const handleSortModeChange = (mode: PlayerPublicationOrder) => {\n    onUpdateTournament(previous => ({\n      ...previous,\n      settings: { ...(previous.settings as any), playerPublicationOrder: mode } as any\n    }));\n  };"
+    "  const commitTournament = (next: Tournament) => onUpdateTournament(() => next);\n\n  const handleSortModeChange = (mode: RosterSortMode) => {\n    onUpdateTournament(previous => ({\n      ...previous,\n      settings: { ...(previous.settings as any), playerPublicationOrder: mode } as any\n    }));\n  };"
 )
 replace_once(
     path,
     "            <span>Sort view</span>\n            <select value={sortMode} onChange={event => setSortMode(event.target.value as 'starting' | 'rating' | 'name')}>",
-    "            <span>Sort & publish</span>\n            <select value={sortMode} onChange={event => handleSortModeChange(event.target.value as PlayerPublicationOrder)}>"
+    "            <span>Sort & publish</span>\n            <select value={sortMode} onChange={event => handleSortModeChange(event.target.value as RosterSortMode)}>"
 )
 replace_once(
     path,
     "        <div className=\"companion-sort-note\">View only — sorting never changes official starting numbers or pairing numbers.</div>",
-    "        <div className=\"companion-sort-note\">This order is also used for Chess-Results and Online Hub publication. Official starting/pairing numbers are never changed.</div>"
+    "        <div className=\"companion-sort-note\">This order is also used for Chess-Results and Online Hub publication; sorting never changes official starting numbers or pairing numbers.</div>"
 )
 
 # Chess-Results: use a publication-only numbering map so XML player order and pairing references agree,
