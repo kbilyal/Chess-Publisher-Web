@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUpDown, Check, Download, Loader2, Search, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { ArrowUpDown, Check, Download, Loader2, RefreshCw, Search, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { Attendance, FideTitle, Gender, Tournament } from '../types';
 import { FidePlayerRecord } from '../server/fide/types';
 import { TransactionManager } from '../transactions/TransactionManager';
+import type { FidePlayerSyncSelection } from '../transactions/types';
+import { applyFidePlayerSync } from '../transactions/fideSyncWorkflow';
 import {
   executeBulkStatusTransaction,
   executeDeletePlayerTransaction,
@@ -10,7 +12,7 @@ import {
   isStartingRankLocked
 } from '../transactions/playerWorkflow';
 import { downloadPlayersXml } from '../importers/playersXml';
-import { searchFideBrowserDatabase } from './fideBrowserDatabase';
+import { getFideBrowserDatabaseInfo, searchFideBrowserDatabase } from './fideBrowserDatabase';
 
 interface Props {
   tournament: Tournament;
@@ -18,6 +20,9 @@ interface Props {
 }
 
 type Notice = { kind: 'ok' | 'warn' | 'error'; text: string } | null;
+type FideListInfo = { listVersion: string; label: string; recordCount: number; source: 'service' | 'browser' | 'live' };
+
+const RATING_FIELDS = ['ratingStandard', 'ratingRapid', 'ratingBlitz'] as const;
 
 const ratingFor = (record: FidePlayerRecord, type: 'Standard' | 'Rapid' | 'Blitz') =>
   type === 'Rapid' ? Number(record.ratingRapid || 0) : type === 'Blitz' ? Number(record.ratingBlitz || 0) : Number(record.ratingStandard || 0);
@@ -27,14 +32,59 @@ async function searchFidePlayers(query: string, ratingType: 'Standard' | 'Rapid'
     const response = await fetch(`/api/fide/search?limit=20&tournamentType=${encodeURIComponent(ratingType)}&filterRating=all&q=${encodeURIComponent(query)}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const payload = await response.json();
-    if (Array.isArray(payload?.players)) return { players: payload.players as FidePlayerRecord[], source: 'service' as const };
+    if (Array.isArray(payload?.players) && payload.players.length > 0) {
+      return { players: payload.players as FidePlayerRecord[], source: 'service' as const };
+    }
   } catch {
-    // Static production is intentionally allowed to fall through to the same
-    // official SQLite database shipped with the Web artifact. This keeps
-    // registration functional without introducing a second player-data source.
+    // Static production intentionally falls through to the packaged FIDE database
+    // and its public FIDE-data fallback.
   }
   const players = await searchFideBrowserDatabase(query, ratingType, 20);
   return { players, source: 'static-db' as const };
+}
+
+async function lookupFidePlayerById(fideId: number, ratingType: 'Standard' | 'Rapid' | 'Blitz'): Promise<FidePlayerRecord | null> {
+  const query = String(fideId);
+  try {
+    const response = await fetch(`/api/fide/search?limit=10&tournamentType=${encodeURIComponent(ratingType)}&filterRating=all&q=${encodeURIComponent(query)}`);
+    if (response.ok) {
+      const payload = await response.json();
+      if (Array.isArray(payload?.players)) {
+        const exact = (payload.players as FidePlayerRecord[]).find(player => Number(player.fideId) === fideId);
+        if (exact) return exact;
+      }
+    }
+  } catch {
+    // Continue to browser database / live fallback.
+  }
+
+  const browserPlayers = await searchFideBrowserDatabase(query, ratingType, 10);
+  return browserPlayers.find(player => Number(player.fideId) === fideId) || null;
+}
+
+async function loadFideListInfo(): Promise<FideListInfo> {
+  try {
+    const response = await fetch('/api/fide/status', { cache: 'no-store' });
+    if (response.ok) {
+      const status = await response.json();
+      const version = String(status?.listVersion || '').trim();
+      const recordCount = Number(status?.recordCount || 0);
+      if (version && version.toLowerCase() !== 'bootstrap' && recordCount >= 100000) {
+        return { listVersion: version, label: version, recordCount, source: 'service' };
+      }
+    }
+  } catch {
+    // Static production uses the manifest below.
+  }
+
+  const manifest = await getFideBrowserDatabaseInfo();
+  const version = String(manifest?.listVersion || '').trim();
+  const recordCount = Number(manifest?.recordCount || 0);
+  if (version && version.toLowerCase() !== 'bootstrap' && recordCount >= 100000) {
+    return { listVersion: version, label: version, recordCount, source: 'browser' };
+  }
+
+  return { listVersion: 'live', label: 'Latest available FIDE data', recordCount, source: 'live' };
 }
 
 export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTournament }) => {
@@ -46,6 +96,7 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
   const [notice, setNotice] = useState<Notice>(null);
   const [manualOpen, setManualOpen] = useState(false);
   const [busyKey, setBusyKey] = useState('');
+  const [fideListInfo, setFideListInfo] = useState<FideListInfo | null>(null);
   const [manual, setManual] = useState({ name: '', fideId: '', fed: 'BUL', rating: '', birth: '', title: '' as FideTitle, gender: 'm' as Gender });
   const debounceRef = useRef<number | null>(null);
 
@@ -57,6 +108,25 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
       : 'Standard';
   const rankLocked = isStartingRankLocked(tournament);
   const latestRound = Object.keys(tournament.pairings?.liveBoards || {}).map(Number).filter(Number.isFinite).reduce((max, value) => Math.max(max, value), 0);
+  const lastRatingRefresh = (tournament as any).fideRatingRefresh as { listVersion?: string; updatedAt?: string } | undefined;
+  const currentListVersion = fideListInfo?.listVersion || '';
+  const hasNewMonthlyList = Boolean(
+    currentListVersion &&
+    currentListVersion !== 'live' &&
+    lastRatingRefresh?.listVersion &&
+    lastRatingRefresh.listVersion !== 'live' &&
+    lastRatingRefresh.listVersion !== currentListVersion
+  );
+
+  useEffect(() => {
+    let active = true;
+    void loadFideListInfo().then(info => {
+      if (active) setFideListInfo(info);
+    }).catch(() => {
+      if (active) setFideListInfo({ listVersion: 'live', label: 'Latest available FIDE data', recordCount: 0, source: 'live' });
+    });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     const q = query.trim();
@@ -115,6 +185,121 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
       setNotice({ kind: 'ok', text: `Exported ${players.length} players to Players.XML.` });
     } catch (error: any) {
       setNotice({ kind: 'error', text: error?.message || 'Players XML export failed.' });
+    }
+  };
+
+  const handleRefreshFideRatings = async () => {
+    const eligiblePlayers = players.filter(player => {
+      const fideId = Number.parseInt(String(player.fideId || '').trim(), 10);
+      return Number.isFinite(fideId) && fideId > 0;
+    });
+
+    if (!eligiblePlayers.length) {
+      setNotice({ kind: 'warn', text: 'No registered players have a valid FIDE ID to update.' });
+      return;
+    }
+
+    setBusyKey('ratings-refresh');
+    setNotice(null);
+
+    try {
+      const info = await loadFideListInfo();
+      setFideListInfo(info);
+
+      const idCounts = new Map<number, number>();
+      eligiblePlayers.forEach(player => {
+        const id = Number.parseInt(String(player.fideId || '').trim(), 10);
+        idCounts.set(id, (idCounts.get(id) || 0) + 1);
+      });
+
+      const authoritativeById = new Map<number, FidePlayerRecord>();
+      const selections: FidePlayerSyncSelection[] = [];
+      let matchedCount = 0;
+      let missingCount = 0;
+      let duplicateCount = 0;
+
+      // Intentionally sequential. The browser fallback may use a public API,
+      // whose guidance recommends one request at a time.
+      for (const player of eligiblePlayers) {
+        const fideId = Number.parseInt(String(player.fideId || '').trim(), 10);
+        if ((idCounts.get(fideId) || 0) > 1) {
+          duplicateCount += 1;
+          continue;
+        }
+
+        const authoritative = await lookupFidePlayerById(fideId, ratingType);
+        if (!authoritative) {
+          missingCount += 1;
+          continue;
+        }
+
+        authoritativeById.set(fideId, authoritative);
+        matchedCount += 1;
+
+        const currentStandard = player.stdRating !== undefined ? Number(player.stdRating || 0) : (ratingType === 'Standard' ? Number(player.rating || 0) : 0);
+        const currentRapid = player.rapidRating !== undefined ? Number(player.rapidRating || 0) : (ratingType === 'Rapid' ? Number(player.rating || 0) : 0);
+        const currentBlitz = player.blitzRating !== undefined ? Number(player.blitzRating || 0) : (ratingType === 'Blitz' ? Number(player.rating || 0) : 0);
+        const selectedFields: FidePlayerSyncSelection['selectedFields'] = [];
+
+        if (currentStandard !== Number(authoritative.ratingStandard || 0)) selectedFields.push('ratingStandard');
+        if (currentRapid !== Number(authoritative.ratingRapid || 0)) selectedFields.push('ratingRapid');
+        if (currentBlitz !== Number(authoritative.ratingBlitz || 0)) selectedFields.push('ratingBlitz');
+
+        if (selectedFields.length) {
+          selections.push({ playerKey: player.localKey, selectedFields });
+        }
+      }
+
+      const refreshMetadata = {
+        listVersion: info.listVersion,
+        listLabel: info.label,
+        source: info.source,
+        updatedAt: new Date().toISOString(),
+        matchedCount,
+        changedCount: selections.length,
+        missingCount,
+        duplicateCount
+      };
+
+      if (!selections.length) {
+        const unchangedTournament: Tournament = JSON.parse(JSON.stringify(tournament));
+        (unchangedTournament as any).fideRatingRefresh = refreshMetadata;
+        commitTournament(unchangedTournament);
+        const warnings = [
+          missingCount ? `${missingCount} not found` : '',
+          duplicateCount ? `${duplicateCount} skipped for duplicate FIDE ID` : ''
+        ].filter(Boolean).join(', ');
+        setNotice({
+          kind: warnings ? 'warn' : 'ok',
+          text: `FIDE ratings already match ${info.label}.${warnings ? ` ${warnings}.` : ''}`
+        });
+        return;
+      }
+
+      const result = applyFidePlayerSync(
+        tournament,
+        selections,
+        fideId => authoritativeById.get(fideId) || null,
+        { arbiterConfirmed: true, arbiterName: 'Web Organizer' }
+      );
+      (result.tournament as any).fideRatingRefresh = refreshMetadata;
+      commitTournament(result.tournament);
+
+      const unchangedCount = Math.max(0, matchedCount - selections.length);
+      const details = [
+        `${selections.length} updated`,
+        `${unchangedCount} unchanged`,
+        missingCount ? `${missingCount} not found` : '',
+        duplicateCount ? `${duplicateCount} skipped for duplicate FIDE ID` : ''
+      ].filter(Boolean).join(' · ');
+      setNotice({
+        kind: missingCount || duplicateCount ? 'warn' : 'ok',
+        text: `FIDE ratings refreshed from ${info.label}: ${details}. Starting/pairing numbers and results were not changed.${result.startingListOutdated ? ' Rating order has changed, but official starting numbers remain locked.' : ''}`
+      });
+    } catch (error: any) {
+      setNotice({ kind: 'error', text: error?.message || 'FIDE rating refresh failed. Tournament data was preserved.' });
+    } finally {
+      setBusyKey('');
     }
   };
 
@@ -215,6 +400,10 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
     }
   };
 
+  const listStatusText = fideListInfo
+    ? `FIDE list: ${fideListInfo.label}${hasNewMonthlyList ? ' · New monthly list available' : lastRatingRefresh?.listVersion === fideListInfo.listVersion ? ' · Applied to this tournament' : ''}`
+    : 'FIDE list: checking latest available data…';
+
   return (
     <div className="companion-registration">
       {notice && (
@@ -277,10 +466,21 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
         <div className="companion-registration-heading">
           <div><span className="companion-eyebrow">TOURNAMENT ROSTER</span><h2>Registered players</h2><p>{rankLocked ? `Starting numbers are locked. New players join from round ${latestRound + 1}.` : 'Changes here use the same protected desktop player transactions.'}</p></div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            <button type="button" className="companion-button secondary" disabled={!players.length} onClick={handleExportPlayersXml} title="Export the current roster as Players.XML"><Download size={16} /> Export players (XML)</button>
+            <button
+              type="button"
+              className="companion-button secondary"
+              disabled={!players.length || busyKey !== ''}
+              onClick={() => void handleRefreshFideRatings()}
+              title={`Refresh Standard, Rapid and Blitz ratings from ${fideListInfo?.label || 'the latest available FIDE data'} without changing pairings or results.`}
+            >
+              {busyKey === 'ratings-refresh' ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}
+              {busyKey === 'ratings-refresh' ? 'Updating ratings…' : 'Update FIDE ratings'}
+            </button>
+            <button type="button" className="companion-button secondary" disabled={!players.length || busyKey !== ''} onClick={handleExportPlayersXml} title="Export the current roster as Players.XML"><Download size={16} /> Export players (XML)</button>
             <div className="companion-roster-count"><Users size={16} /><strong>{players.length}</strong></div>
           </div>
         </div>
+        <div className="companion-sort-note">{listStatusText}. Rating refresh never changes official starting numbers, pairings or results.</div>
         <div className="companion-roster-toolbar">
           <label className="companion-searchbox small"><Search size={16} /><input value={listQuery} onChange={event => setListQuery(event.target.value)} placeholder="Filter registered players" /></label>
           <label className="companion-sort-control">
