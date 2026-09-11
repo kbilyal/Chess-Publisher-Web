@@ -29,15 +29,35 @@ function createPlayer(): Player {
   };
 }
 
-function createTournament(player: Player): Tournament {
+function createOpponent(): Player {
+  return {
+    id: 2,
+    localKey: 'monthly-rating-opponent',
+    name: 'Opponent, Stable',
+    rating: 1600,
+    stdRating: 1600,
+    rapidRating: 1600,
+    blitzRating: 1600,
+    title: '',
+    fed: 'BUL',
+    fideId: '9901002',
+    birth: '1992',
+    gender: 'm',
+    pairingNumber: 8,
+    attendance: 'present',
+    joinedFromRound: 1
+  };
+}
+
+function createTournament(player: Player, opponent: Player): Tournament {
   const tournament: Tournament = JSON.parse(JSON.stringify(INITIAL_TOURNAMENT_DATA));
-  tournament.players = [player];
+  tournament.players = [player, opponent];
   (tournament.settings as any).tournamentRatingType = 'Rapid';
   tournament.pairings.liveBoards = {
     '1': [{
       board: 1,
       whiteKey: player.localKey,
-      blackKey: 'BYE',
+      blackKey: opponent.localKey,
       result: '1 - 0',
       entryType: 'NORMAL_GAME'
     }]
@@ -49,7 +69,8 @@ function createTournament(player: Player): Tournament {
 
 function main() {
   const player = createPlayer();
-  const tournament = createTournament(player);
+  const opponent = createOpponent();
+  const tournament = createTournament(player, opponent);
   const pairingsBefore = JSON.stringify(tournament.pairings);
   const authoritative: FidePlayerRecord = {
     fideId: 9901001,
@@ -72,7 +93,8 @@ function main() {
     { arbiterConfirmed: true, arbiterName: 'Web Organizer' }
   );
 
-  const updated = result.tournament.players[0];
+  const updated = result.tournament.players.find(item => item.localKey === player.localKey)!;
+  const stableOpponent = result.tournament.players.find(item => item.localKey === opponent.localKey)!;
   assert(updated.stdRating === 1834, `Standard rating was not refreshed: ${updated.stdRating}`);
   assert(updated.rapidRating === 1762, `Rapid rating was not refreshed: ${updated.rapidRating}`);
   assert(updated.blitzRating === 1688, `Blitz rating was not refreshed: ${updated.blitzRating}`);
@@ -81,6 +103,7 @@ function main() {
   assert(updated.name === 'Monthly, Player', 'Rating-only refresh changed player name.');
   assert(updated.fed === 'GER', 'Rating-only refresh changed federation.');
   assert(updated.title === '', 'Rating-only refresh changed title.');
+  assert(stableOpponent.rating === 1600 && stableOpponent.pairingNumber === 8, 'Unselected opponent was changed.');
   assert(JSON.stringify(result.tournament.pairings) === pairingsBefore, 'Rating refresh changed pairings/results state.');
 
   const companionSource = fs.readFileSync(
