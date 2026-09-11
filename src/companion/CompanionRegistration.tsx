@@ -476,7 +476,7 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
               {busyKey === 'ratings-refresh' ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}
               {busyKey === 'ratings-refresh' ? 'Updating ratings…' : 'Update FIDE ratings'}
             </button>
-            <button type="button" className="companion-button secondary" disabled={!players.length || busyKey !== ''} onClick={handleExportPlayersXml} title="Export the current roster as Players.XML"><Download size={16} /> Export players (XML)</button>
+            <button type="button" className="companion-button secondary" disabled={!players.length} onClick={handleExportPlayersXml} title="Export the current roster as Players.XML"><Download size={16} /> Export players (XML)</button>
             <div className="companion-roster-count"><Users size={16} /><strong>{players.length}</strong></div>
           </div>
         </div>
