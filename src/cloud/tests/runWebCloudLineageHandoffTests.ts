@@ -48,6 +48,37 @@ const repaired = preserveNewestCloudLineage(base as any, missingFingerprint as a
 assert.equal(repaired.cloud.baseRevision, 12);
 assert.equal(repaired.cloud.baseFingerprint, 'fingerprint-r12', 'Same-revision UI state may not erase the accepted fingerprint.');
 
+const sameRevisionStaleFingerprint = {
+  ...base,
+  players: [{ localKey: 'p1', name: 'Player A', rating: 1840 }],
+  cloud: {
+    ...base.cloud,
+    baseFingerprint: 'stale-but-non-empty-r12',
+    lastSyncAt: '2026-09-11T09:30:00.000Z'
+  }
+};
+const sameRevisionGuarded = preserveNewestCloudLineage(base as any, sameRevisionStaleFingerprint as any) as any;
+assert.equal(sameRevisionGuarded.players[0].rating, 1840, 'A Web edit must survive same-revision lineage protection.');
+assert.equal(
+  sameRevisionGuarded.cloud.baseFingerprint,
+  'fingerprint-r12',
+  'An older same-revision non-empty fingerprint must not replace the newer accepted common base.'
+);
+
+const authoritativeSameRevisionRepair = {
+  ...base,
+  cloud: {
+    ...base.cloud,
+    baseFingerprint: 'authoritative-cloud-r12',
+    lastSyncAt: '2026-09-11T10:05:00.000Z'
+  }
+};
+assert.equal(
+  preserveNewestCloudLineage(base as any, authoritativeSameRevisionRepair as any),
+  authoritativeSameRevisionRepair,
+  'A same-revision authoritative repair with a newer sync timestamp must be allowed through.'
+);
+
 const newer = {
   ...base,
   cloud: { ...base.cloud, baseRevision: 13, baseFingerprint: 'fingerprint-r13' }
@@ -143,8 +174,13 @@ const handoffSource = fs.readFileSync(path.join(process.cwd(), 'src', 'companion
 assert.ok(handoffSource.includes('repairPrivateIdentityFromActiveCloud'), 'Companion handoff must repair legacy public-Hub identity overwrites from active private Cloud metadata.');
 assert.ok(handoffSource.includes('publishWithPrivateIdentityGuard'), 'Publish Online must be wrapped by the private-identity guard.');
 assert.ok(handoffSource.includes('preservePrivateIdentityAfterPublicPublish'), 'Public publish completion must restore private identity if an older provider path mutates it.');
+assert.ok(handoffSource.includes('repairSameRevisionAuthoritativeBase'), 'Companion handoff must repair a stale same-revision common-base fingerprint before SYNC.');
+assert.ok(handoffSource.includes('revision !== baseRevision'), 'Same-revision recovery must be narrowly gated by exact Cloud/base revision equality.');
+assert.ok(handoffSource.includes('baseFingerprint: remoteFingerprint'), 'The authoritative current Cloud fingerprint must replace stale same-revision lineage.');
+assert.ok(handoffSource.includes('clearLatchedPhantomConflict'), 'A previously latched phantom conflict must be cleared before retrying SYNC.');
+assert.ok(handoffSource.includes('facade.pullChanges(prepared.tournament)'), 'Phantom-conflict recovery must clear the provider latch through the existing pull-only path, never by a hidden PUT.');
 
 const protectedManifest = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'SYNC-FREEZE-v1.06.00-beta.96.json'), 'utf8'));
 assert.equal(protectedManifest.fingerprintContentSchema, 7, 'SYNC schema 7 must remain unchanged.');
 
-console.log('PASS Web Cloud lineage handoff: stale Web state and public Hub publish cannot corrupt private Cloud identity.');
+console.log('PASS Web Cloud lineage handoff: stale Web state, same-revision fingerprints and public Hub publish cannot corrupt private Cloud identity or manufacture a phantom conflict.');

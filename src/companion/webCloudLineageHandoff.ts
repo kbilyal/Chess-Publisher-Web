@@ -1,4 +1,10 @@
 import { Tournament } from '../types';
+import { cloudApi } from '../cloud/cloudWorkspaceApi';
+import {
+  extractPrivateTournament,
+  fingerprintTournament,
+  PORTABLE_FINGERPRINT_SCHEMA
+} from '../cloud/onlineCloudSync';
 
 const TOURNAMENT_STORAGE_KEY = 'fide_tournament_manager_v2';
 const INSTALL_MARKER = '__chessPublisherWebCloudLineageGuardV1';
@@ -16,6 +22,11 @@ const LINEAGE_KEYS = [
 
 const text = (value: unknown) => value == null ? '' : String(value).trim();
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
+
+function timestamp(value: unknown) {
+  const parsed = Date.parse(text(value));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
 
 function linkedIdentity(tournament: any) {
   return {
@@ -49,7 +60,20 @@ function shouldPreserveStoredLineage(existing: any, incoming: any) {
 
   const existingSchema = Number(existingCloud.fingerprintContentSchema || existingCloud.fingerprintSchema || 0);
   const incomingSchema = Number(incomingCloud.fingerprintContentSchema || incomingCloud.fingerprintSchema || 0);
-  return Boolean(existingFingerprint && existingSchema > incomingSchema);
+  if (existingFingerprint && existingSchema > incomingSchema) return true;
+
+  // A stale React copy can carry the correct baseRevision while still carrying
+  // an older, non-empty fingerprint. Revision equality alone therefore is not
+  // enough to allow that UI write to replace a newer accepted lineage. Prefer
+  // the lineage with the newer synchronization timestamp. Authoritative Cloud
+  // repairs always stamp a fresh lastSyncAt and are allowed through.
+  if (existingFingerprint && incomingFingerprint && existingFingerprint !== incomingFingerprint) {
+    const existingSyncAt = timestamp(existingCloud.lastSyncAt);
+    const incomingSyncAt = timestamp(incomingCloud.lastSyncAt);
+    if (existingSyncAt && existingSyncAt >= incomingSyncAt) return true;
+  }
+
+  return false;
 }
 
 export function preserveNewestCloudLineage(existing: Tournament | any, incoming: Tournament | any): Tournament {
@@ -158,6 +182,115 @@ function freshTournamentForCloudFacade(facade: Record<string, any>, tournament: 
   return repaired;
 }
 
+type SameRevisionBaseRepair = {
+  tournament: Tournament;
+  sameRevisionBase: boolean;
+  repairedFingerprint: boolean;
+  revision: number;
+};
+
+/**
+ * If the authoritative Cloud record is still on exactly the revision stored as
+ * this Web copy's common base, the remote side has not changed since that base.
+ * Therefore the current Cloud fingerprint is the authoritative base even when
+ * an older Web state kept a stale, non-empty baseFingerprint. Repair that
+ * metadata before status checks / Pull / SYNC so a Web-only edit cannot be
+ * misclassified as BOTH_CHANGED.
+ */
+async function repairSameRevisionAuthoritativeBase(
+  facade: Record<string, any>,
+  tournament: Tournament
+): Promise<SameRevisionBaseRepair> {
+  const current: any = freshTournamentForCloudFacade(facade, tournament);
+  const token = text(facade?.token);
+  const remoteId = text(current?.cloud?.cloudTournamentId || facade?.activeCloud?.id);
+  const baseRevision = Number(current?.cloud?.baseRevision || 0);
+  if (!token || !remoteId || baseRevision <= 0) {
+    return { tournament: current, sameRevisionBase: false, repairedFingerprint: false, revision: 0 };
+  }
+
+  try {
+    const remoteResult = await cloudApi.getSnapshot(token, remoteId);
+    const revision = Number(remoteResult?.tournament?.revision || facade?.activeCloud?.revision || 0);
+    if (!remoteResult?.snapshot || revision <= 0 || revision !== baseRevision) {
+      return { tournament: current, sameRevisionBase: false, repairedFingerprint: false, revision };
+    }
+
+    const remote = extractPrivateTournament(
+      remoteResult.snapshot,
+      remoteResult?.tournament?.name || current?.name || current?.settings?.eventName || 'Tournament'
+    ).tournament;
+    const remoteFingerprint = await fingerprintTournament(remote);
+    const currentFingerprint = text(current?.cloud?.baseFingerprint);
+    const currentSchema = Number(current?.cloud?.fingerprintContentSchema || current?.cloud?.fingerprintSchema || 0);
+
+    if (currentFingerprint === remoteFingerprint && currentSchema === PORTABLE_FINGERPRINT_SCHEMA) {
+      return { tournament: current, sameRevisionBase: true, repairedFingerprint: false, revision };
+    }
+
+    const repaired: any = clone(current);
+    repaired.cloud = {
+      ...(repaired.cloud || {}),
+      cloudTournamentId: remoteId,
+      baseRevision: revision,
+      baseFingerprint: remoteFingerprint,
+      fingerprintSchema: PORTABLE_FINGERPRINT_SCHEMA,
+      fingerprintContentSchema: PORTABLE_FINGERPRINT_SCHEMA,
+      lastSyncAt: new Date().toISOString()
+    };
+    persistTournament(repaired);
+    return { tournament: repaired, sameRevisionBase: true, repairedFingerprint: true, revision };
+  } catch {
+    // Network/transport failures remain fail-closed in the existing SYNC path.
+    return { tournament: current, sameRevisionBase: false, repairedFingerprint: false, revision: 0 };
+  }
+}
+
+async function clearLatchedPhantomConflict(
+  facade: Record<string, any>,
+  prepared: SameRevisionBaseRepair
+) {
+  if (!prepared.sameRevisionBase || !facade?.conflict) return { kind: 'not-needed' };
+  const result = await facade.pullChanges(prepared.tournament);
+  if (result?.kind === 'conflict') {
+    throw new Error('Cloud changed while SYNC was recovering the common base. Review the conflict before pushing.');
+  }
+  return result;
+}
+
+async function syncWithSameRevisionRecovery(facade: Record<string, any>, tournament: Tournament) {
+  const prepared = await repairSameRevisionAuthoritativeBase(facade, tournament);
+  await clearLatchedPhantomConflict(facade, prepared);
+  return facade.syncNow(prepared.tournament);
+}
+
+async function pullWithSameRevisionRecovery(facade: Record<string, any>, tournament: Tournament) {
+  const prepared = await repairSameRevisionAuthoritativeBase(facade, tournament);
+  return facade.pullChanges(prepared.tournament);
+}
+
+async function checkStatusWithSameRevisionRecovery(facade: Record<string, any>, tournament: Tournament) {
+  const prepared = await repairSameRevisionAuthoritativeBase(facade, tournament);
+  return facade.checkStatus(prepared.tournament);
+}
+
+async function resolveWithSameRevisionRecovery(
+  facade: Record<string, any>,
+  tournament: Tournament,
+  strategy: 'safe' | 'web' | 'cloud' = 'safe'
+) {
+  const prepared = await repairSameRevisionAuthoritativeBase(facade, tournament);
+  if (prepared.sameRevisionBase) {
+    const result = await facade.pullChanges(prepared.tournament);
+    if (['local-only', 'equal', 'pulled'].includes(String(result?.kind || ''))) {
+      return { kind: 'not-conflicted', conflicts: [], revision: prepared.revision };
+    }
+  }
+  return strategy === 'safe'
+    ? facade.resolveConflict(prepared.tournament)
+    : facade.resolveConflictWithStrategy(prepared.tournament, strategy);
+}
+
 async function publishWithPrivateIdentityGuard(facade: Record<string, any>, tournament: Tournament) {
   const beforePublish = freshTournamentForCloudFacade(facade, tournament);
   const result = await facade.publishOnline(beforePublish);
@@ -207,15 +340,14 @@ export function installWebCloudLineageWriteGuard() {
 }
 
 export function protectCompanionCloudFacade<T extends Record<string, any>>(facade: T): T {
-  const fresh = (tournament: Tournament) => freshTournamentForCloudFacade(facade, tournament);
   return {
     ...facade,
-    syncNow: (tournament: Tournament) => facade.syncNow(fresh(tournament)),
-    pullChanges: (tournament: Tournament) => facade.pullChanges(fresh(tournament)),
-    checkStatus: (tournament: Tournament) => facade.checkStatus(fresh(tournament)),
-    resolveConflict: (tournament: Tournament) => facade.resolveConflict(fresh(tournament)),
+    syncNow: (tournament: Tournament) => syncWithSameRevisionRecovery(facade, tournament),
+    pullChanges: (tournament: Tournament) => pullWithSameRevisionRecovery(facade, tournament),
+    checkStatus: (tournament: Tournament) => checkStatusWithSameRevisionRecovery(facade, tournament),
+    resolveConflict: (tournament: Tournament) => resolveWithSameRevisionRecovery(facade, tournament, 'safe'),
     resolveConflictWithStrategy: (tournament: Tournament, strategy: 'web' | 'cloud') =>
-      facade.resolveConflictWithStrategy(fresh(tournament), strategy),
+      resolveWithSameRevisionRecovery(facade, tournament, strategy),
     publishOnline: (tournament: Tournament) => publishWithPrivateIdentityGuard(facade, tournament)
   } as T;
 }
