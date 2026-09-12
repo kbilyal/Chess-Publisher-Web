@@ -91,6 +91,44 @@ const failClosed = protectPublishSyncFacade({
 await assert.rejects(() => failClosed.publishOnline(base), /sync failed/);
 assert.equal(publishCalled, false, 'A failed pre-SYNC must block Hub publication completely.');
 
+const raceCalls: string[] = [];
+let raceSyncAttempts = 0;
+stored = JSON.stringify(base);
+const raceGuard = protectPublishSyncFacade({
+  async syncNow(tournament: any) {
+    raceSyncAttempts += 1;
+    raceCalls.push(`sync-${raceSyncAttempts}`);
+    stored = JSON.stringify(tournament);
+    if (raceSyncAttempts === 1) {
+      throw new Error('Cloud has newer Desktop changes or a synchronization conflict. Pull Cloud → Web before pushing or publishing.');
+    }
+  },
+  async checkStatus() {
+    raceCalls.push('status');
+    return { kind: 'local-changes', revision: 10 };
+  }
+} as any);
+await raceGuard.syncNow(base);
+assert.deepEqual(
+  raceCalls,
+  ['sync-1', 'status', 'sync-2'],
+  'A stale confirmation mismatch with a proven Web-only state must retry the confirmed push exactly once.'
+);
+
+const remoteRaceGuard = protectPublishSyncFacade({
+  async syncNow() {
+    throw new Error('Cloud has newer Desktop changes or a synchronization conflict. Pull Cloud → Web before pushing or publishing.');
+  },
+  async checkStatus() {
+    return { kind: 'remote-changes', revision: 11 };
+  }
+} as any);
+await assert.rejects(
+  () => remoteRaceGuard.syncNow(base),
+  /Press ↕ SYNC again to pull the newer Cloud revision safely/,
+  'A true remote change must remain fail-closed and give the unified-SYNC recovery instruction.'
+);
+
 const appSource = fs.readFileSync(path.join(process.cwd(), 'src', 'App.tsx'), 'utf8');
 assert.match(
   appSource,
