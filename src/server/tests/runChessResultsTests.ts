@@ -25,9 +25,33 @@ assert.match(publication.xml, /<tournament[^>]*ratednational="-"[^>]*tb1no="0"[^
 assert.match(publication.xml, /<tournament[^>]*endstatus="N"/);
 assert.match(publication.xml, /<round round="1" date="20261002" time="10:00" replay="1"/);
 assert.match(publication.xml, /<player[^>]*lastname="Carlsen"[^>]*firstname="Magnus"[^>]*atitle=""/);
-assert.match(publication.xml, /<player[^>]*board=""[^>]*teamno="0"/);
+assert.match(publication.xml, /<player[^>]*board="0"[^>]*teamno="0"/);
 assert.match(publication.xml, /<player[^>]*tb1=""[^>]*tb5=""[^>]*pts="1\.0"[^>]*equal="N"/);
 assert.match(publication.xml, /sid="__CP_CR_SID__"/);
+
+// Manual/unrated players must remain valid Chess-Results XML records. The bridge
+// accepts numeric rating defaults and empty FIDE IDs; blank numeric rating fields
+// can cause the player row to be skipped by Chess-Results.
+const manualUnrated = structuredClone(tournament);
+manualUnrated.pairings.liveBoards = {};
+manualUnrated.players[1] = {
+  ...manualUnrated.players[1],
+  name: 'Ahmed, Ervin',
+  rating: 0,
+  stdRating: 0,
+  rapidRating: 0,
+  blitzRating: 0,
+  nationalRating: 0,
+  fideId: '-',
+  birth: '-',
+  gender: 'm',
+  fideK: 20,
+};
+const manualPublication = buildChessResultsXml(manualUnrated, { requireKey: true });
+assert.match(
+  manualPublication.xml,
+  /<player[^>]*lastname="Ahmed"[^>]*firstname="Ervin"[^>]*rtg="0"[^>]*rtgfide="0"[^>]*rtgnat="0"[^>]*dob=""[^>]*sex="m"[^>]*fed="[^\"]{3}"[^>]*board="0"[^>]*teamno="0"[^>]*fideid=""[^>]*club="0"[^>]*kfaktor="20"/
+);
 
 // Official 2026 Individual Swiss reference XML uses pairing as the sequential
 // table index and board="1" for every player-pairing record.
