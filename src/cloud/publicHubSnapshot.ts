@@ -176,6 +176,9 @@ export function validatePublicHubSnapshot(snapshot: any) {
   if (!text(snapshot?.tournament?.localKey)) throw new Error('Tournament local key is missing.');
   if (!text(snapshot?.tournament?.name)) throw new Error('Tournament name is missing.');
   if (!/^[A-Z]{3}$/.test(text(snapshot?.tournament?.location?.federation))) throw new Error('Tournament federation must be a three-letter code.');
+  if (snapshot?.tournament?.fideEventId != null && !/^\d+$/.test(text(snapshot.tournament.fideEventId))) {
+    throw new Error('FIDE Event ID must be numeric when published to the Hub.');
+  }
 
   const players = Array.isArray(snapshot?.players) ? snapshot.players : [];
   const playerKeys = new Set<string>();
@@ -232,6 +235,7 @@ export function buildPublicHubSnapshot(tournament: Tournament | any, publication
   const standings = calculateTournamentStandings(tournament);
   const tieList = Array.isArray(standings?.tieList) ? standings.tieList : [];
   const internalId = chooseInternalTournamentId(tournament, [publication.hubTournamentId]);
+  const fideEventId = /^\d+$/.test(text(settings.fideEventId)) ? text(settings.fideEventId).slice(0, 20) : null;
 
   const snapshot = {
     schemaVersion: SCHEMA_VERSION,
@@ -256,6 +260,7 @@ export function buildPublicHubSnapshot(tournament: Tournament | any, publication
       timeControl: text(settings.customTimeControl || settings.timeControl || settings.timeControlPreset),
       ratingType: text(settings.tournamentRatingType),
       fideRated: asBoolean(settings.fideRated),
+      fideEventId,
       roundsDeclared,
       location: {
         venue: text(settings.venue),
