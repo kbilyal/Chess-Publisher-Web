@@ -1,4 +1,4 @@
-const CACHE = 'chess-publisher-pwa-v1';
+const CACHE = 'chess-publisher-pwa-v2';
 const SHELL = ['/', '/manifest.webmanifest', '/icons/chess-publisher-icon-192.png', '/icons/chess-publisher-icon-512.png', '/icons/chess-publisher-maskable-512.png'];
 
 self.addEventListener('install', event => {
@@ -16,7 +16,7 @@ self.addEventListener('fetch', event => {
   if (url.origin !== self.location.origin || url.pathname.startsWith('/api/')) return;
 
   if (request.mode === 'navigate') {
-    event.respondWith(fetch(request).then(response => {
+    event.respondWith(fetch(request, { cache: 'no-store' }).then(response => {
       const copy = response.clone();
       caches.open(CACHE).then(cache => cache.put('/', copy));
       return response;
