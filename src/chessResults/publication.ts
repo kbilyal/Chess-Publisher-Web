@@ -37,9 +37,14 @@ const birth = (value: string) => {
   return match[2] && match[3] ? `${match[3]}.${match[2]}.${match[1]}` : match[1];
 };
 
-const numericOrEmpty = (value: unknown) => {
+const numericOrZero = (value: unknown) => {
   const number = Number(value);
-  return Number.isFinite(number) && number > 0 ? String(number) : '';
+  return Number.isFinite(number) && number > 0 ? String(number) : '0';
+};
+
+const fideIdOrEmpty = (value: unknown) => {
+  const normalized = text(value);
+  return /^\d+$/.test(normalized) && Number(normalized) > 0 ? normalized : '';
 };
 
 const pairingResult = (value: string, single: boolean) => {
@@ -221,10 +226,10 @@ export function buildChessResultsXml(tournament: Tournament, options: { requireK
     const points = pointsByKey.get(player.localKey) || 0;
     lines.push(`<player ${[
       attr('no', publicationNumber), attr('id', internalId), attr('lastname', names.lastname), attr('firstname', names.firstname), attr('atitle', ''),
-      attr('title', text(player.title, 4)), attr('rtg', numericOrEmpty(player.rating)), attr('rtgfide', numericOrEmpty(player.stdRating || player.rating)),
-      attr('rtgnat', numericOrEmpty(player.nationalRating)), attr('dob', birth(player.birth)), attr('sex', player.gender === 'f' ? 'W' : player.gender === 'm' ? 'M' : ''),
-      attr('fed', text(player.fed, 3).toUpperCase()), attr('board', ''), attr('teamno', 0), attr('clubname', text(player.club, 40)),
-      attr('fideid', String(player.fideId || '').replace(/^-$/, '')), attr('club', ''), attr('typ', text(player.type, 4)), attr('group', text(player.group, 4)),
+      attr('title', text(player.title, 4)), attr('rtg', numericOrZero(player.rating)), attr('rtgfide', numericOrZero(player.stdRating || player.rating)),
+      attr('rtgnat', numericOrZero(player.nationalRating)), attr('dob', birth(player.birth)), attr('sex', String(player.gender || '').toLowerCase() === 'f' ? 'f' : String(player.gender || '').toLowerCase() === 'm' ? 'm' : ''),
+      attr('fed', text(player.fed, 3).toUpperCase()), attr('board', 0), attr('teamno', 0), attr('clubname', text(player.club, 40)),
+      attr('fideid', fideIdOrEmpty(player.fideId)), attr('club', 0), attr('typ', text(player.type, 4)), attr('group', text(player.group, 4)),
       attr('rank', publicationNumber), attr('tb1', ''), attr('tb2', ''), attr('tb3', ''), attr('tb4', ''), attr('tb5', ''),
       attr('pts', points.toFixed(1)), attr('equal', 'N'), attr('kfaktor', player.fideK || ''), attr('state', '')
     ].join(' ')} />`);
@@ -258,7 +263,7 @@ export function buildChessResultsXml(tournament: Tournament, options: { requireK
       pairingRecords += 1;
       pairingNumber += 1;
       // Official 2026 Individual Swiss XML uses pairing as the sequential
-      // pairing/table index and board="1" for every player pairing.
+      // pairing/table index and board="1" for every player-pairing record.
       lines.push(`<playerpairing ${[
         attr('round', round), attr('pairing', pairingNumber), attr('board', 1), attr('whiteno', publicationNumberByKey.get(white.localKey) || white.pairingNumber),
         attr('blackno', black ? (publicationNumberByKey.get(black.localKey) || black.pairingNumber) : (result.blackNo || -2)), attr('reswhite', result.white), attr('resblack', result.black), attr('forfeit', result.forfeit)
