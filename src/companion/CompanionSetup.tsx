@@ -143,7 +143,7 @@ export const CompanionSetup: React.FC<Props> = ({ tournament, onUpdateTournament
           </div></label>
           <label><span>Tournament mode</span><select value={settings.tournamentType || 'real'} onChange={event => updateSetting('tournamentType', event.target.value as any)}><option value="real">Real tournament</option><option value="test">Test tournament</option><option value="real-online">Real + online</option><option value="unknown">Not set</option></select></label>
           <label><span>FIDE rated</span><select value={settings.fideRated} onChange={event => updateSetting('fideRated', event.target.value as any)}><option value="Yes">Yes</option><option value="No">No</option></select></label>
-          <label><span>FIDE Event ID</span><input inputMode="numeric" value={settings.fideEventId || ''} onChange={event => updateSetting('fideEventId', event.target.value.replace(/\D/g, ''))} placeholder="Optional" /></label>
+          <label title="When provided, this ID is included in Chess-Results publication."><span>FIDE Event ID</span><input inputMode="numeric" maxLength={20} value={settings.fideEventId || ''} onChange={event => updateSetting('fideEventId', event.target.value.replace(/\D/g, ''))} placeholder="Optional — published to Chess-Results" /></label>
         </div>
       </section>
 
