@@ -99,7 +99,7 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
   const [manualOpen, setManualOpen] = useState(false);
   const [busyKey, setBusyKey] = useState('');
   const [fideListInfo, setFideListInfo] = useState<FideListInfo | null>(null);
-  const [manual, setManual] = useState({ name: '', fideId: '', fed: 'BUL', rating: '', birth: '', title: '' as FideTitle, gender: 'm' as Gender });
+  const [manual, setManual] = useState({ firstName: '', lastName: '', fideId: '', fed: 'BUL', rating: '', birth: '', title: '' as FideTitle, gender: 'm' as Gender });
   const debounceRef = useRef<number | null>(null);
 
   const players = tournament.players || [];
@@ -347,14 +347,17 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
 
   const registerManual = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!manual.name.trim()) return;
+    const firstName = manual.firstName.trim();
+    const lastName = manual.lastName.trim();
+    if (!firstName || !lastName) return;
+    const canonicalName = `${lastName}, ${firstName}`;
     setBusyKey('manual');
     setNotice(null);
     try {
       const manager = new TransactionManager<Tournament>();
       const rating = Math.max(0, Number.parseInt(manual.rating || '0', 10) || 0);
       const result = await executeRegisterPlayerTransaction(manager, tournament, {
-        name: manual.name.trim(),
+        name: canonicalName,
         rating,
         stdRating: ratingType === 'Standard' ? rating : 0,
         rapidRating: ratingType === 'Rapid' ? rating : 0,
@@ -370,7 +373,7 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
         lateEntryByeType: 'zero'
       });
       commitTournament(result.tournament);
-      setManual({ name: '', fideId: '', fed: 'BUL', rating: '', birth: '', title: '', gender: 'm' });
+      setManual({ firstName: '', lastName: '', fideId: '', fed: 'BUL', rating: '', birth: '', title: '', gender: 'm' });
       setManualOpen(false);
       setNotice({ kind: 'ok', text: `${result.player.name} registered as #${result.player.pairingNumber}.` });
     } catch (error: any) {
@@ -456,7 +459,8 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
         {manualOpen && (
           <form className="companion-manual-form" onSubmit={registerManual}>
             <div className="companion-manual-grid">
-              <label><span>Full name *</span><input value={manual.name} onChange={event => setManual(current => ({ ...current, name: event.target.value }))} required /></label>
+              <label><span>First name *</span><input autoComplete="given-name" value={manual.firstName} onChange={event => setManual(current => ({ ...current, firstName: event.target.value }))} required /></label>
+              <label><span>Last name *</span><input autoComplete="family-name" value={manual.lastName} onChange={event => setManual(current => ({ ...current, lastName: event.target.value }))} required /></label>
               <label><span>FIDE ID</span><input inputMode="numeric" value={manual.fideId} onChange={event => setManual(current => ({ ...current, fideId: event.target.value }))} /></label>
               <label><span>Federation</span><input maxLength={3} value={manual.fed} onChange={event => setManual(current => ({ ...current, fed: event.target.value.toUpperCase() }))} /></label>
               <label><span>{ratingType} rating</span><input inputMode="numeric" value={manual.rating} onChange={event => setManual(current => ({ ...current, rating: event.target.value }))} /></label>
@@ -465,7 +469,7 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
             </div>
             <div className="companion-manual-actions">
               <button type="button" className="companion-button secondary" onClick={() => setManualOpen(false)}>Cancel</button>
-              <button type="submit" className="companion-button primary" disabled={busyKey !== '' || !manual.name.trim()}>{busyKey === 'manual' ? <Loader2 size={15} className="spin" /> : <UserPlus size={15} />} Register player</button>
+              <button type="submit" className="companion-button primary" disabled={busyKey !== '' || !manual.firstName.trim() || !manual.lastName.trim()}>{busyKey === 'manual' ? <Loader2 size={15} className="spin" /> : <UserPlus size={15} />} Register player</button>
             </div>
           </form>
         )}
