@@ -91,6 +91,24 @@ jobs:
           fi
           cp deploy/public-site/news-web-companion-linux-2026.html site/news-web-companion-linux-2026.html
 
+      - name: Integrate Hub FIDE Event ID public display
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp deploy/public-site/hub-fide-event-id.js site/hub-fide-event-id.js
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('site/tournaments.html')
+          html = path.read_text(encoding='utf-8')
+          marker = '<script src="/hub-fide-event-id.js"></script>'
+          if marker not in html:
+              if '</head>' not in html:
+                  raise SystemExit('tournaments.html has no </head> insertion point')
+              html = html.replace('</head>', f'  {marker}\n</head>', 1)
+              path.write_text(html, encoding='utf-8')
+          PY
+
       - name: Update sitemap for WEB Companion news
         shell: bash
         run: |
@@ -126,6 +144,9 @@ jobs:
           test -s site/tournaments.js
           test -s site/tournaments.html
           test -s site/hub-config.js
+          test -s site/hub-fide-event-id.js
+          grep -q 'hub-fide-event-id-v1' site/hub-fide-event-id.js
+          grep -q '<script src="/hub-fide-event-id.js"></script>' site/tournaments.html
           test -s site/assets/screenshots/pairings.png
           python - <<'PY'
           from html.parser import HTMLParser
@@ -169,14 +190,18 @@ jobs:
             cb="${GITHUB_SHA}-${attempt}-$(date +%s)"
             home="$(curl --fail --silent --show-error --location --retry 2 "${PUBLIC_ORIGIN}/?cb=${cb}" || true)"
             news="$(curl --fail --silent --show-error --location --retry 2 "${PUBLIC_ORIGIN}/news-web-companion-linux-2026.html?cb=${cb}" || true)"
+            tournaments="$(curl --fail --silent --show-error --location --retry 2 "${PUBLIC_ORIGIN}/tournaments.html?cb=${cb}" || true)"
+            fide_badge="$(curl --fail --silent --show-error --location --retry 2 "${PUBLIC_ORIGIN}/hub-fide-event-id.js?cb=${cb}" || true)"
             if grep -q 'data-site-build="2026-09-08-v42-platform-icons"' <<<"$home" \
               && grep -q 'WEB Companion' <<<"$home" \
               && grep -q 'Chess-Publisher is coming to Linux' <<<"$home" \
-              && grep -q 'Meet WEB Companion' <<<"$news"; then
+              && grep -q 'Meet WEB Companion' <<<"$news" \
+              && grep -q '/hub-fide-event-id.js' <<<"$tournaments" \
+              && grep -q 'hub-fide-event-id-v1' <<<"$fide_badge"; then
               ok=1
               break
             fi
             sleep 5
           done
           test "$ok" -eq 1
-          echo 'PUBLIC WEBSITE v42 LIVE GATE: PASS'
+          echo 'PUBLIC WEBSITE v42 + HUB FIDE EVENT ID LIVE GATE: PASS'
