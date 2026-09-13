@@ -13,6 +13,7 @@ import {
 } from '../transactions/playerWorkflow';
 import { downloadPlayersXml } from '../importers/playersXml';
 import { getFideBrowserDatabaseInfo, searchFideBrowserDatabase } from './fideBrowserDatabase';
+import { federationFlag } from './federationFlag';
 import { getPlayerPublicationOrder } from '../publication/playerPublicationOrder';
 
 interface Props {
@@ -515,7 +516,9 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
               <div className="companion-player-main">
                 <strong>{player.name}</strong>
                 <span>
-                  {player.title ? `${player.title} · ` : ''}{player.fed || 'FID'}
+                  {player.title ? `${player.title} · ` : ''}
+                  <span className="companion-fed-flag" title={`Federation ${player.fed || 'FID'}`} aria-hidden="true">{federationFlag(player.fed)}</span>{' '}
+                  {player.fed || 'FID'}
                   {player.fideId && player.fideId !== '-' && player.fideId !== '0' ? (
                     <>{' · FIDE '}<a
                       href={`https://ratings.fide.com/profile/${encodeURIComponent(player.fideId.trim())}`}
