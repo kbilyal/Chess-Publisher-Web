@@ -1,0 +1,4 @@
+/* Registration roster display only: show the visible sorted row number without a leading #. */
+.companion-roster-row .companion-player-rank::before {
+  content: counter(cp-roster-row);
+}
