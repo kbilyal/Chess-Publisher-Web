@@ -275,3 +275,57 @@
     margin-top: 0 !important;
   }
 }
+
+/* Mobile organizer actions must not cover tournament rows. Keep the same
+   functionality, but collapse the two closed floating cards to icon-sized FABs. */
+@media (max-width: 700px) {
+  .organizer-pairings-panel:not(.is-open) {
+    left: auto !important;
+    right: 8px !important;
+    width: auto !important;
+  }
+  .organizer-pairings-panel:not(.is-open) .organizer-pairings-fab {
+    width: 46px !important;
+    min-width: 46px !important;
+    height: 46px;
+    min-height: 46px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    justify-content: center;
+    gap: 0;
+    border-radius: 14px;
+  }
+  .organizer-pairings-panel:not(.is-open) .organizer-pairings-fab span {
+    display: none !important;
+  }
+
+  .organizer-arbiter-panel:not(.is-open) {
+    right: 8px !important;
+    width: auto !important;
+  }
+  .organizer-arbiter-panel:not(.is-open) .organizer-arbiter-fab {
+    position: relative;
+    width: 46px !important;
+    min-width: 46px !important;
+    height: 46px;
+    min-height: 46px !important;
+    padding: 0 !important;
+    display: grid;
+    grid-template-columns: 1fr !important;
+    place-items: center;
+    gap: 0 !important;
+    border-radius: 14px;
+  }
+  .organizer-arbiter-panel:not(.is-open) .organizer-arbiter-fab span {
+    display: none !important;
+  }
+  .organizer-arbiter-panel:not(.is-open) .organizer-arbiter-fab b {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    min-width: 18px;
+    width: 18px;
+    height: 18px;
+    font-size: 8px;
+  }
+}
