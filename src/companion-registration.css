@@ -137,6 +137,16 @@
 .companion-player-main span { margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #7b8798; font-size: 8.5px; font-weight: 650; }
 .companion-roster-row .companion-player-main strong { font-size: 10.5px; font-weight: 780; }
 .companion-roster-row .companion-player-main span { margin-top: 2px; font-size: 8px; }
+.companion-player-main .companion-fed-flag {
+  display: inline-block;
+  margin: 0 2px 0 0;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 1;
+  vertical-align: -1px;
+}
 .companion-player-rating { text-align: right; }
 .companion-player-rating strong { color: #26364c; font: 800 11px/1 "JetBrains Mono", monospace; }
 .companion-player-rating span { margin-top: 4px; color: #8391a3; font-size: 8px; font-weight: 750; text-transform: uppercase; }
