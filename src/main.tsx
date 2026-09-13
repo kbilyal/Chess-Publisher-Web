@@ -4,6 +4,7 @@ import './cloud/installOrganizerApiAuth';
 import './pwa/registerPwa';
 import './arbiter/installIsolatedPairingsPrint';
 import './arbiter/installArbiterResultFilters';
+import './companion/installRegistrationDeleteGuard';
 import App from './App.tsx';
 import {OnlineCloudProvider} from './cloud/OnlineCloudProvider';
 import {ArbiterPortal} from './arbiter/ArbiterPortal';
