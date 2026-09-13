@@ -297,3 +297,75 @@
   .companion-player-main span { font-size: 8px; }
   .companion-roster-count { display: none; }
 }
+
+/* The leading # is the visible row position in the currently sorted/published
+   list. Keep the protected pairingNumber untouched in tournament data. */
+.companion-roster-list { counter-reset: cp-roster-row; }
+.companion-roster-row { counter-increment: cp-roster-row; }
+.companion-roster-row .companion-player-rank { font-size: 0; }
+.companion-roster-row .companion-player-rank::before {
+  content: "#" counter(cp-roster-row);
+  color: inherit;
+  font: 800 10px/1 "JetBrains Mono", monospace;
+}
+
+/* Make rating immediately scannable beside the player name, Chess-Results style. */
+.companion-roster-row .companion-player-rating {
+  min-width: 56px;
+  padding: 5px 7px;
+  justify-self: end;
+  border-radius: 6px;
+  background: #eef5ff;
+  text-align: center;
+}
+.companion-roster-row .companion-player-rating strong {
+  color: #1769e0;
+  font-size: 11px;
+  font-weight: 900;
+}
+.companion-roster-row .companion-player-rating span {
+  margin-top: 2px;
+  color: #6f83a0;
+  font-size: 7px;
+}
+
+@media (max-width: 640px) {
+  /* On phones the row must fit the viewport: number, name, rating and remove
+     stay on the first line; attendance sits directly below the name/rating. */
+  .companion-roster-list { overflow-x: visible; }
+  .companion-roster-row {
+    min-width: 0;
+    min-height: 64px;
+    padding: 7px 6px;
+    grid-template-columns: 38px minmax(0, 1fr) 60px 28px;
+    grid-template-areas:
+      "rank main rating remove"
+      "rank status status remove";
+    column-gap: 6px;
+    row-gap: 5px;
+  }
+  .companion-roster-row .companion-player-rank {
+    grid-area: rank;
+    align-self: center;
+    place-items: center end;
+  }
+  .companion-roster-row .companion-player-main { grid-area: main; }
+  .companion-roster-row .companion-player-rating {
+    grid-area: rating;
+    min-width: 0;
+    width: 100%;
+    justify-self: stretch;
+    align-self: start;
+  }
+  .companion-roster-row .companion-attendance {
+    grid-area: status;
+    width: 100%;
+    min-height: 28px;
+  }
+  .companion-roster-row .companion-icon-danger {
+    grid-area: remove;
+    align-self: center;
+  }
+  .companion-roster-row .companion-player-main strong { font-size: 11px; }
+  .companion-roster-row .companion-player-main span { font-size: 8px; }
+}
