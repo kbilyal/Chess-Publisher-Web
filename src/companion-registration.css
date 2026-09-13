@@ -62,15 +62,13 @@
 .companion-sort-control select { min-height: 30px; border: 0; outline: 0; background: transparent; color: #253650; font-size: 10px; font-weight: 800; }
 .companion-sort-note { margin: 0 0 8px; color: #7c899a; font-size: 8.5px; }
 
-.companion-fide-results,
-.companion-roster-list {
+.companion-fide-results {
   margin-top: 10px;
   display: grid;
   gap: 6px;
 }
 
-.companion-fide-row,
-.companion-roster-row {
+.companion-fide-row {
   min-width: 0;
   min-height: 58px;
   padding: 8px 9px;
@@ -82,9 +80,33 @@
   border-radius: 11px;
   background: #fff;
 }
-.companion-fide-row:hover,
-.companion-roster-row:hover { border-color: #d3dfec; background: #fbfdff; }
-.companion-roster-row { grid-template-columns: 54px minmax(0,1fr) 92px 120px 38px; }
+.companion-fide-row:hover { border-color: #d3dfec; background: #fbfdff; }
+
+/* Registered-player roster intentionally uses a dense, fixed-column log view.
+   It mirrors the scanability of Chess-Results instead of rendering players as cards. */
+.companion-roster-list {
+  margin-top: 10px;
+  display: block;
+  overflow-x: auto;
+  border: 1px solid #d7e0e9;
+  border-radius: 8px;
+  background: #fff;
+  -webkit-overflow-scrolling: touch;
+}
+.companion-roster-row {
+  min-width: 690px;
+  min-height: 40px;
+  padding: 0 8px;
+  display: grid;
+  grid-template-columns: 52px minmax(290px,1fr) 86px 116px 32px;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid #e5e9ee;
+  background: #fff;
+}
+.companion-roster-row:nth-child(even) { background: #f6f8fb; }
+.companion-roster-row:last-child { border-bottom: 0; }
+.companion-roster-row:hover { background: #edf4ff; }
 
 .companion-player-rank {
   min-width: 0;
@@ -97,6 +119,15 @@
   color: #245ca4;
   font: 800 10px/1 "JetBrains Mono", monospace;
 }
+.companion-roster-row .companion-player-rank {
+  height: auto;
+  padding: 0 4px 0 0;
+  place-items: center end;
+  border-radius: 0;
+  background: transparent;
+  color: #4c5c70;
+  font-size: 10px;
+}
 .companion-player-main { min-width: 0; }
 .companion-player-main strong,
 .companion-player-main span,
@@ -104,9 +135,13 @@
 .companion-player-rating span { display: block; }
 .companion-player-main strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #1a273a; font-size: 11px; font-weight: 820; }
 .companion-player-main span { margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #7b8798; font-size: 8.5px; font-weight: 650; }
+.companion-roster-row .companion-player-main strong { font-size: 10.5px; font-weight: 780; }
+.companion-roster-row .companion-player-main span { margin-top: 2px; font-size: 8px; }
 .companion-player-rating { text-align: right; }
 .companion-player-rating strong { color: #26364c; font: 800 11px/1 "JetBrains Mono", monospace; }
 .companion-player-rating span { margin-top: 4px; color: #8391a3; font-size: 8px; font-weight: 750; text-transform: uppercase; }
+.companion-roster-row .companion-player-rating strong { font-size: 10px; }
+.companion-roster-row .companion-player-rating span { margin-top: 2px; font-size: 7.5px; }
 
 .companion-button.compact { min-height: 34px; padding: 0 10px; font-size: 9px; }
 .companion-attendance {
@@ -120,6 +155,11 @@
   font-size: 9px;
   font-weight: 700;
 }
+.companion-roster-row .companion-attendance {
+  min-height: 29px;
+  border-radius: 5px;
+  font-size: 8.5px;
+}
 .companion-icon-danger {
   width: 34px;
   height: 34px;
@@ -130,6 +170,11 @@
   background: #fff;
   color: #b83c53;
   cursor: pointer;
+}
+.companion-roster-row .companion-icon-danger {
+  width: 28px;
+  height: 28px;
+  border-radius: 5px;
 }
 .companion-icon-danger:hover { background: #fff4f6; }
 .companion-icon-danger:disabled { opacity: .45; cursor: not-allowed; }
@@ -177,7 +222,7 @@
   .companion-registration { padding: 12px; }
   .companion-manual-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .companion-fide-row { grid-template-columns: 46px minmax(0,1fr) 74px auto; }
-  .companion-roster-row { grid-template-columns: 46px minmax(0,1fr) 72px 105px 36px; }
+  .companion-roster-row { min-width: 660px; grid-template-columns: 48px minmax(270px,1fr) 78px 108px 30px; }
 }
 
 @media (max-width: 640px) {
@@ -223,22 +268,21 @@
   .companion-fide-row .companion-player-rating span { margin-top: 0; }
   .companion-fide-row .companion-button { grid-area: add; min-width: 68px; min-height: 42px; }
 
+  /* Keep the roster as one stable log/table on phones instead of changing the
+     meaning or order of fields. Horizontal scroll preserves every column. */
+  .companion-roster-list { border-radius: 7px; }
   .companion-roster-row {
-    min-height: 86px;
-    padding: 9px;
-    grid-template-columns: 42px minmax(0,1fr) 38px;
-    grid-template-areas:
-      "rank main remove"
-      "rank rating remove"
-      "status status status";
-    gap: 5px 8px;
+    min-width: 640px;
+    min-height: 42px;
+    padding: 0 7px;
+    grid-template-columns: 46px minmax(260px,1fr) 76px 104px 30px;
+    gap: 7px;
   }
-  .companion-roster-row .companion-player-rank { grid-area: rank; height: 46px; }
-  .companion-roster-row .companion-player-main { grid-area: main; }
-  .companion-roster-row .companion-player-rating { grid-area: rating; display: flex; gap: 6px; align-items: center; text-align: left; }
-  .companion-roster-row .companion-player-rating span { margin-top: 0; }
-  .companion-roster-row .companion-attendance { grid-area: status; min-height: 40px; font-size: 12px; }
-  .companion-roster-row .companion-icon-danger { grid-area: remove; width: 38px; height: 42px; }
+  .companion-roster-row .companion-player-rank { height: auto; }
+  .companion-roster-row .companion-player-rating { display: block; text-align: right; }
+  .companion-roster-row .companion-player-rating span { margin-top: 2px; }
+  .companion-roster-row .companion-attendance { min-height: 30px; font-size: 9px; }
+  .companion-roster-row .companion-icon-danger { width: 28px; height: 28px; }
   .companion-player-main strong { font-size: 10.5px; }
   .companion-player-main span { font-size: 8px; }
   .companion-roster-count { display: none; }
