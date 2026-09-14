@@ -1,0 +1,209 @@
+/*
+ * Chess-Publisher Web Companion — desktop visual parity theme.
+ * COSMETIC ONLY: presentation overrides; no behavior, data or workflow logic.
+ * Reference: Desktop Rating List Manager visual language.
+ */
+
+.companion-shell {
+  --cp-blue: #0878ea;
+  --cp-blue-dark: #0668d1;
+  --cp-navy: #0d1731;
+  --cp-navy-2: #182640;
+  --cp-bg: #f7f9fc;
+  --cp-surface: #ffffff;
+  --cp-text: #111a31;
+  --cp-muted: #65728b;
+  --cp-line: #d6e1ef;
+  background: #f7f9fc;
+  color: var(--cp-text);
+}
+
+/* White desktop-style application chrome. */
+.companion-shell .companion-topbar {
+  background: rgba(255,255,255,.985);
+  border-bottom-color: #d9e2ee;
+  box-shadow: 0 1px 0 rgba(18,31,54,.025);
+  backdrop-filter: none;
+}
+.companion-shell .companion-title-block span { color: #6f7d95; }
+.companion-shell .companion-title-block strong { color: #101a31; font-weight: 800; }
+
+/* Cards and panels follow the desktop manager: white, thin blue-grey outline,
+   gentle rounding, almost no floating shadow. */
+.companion-shell .companion-content-frame,
+.companion-shell .companion-publish-card,
+.companion-shell .companion-registration-card,
+.companion-shell .companion-sync-card,
+.companion-shell .companion-setup-card,
+.companion-shell .companion-cloud-card {
+  border-color: #d6e1ef;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(19,39,72,.025);
+}
+
+.companion-shell .companion-section-head {
+  border-bottom-color: #dbe5f1;
+  background: #fff;
+}
+.companion-shell .companion-section-head h1,
+.companion-shell .companion-registration-heading h2,
+.companion-shell .companion-card-copy h2 {
+  color: #0f1930;
+  font-weight: 800;
+}
+.companion-shell .companion-eyebrow { color: #086fd7; }
+
+/* Desktop-style soft information strip. */
+.companion-shell .companion-sync-card,
+.companion-shell .companion-progress,
+.companion-shell .companion-counter {
+  border-color: #cfe0f4;
+  background: #f2f8ff;
+}
+
+/* Unified button language matching the desktop screenshot. */
+.companion-shell .companion-button {
+  min-height: 40px;
+  border: 1px solid #bdcce0;
+  border-radius: 7px;
+  background: linear-gradient(180deg, #fff 0%, #f8fbff 100%);
+  color: #24324b;
+  box-shadow: 0 1px 1px rgba(17,34,63,.025);
+  font-weight: 750;
+  transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease, transform 80ms ease;
+}
+.companion-shell .companion-button:hover:not(:disabled) {
+  border-color: #9eb6d3;
+  background: #f3f8fe;
+  box-shadow: 0 1px 3px rgba(17,34,63,.06);
+}
+.companion-shell .companion-button:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: none;
+}
+.companion-shell .companion-button.primary {
+  border-color: #0878ea;
+  background: linear-gradient(180deg, #0d83f4 0%, #0874e3 100%);
+  color: #fff;
+  box-shadow: 0 2px 5px rgba(8,120,234,.18);
+}
+.companion-shell .companion-button.primary:hover:not(:disabled) {
+  border-color: #0668d1;
+  background: linear-gradient(180deg, #0b7be8 0%, #066bd6 100%);
+}
+.companion-shell .companion-button.secondary { background: #fff; }
+.companion-shell .companion-button:disabled {
+  opacity: .46;
+  filter: saturate(.55);
+  box-shadow: none;
+}
+
+/* Search, selects and text fields use the same compact desktop controls. */
+.companion-shell .companion-searchbox,
+.companion-shell .companion-sort-control,
+.companion-shell .companion-manual-grid input,
+.companion-shell .companion-manual-grid select,
+.companion-shell .companion-content-frame input:not([type="checkbox"]):not([type="radio"]),
+.companion-shell .companion-content-frame select,
+.companion-shell .companion-content-frame textarea {
+  border-color: #c7d5e6;
+  border-radius: 7px;
+  background: #fff;
+  color: #17243b;
+  box-shadow: inset 0 1px 1px rgba(18,39,70,.02);
+}
+.companion-shell .companion-searchbox:focus-within,
+.companion-shell .companion-sort-control:focus-within,
+.companion-shell .companion-manual-grid input:focus,
+.companion-shell .companion-manual-grid select:focus,
+.companion-shell .companion-content-frame input:focus,
+.companion-shell .companion-content-frame select:focus,
+.companion-shell .companion-content-frame textarea:focus {
+  border-color: #6aa9eb;
+  box-shadow: 0 0 0 2px rgba(8,120,234,.10);
+  outline: none;
+}
+
+/* Registration list: more desktop-table than card, while retaining the current
+   responsive layout and all existing controls/semantics. */
+.companion-shell .companion-roster-list {
+  border-color: #d5e0ec;
+  border-radius: 8px;
+  background: #fff;
+}
+.companion-shell .companion-roster-row {
+  border-bottom-color: #dfe6ef;
+  background: #fff;
+}
+.companion-shell .companion-roster-row:nth-child(even) { background: #f8fafc; }
+.companion-shell .companion-roster-row:hover { background: #f1f7ff; }
+.companion-shell .companion-player-main strong { color: #172238; font-weight: 800; }
+.companion-shell .companion-player-main span { color: #748198; }
+.companion-shell .companion-roster-row .companion-player-rating {
+  border: 1px solid #d8e8fa;
+  background: #eef6ff;
+}
+.companion-shell .companion-roster-row .companion-player-rating strong { color: #0874df; }
+
+/* Destructive controls keep desktop's restrained red outline. */
+.companion-shell .companion-icon-danger {
+  border-color: #f1bfc7;
+  border-radius: 7px;
+  background: #fff;
+  color: #db344e;
+}
+.companion-shell .companion-icon-danger:hover:not(:disabled) { background: #fff5f6; }
+.companion-shell .companion-icon-danger:disabled {
+  border-color: #d9e0e8;
+  background: #f5f7fa;
+  color: #a5afbc;
+  opacity: 1;
+}
+
+/* Desktop nav keeps the existing structure, but adopts the clean blue selected state. */
+@media (min-width: 901px) {
+  .companion-shell .companion-sidebar {
+    background: linear-gradient(180deg, #0e1930 0%, #0a1428 100%);
+    border-right-color: #22304a;
+  }
+  .companion-shell .companion-brand-mark {
+    border-radius: 9px;
+    background: linear-gradient(180deg, #0d83f4, #0874e3);
+    box-shadow: 0 4px 10px rgba(8,120,234,.20);
+  }
+  .companion-shell .companion-nav button { border-radius: 8px; }
+  .companion-shell .companion-nav button.is-active {
+    border-color: rgba(80,157,238,.34);
+    background: #122c52;
+    box-shadow: inset 3px 0 #1387f4;
+  }
+}
+
+/* Phone: same desktop visual language, no layout/function changes. */
+@media (max-width: 900px) {
+  .companion-shell .companion-topbar {
+    background: #fff;
+    border-bottom: 1px solid #d8e2ee;
+  }
+  .companion-shell .companion-content-frame,
+  .companion-shell .companion-registration-card,
+  .companion-shell .companion-publish-card {
+    border-radius: 10px;
+    box-shadow: none;
+  }
+  .companion-shell .companion-mobile-nav.companion-native-tabbar {
+    border-color: #cfdae8;
+    background: rgba(255,255,255,.98);
+    box-shadow: 0 5px 20px rgba(17,34,63,.10);
+  }
+  .companion-shell .companion-mobile-nav.companion-native-tabbar button {
+    border-radius: 10px;
+    color: #6d7b91;
+  }
+  .companion-shell .companion-mobile-nav.companion-native-tabbar button.is-active {
+    background: #eaf3ff;
+    color: #0874df;
+  }
+  .companion-shell .companion-mobile-nav-icon { color: inherit; }
+}
