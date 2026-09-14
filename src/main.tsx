@@ -5,6 +5,7 @@ import './pwa/registerPwa';
 import './arbiter/installIsolatedPairingsPrint';
 import './arbiter/installArbiterResultFilters';
 import './companion/installRegistrationDeleteGuard';
+import './companion/installTabScrollReset';
 import App from './App.tsx';
 import {OnlineCloudProvider} from './cloud/OnlineCloudProvider';
 import {ArbiterPortal} from './arbiter/ArbiterPortal';
