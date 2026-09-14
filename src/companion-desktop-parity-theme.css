@@ -7,203 +7,261 @@
 .companion-shell {
   --cp-blue: #0878ea;
   --cp-blue-dark: #0668d1;
-  --cp-navy: #0d1731;
-  --cp-navy-2: #182640;
-  --cp-bg: #f7f9fc;
+  --cp-navy: #101a31;
+  --cp-navy-2: #1b2b48;
+  --cp-bg: #f6f9fd;
   --cp-surface: #ffffff;
-  --cp-text: #111a31;
-  --cp-muted: #65728b;
-  --cp-line: #d6e1ef;
-  background: #f7f9fc;
+  --cp-text: #101a31;
+  --cp-muted: #687790;
+  --cp-line: #cfdbea;
+  background: #f6f9fd !important;
   color: var(--cp-text);
 }
 
-/* White desktop-style application chrome. */
+/* --- Application chrome: clean white Windows-style frame --- */
 .companion-shell .companion-topbar {
-  background: rgba(255,255,255,.985);
-  border-bottom-color: #d9e2ee;
-  box-shadow: 0 1px 0 rgba(18,31,54,.025);
-  backdrop-filter: none;
+  background: #ffffff !important;
+  border-bottom: 1px solid #cfdae8 !important;
+  box-shadow: 0 1px 3px rgba(22,45,78,.06) !important;
+  backdrop-filter: none !important;
 }
-.companion-shell .companion-title-block span { color: #6f7d95; }
-.companion-shell .companion-title-block strong { color: #101a31; font-weight: 800; }
+.companion-shell .companion-title-block span { color: #6c7890 !important; }
+.companion-shell .companion-title-block strong { color: #101a31 !important; font-weight: 800 !important; }
 
-/* Cards and panels follow the desktop manager: white, thin blue-grey outline,
-   gentle rounding, almost no floating shadow. */
+@media (min-width: 901px) {
+  .companion-shell .companion-sidebar {
+    background: #ffffff !important;
+    color: #24324a !important;
+    border-right: 1px solid #cfdae8 !important;
+    box-shadow: 1px 0 4px rgba(23,45,78,.035) !important;
+  }
+  .companion-shell .companion-brand {
+    border-bottom: 1px solid #d8e2ee !important;
+    background: #ffffff !important;
+  }
+  .companion-shell .companion-brand-mark {
+    border-radius: 8px !important;
+    background: linear-gradient(180deg,#1288f5 0%,#0878ea 100%) !important;
+    box-shadow: 0 3px 8px rgba(8,120,234,.20) !important;
+  }
+  .companion-shell .companion-brand strong { color: #101a31 !important; }
+  .companion-shell .companion-brand span { color: #748299 !important; }
+
+  .companion-shell .companion-tournament-switch {
+    border: 1px solid #cad7e6 !important;
+    border-radius: 8px !important;
+    background: #f7faff !important;
+    color: #526179 !important;
+  }
+  .companion-shell .companion-tournament-switch:hover { background: #eef6ff !important; color: #1a2a43 !important; }
+  .companion-shell .companion-tournament-switch small { color: #77869e !important; }
+  .companion-shell .companion-tournament-switch strong { color: #17253c !important; }
+
+  .companion-shell .companion-nav button {
+    min-height: 50px !important;
+    border-radius: 8px !important;
+    color: #5e6e86 !important;
+    background: transparent !important;
+  }
+  .companion-shell .companion-nav button:hover {
+    color: #135eac !important;
+    background: #f0f6fd !important;
+  }
+  .companion-shell .companion-nav button.is-active {
+    color: #ffffff !important;
+    border-color: #0878ea !important;
+    background: linear-gradient(180deg,#1689f4 0%,#0878ea 100%) !important;
+    box-shadow: 0 2px 6px rgba(8,120,234,.18) !important;
+  }
+  .companion-shell .companion-nav button.is-active small { color: #dceeff !important; }
+  .companion-shell .companion-nav small { color: #8593a8 !important; }
+
+  .companion-shell .companion-sidebar-status {
+    border: 1px solid #d3deeb !important;
+    border-radius: 8px !important;
+    background: #f7faff !important;
+  }
+  .companion-shell .companion-sidebar-status strong { color: #33435a !important; }
+  .companion-shell .companion-sidebar-status span { color: #7b8aa0 !important; }
+}
+
+/* --- Main surfaces: desktop manager panels --- */
+.companion-shell .companion-main { background: #f6f9fd !important; }
 .companion-shell .companion-content-frame,
 .companion-shell .companion-publish-card,
 .companion-shell .companion-registration-card,
 .companion-shell .companion-sync-card,
 .companion-shell .companion-setup-card,
 .companion-shell .companion-cloud-card {
-  border-color: #d6e1ef;
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(19,39,72,.025);
+  border: 1px solid #cfdbea !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  box-shadow: 0 1px 3px rgba(17,40,74,.04) !important;
 }
-
 .companion-shell .companion-section-head {
-  border-bottom-color: #dbe5f1;
-  background: #fff;
+  border-bottom: 1px solid #d8e2ee !important;
+  background: #ffffff !important;
 }
 .companion-shell .companion-section-head h1,
 .companion-shell .companion-registration-heading h2,
-.companion-shell .companion-card-copy h2 {
-  color: #0f1930;
-  font-weight: 800;
+.companion-shell .companion-card-copy h2,
+.companion-shell .companion-setup-summary h2,
+.companion-shell .companion-setup-heading h3 {
+  color: #101a31 !important;
+  font-weight: 800 !important;
 }
-.companion-shell .companion-eyebrow { color: #086fd7; }
+.companion-shell .companion-eyebrow { color: #0878ea !important; }
 
-/* Desktop-style soft information strip. */
+/* Blue-tinted information strips like the desktop manager. */
 .companion-shell .companion-sync-card,
 .companion-shell .companion-progress,
-.companion-shell .companion-counter {
-  border-color: #cfe0f4;
-  background: #f2f8ff;
+.companion-shell .companion-counter,
+.companion-shell .companion-setup-summary,
+.companion-shell .companion-setup-footnote {
+  border-color: #c9def4 !important;
+  background: linear-gradient(180deg,#f4f9ff 0%,#edf6ff 100%) !important;
 }
 
-/* Unified button language matching the desktop screenshot. */
+/* --- Buttons: unmistakable desktop parity --- */
 .companion-shell .companion-button {
-  min-height: 40px;
-  border: 1px solid #bdcce0;
-  border-radius: 7px;
-  background: linear-gradient(180deg, #fff 0%, #f8fbff 100%);
-  color: #24324b;
-  box-shadow: 0 1px 1px rgba(17,34,63,.025);
-  font-weight: 750;
-  transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease, transform 80ms ease;
+  min-height: 40px !important;
+  padding: 0 15px !important;
+  border: 1px solid #b9c9dc !important;
+  border-radius: 7px !important;
+  background: linear-gradient(180deg,#ffffff 0%,#f5f8fc 100%) !important;
+  color: #23324b !important;
+  box-shadow: 0 1px 2px rgba(16,38,70,.045) !important;
+  font-weight: 750 !important;
 }
 .companion-shell .companion-button:hover:not(:disabled) {
-  border-color: #9eb6d3;
-  background: #f3f8fe;
-  box-shadow: 0 1px 3px rgba(17,34,63,.06);
-}
-.companion-shell .companion-button:active:not(:disabled) {
-  transform: translateY(1px);
-  box-shadow: none;
+  border-color: #8faaca !important;
+  background: #edf5ff !important;
 }
 .companion-shell .companion-button.primary {
-  border-color: #0878ea;
-  background: linear-gradient(180deg, #0d83f4 0%, #0874e3 100%);
-  color: #fff;
-  box-shadow: 0 2px 5px rgba(8,120,234,.18);
+  border-color: #0878ea !important;
+  background: linear-gradient(180deg,#1388f4 0%,#0878ea 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(8,120,234,.22) !important;
 }
 .companion-shell .companion-button.primary:hover:not(:disabled) {
-  border-color: #0668d1;
-  background: linear-gradient(180deg, #0b7be8 0%, #066bd6 100%);
+  border-color: #0668d1 !important;
+  background: linear-gradient(180deg,#0d7ee7 0%,#066fd9 100%) !important;
 }
-.companion-shell .companion-button.secondary { background: #fff; }
+.companion-shell .companion-button.secondary { background: #ffffff !important; }
 .companion-shell .companion-button:disabled {
-  opacity: .46;
-  filter: saturate(.55);
-  box-shadow: none;
+  opacity: 1 !important;
+  color: #9aa6b6 !important;
+  border-color: #d7dfe9 !important;
+  background: #f3f5f8 !important;
+  box-shadow: none !important;
 }
 
-/* Search, selects and text fields use the same compact desktop controls. */
+/* --- Inputs / search / selects --- */
 .companion-shell .companion-searchbox,
 .companion-shell .companion-sort-control,
 .companion-shell .companion-manual-grid input,
 .companion-shell .companion-manual-grid select,
+.companion-shell .companion-setup-grid input,
+.companion-shell .companion-setup-grid select,
+.companion-shell .companion-setup-grid textarea,
 .companion-shell .companion-content-frame input:not([type="checkbox"]):not([type="radio"]),
 .companion-shell .companion-content-frame select,
 .companion-shell .companion-content-frame textarea {
-  border-color: #c7d5e6;
-  border-radius: 7px;
-  background: #fff;
-  color: #17243b;
-  box-shadow: inset 0 1px 1px rgba(18,39,70,.02);
+  border: 1px solid #bfd0e2 !important;
+  border-radius: 7px !important;
+  background: #ffffff !important;
+  color: #17243a !important;
+  box-shadow: inset 0 1px 1px rgba(18,39,70,.025) !important;
 }
 .companion-shell .companion-searchbox:focus-within,
 .companion-shell .companion-sort-control:focus-within,
 .companion-shell .companion-manual-grid input:focus,
 .companion-shell .companion-manual-grid select:focus,
+.companion-shell .companion-setup-grid input:focus,
+.companion-shell .companion-setup-grid select:focus,
+.companion-shell .companion-setup-grid textarea:focus,
 .companion-shell .companion-content-frame input:focus,
 .companion-shell .companion-content-frame select:focus,
 .companion-shell .companion-content-frame textarea:focus {
-  border-color: #6aa9eb;
-  box-shadow: 0 0 0 2px rgba(8,120,234,.10);
-  outline: none;
+  border-color: #5b9fe5 !important;
+  box-shadow: 0 0 0 2px rgba(8,120,234,.12) !important;
+  outline: none !important;
 }
 
-/* Registration list: more desktop-table than card, while retaining the current
-   responsive layout and all existing controls/semantics. */
+/* --- Player roster as a compact desktop-style list --- */
 .companion-shell .companion-roster-list {
-  border-color: #d5e0ec;
-  border-radius: 8px;
-  background: #fff;
+  border: 1px solid #cbd8e7 !important;
+  border-radius: 7px !important;
+  background: #ffffff !important;
 }
 .companion-shell .companion-roster-row {
-  border-bottom-color: #dfe6ef;
-  background: #fff;
+  border-bottom-color: #dce5ef !important;
+  background: #ffffff !important;
 }
-.companion-shell .companion-roster-row:nth-child(even) { background: #f8fafc; }
-.companion-shell .companion-roster-row:hover { background: #f1f7ff; }
-.companion-shell .companion-player-main strong { color: #172238; font-weight: 800; }
-.companion-shell .companion-player-main span { color: #748198; }
+.companion-shell .companion-roster-row:nth-child(even) { background: #f6f9fd !important; }
+.companion-shell .companion-roster-row:hover { background: #eaf4ff !important; }
+.companion-shell .companion-player-main strong { color: #172238 !important; font-weight: 800 !important; }
+.companion-shell .companion-player-main span { color: #748198 !important; }
 .companion-shell .companion-roster-row .companion-player-rating {
-  border: 1px solid #d8e8fa;
-  background: #eef6ff;
+  border: 1px solid #c9e0f8 !important;
+  border-radius: 7px !important;
+  background: #eaf4ff !important;
 }
-.companion-shell .companion-roster-row .companion-player-rating strong { color: #0874df; }
+.companion-shell .companion-roster-row .companion-player-rating strong { color: #0878ea !important; }
+.companion-shell .companion-roster-row .companion-player-rating span { color: #687d98 !important; }
 
-/* Destructive controls keep desktop's restrained red outline. */
 .companion-shell .companion-icon-danger {
-  border-color: #f1bfc7;
-  border-radius: 7px;
-  background: #fff;
-  color: #db344e;
+  border: 1px solid #f1b7c1 !important;
+  border-radius: 7px !important;
+  background: #ffffff !important;
+  color: #db344e !important;
 }
-.companion-shell .companion-icon-danger:hover:not(:disabled) { background: #fff5f6; }
+.companion-shell .companion-icon-danger:hover:not(:disabled) { background: #fff1f3 !important; }
 .companion-shell .companion-icon-danger:disabled {
-  border-color: #d9e0e8;
-  background: #f5f7fa;
-  color: #a5afbc;
-  opacity: 1;
+  opacity: 1 !important;
+  border-color: #d5dde7 !important;
+  background: #f2f4f7 !important;
+  color: #a8b2bf !important;
 }
 
-/* Desktop nav keeps the existing structure, but adopts the clean blue selected state. */
-@media (min-width: 901px) {
-  .companion-shell .companion-sidebar {
-    background: linear-gradient(180deg, #0e1930 0%, #0a1428 100%);
-    border-right-color: #22304a;
-  }
-  .companion-shell .companion-brand-mark {
-    border-radius: 9px;
-    background: linear-gradient(180deg, #0d83f4, #0874e3);
-    box-shadow: 0 4px 10px rgba(8,120,234,.20);
-  }
-  .companion-shell .companion-nav button { border-radius: 8px; }
-  .companion-shell .companion-nav button.is-active {
-    border-color: rgba(80,157,238,.34);
-    background: #122c52;
-    box-shadow: inset 3px 0 #1387f4;
-  }
-}
-
-/* Phone: same desktop visual language, no layout/function changes. */
+/* --- Mobile: same visual system, unchanged layout and behavior --- */
 @media (max-width: 900px) {
+  .companion-shell { background: #f3f7fc !important; }
   .companion-shell .companion-topbar {
-    background: #fff;
-    border-bottom: 1px solid #d8e2ee;
+    background: #ffffff !important;
+    border-bottom: 1px solid #cfdbea !important;
+    box-shadow: 0 1px 4px rgba(18,40,72,.06) !important;
   }
+  .companion-shell .companion-registration,
+  .companion-shell .companion-setup { background: #f3f7fc !important; }
   .companion-shell .companion-content-frame,
   .companion-shell .companion-registration-card,
-  .companion-shell .companion-publish-card {
-    border-radius: 10px;
-    box-shadow: none;
+  .companion-shell .companion-publish-card,
+  .companion-shell .companion-setup-card {
+    border-radius: 9px !important;
+    border-color: #cddaea !important;
+    box-shadow: none !important;
   }
+
   .companion-shell .companion-mobile-nav.companion-native-tabbar {
-    border-color: #cfdae8;
-    background: rgba(255,255,255,.98);
-    box-shadow: 0 5px 20px rgba(17,34,63,.10);
+    border: 1px solid #c8d6e6 !important;
+    border-radius: 18px !important;
+    background: #ffffff !important;
+    box-shadow: 0 5px 18px rgba(21,44,77,.12) !important;
   }
   .companion-shell .companion-mobile-nav.companion-native-tabbar button {
-    border-radius: 10px;
-    color: #6d7b91;
+    border-radius: 12px !important;
+    color: #66758b !important;
   }
   .companion-shell .companion-mobile-nav.companion-native-tabbar button.is-active {
-    background: #eaf3ff;
-    color: #0874df;
+    background: linear-gradient(180deg,#1689f4 0%,#0878ea 100%) !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 6px rgba(8,120,234,.18) !important;
   }
-  .companion-shell .companion-mobile-nav-icon { color: inherit; }
+  .companion-shell .companion-mobile-nav.companion-native-tabbar button.is-active span { color: #ffffff !important; }
+  .companion-shell .companion-mobile-nav-icon { color: inherit !important; }
+
+  .companion-shell .companion-button { border-radius: 8px !important; }
+  .companion-shell .companion-searchbox,
+  .companion-shell .companion-sort-control { border-radius: 8px !important; }
 }
