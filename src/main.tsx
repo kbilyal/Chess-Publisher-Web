@@ -19,6 +19,7 @@ import './companion-conflict.css';
 import './mobile-native.css';
 import './companion-desktop.css';
 import './companion-desktop-parity-theme.css';
+import './companion-ui-polish.css';
 import './arbiter/arbiter.css';
 import './arbiter/organizer-pairings.css';
 import './arbiter/organizer-pairings-print.css';
