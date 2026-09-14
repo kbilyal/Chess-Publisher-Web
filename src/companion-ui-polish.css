@@ -1,0 +1,105 @@
+/*
+ * Chess-Publisher Web Companion — final cosmetic polish.
+ * Presentation only: removes nested-control artifacts and aligns spacing.
+ * No behavior, state, data, sync, tournament or publication logic.
+ */
+
+.companion-shell {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Remove the visible double-border artifact caused by generic input styling
+   inside the framed search control. The outer searchbox remains the control. */
+.companion-shell .companion-searchbox {
+  overflow: hidden;
+}
+.companion-shell .companion-searchbox input,
+.companion-shell .companion-content-frame .companion-searchbox input {
+  min-height: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+.companion-shell .companion-searchbox:focus-within {
+  border-color: #5b9fe5 !important;
+  box-shadow: 0 0 0 2px rgba(8,120,234,.11) !important;
+}
+
+/* Sort is one framed control as well; avoid a second box around its select. */
+.companion-shell .companion-sort-control {
+  overflow: hidden;
+}
+.companion-shell .companion-sort-control select,
+.companion-shell .companion-content-frame .companion-sort-control select {
+  min-height: 32px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+.companion-shell .companion-sort-control:focus-within {
+  border-color: #5b9fe5 !important;
+  box-shadow: 0 0 0 2px rgba(8,120,234,.10) !important;
+}
+
+/* Align the roster toolbar and top actions to the same control rhythm. */
+.companion-shell .companion-roster-toolbar {
+  align-items: stretch;
+  gap: 10px;
+}
+.companion-shell .companion-searchbox.small,
+.companion-shell .companion-sort-control {
+  min-height: 42px !important;
+}
+.companion-shell .companion-roster-count {
+  height: 40px;
+  border-color: #c9d8e9;
+  border-radius: 7px;
+  background: #f4f9ff;
+}
+.companion-shell .companion-registration-heading {
+  margin-bottom: 12px;
+}
+.companion-shell .companion-sort-note {
+  line-height: 1.45;
+}
+
+/* Keep icon/text baselines clean and prevent tiny SVG layout jumps. */
+.companion-shell .companion-button > svg,
+.companion-shell .companion-searchbox > svg,
+.companion-shell .companion-sort-control > svg,
+.companion-shell .companion-roster-count > svg,
+.companion-shell .companion-icon-danger > svg {
+  flex: 0 0 auto;
+}
+
+/* Slightly soften row and card transitions without changing layout. */
+.companion-shell .companion-registration-card,
+.companion-shell .companion-roster-list,
+.companion-shell .companion-button,
+.companion-shell .companion-searchbox,
+.companion-shell .companion-sort-control {
+  transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+}
+
+@media (max-width: 900px) {
+  .companion-shell .companion-roster-toolbar { gap: 8px; }
+  .companion-shell .companion-searchbox.small,
+  .companion-shell .companion-sort-control { min-height: 44px !important; }
+  .companion-shell .companion-mobile-nav.companion-native-tabbar {
+    box-shadow: 0 4px 16px rgba(21,44,77,.10) !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .companion-shell .companion-registration-card {
+    padding: 12px !important;
+  }
+  .companion-shell .companion-registration-heading {
+    margin-bottom: 10px;
+  }
+}
