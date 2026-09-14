@@ -68,6 +68,59 @@
   line-height: 1.45;
 }
 
+/* Make the primary FIDE search unmistakable. This is cosmetic only and targets
+   the Fast Registration search card, not the smaller roster filter control. */
+.companion-shell .companion-registration-search {
+  border: 1px solid #b8d7f7 !important;
+  background: linear-gradient(180deg, #ffffff 0%, #f5faff 100%) !important;
+  box-shadow: 0 2px 8px rgba(8,120,234,.07) !important;
+}
+.companion-shell .companion-registration-search .companion-registration-heading h2 {
+  margin-top: 4px;
+  color: #0b1b35 !important;
+  font-size: 21px !important;
+  font-weight: 850 !important;
+  letter-spacing: -.03em;
+}
+.companion-shell .companion-registration-search .companion-eyebrow {
+  color: #0878ea !important;
+  font-weight: 900 !important;
+  letter-spacing: .12em;
+}
+.companion-shell .companion-registration-search > .companion-searchbox {
+  min-height: 58px !important;
+  padding: 0 16px !important;
+  border: 2px solid #7eb7f0 !important;
+  border-radius: 9px !important;
+  background: #ffffff !important;
+  color: #0878ea !important;
+  box-shadow: 0 2px 8px rgba(8,120,234,.08) !important;
+}
+.companion-shell .companion-registration-search > .companion-searchbox > svg {
+  width: 21px;
+  height: 21px;
+  color: #0878ea !important;
+}
+.companion-shell .companion-registration-search > .companion-searchbox input {
+  height: 54px !important;
+  color: #14233b !important;
+  font-size: 15px !important;
+  font-weight: 650 !important;
+}
+.companion-shell .companion-registration-search > .companion-searchbox input::placeholder {
+  color: #68809d !important;
+  opacity: 1;
+  font-weight: 550;
+}
+.companion-shell .companion-registration-search > .companion-searchbox:hover {
+  border-color: #4f9ce8 !important;
+}
+.companion-shell .companion-registration-search > .companion-searchbox:focus-within {
+  border-color: #0878ea !important;
+  background: #ffffff !important;
+  box-shadow: 0 0 0 3px rgba(8,120,234,.13), 0 3px 10px rgba(8,120,234,.09) !important;
+}
+
 /* Keep icon/text baselines clean and prevent tiny SVG layout jumps. */
 .companion-shell .companion-button > svg,
 .companion-shell .companion-searchbox > svg,
@@ -101,5 +154,27 @@
   }
   .companion-shell .companion-registration-heading {
     margin-bottom: 10px;
+  }
+  .companion-shell .companion-registration-search {
+    padding: 14px 12px !important;
+    border-color: #a9cef5 !important;
+    box-shadow: 0 2px 7px rgba(8,120,234,.07) !important;
+  }
+  .companion-shell .companion-registration-search .companion-registration-heading h2 {
+    font-size: 19px !important;
+  }
+  .companion-shell .companion-registration-search > .companion-searchbox {
+    min-height: 56px !important;
+    padding: 0 14px !important;
+    border-width: 2px !important;
+    border-radius: 10px !important;
+  }
+  .companion-shell .companion-registration-search > .companion-searchbox input {
+    height: 52px !important;
+    font-size: 16px !important;
+  }
+  .companion-shell .companion-registration-search > .companion-searchbox > svg {
+    width: 22px;
+    height: 22px;
   }
 }
