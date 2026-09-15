@@ -144,11 +144,15 @@ jobs:
           test -s dist/icons/chess-publisher-icon-192.png
           test -s dist/icons/chess-publisher-icon-512.png
           test -s dist/icons/chess-publisher-maskable-512.png
+          test -s dist/hub-useful-links-organizer.js
           grep -q '"display": "standalone"' dist/manifest.webmanifest
           test "$(stat -c%s dist/fide/fide_ratings.sqlite)" -gt 1000000
           test "$(stat -c%s dist/vendor/sql-wasm.wasm)" -gt 100000
           grep -Eq 'assets/index-[^" ]+\.js' dist/index.html
           grep -Eq 'assets/index-[^" ]+\.css' dist/index.html
+          grep -q '/hub-useful-links-organizer.js' dist/index.html
+          grep -q 'hub-useful-links-organizer-v1' dist/hub-useful-links-organizer.js
+          node --check dist/hub-useful-links-organizer.js
           ! grep -q 'src/main.tsx' dist/index.html
           ! grep -R -E 'AES_KEY|AES_IV' dist/assets --include='*.js'
           grep -R -q 'Continue your desktop tournaments anywhere' dist/assets --include='*.js'
