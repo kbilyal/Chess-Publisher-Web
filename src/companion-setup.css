@@ -50,7 +50,8 @@
 .companion-setup-grid { display: grid; gap: 11px; }
 .companion-setup-grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .companion-setup-grid label { min-width: 0; display: grid; gap: 5px; }
-.companion-setup-grid label.wide { grid-column: 1 / -1; }
+.companion-setup-grid label.wide,
+.companion-setup-grid .wide { grid-column: 1 / -1; }
 .companion-setup-grid label > span { color: #66758a; font-size: 8.5px; font-weight: 800; letter-spacing: .035em; text-transform: uppercase; }
 .companion-setup-grid input,
 .companion-setup-grid select,
@@ -73,6 +74,44 @@
 .companion-setup-grid input[readonly] { color: #566579; background: #f3f6fa; }
 .companion-setup-grid textarea { resize: vertical; }
 
+.companion-hub-links {
+  margin-top: 2px;
+  padding: 13px;
+  border: 1px solid #d9e6f2;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #f8fbff, #f6f9fc);
+}
+.companion-hub-links-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.companion-hub-links-label { display: inline-flex; align-items: center; gap: 7px; color: #184f8f; font-size: 10px; font-weight: 850; letter-spacing: .035em; text-transform: uppercase; }
+.companion-hub-links-head p { margin: 5px 0 0; max-width: 760px; color: #66758a; font-size: 9.5px; line-height: 1.5; }
+.companion-hub-links-list { margin-top: 11px; display: grid; gap: 8px; }
+.companion-hub-link-row { display: grid; grid-template-columns: minmax(135px,.7fr) minmax(260px,1.6fr) auto; gap: 8px; align-items: end; }
+.companion-hub-link-row label > span { color: #66758a; font-size: 8px; font-weight: 800; letter-spacing: .035em; text-transform: uppercase; }
+.companion-hub-link-row button,
+.companion-hub-links-actions button {
+  min-height: 41px;
+  border: 1px solid #cbd8e6;
+  border-radius: 9px;
+  background: #fff;
+  color: #30455d;
+  padding: 8px 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.companion-hub-link-row button:hover,
+.companion-hub-links-actions button:hover { background: #f1f6fb; }
+.companion-hub-link-remove { color: #b42318 !important; border-color: #f1c5c0 !important; }
+.companion-hub-links-actions { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px; }
+.companion-hub-link-add { color: #1d4ed8 !important; border-color: #bfd7fb !important; background: #eff6ff !important; }
+.companion-hub-link-publish { color: #065f46 !important; border-color: #a7e7cf !important; background: #ecfdf5 !important; }
+.companion-hub-links-actions button:disabled { opacity: .55; cursor: not-allowed; }
+.companion-hub-links-status { min-height: 16px; margin-top: 7px; color: #66758a; font-size: 9px; font-weight: 650; line-height: 1.4; }
+
 .companion-setup-footnote {
   min-height: 46px;
   padding: 11px 13px;
@@ -90,6 +129,7 @@
 
 @media (max-width: 900px) {
   .companion-setup { padding: 12px; }
+  .companion-hub-link-row { grid-template-columns: minmax(120px,.7fr) minmax(220px,1.5fr) auto; }
 }
 
 @media (max-width: 640px) {
@@ -100,11 +140,20 @@
   .companion-setup-summary p { font-size: 9px; }
   .companion-setup-progress { min-width: 66px; min-height: 56px; }
   .companion-setup-grid.two { grid-template-columns: 1fr; }
-  .companion-setup-grid label.wide { grid-column: auto; }
+  .companion-setup-grid label.wide,
+  .companion-setup-grid .wide { grid-column: auto; }
   .companion-setup-grid input,
   .companion-setup-grid select,
   .companion-setup-grid textarea { min-height: 46px; font-size: 16px; border-radius: 10px; }
   .companion-setup-grid textarea { min-height: 92px; }
   .companion-setup-heading h3 { font-size: 13px; }
   .companion-setup-heading p { font-size: 8.5px; }
+  .companion-hub-links { padding: 11px; }
+  .companion-hub-links-label { font-size: 10px; }
+  .companion-hub-links-head p { font-size: 9px; }
+  .companion-hub-link-row { grid-template-columns: 1fr; padding: 10px; border: 1px solid #dde6ef; border-radius: 10px; background: #fff; }
+  .companion-hub-link-row button,
+  .companion-hub-links-actions button { width: 100%; min-height: 46px; font-size: 13px; }
+  .companion-hub-links-actions { display: grid; grid-template-columns: 1fr; }
+  .companion-hub-links-status { font-size: 10px; }
 }
