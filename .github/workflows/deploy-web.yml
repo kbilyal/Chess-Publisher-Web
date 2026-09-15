@@ -151,7 +151,7 @@ jobs:
           grep -Eq 'assets/index-[^" ]+\.js' dist/index.html
           grep -Eq 'assets/index-[^" ]+\.css' dist/index.html
           grep -q '/hub-useful-links-organizer.js' dist/index.html
-          grep -q 'hub-useful-links-organizer-v1' dist/hub-useful-links-organizer.js
+          grep -q 'hub-useful-links-organizer-v2' dist/hub-useful-links-organizer.js
           node --check dist/hub-useful-links-organizer.js
           ! grep -q 'src/main.tsx' dist/index.html
           ! grep -R -E 'AES_KEY|AES_IV' dist/assets --include='*.js'
