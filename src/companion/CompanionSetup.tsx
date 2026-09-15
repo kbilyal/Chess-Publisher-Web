@@ -1,14 +1,18 @@
-import React, { useMemo } from 'react';
-import { Calendar, Clock, Globe2, MapPin, ShieldCheck, Trophy, Users } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Calendar, Clock, CloudUpload, Globe2, Link2, MapPin, Plus, ShieldCheck, Trash2, Trophy, Users } from 'lucide-react';
 import { PairingSystem, RatingType, Tournament, TournamentFormat } from '../types';
 import { FEDERATIONS, TIME_CONTROLS, getFederationFlagUrl } from '../data/initialData';
+import { useOnlineCloud } from '../cloud/OnlineCloudProviderV2';
 
 interface Props {
   tournament: Tournament;
   onUpdateTournament: (updater: (previous: Tournament) => Tournament) => void;
 }
 
+type UsefulLink = { label: string; url: string };
+
 const text = (value: unknown) => String(value ?? '').trim();
+const MAX_USEFUL_LINKS = 12;
 
 function classifyTimeControl(value: string, fallback: RatingType): RatingType {
   const candidate = text(value);
@@ -24,10 +28,16 @@ function classifyTimeControl(value: string, fallback: RatingType): RatingType {
 }
 
 export const CompanionSetup: React.FC<Props> = ({ tournament, onUpdateTournament }) => {
+  const cloud = useOnlineCloud();
+  const [linksStatus, setLinksStatus] = useState('');
   const settings = tournament.settings;
   const regulations = tournament.regulations;
   const isRoundRobin = settings.tournamentFormat === 'Individual Round Robin';
   const federationFlagUrl = getFederationFlagUrl(settings.country);
+  const storedUsefulLinks = Array.isArray((regulations as any).usefulLinks)
+    ? ((regulations as any).usefulLinks as UsefulLink[]).map(item => ({ label: String(item?.label || ''), url: String(item?.url || '') })).slice(0, MAX_USEFUL_LINKS)
+    : [];
+  const usefulLinks: UsefulLink[] = storedUsefulLinks.length ? storedUsefulLinks : [{ label: 'Regulations', url: '' }];
 
   const completion = useMemo(() => {
     const required = [
@@ -56,6 +66,47 @@ export const CompanionSetup: React.FC<Props> = ({ tournament, onUpdateTournament
       ...previous,
       regulations: { ...previous.regulations, [key]: value }
     }));
+  };
+
+  const updateUsefulLinks = (links: UsefulLink[]) => {
+    onUpdateTournament(previous => ({
+      ...previous,
+      regulations: { ...previous.regulations, usefulLinks: links.slice(0, MAX_USEFUL_LINKS) } as any
+    }));
+    setLinksStatus('Saved locally · Cloud autosync pending');
+  };
+
+  const editUsefulLink = (index: number, field: keyof UsefulLink, value: string) => {
+    const next = usefulLinks.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item);
+    updateUsefulLinks(next);
+  };
+
+  const addUsefulLink = () => {
+    if (usefulLinks.length >= MAX_USEFUL_LINKS) {
+      setLinksStatus(`Maximum ${MAX_USEFUL_LINKS} links.`);
+      return;
+    }
+    updateUsefulLinks([...usefulLinks, { label: '', url: '' }]);
+  };
+
+  const removeUsefulLink = (index: number) => {
+    const next = usefulLinks.filter((_, itemIndex) => itemIndex !== index);
+    updateUsefulLinks(next);
+  };
+
+  const publishUsefulLinks = async () => {
+    const complete = usefulLinks.filter(item => text(item.label) && /^https?:\/\//i.test(text(item.url)));
+    if (!complete.length) {
+      setLinksStatus('Add a link name and a full http/https URL first.');
+      return;
+    }
+    setLinksStatus('Publishing links to Tournament Hub…');
+    try {
+      await cloud.publishOnline(tournament);
+      setLinksStatus(`Published ${complete.length} link${complete.length === 1 ? '' : 's'} to Tournament Hub.`);
+    } catch (error: any) {
+      setLinksStatus(error?.message || 'Hub publish failed.');
+    }
   };
 
   const updateName = (name: string) => {
@@ -191,6 +242,31 @@ export const CompanionSetup: React.FC<Props> = ({ tournament, onUpdateTournament
           <label><span>Total prize fund</span><input value={regulations.totalPrizeFund || ''} onChange={event => updateRegulation('totalPrizeFund', event.target.value)} /></label>
           <label className="wide"><span>General notes</span><textarea rows={3} value={settings.generalNotes || ''} onChange={event => updateSetting('generalNotes', event.target.value)} /></label>
           <label className="wide"><span>Additional regulations</span><textarea rows={4} value={regulations.additional || ''} onChange={event => updateRegulation('additional', event.target.value)} /></label>
+
+          <div className="wide companion-hub-links" data-companion-hub-links="native-v2">
+            <div className="companion-hub-links-head">
+              <div>
+                <span className="companion-hub-links-label"><Link2 size={15} /> Public Hub links</span>
+                <p>Add a regulation PDF, Google Drive document, hotel, live boards or another useful tournament link. Regulation/PDF links open inside the public Hub browser viewer.</p>
+              </div>
+            </div>
+
+            <div className="companion-hub-links-list">
+              {usefulLinks.map((item, index) => (
+                <div className="companion-hub-link-row" key={index}>
+                  <label><span>Link name</span><input value={item.label} onChange={event => editUsefulLink(index, 'label', event.target.value)} placeholder="Regulations" /></label>
+                  <label><span>URL</span><input type="url" inputMode="url" value={item.url} onChange={event => editUsefulLink(index, 'url', event.target.value)} placeholder="https://drive.google.com/…" /></label>
+                  <button type="button" className="companion-hub-link-remove" onClick={() => removeUsefulLink(index)} aria-label={`Remove link ${index + 1}`}><Trash2 size={15} /><span>Remove</span></button>
+                </div>
+              ))}
+            </div>
+
+            <div className="companion-hub-links-actions">
+              <button type="button" className="companion-hub-link-add" onClick={addUsefulLink} disabled={usefulLinks.length >= MAX_USEFUL_LINKS}><Plus size={16} /> + Add link</button>
+              <button type="button" className="companion-hub-link-publish" onClick={() => void publishUsefulLinks()} disabled={cloud.busy}><CloudUpload size={16} /> {cloud.busy ? 'Publishing…' : 'Publish links to Hub'}</button>
+            </div>
+            <div className="companion-hub-links-status" role="status">{linksStatus || 'Changes save automatically. Publish when you want the public Hub page updated.'}</div>
+          </div>
         </div>
       </section>
 
