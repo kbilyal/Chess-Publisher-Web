@@ -43,9 +43,10 @@
       const button = document.createElement('a');
       button.id = 'heroPreFideDownload';
       button.className = 'button button-secondary pre-fide-download';
-      button.href = EXE_URL;
-      button.textContent = 'Download Pre-FIDE r12';
-      button.setAttribute('aria-label', `Download Chess-Publisher ${VERSION} Pre-FIDE Windows executable`);
+      button.href = RELEASE_URL;
+      button.textContent = 'Pre-FIDE r12';
+      button.setAttribute('aria-label', `Open Chess-Publisher ${VERSION} Pre-FIDE release page with Windows EXE and checksums`);
+      button.dataset.exeAsset = EXE_URL;
       stable.insertAdjacentElement('afterend', button);
     }
 
