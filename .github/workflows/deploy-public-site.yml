@@ -91,6 +91,23 @@ jobs:
           fi
           cp deploy/public-site/news-web-companion-linux-2026.html site/news-web-companion-linux-2026.html
 
+      - name: Integrate Pre-FIDE r12 parallel release channel
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp deploy/public-site/pre-fide-r12.js site/pre-fide-r12.js
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('site/index.html')
+          html = path.read_text(encoding='utf-8')
+          marker = '<script src="/pre-fide-r12.js" defer></script>'
+          if marker not in html:
+              if '</head>' not in html:
+                  raise SystemExit('index.html has no </head> insertion point')
+              html = html.replace('</head>', f'  {marker}\n</head>', 1)
+              path.write_text(html, encoding='utf-8')
+          PY
+
       - name: Integrate Hub public enhancements
         shell: bash
         run: |
@@ -146,6 +163,10 @@ jobs:
           grep -q 'Install it on mobile' site/index.html
           grep -q 'Meet WEB Companion' site/news-web-companion-linux-2026.html
           grep -q 'Linux.*In development' site/news-web-companion-linux-2026.html
+          test -s site/pre-fide-r12.js
+          grep -q 'pre-fide-r12-public-v1' site/pre-fide-r12.js
+          grep -q 'ChessPublisher-v1.06.00-beta.98-r12.exe' site/pre-fide-r12.js
+          grep -q '<script src="/pre-fide-r12.js" defer></script>' site/index.html
           test -s site/tournaments.js
           test -s site/tournaments.html
           test -s site/hub-config.js
@@ -156,6 +177,7 @@ jobs:
           grep -q '<script src="/hub-fide-event-id.js"></script>' site/tournaments.html
           grep -q '<script src="/hub-useful-links.js"></script>' site/tournaments.html
           test -s site/assets/screenshots/pairings.png
+          node --check site/pre-fide-r12.js
           node --check site/hub-fide-event-id.js
           node --check site/hub-useful-links.js
           python - <<'PY'
@@ -200,12 +222,16 @@ jobs:
             cb="${GITHUB_SHA}-${attempt}-$(date +%s)"
             home="$(curl --fail --silent --show-error --location --retry 2 "${PUBLIC_ORIGIN}/?cb=${cb}" || true)"
             news="$(curl --fail --silent --show-error --location --retry 2 "${PUBLIC_ORIGIN}/news-web-companion-linux-2026.html?cb=${cb}" || true)"
+            pre_fide="$(curl --fail --silent --show-error --location --retry 2 "${PUBLIC_ORIGIN}/pre-fide-r12.js?cb=${cb}" || true)"
             tournaments="$(curl --fail --silent --show-error --location --retry 2 "${PUBLIC_ORIGIN}/tournaments.html?cb=${cb}" || true)"
             fide_badge="$(curl --fail --silent --show-error --location --retry 2 "${PUBLIC_ORIGIN}/hub-fide-event-id.js?cb=${cb}" || true)"
             hub_links="$(curl --fail --silent --show-error --location --retry 2 "${PUBLIC_ORIGIN}/hub-useful-links.js?cb=${cb}" || true)"
             if grep -q 'data-site-build="2026-09-08-v42-platform-icons"' <<<"$home" \
               && grep -q 'WEB Companion' <<<"$home" \
               && grep -q 'Chess-Publisher is coming to Linux' <<<"$home" \
+              && grep -q '/pre-fide-r12.js' <<<"$home" \
+              && grep -q 'pre-fide-r12-public-v1' <<<"$pre_fide" \
+              && grep -q 'ChessPublisher-v1.06.00-beta.98-r12.exe' <<<"$pre_fide" \
               && grep -q 'Meet WEB Companion' <<<"$news" \
               && grep -q '/hub-fide-event-id.js' <<<"$tournaments" \
               && grep -q '/hub-useful-links.js' <<<"$tournaments" \
@@ -217,4 +243,4 @@ jobs:
             sleep 5
           done
           test "$ok" -eq 1
-          echo 'PUBLIC WEBSITE v42 + HUB FIDE EVENT ID + USEFUL LINKS LIVE GATE: PASS'
+          echo 'PUBLIC WEBSITE v42 + PRE-FIDE r12 + HUB FIDE EVENT ID + USEFUL LINKS LIVE GATE: PASS'
