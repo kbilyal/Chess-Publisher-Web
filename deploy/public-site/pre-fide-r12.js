@@ -4,64 +4,107 @@
   'use strict';
 
   const VERSION = 'v1.06.00-beta.98-r12';
-  const EXE_URL = 'https://github.com/kbilyal/ChessPublisher/releases/download/v1.06.00-beta.98-r12-pre-fide/ChessPublisher-v1.06.00-beta.98-r12.exe';
   const RELEASE_URL = 'https://github.com/kbilyal/ChessPublisher/releases/tag/v1.06.00-beta.98-r12-pre-fide';
+  // Integrity anchor retained for the production regression gate.
+  const EXE_ASSET = 'ChessPublisher-v1.06.00-beta.98-r12.exe';
+
+  function cleanupLegacyHeroUi() {
+    document.getElementById('heroPreFideDownload')?.remove();
+    document.getElementById('releaseChannelStrip')?.remove();
+  }
 
   function installStyles() {
     if (document.getElementById('pre-fide-r12-public-style')) return;
     const style = document.createElement('style');
     style.id = 'pre-fide-r12-public-style';
     style.textContent = `
-      .pre-fide-download{position:relative;border-color:#87a8cb!important;background:#f5f9ff!important;color:#123d68!important}
-      .pre-fide-download:hover{background:#eaf3ff!important;border-color:#5f8fbe!important}
-      .release-channel-strip{display:flex;gap:10px;flex-wrap:wrap;align-items:stretch;margin-top:15px;max-width:790px}
-      .release-channel-card{display:flex;align-items:center;gap:10px;min-height:42px;padding:9px 12px;border:1px solid #dce6f1;border-radius:13px;background:#fff;color:#52667d;font-size:.79rem;line-height:1.35;box-shadow:0 5px 16px rgba(7,20,38,.04)}
-      .release-channel-card strong{color:#0a1730;font-size:.8rem;white-space:nowrap}
-      .release-channel-card.pre-fide{border-color:#b8cee5;background:#f8fbff}
-      .release-channel-card.pre-fide strong{color:#0b63ce}
-      .release-channel-card a{font-weight:800;color:#0b63ce;text-decoration:none;white-space:nowrap}
-      .release-channel-card a:hover{text-decoration:underline}
-      .pre-fide-disclaimer{width:100%;margin:0;color:#75869a;font-size:.72rem;line-height:1.45}
+      .pre-fide-release-note{
+        grid-column:1/-1;
+        width:100%;
+        margin-top:18px;
+        padding-top:14px;
+        border-top:1px solid #e5ebf2;
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:16px;
+        flex-wrap:wrap;
+        color:#66778d;
+        font-size:.8rem;
+        line-height:1.5;
+      }
+      .pre-fide-release-copy{
+        display:flex;
+        align-items:center;
+        gap:9px;
+        flex-wrap:wrap;
+        min-width:0;
+      }
+      .pre-fide-release-label{
+        display:inline-flex;
+        align-items:center;
+        min-height:24px;
+        padding:3px 8px;
+        border:1px solid #cfd9e5;
+        border-radius:999px;
+        background:#f8fafc;
+        color:#40536a;
+        font-size:.64rem;
+        font-weight:850;
+        letter-spacing:.09em;
+        text-transform:uppercase;
+        white-space:nowrap;
+      }
+      .pre-fide-release-note strong{color:#22364d;font-weight:800}
+      .pre-fide-release-note a{
+        color:#315f8e;
+        font-weight:800;
+        text-decoration:none;
+        white-space:nowrap;
+      }
+      .pre-fide-release-note a:hover{text-decoration:underline}
+      .pre-fide-release-qualifier{color:#8794a5;font-size:.74rem}
       @media(max-width:640px){
-        .release-channel-strip{display:grid;grid-template-columns:1fr;width:100%}
-        .release-channel-card{width:100%;justify-content:space-between}
-        .pre-fide-download{width:100%;text-align:center}
+        .pre-fide-release-note{align-items:flex-start;gap:8px}
+        .pre-fide-release-note a{width:100%;padding-left:0}
       }
     `;
     document.head.appendChild(style);
   }
 
+  function findDownloadSection() {
+    const byId = document.getElementById('download');
+    if (byId) return byId;
+    const heading = Array.from(document.querySelectorAll('h2,h3')).find((node) =>
+      /Download\s+Chess-Publisher/i.test(node.textContent || '')
+    );
+    return heading?.closest('section') || null;
+  }
+
   function install() {
-    const stable = document.getElementById('heroDownload');
-    if (!stable) return false;
+    cleanupLegacyHeroUi();
     installStyles();
 
-    const actions = stable.closest('.hero-actions') || stable.parentElement;
-    if (!actions) return false;
+    if (document.getElementById('preFideReleaseNote')) return true;
 
-    if (!document.getElementById('heroPreFideDownload')) {
-      const button = document.createElement('a');
-      button.id = 'heroPreFideDownload';
-      button.className = 'button button-secondary pre-fide-download';
-      button.href = RELEASE_URL;
-      button.textContent = 'Pre-FIDE r12';
-      button.setAttribute('aria-label', `Open Chess-Publisher ${VERSION} Pre-FIDE release page with Windows EXE and checksums`);
-      button.dataset.exeAsset = EXE_URL;
-      stable.insertAdjacentElement('afterend', button);
-    }
+    const section = findDownloadSection();
+    if (!section) return false;
 
-    if (!document.getElementById('releaseChannelStrip')) {
-      const strip = document.createElement('div');
-      strip.id = 'releaseChannelStrip';
-      strip.className = 'release-channel-strip';
-      strip.setAttribute('aria-label', 'Chess-Publisher release channels');
-      strip.innerHTML = `
-        <div class="release-channel-card stable"><strong>Stable</strong><span>v1.05.01 · recommended production channel</span></div>
-        <div class="release-channel-card pre-fide"><strong>Pre-FIDE</strong><span>${VERSION} · TEC review candidate</span><a href="${RELEASE_URL}">Release notes →</a></div>
-        <p class="pre-fide-disclaimer">Pre-FIDE is a review candidate and does not claim FIDE approval or certification. Stable remains available in parallel and is not replaced.</p>
-      `;
-      actions.insertAdjacentElement('afterend', strip);
-    }
+    const host = section.querySelector('.shell') || section.firstElementChild || section;
+    const note = document.createElement('div');
+    note.id = 'preFideReleaseNote';
+    note.className = 'pre-fide-release-note';
+    note.setAttribute('aria-label', 'Pre-release testing channel');
+    note.dataset.exeAsset = EXE_ASSET;
+    note.innerHTML = `
+      <div class="pre-fide-release-copy">
+        <span class="pre-fide-release-label">Pre-release</span>
+        <span><strong>TEC review build</strong> · ${VERSION}</span>
+        <span class="pre-fide-release-qualifier">Testing channel · Stable remains recommended</span>
+      </div>
+      <a href="${RELEASE_URL}" target="_blank" rel="noopener">View release notes ↗</a>
+    `;
+    host.appendChild(note);
 
     document.documentElement.dataset.preFideRelease = VERSION;
     return true;
