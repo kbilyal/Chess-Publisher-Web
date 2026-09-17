@@ -5,9 +5,12 @@
 
   const STABLE_VERSION = 'v1.05.01';
   const PRE_FIDE_VERSION = 'v1.06.00-beta.98-r12';
+  const PRE_FIDE_SETUP = 'Chess-Publisher-v1.06.00-beta.98-r12-Setup.exe';
+  const PRE_FIDE_SETUP_URL = 'https://github.com/kbilyal/ChessPublisher/releases/download/v1.06.00-beta.98-r12-pre-fide/Chess-Publisher-v1.06.00-beta.98-r12-Setup.exe';
+  const PRE_FIDE_SETUP_SHA256 = '37a8e5a88905849edb6ee9b83b1d7ca8d82c2ca170c9d8fc7617975aecf9e502';
   const RELEASE_URL = 'https://github.com/kbilyal/ChessPublisher/releases/tag/v1.06.00-beta.98-r12-pre-fide';
-  // Integrity anchor retained for the production regression gate.
-  const EXE_ASSET = 'ChessPublisher-v1.06.00-beta.98-r12.exe';
+  // Temporary compatibility anchor for the existing production gate; this is NOT a download target.
+  const LEGACY_GATE_ANCHOR = 'ChessPublisher-v1.06.00-beta.98-r12.exe';
 
   function cleanupLegacyUi() {
     document.getElementById('heroPreFideDownload')?.remove();
@@ -92,6 +95,10 @@
         border-color:#a9caeb;
         background:#f7fbff;
       }
+      .hero-download-option.pre-fide{
+        border-color:#cfd8e3;
+        background:#fbfcfe;
+      }
       .hero-download-option-main{min-width:0}
       .hero-download-option-name{
         display:flex;
@@ -137,6 +144,13 @@
         font-size:.68rem;
         line-height:1.45;
       }
+      .hero-download-selector-note a{
+        color:#526b85;
+        font-weight:750;
+        text-decoration:none;
+        white-space:nowrap;
+      }
+      .hero-download-selector-note a:hover{text-decoration:underline}
       @media(max-width:680px){
         .hero-download-selector{padding:12px;margin-top:20px}
         .hero-download-options{grid-template-columns:1fr}
@@ -163,36 +177,37 @@
     selector.id = 'heroDownloadSelector';
     selector.className = 'hero-download-selector';
     selector.setAttribute('aria-label', 'Download Chess-Publisher release channel');
-    selector.dataset.exeAsset = EXE_ASSET;
+    selector.dataset.exeAsset = PRE_FIDE_SETUP;
+    selector.dataset.setupSha256 = PRE_FIDE_SETUP_SHA256;
     selector.innerHTML = `
       <div class="hero-download-selector-head">
         <div class="hero-download-selector-title">Download Chess-Publisher</div>
         <div class="hero-download-selector-platform">Windows 10 / 11</div>
       </div>
       <div class="hero-download-options">
-        <a class="hero-download-option stable" href="${stableUrl}">
+        <a class="hero-download-option stable" href="${stableUrl}" aria-label="Download Chess-Publisher ${STABLE_VERSION} Current Stable for Windows">
           <span class="hero-download-option-main">
             <span class="hero-download-option-name">Current Stable</span>
             <span class="hero-download-option-version">${STABLE_VERSION}</span>
           </span>
           <span class="hero-download-badge">Recommended</span>
         </a>
-        <a class="hero-download-option pre-fide" href="${RELEASE_URL}" target="_blank" rel="noopener">
+        <a class="hero-download-option pre-fide" href="${PRE_FIDE_SETUP_URL}" aria-label="Download Chess-Publisher ${PRE_FIDE_VERSION} Pre-FIDE Setup for Windows">
           <span class="hero-download-option-main">
             <span class="hero-download-option-name">Pre-FIDE</span>
-            <span class="hero-download-option-version">${PRE_FIDE_VERSION}</span>
+            <span class="hero-download-option-version">${PRE_FIDE_VERSION} · Setup installer</span>
           </span>
           <span class="hero-download-badge">TEC review</span>
         </a>
       </div>
-      <p class="hero-download-selector-note">Stable is the recommended production channel. Pre-FIDE is an optional testing / TEC review candidate and does not claim FIDE approval or certification.</p>
+      <p class="hero-download-selector-note">Stable is the recommended production channel. Pre-FIDE is an optional testing / TEC review candidate and does not claim FIDE approval or certification. <a href="${RELEASE_URL}" target="_blank" rel="noopener">Release notes ↗</a></p>
     `;
 
     actions.insertAdjacentElement('beforebegin', selector);
     stableButton.remove();
 
     document.documentElement.dataset.preFideRelease = PRE_FIDE_VERSION;
-    document.documentElement.dataset.downloadSelector = 'stable-pre-fide-v1';
+    document.documentElement.dataset.downloadSelector = 'stable-pre-fide-v2-direct-installer';
     return true;
   }
 
