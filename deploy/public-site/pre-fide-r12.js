@@ -1,16 +1,18 @@
-/* Chess-Publisher public site — Pre-FIDE r12 parallel release channel
+/* Chess-Publisher public site — release-channel selector
    Stable remains authoritative and unchanged. Marker: pre-fide-r12-public-v1 */
 (() => {
   'use strict';
 
-  const VERSION = 'v1.06.00-beta.98-r12';
+  const STABLE_VERSION = 'v1.05.01';
+  const PRE_FIDE_VERSION = 'v1.06.00-beta.98-r12';
   const RELEASE_URL = 'https://github.com/kbilyal/ChessPublisher/releases/tag/v1.06.00-beta.98-r12-pre-fide';
   // Integrity anchor retained for the production regression gate.
   const EXE_ASSET = 'ChessPublisher-v1.06.00-beta.98-r12.exe';
 
-  function cleanupLegacyHeroUi() {
+  function cleanupLegacyUi() {
     document.getElementById('heroPreFideDownload')?.remove();
     document.getElementById('releaseChannelStrip')?.remove();
+    document.getElementById('preFideReleaseNote')?.remove();
   }
 
   function installStyles() {
@@ -18,95 +20,179 @@
     const style = document.createElement('style');
     style.id = 'pre-fide-r12-public-style';
     style.textContent = `
-      .pre-fide-release-note{
-        grid-column:1/-1;
-        width:100%;
-        margin-top:18px;
-        padding-top:14px;
-        border-top:1px solid #e5ebf2;
+      .hero-download-selector{
+        max-width:760px;
+        margin:24px 0 18px;
+        padding:14px;
+        border:1px solid #dbe5f0;
+        border-radius:18px;
+        background:rgba(255,255,255,.88);
+        box-shadow:0 12px 30px rgba(7,20,38,.07);
+        backdrop-filter:blur(10px);
+      }
+      .hero-download-selector-head{
         display:flex;
         align-items:center;
         justify-content:space-between;
-        gap:16px;
-        flex-wrap:wrap;
-        color:#66778d;
-        font-size:.8rem;
-        line-height:1.5;
+        gap:12px;
+        margin-bottom:11px;
+        padding:0 2px;
       }
-      .pre-fide-release-copy{
+      .hero-download-selector-title{
         display:flex;
         align-items:center;
         gap:9px;
-        flex-wrap:wrap;
-        min-width:0;
+        color:#0a1730;
+        font-size:.83rem;
+        font-weight:850;
+        letter-spacing:.01em;
       }
-      .pre-fide-release-label{
+      .hero-download-selector-title:before{
+        content:'↓';
+        width:25px;
+        height:25px;
+        display:grid;
+        place-items:center;
+        border-radius:8px;
+        background:#edf5ff;
+        color:#0b63ce;
+        font-size:.9rem;
+        font-weight:900;
+      }
+      .hero-download-selector-platform{
+        color:#7c8da1;
+        font-size:.72rem;
+        font-weight:750;
+      }
+      .hero-download-options{
+        display:grid;
+        grid-template-columns:1fr 1fr;
+        gap:9px;
+      }
+      .hero-download-option{
+        min-width:0;
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:13px;
+        padding:12px 13px;
+        border:1px solid #dce5ef;
+        border-radius:13px;
+        background:#fff;
+        color:#263b52;
+        text-decoration:none;
+        transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease,background .16s ease;
+      }
+      .hero-download-option:hover{
+        transform:translateY(-1px);
+        border-color:#a9bfd7;
+        box-shadow:0 8px 20px rgba(7,20,38,.07);
+      }
+      .hero-download-option.stable{
+        border-color:#a9caeb;
+        background:#f7fbff;
+      }
+      .hero-download-option-main{min-width:0}
+      .hero-download-option-name{
+        display:flex;
+        align-items:center;
+        gap:8px;
+        margin-bottom:3px;
+        color:#0a1730;
+        font-size:.86rem;
+        font-weight:850;
+      }
+      .hero-download-option-version{
+        color:#718298;
+        font-size:.73rem;
+        font-weight:650;
+        white-space:nowrap;
+        overflow:hidden;
+        text-overflow:ellipsis;
+      }
+      .hero-download-badge{
+        flex:0 0 auto;
         display:inline-flex;
         align-items:center;
-        min-height:24px;
+        min-height:23px;
         padding:3px 8px;
-        border:1px solid #cfd9e5;
         border-radius:999px;
-        background:#f8fafc;
-        color:#40536a;
-        font-size:.64rem;
-        font-weight:850;
-        letter-spacing:.09em;
+        font-size:.61rem;
+        font-weight:900;
+        letter-spacing:.07em;
         text-transform:uppercase;
         white-space:nowrap;
       }
-      .pre-fide-release-note strong{color:#22364d;font-weight:800}
-      .pre-fide-release-note a{
-        color:#315f8e;
-        font-weight:800;
-        text-decoration:none;
-        white-space:nowrap;
+      .hero-download-option.stable .hero-download-badge{
+        background:#e7f3ff;
+        color:#075fae;
       }
-      .pre-fide-release-note a:hover{text-decoration:underline}
-      .pre-fide-release-qualifier{color:#8794a5;font-size:.74rem}
-      @media(max-width:640px){
-        .pre-fide-release-note{align-items:flex-start;gap:8px}
-        .pre-fide-release-note a{width:100%;padding-left:0}
+      .hero-download-option.pre-fide .hero-download-badge{
+        background:#f2f4f7;
+        color:#5b6979;
+      }
+      .hero-download-selector-note{
+        margin:10px 2px 0;
+        color:#8492a3;
+        font-size:.68rem;
+        line-height:1.45;
+      }
+      @media(max-width:680px){
+        .hero-download-selector{padding:12px;margin-top:20px}
+        .hero-download-options{grid-template-columns:1fr}
+        .hero-download-selector-platform{display:none}
       }
     `;
     document.head.appendChild(style);
   }
 
-  function findDownloadSection() {
-    const byId = document.getElementById('download');
-    if (byId) return byId;
-    const heading = Array.from(document.querySelectorAll('h2,h3')).find((node) =>
-      /Download\s+Chess-Publisher/i.test(node.textContent || '')
-    );
-    return heading?.closest('section') || null;
-  }
-
   function install() {
-    cleanupLegacyHeroUi();
+    cleanupLegacyUi();
     installStyles();
 
-    if (document.getElementById('preFideReleaseNote')) return true;
+    if (document.getElementById('heroDownloadSelector')) return true;
 
-    const section = findDownloadSection();
-    if (!section) return false;
+    const stableButton = document.getElementById('heroDownload');
+    if (!stableButton) return false;
 
-    const host = section.querySelector('.shell') || section.firstElementChild || section;
-    const note = document.createElement('div');
-    note.id = 'preFideReleaseNote';
-    note.className = 'pre-fide-release-note';
-    note.setAttribute('aria-label', 'Pre-release testing channel');
-    note.dataset.exeAsset = EXE_ASSET;
-    note.innerHTML = `
-      <div class="pre-fide-release-copy">
-        <span class="pre-fide-release-label">Pre-release</span>
-        <span><strong>TEC review build</strong> · ${VERSION}</span>
-        <span class="pre-fide-release-qualifier">Testing channel · Stable remains recommended</span>
+    const actions = stableButton.closest('.hero-actions') || stableButton.parentElement;
+    if (!actions) return false;
+
+    const stableUrl = stableButton.href;
+    const selector = document.createElement('section');
+    selector.id = 'heroDownloadSelector';
+    selector.className = 'hero-download-selector';
+    selector.setAttribute('aria-label', 'Download Chess-Publisher release channel');
+    selector.dataset.exeAsset = EXE_ASSET;
+    selector.innerHTML = `
+      <div class="hero-download-selector-head">
+        <div class="hero-download-selector-title">Download Chess-Publisher</div>
+        <div class="hero-download-selector-platform">Windows 10 / 11</div>
       </div>
-      <a href="${RELEASE_URL}" target="_blank" rel="noopener">View release notes ↗</a>
+      <div class="hero-download-options">
+        <a class="hero-download-option stable" href="${stableUrl}">
+          <span class="hero-download-option-main">
+            <span class="hero-download-option-name">Current Stable</span>
+            <span class="hero-download-option-version">${STABLE_VERSION}</span>
+          </span>
+          <span class="hero-download-badge">Recommended</span>
+        </a>
+        <a class="hero-download-option pre-fide" href="${RELEASE_URL}" target="_blank" rel="noopener">
+          <span class="hero-download-option-main">
+            <span class="hero-download-option-name">Pre-FIDE</span>
+            <span class="hero-download-option-version">${PRE_FIDE_VERSION}</span>
+          </span>
+          <span class="hero-download-badge">TEC review</span>
+        </a>
+      </div>
+      <p class="hero-download-selector-note">Stable is the recommended production channel. Pre-FIDE is an optional testing / TEC review candidate and does not claim FIDE approval or certification.</p>
     `;
-    host.appendChild(note);
 
-    document.documentElement.dataset.preFideRelease = VERSION;
+    actions.insertAdjacentElement('beforebegin', selector);
+    stableButton.remove();
+
+    document.documentElement.dataset.preFideRelease = PRE_FIDE_VERSION;
+    document.documentElement.dataset.downloadSelector = 'stable-pre-fide-v1';
     return true;
   }
 
