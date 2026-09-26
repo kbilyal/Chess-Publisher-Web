@@ -98,7 +98,7 @@
   min-height: 40px;
   padding: 0 8px;
   display: grid;
-  grid-template-columns: 52px minmax(290px,1fr) 86px 116px 32px;
+  grid-template-columns: 52px minmax(290px,1fr) 86px 116px 32px 32px;
   align-items: center;
   gap: 8px;
   border-bottom: 1px solid #e5e9ee;
@@ -188,6 +188,21 @@
 }
 .companion-icon-danger:hover { background: #fff4f6; }
 .companion-icon-danger:disabled { opacity: .45; cursor: not-allowed; }
+.companion-icon-edit {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #cbdbea;
+  border-radius: 8px;
+  background: #fff;
+  color: #315f96;
+  cursor: pointer;
+}
+.companion-roster-row .companion-icon-edit { width: 28px; height: 28px; border-radius: 5px; }
+.companion-icon-edit:hover { background: #f1f6fd; color: #1769e0; }
+.companion-icon-edit:disabled { opacity: .45; cursor: not-allowed; }
+
 
 .companion-manual-form {
   margin-top: 12px;
@@ -337,10 +352,10 @@
     min-width: 0;
     min-height: 64px;
     padding: 7px 6px;
-    grid-template-columns: 38px minmax(0, 1fr) 60px 28px;
+    grid-template-columns: 38px minmax(0, 1fr) 60px 28px 28px;
     grid-template-areas:
-      "rank main rating remove"
-      "rank status status remove";
+      "rank main rating edit remove"
+      "rank status status edit remove";
     column-gap: 6px;
     row-gap: 5px;
   }
@@ -362,6 +377,7 @@
     width: 100%;
     min-height: 28px;
   }
+  .companion-roster-row .companion-icon-edit { grid-area: edit; align-self: center; }
   .companion-roster-row .companion-icon-danger {
     grid-area: remove;
     align-self: center;
