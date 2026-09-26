@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUpDown, Check, Download, Loader2, RefreshCw, Search, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { ArrowUpDown, Check, Download, Edit3, Loader2, RefreshCw, Search, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { Attendance, FideTitle, Gender, Tournament } from '../types';
 import { FidePlayerRecord } from '../server/fide/types';
 import { TransactionManager } from '../transactions/TransactionManager';
@@ -101,6 +101,8 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
   const [busyKey, setBusyKey] = useState('');
   const [fideListInfo, setFideListInfo] = useState<FideListInfo | null>(null);
   const [manual, setManual] = useState({ firstName: '', lastName: '', fideId: '', fed: 'BUL', rating: '', birth: '', title: '' as FideTitle, gender: 'm' as Gender });
+  const [editingPlayer, setEditingPlayer] = useState<import('../types').Player | null>(null);
+  const [editDraft, setEditDraft] = useState({ name: '', fideId: '', fed: 'BUL', rating: '', birth: '', title: '' as FideTitle, gender: 'm' as Gender });
   const debounceRef = useRef<number | null>(null);
 
   const players = tournament.players || [];
@@ -398,6 +400,73 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
     }
   };
 
+  const openEditPlayer = (player: import('../types').Player) => {
+    setEditingPlayer(player);
+    setEditDraft({
+      name: player.name || '',
+      fideId: player.fideId && player.fideId !== '-' && player.fideId !== '0' ? player.fideId : '',
+      fed: player.fed || 'FID',
+      rating: String(player.rating || 0),
+      birth: player.birth && player.birth !== '-' ? player.birth : '',
+      title: (player.title || '') as FideTitle,
+      gender: (player.gender || 'm') as Gender
+    });
+    setNotice(null);
+  };
+
+  const saveEditedPlayer = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!editingPlayer) return;
+
+    const name = editDraft.name.trim();
+    const fideId = editDraft.fideId.trim();
+    const fed = editDraft.fed.trim().toUpperCase();
+    const rating = Math.max(0, Math.min(3500, Number.parseInt(editDraft.rating || '0', 10) || 0));
+    if (!name) {
+      setNotice({ kind: 'error', text: 'Player name is required.' });
+      return;
+    }
+    if (fideId && !/^\\d+$/.test(fideId)) {
+      setNotice({ kind: 'error', text: 'FIDE ID must contain digits only.' });
+      return;
+    }
+    if (!/^[A-Z]{3}$/.test(fed)) {
+      setNotice({ kind: 'error', text: 'Federation must be a valid 3-letter FIDE code.' });
+      return;
+    }
+
+    const duplicate = players.find(player =>
+      player.localKey !== editingPlayer.localKey &&
+      fideId &&
+      player.fideId &&
+      String(player.fideId).trim() === fideId
+    );
+    if (duplicate) {
+      setNotice({ kind: 'error', text: `FIDE ID ${fideId} is already assigned to ${duplicate.name}.` });
+      return;
+    }
+
+    onUpdateTournament(previous => ({
+      ...previous,
+      players: previous.players.map(player =>
+        player.localKey === editingPlayer.localKey
+          ? {
+              ...player,
+              name,
+              fideId: fideId || '-',
+              fed,
+              rating,
+              birth: editDraft.birth.trim() || '-',
+              title: editDraft.title,
+              gender: editDraft.gender
+            }
+          : player
+      )
+    }));
+    setNotice({ kind: 'ok', text: `${name} updated successfully. Starting number, pairings and results were preserved.` });
+    setEditingPlayer(null);
+  };
+
   const removePlayer = async (localKey: string, name: string) => {
     if (!window.confirm(`Remove ${name} from this tournament?`)) return;
     setBusyKey(`delete:${localKey}`);
@@ -537,6 +606,9 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
                 <option value="absent">Absent</option>
                 <option value="withdrawn">Withdrawn</option>
               </select>
+              <button type="button" className="companion-icon-edit" aria-label={`Edit ${player.name}`} disabled={busyKey !== ''} onClick={() => openEditPlayer(player)} title="Edit player">
+                <Edit3 size={16} />
+              </button>
               <button type="button" className="companion-icon-danger" aria-label={`Remove ${player.name}`} disabled={busyKey !== ''} onClick={() => void removePlayer(player.localKey, player.name)}>
                 {busyKey === `delete:${player.localKey}` ? <Loader2 size={16} className="spin" /> : <Trash2 size={16} />}
               </button>
@@ -545,6 +617,34 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
           {!filteredPlayers.length && <div className="companion-empty-roster">{players.length ? 'No players match this filter.' : 'No players registered yet.'}</div>}
         </div>
       </section>
+    {editingPlayer && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="companion-edit-player-title">
+        <form className="companion-registration-card w-full max-w-lg space-y-4 shadow-2xl" onSubmit={saveEditedPlayer}>
+          <div className="companion-registration-heading">
+            <div>
+              <span className="companion-eyebrow">EDIT PLAYER</span>
+              <h2 id="companion-edit-player-title">Edit registered player</h2>
+              <p>Pairing number and tournament history are preserved.</p>
+            </div>
+            <button type="button" className="companion-button secondary" onClick={() => setEditingPlayer(null)}>Cancel</button>
+          </div>
+          <div className="companion-manual-grid">
+            <label><span>Name *</span><input autoFocus required value={editDraft.name} onChange={event => setEditDraft(current => ({ ...current, name: event.target.value }))} /></label>
+            <label><span>FIDE ID</span><input inputMode="numeric" value={editDraft.fideId} onChange={event => setEditDraft(current => ({ ...current, fideId: event.target.value.replace(/\\D/g, '') }))} /></label>
+            <label><span>Federation</span><input maxLength={3} value={editDraft.fed} onChange={event => setEditDraft(current => ({ ...current, fed: event.target.value.toUpperCase() }))} /></label>
+            <label><span>Rating</span><input inputMode="numeric" min="0" max="3500" value={editDraft.rating} onChange={event => setEditDraft(current => ({ ...current, rating: event.target.value }))} /></label>
+            <label><span>Birth year/date</span><input value={editDraft.birth} onChange={event => setEditDraft(current => ({ ...current, birth: event.target.value }))} /></label>
+            <label><span>Title</span><select value={editDraft.title} onChange={event => setEditDraft(current => ({ ...current, title: event.target.value as FideTitle }))}><option value="">No title</option>{['GM','IM','WGM','FM','WIM','CM','WFM','WCM'].map(title => <option key={title} value={title}>{title}</option>)}</select></label>
+            <label><span>Gender</span><select value={editDraft.gender} onChange={event => setEditDraft(current => ({ ...current, gender: event.target.value as Gender }))}><option value="m">Male</option><option value="f">Female</option></select></label>
+          </div>
+          <div className="companion-manual-actions">
+            <button type="button" className="companion-button secondary" onClick={() => setEditingPlayer(null)}>Cancel</button>
+            <button type="submit" className="companion-button primary">Save changes</button>
+          </div>
+        </form>
+      </div>
+    )}
+
     </div>
   );
 };
