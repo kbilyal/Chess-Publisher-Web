@@ -73,6 +73,12 @@ has(registration, 'executeDeletePlayerTransaction', 'Registration must reuse pro
 has(registration, 'executeBulkStatusTransaction', 'Registration must reuse protected attendance/status transactions.');
 has(registration, 'rankLocked ? latestRound + 1 : 1', 'Late registration must respect starting-rank lock and round history.');
 has(registration, 'Manual player', 'Manual player registration fallback is required.');
+has(registration, 'openEditPlayer', 'Web Companion must expose a registered-player edit action.');
+has(registration, 'saveEditedPlayer', 'Web Companion must persist edited player fields.');
+has(registration, 'companion-icon-edit', 'Web Companion roster must expose an edit button for each player.');
+has(registration, 'Starting number, pairings and results were preserved.', 'Player editing must explicitly preserve pairing/history fields.');
+has(registration, 'player.localKey === editingPlayer.localKey', 'Player edits must target the existing stable player identity.');
+
 has(browserFide, "const DATABASE_URL = '/fide/fide_ratings.sqlite'", 'Browser FIDE fallback must use the packaged official SQLite database.');
 has(browserFide, "const SQL_WASM_URL = '/vendor/sql-wasm.wasm'", 'Browser FIDE fallback must load sql.js WASM from a deterministic packaged path.');
 has(vite, 'data/fide/fide_ratings.sqlite', 'Production Vite build must package the official FIDE SQLite database.');
