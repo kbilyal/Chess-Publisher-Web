@@ -1,0 +1,47 @@
+name: Verify public Hub deployment
+on:
+  workflow_run:
+    workflows: ["Deploy Public Website"]
+    types: [completed]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Check deployed script and record deployment outcome
+        shell: bash
+        env:
+          DEPLOY_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          DEPLOY_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          set -euo pipefail
+          mkdir -p diagnostics
+          file="$(mktemp)"
+          http="$(curl -L --silent --show-error --max-time 30 --retry 3 -w '%{http_code}' -o "$file" 'https://chess-publisher.org/tournaments.js?verify_calendar=1' || true)"
+          if [[ "$http" == "200" ]] && grep -q 'hub-calendar-status-v1' "$file" && grep -q 'map(hubApplyCalendarStatus)' "$file"; then
+            result=PASS
+          else
+            result=FAIL
+          fi
+          {
+            echo '# Public tournament lifecycle deployment'
+            echo
+            echo "Checked at (UTC): $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            echo "Production URL: https://chess-publisher.org/tournaments.js"
+            echo "HTTP response: $http"
+            echo "Calendar status correction on live site: $result"
+            echo "Deploy workflow conclusion: ${DEPLOY_CONCLUSION:-manual}"
+            echo "Deploy workflow run: ${DEPLOY_URL:-manual verification}"
+          } > diagnostics/public-hub-deployment.md
+          cat diagnostics/public-hub-deployment.md
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add diagnostics/public-hub-deployment.md
+          git diff --cached --quiet || { git commit -m 'chore: record public Hub deployment verification'; git push; }
+          test "$result" = PASS
