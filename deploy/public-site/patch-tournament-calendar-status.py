@@ -22,6 +22,17 @@ helper = r"""  // hub-calendar-status-v1: derive lifecycle from event calendar, 
       const d=new Date(day+'T12:00:00Z');
       return Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===day?day:'';
     }
+    const european=/^(\\d{2})[\\/.](\\d{2})[\\/.](\\d{4})$/.exec(raw);
+    if(european){
+      const day=european[3]+'-'+european[2]+'-'+european[1];
+      const d=new Date(day+'T12:00:00Z');
+      return Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===day?day:'';
+    }
+    const named=/^(\\d{1,2})\\s+([A-Za-z]{3,9})\\s+(\\d{4})$/.exec(raw);
+    if(named){
+      const d=new Date(named[2]+' '+named[1]+', '+named[3]+' 12:00:00 GMT');
+      return Number.isFinite(d.getTime())?d.toISOString().slice(0,10):'';
+    }
     return '';
   }
   function hubToday(){
