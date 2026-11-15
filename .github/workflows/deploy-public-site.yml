@@ -131,6 +131,15 @@ jobs:
           path.write_text(html, encoding='utf-8')
           PY
 
+      - name: Apply calendar-based tournament status correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          python deploy/public-site/patch-tournament-calendar-status.py site/tournaments.js
+          node --check site/tournaments.js
+          grep -q 'hub-calendar-status-v1' site/tournaments.js
+          grep -q 'map(hubApplyCalendarStatus)' site/tournaments.js
+
       - name: Update sitemap for WEB Companion news
         shell: bash
         run: |
