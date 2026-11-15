@@ -1,0 +1,35 @@
+name: Capture public tournament frontend for maintenance
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/capture-public-tournaments.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch public tournament scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p diagnostics/public-site
+          curl --fail --location --retry 4 --retry-all-errors --max-time 90 'https://chess-publisher.org/tournaments.js' -o diagnostics/public-site/tournaments.js
+          curl --fail --location --retry 4 --retry-all-errors --max-time 90 'https://chess-publisher.org/tournaments.html' -o diagnostics/public-site/tournaments.html
+          curl --fail --location --retry 4 --retry-all-errors --max-time 90 'https://chess-publisher.org/tournaments-data.json' -o diagnostics/public-site/tournaments-data.json
+          test -s diagnostics/public-site/tournaments.js
+          node --check diagnostics/public-site/tournaments.js
+      - name: Commit public source snapshot for safe maintenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add diagnostics/public-site/
+          if ! git diff --cached --quiet; then
+            git commit -m 'chore: capture current public tournament frontend'
+            git push
+          fi
