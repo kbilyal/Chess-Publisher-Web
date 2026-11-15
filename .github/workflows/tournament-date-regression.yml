@@ -1,0 +1,33 @@
+name: Tournament date lifecycle regression
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/cloud/tournamentDateStatus.ts'
+      - 'src/cloud/publicHubSnapshot.ts'
+      - 'src/cloud/tests/runTournamentDateStatusTests.ts'
+      - '.github/workflows/tournament-date-regression.yml'
+  pull_request:
+    paths:
+      - 'src/cloud/tournamentDateStatus.ts'
+      - 'src/cloud/publicHubSnapshot.ts'
+      - 'src/cloud/tests/runTournamentDateStatusTests.ts'
+      - '.github/workflows/tournament-date-regression.yml'
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Date boundary tests
+        run: npx tsx src/cloud/tests/runTournamentDateStatusTests.ts
+      - name: Public Hub snapshot parity tests
+        run: npx tsx src/cloud/tests/runPublicHubSnapshotParityTests.ts
+      - name: TypeScript check
+        run: npm run lint
