@@ -1,4 +1,5 @@
 import { Tournament } from '../types';
+import { tournamentDateStatus } from './tournamentDateStatus';
 import { calculateTournamentStandings, getStandingTieBreakValue } from '../engine/tiebreaks';
 import { chooseInternalTournamentId } from './onlineCloudSync';
 import { orderPlayersForPublication } from '../publication/playerPublicationOrder';
@@ -60,6 +61,12 @@ function generatedRoundNumbers(tournament: Tournament | any) {
 }
 
 function tournamentStatus(tournament: Tournament | any, roundsDeclared: number) {
+  // Calendar dates take precedence over stale pairing/publication status.
+  // The final scheduled day is still live; the following day is finished.
+  const calendarStatus = tournamentDateStatus(tournament?.settings?.startDate, tournament?.settings?.endDate);
+  if (calendarStatus === 'completed') return 'finished';
+  if (calendarStatus === 'live') return 'playing';
+  if (calendarStatus === 'upcoming') return 'registration';
   const rounds = generatedRoundNumbers(tournament);
   const latest = rounds.length ? rounds[rounds.length - 1] : 0;
   if (roundsDeclared > 0 && latest >= roundsDeclared && roundComplete(tournament?.pairings?.liveBoards?.[String(roundsDeclared)])) return 'finished';
