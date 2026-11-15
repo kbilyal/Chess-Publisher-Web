@@ -235,6 +235,7 @@ jobs:
             tournaments="$(curl --fail --silent --show-error --location --retry 2 "${PUBLIC_ORIGIN}/tournaments.html?cb=${cb}" || true)"
             fide_badge="$(curl --fail --silent --show-error --location --retry 2 "${PUBLIC_ORIGIN}/hub-fide-event-id.js?cb=${cb}" || true)"
             hub_links="$(curl --fail --silent --show-error --location --retry 2 "${PUBLIC_ORIGIN}/hub-useful-links.js?cb=${cb}" || true)"
+            tournament_js="$(curl --fail --silent --show-error --location --retry 2 "${PUBLIC_ORIGIN}/tournaments.js?cb=${cb}" || true)"
             if grep -q 'data-site-build="2026-09-08-v42-platform-icons"' <<<"$home" \
               && grep -q 'WEB Companion' <<<"$home" \
               && grep -q 'Chess-Publisher is coming to Linux' <<<"$home" \
@@ -245,7 +246,9 @@ jobs:
               && grep -q '/hub-fide-event-id.js' <<<"$tournaments" \
               && grep -q '/hub-useful-links.js' <<<"$tournaments" \
               && grep -q 'hub-fide-event-id-v1' <<<"$fide_badge" \
-              && grep -q 'hub-useful-links-v1' <<<"$hub_links"; then
+              && grep -q 'hub-useful-links-v1' <<<"$hub_links" \
+              && grep -q 'hub-calendar-status-v1' <<<"$tournament_js" \
+              && grep -q 'map(hubApplyCalendarStatus)' <<<"$tournament_js"; then
               ok=1
               break
             fi
