@@ -33,11 +33,12 @@ helper = r"""  // hub-calendar-status-v1: derive lifecycle from event calendar, 
   }
   function hubApplyCalendarStatus(t){
     if(!t||typeof t!=='object')return t;
-    const dates=t.dates||{};
-    const start=hubCalendarDay(t.startDate||t.dateFrom||t.fromDate||t.start||dates.start);
-    const end=hubCalendarDay(t.endDate||t.dateTo||t.toDate||t.end||dates.end);
+    const dates=t.dates||t.tournament?.dates||{};
+    const start=hubCalendarDay(t.startDate||t.dateFrom||t.fromDate||t.start||dates.start||dates.startDate||t.tournament?.startDate);
+    const end=hubCalendarDay(t.endDate||t.dateTo||t.toDate||t.end||dates.end||dates.endDate||t.tournament?.endDate)||start;
     const today=hubToday();
     // End date is inclusive. Preserve original status if no usable dates.
+    if(start&&end&&end<start)return t;
     if(end&&today>end)t.status='completed';
     else if(start&&today<start)t.status='upcoming';
     else if(start&&end&&end>=start)t.status='live';
