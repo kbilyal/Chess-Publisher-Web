@@ -210,7 +210,8 @@ jobs:
             echo 'configured=true' >> "$GITHUB_OUTPUT"
           else
             echo 'configured=false' >> "$GITHUB_OUTPUT"
-            echo 'Cloudflare deployment skipped: CLOUDFLARE_API_TOKEN/CLOUDFLARE_ACCOUNT_ID are not configured.'
+            echo 'ERROR: Cloudflare deployment credentials are missing; production cannot be updated.'
+            exit 1
           fi
 
       - name: Deploy public website Worker assets
