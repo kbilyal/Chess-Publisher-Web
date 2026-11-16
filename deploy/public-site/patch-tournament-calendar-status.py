@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Upgrade the currently deployed public Hub script to calendar status v2.
+"""Upgrade the currently deployed public Hub script to calendar status v3.
 
 Patches the live asset assembled by the deployment workflow rather than
 replacing the rest of the production website. Replaces v1 on subsequent deploys.
@@ -15,7 +15,7 @@ anchor = '  const statusLabel=status=>'
 if source.count(anchor) != 1:
     raise SystemExit('Expected exactly one statusLabel anchor; deployment refused')
 
-helper = r"""  // hub-calendar-status-v2: calendar dates override stale API/live round status.
+helper = r"""  // hub-calendar-status-v3: calendar dates override stale API/live round status.
   function hubCalendarDay(value){
     if(!value)return '';
     const raw=String(value).trim();
@@ -46,6 +46,10 @@ helper = r"""  // hub-calendar-status-v2: calendar dates override stale API/live
     if(iso.length===2&&iso.every(Boolean))return {start:iso[0],end:iso[1]};
     const euro=[...raw.matchAll(/\d{1,2}[./]\d{1,2}[./]\d{4}/g)].map(m=>hubCalendarDay(m[0]));
     if(euro.length===2&&euro.every(Boolean))return {start:euro[0],end:euro[1]};
+    // Displayed Hub dates can be a human-readable range, e.g.
+    // "31 Aug 2026 – 01 Sept 2026", rather than separate ISO fields.
+    const human=[...raw.matchAll(/\b\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4}\b/g)].map(m=>hubCalendarDay(m[0]));
+    if(human.length===2&&human.every(Boolean))return {start:human[0],end:human[1]};
     const compact=/^(\d{1,2})\s*[-–]\s*(\d{1,2})[./](\d{1,2})[./](\d{4})$/.exec(raw);
     if(compact){
       const part=(day)=>hubCalendarDay(day+'.'+compact[3]+'.'+compact[4]);
@@ -65,7 +69,7 @@ helper = r"""  // hub-calendar-status-v2: calendar dates override stale API/live
     if(!t||typeof t!=='object')return t;
     const dates=t.dates||t.tournament?.dates||{};
     const pick=(...values)=>values.map(hubCalendarDay).find(Boolean)||'';
-    const range=hubDateRange(t.date);
+    const range=hubDateRange(t.date)||hubDateRange(t.dateRange)||hubDateRange(t.datesText)||hubDateRange(t.scheduleInfo?.dates);
     // Include the exact field used by tournamentDateBlock(), plus API alternatives.
     const start=pick(t.startDate,t.dateFrom,t.fromDate,t.start,dates.start,dates.startDate,t.tournament?.startDate,range?.start,t.date);
     const end=pick(t.endDate,t.dateTo,t.toDate,t.end,dates.end,dates.endDate,t.tournament?.endDate,range?.end,t.date)||start;
@@ -79,7 +83,7 @@ helper = r"""  // hub-calendar-status-v2: calendar dates override stale API/live
   }
 """
 
-versions=('  // hub-calendar-status-v1:', '  // hub-calendar-status-v2:')
+versions=('  // hub-calendar-status-v1:', '  // hub-calendar-status-v2:', '  // hub-calendar-status-v3:')
 existing=[source.find(version) for version in versions if version in source]
 if len(existing)>1:
     raise SystemExit('Multiple calendar helpers detected; deployment refused')
@@ -108,7 +112,7 @@ if patched not in source:
         raise SystemExit('Expected tournament detail integration not found; deployment refused')
     source=source.replace(original,patched,1)
 
-if source.count('hub-calendar-status-v2')!=1 or 'hub-calendar-status-v1' in source:
+if source.count('hub-calendar-status-v3')!=1 or 'hub-calendar-status-v1' in source or 'hub-calendar-status-v2' in source:
     raise SystemExit('Calendar upgrade validation failed')
 path.write_text(source, encoding='utf-8')
-print('Public Hub calendar status v2 installed or updated')
+print('Public Hub calendar status v3 installed or updated')
