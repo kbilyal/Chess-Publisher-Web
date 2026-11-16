@@ -7,7 +7,7 @@ const assert=require('node:assert/strict');
 const file=process.argv[2];
 if(!file)throw new Error('Usage: node test-tournament-calendar-status.cjs site/tournaments.js');
 const source=fs.readFileSync(file,'utf8');
-const marker='  // hub-calendar-status-v2:';
+const marker='  // hub-calendar-status-v3:';
 const anchor='  const statusLabel=status=>';
 const a=source.indexOf(marker),b=source.indexOf(anchor,a);
 assert.ok(a>=0&&b>a,'Deployed asset must include the v2 helper');
@@ -24,6 +24,9 @@ const cases=[
   ['nested dates',{dates:{start:'2026-10-01',end:'2026-10-03'}},'completed'],
   ['date range ISO',{date:'2026-10-01 – 2026-10-03'},'completed'],
   ['date range compact',{date:'01–03.10.2026'},'completed'],
+  ['screenshot green Sofia event',{date:'31 Aug 2026 – 01 Sept 2026'},'completed'],
+  ['screenshot Zlatograd event',{date:'01 Oct 2026 – 04 Oct 2026'},'completed'],
+  ['future human range',{date:'01 Dec 2099 – 04 Dec 2099'},'upcoming'],
   ['dates day/month/year',{startDate:'01/10/2026',endDate:'03/10/2026'},'completed'],
   ['dates day.month.year',{startDate:'01.10.2026',endDate:'03.10.2026'},'completed'],
   ['dates with month name',{startDate:'01 Oct 2026',endDate:'03 Oct 2026'},'completed'],
