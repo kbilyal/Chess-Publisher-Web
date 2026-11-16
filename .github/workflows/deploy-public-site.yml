@@ -141,6 +141,23 @@ jobs:
           grep -q 'hub-calendar-status-v2' site/tournaments.js
           grep -q 'map(hubApplyCalendarStatus)' site/tournaments.js
 
+      - name: Refresh Hub script URL to prevent cached old status logic
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          page = Path('site/tournaments.html')
+          html = page.read_text(encoding='utf-8')
+          pattern = r'(?P<head><script\b[^>]*\bsrc=["\x27]/?)tournaments\.js(?:\?[^"\x27]*)?(?P<tail>["\x27])'
+          html, n = re.subn(pattern, lambda m: m.group('head') + 'tournaments.js?v=20261116-calendar-v2' + m.group('tail'), html, count=1)
+          if n != 1:
+              raise SystemExit('Unable to update Hub script cache key')
+          page.write_text(html, encoding='utf-8')
+          PY
+          grep -q 'tournaments.js?v=20261116-calendar-v2' site/tournaments.html
+
       - name: Update sitemap for WEB Companion news
         shell: bash
         run: |
@@ -179,6 +196,7 @@ jobs:
           grep -q '<script src="/pre-fide-r12.js" defer></script>' site/index.html
           test -s site/tournaments.js
           test -s site/tournaments.html
+          grep -q 'tournaments.js?v=20261116-calendar-v2' site/tournaments.html
           test -s site/hub-config.js
           test -s site/hub-fide-event-id.js
           test -s site/hub-useful-links.js
@@ -247,6 +265,7 @@ jobs:
               && grep -q 'Meet WEB Companion' <<<"$news" \
               && grep -q '/hub-fide-event-id.js' <<<"$tournaments" \
               && grep -q '/hub-useful-links.js' <<<"$tournaments" \
+              && grep -q 'tournaments.js?v=20261116-calendar-v2' <<<"$tournaments" \
               && grep -q 'hub-fide-event-id-v1' <<<"$fide_badge" \
               && grep -q 'hub-useful-links-v1' <<<"$hub_links" \
               && grep -q 'hub-calendar-status-v2' <<<"$tournament_js" \
