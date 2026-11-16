@@ -24,7 +24,8 @@ jobs:
           mkdir -p diagnostics
           file="$(mktemp)"
           http="$(curl -L --silent --show-error --max-time 30 --retry 3 -w '%{http_code}' -o "$file" 'https://chess-publisher.org/tournaments.js?verify_calendar=1' || true)"
-          if [[ "$http" == "200" ]] && grep -q 'hub-calendar-status-v2' "$file" && grep -q 'map(hubApplyCalendarStatus)' "$file"; then
+          if [[ "$http" == "200" ]] && grep -q 'hub-calendar-status-v2' "$file" && grep -q 'map(hubApplyCalendarStatus)' "$file" \
+            && node deploy/public-site/test-tournament-calendar-status.cjs "$file"; then
             result=PASS
           else
             result=FAIL
