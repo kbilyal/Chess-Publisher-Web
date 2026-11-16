@@ -27,8 +27,8 @@ jobs:
           html_file="$(mktemp)"
           html_http="$(curl -L --silent --show-error --max-time 30 --retry 3 -w '%{http_code}' -o "$html_file" 'https://chess-publisher.org/tournaments.html?verify_calendar=2' || true)"
           if [[ "$http" == "200" && "$html_http" == "200" ]] \
-            && grep -q 'tournaments.js?v=20261116-calendar-v2' "$html_file" \
-            && grep -q 'hub-calendar-status-v2' "$file" && grep -q 'map(hubApplyCalendarStatus)' "$file" \
+            && grep -q 'tournaments.js?v=20261116-calendar-v3' "$html_file" \
+            && grep -q 'hub-calendar-status-v3' "$file" && grep -q 'map(hubApplyCalendarStatus)' "$file" \
             && node deploy/public-site/test-tournament-calendar-status.cjs "$file"; then
             result=PASS
           else
