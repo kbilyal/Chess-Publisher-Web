@@ -137,6 +137,7 @@ jobs:
           set -euo pipefail
           python deploy/public-site/patch-tournament-calendar-status.py site/tournaments.js
           node --check site/tournaments.js
+          node deploy/public-site/test-tournament-calendar-status.cjs site/tournaments.js
           grep -q 'hub-calendar-status-v2' site/tournaments.js
           grep -q 'map(hubApplyCalendarStatus)' site/tournaments.js
 
