@@ -137,7 +137,7 @@ jobs:
           set -euo pipefail
           python deploy/public-site/patch-tournament-calendar-status.py site/tournaments.js
           node --check site/tournaments.js
-          grep -q 'hub-calendar-status-v1' site/tournaments.js
+          grep -q 'hub-calendar-status-v2' site/tournaments.js
           grep -q 'map(hubApplyCalendarStatus)' site/tournaments.js
 
       - name: Update sitemap for WEB Companion news
@@ -248,7 +248,7 @@ jobs:
               && grep -q '/hub-useful-links.js' <<<"$tournaments" \
               && grep -q 'hub-fide-event-id-v1' <<<"$fide_badge" \
               && grep -q 'hub-useful-links-v1' <<<"$hub_links" \
-              && grep -q 'hub-calendar-status-v1' <<<"$tournament_js" \
+              && grep -q 'hub-calendar-status-v2' <<<"$tournament_js" \
               && grep -q 'map(hubApplyCalendarStatus)' <<<"$tournament_js"; then
               ok=1
               break
