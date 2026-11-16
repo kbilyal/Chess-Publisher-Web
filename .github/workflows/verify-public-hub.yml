@@ -24,7 +24,11 @@ jobs:
           mkdir -p diagnostics
           file="$(mktemp)"
           http="$(curl -L --silent --show-error --max-time 30 --retry 3 -w '%{http_code}' -o "$file" 'https://chess-publisher.org/tournaments.js?verify_calendar=1' || true)"
-          if [[ "$http" == "200" ]] && grep -q 'hub-calendar-status-v2' "$file" && grep -q 'map(hubApplyCalendarStatus)' "$file" \
+          html_file="$(mktemp)"
+          html_http="$(curl -L --silent --show-error --max-time 30 --retry 3 -w '%{http_code}' -o "$html_file" 'https://chess-publisher.org/tournaments.html?verify_calendar=2' || true)"
+          if [[ "$http" == "200" && "$html_http" == "200" ]] \
+            && grep -q 'tournaments.js?v=20261116-calendar-v2' "$html_file" \
+            && grep -q 'hub-calendar-status-v2' "$file" && grep -q 'map(hubApplyCalendarStatus)' "$file" \
             && node deploy/public-site/test-tournament-calendar-status.cjs "$file"; then
             result=PASS
           else
@@ -35,7 +39,8 @@ jobs:
             echo
             echo "Checked at (UTC): $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
             echo "Production URL: https://chess-publisher.org/tournaments.js"
-            echo "HTTP response: $http"
+            echo "JavaScript HTTP response: $http"
+            echo "HTML HTTP response: $html_http"
             echo "Calendar status correction on live site: $result"
             echo "Deploy workflow conclusion: ${DEPLOY_CONCLUSION:-manual}"
             echo "Deploy workflow run: ${DEPLOY_URL:-manual verification}"
