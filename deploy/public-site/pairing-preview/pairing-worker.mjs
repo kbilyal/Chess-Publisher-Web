@@ -3,17 +3,19 @@ import { PairingError, parsePairingOutput, preparePairing, version } from './pai
 
 let runtime;
 async function loadRuntime() {
-  const python = await loadPyodide({
+  const pythonReady = loadPyodide({
     indexURL: new URL('./runtime/', import.meta.url).href,
     stdout: () => {},
     stderr: () => {}
   });
   const archives = [['gacrux.zip', '/gacrux.zip'], ['networkx.whl', '/networkx.whl']];
-  await Promise.all(archives.map(async ([asset, path]) => {
+  const archiveData = Promise.all(archives.map(async ([asset, path]) => {
     const response = await fetch(new URL(`./runtime/${asset}`, import.meta.url));
     if (!response.ok) throw new Error('Runtime asset is missing.');
-    python.FS.writeFile(path, new Uint8Array(await response.arrayBuffer()));
+    return [path, new Uint8Array(await response.arrayBuffer())];
   }));
+  const [python, files] = await Promise.all([pythonReady, archiveData]);
+  for (const [path, bytes] of files) python.FS.writeFile(path, bytes);
   python.runPython(`
 import sys
 sys.path[:0] = ['/gacrux.zip', '/networkx.whl']
@@ -32,16 +34,17 @@ def run_pairing(args):
   return python;
 }
 
+function getRuntime() {
+  runtime ||= loadRuntime().catch(error => {
+    runtime = undefined;
+    throw error;
+  });
+  return runtime;
+}
+
 async function draw(payload) {
   const { trf, round, rounds, topColor, excluded, players } = preparePairing(payload);
-  if (!runtime) {
-    self.postMessage({ phase: 'loading' });
-    runtime = loadRuntime().catch(error => {
-      runtime = undefined;
-      throw error;
-    });
-  }
-  const python = await runtime;
+  const python = await getRuntime();
   self.postMessage({ phase: 'pairing' });
   const input = '/preview.trf';
   const output = '/preview.txt';
@@ -80,7 +83,12 @@ async function draw(payload) {
 }
 
 self.addEventListener('message', async event => {
+  if (event.data?.type === 'warmup') {
+    await getRuntime().catch(() => {});
+    return;
+  }
   try {
+    self.postMessage({ phase: 'loading' });
     self.postMessage({ result: await draw(event.data) });
   } catch (error) {
     const message = error instanceof PairingError ? error.message :

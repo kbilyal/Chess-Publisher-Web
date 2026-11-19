@@ -124,6 +124,17 @@ for relative in adapters:
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(js, encoding="utf-8")
 
+html = replace_once(
+    html, "function updateManagerButtons(){\n  const c=lateContext();\n  document.querySelectorAll('#cpR10RatingListManager button[data-r10-add]').forEach(btn=>{\n    btn.textContent=c.active?'Add Late Entry':'Add Player';",
+    """function updateManagerButtons(){
+  const buttons=document.querySelectorAll('#cpR10RatingListManager button[data-r10-add]');
+  if(!buttons.length)return;
+  const c=lateContext();
+  const label=c.active?'Add Late Entry':'Add Player';
+  buttons.forEach(btn=>{
+    if(btn.textContent!==label)btn.textContent=label;""",
+)
+
 scripts = "\n".join(f'<script src="./{relative}"></script>' for relative in adapters)
 html = replace_once(
     html, "\n</body>\n</html>",

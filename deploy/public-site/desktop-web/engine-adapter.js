@@ -3,12 +3,31 @@
   let worker;
   let busy = false;
 
+  function getWorker() {
+    worker ||= new Worker(new URL('./pairing-worker.mjs', location.href), { type: 'module' });
+    return worker;
+  }
+
+  function warmOnPairings(event) {
+    if (!window.cpDesktopWebAllowed || !event.target.closest?.('#tabPairings')) return;
+    for (const type of ['pointerover', 'focusin', 'click']) document.removeEventListener(type, warmOnPairings, true);
+    if (worker) return;
+    try {
+      const active = getWorker();
+      active.addEventListener('error', () => {
+        if (!busy && worker === active) { active.terminate(); worker = undefined; }
+      }, { once: true });
+      active.postMessage({ type: 'warmup' });
+    } catch { /* Draw retries initialization when requested. */ }
+  }
+  for (const type of ['pointerover', 'focusin', 'click']) document.addEventListener(type, warmOnPairings, true);
+
   function draw(payload) {
     if (busy) throw new Error('A pairing is already being calculated.');
     busy = true;
     return new Promise((resolve, reject) => {
       try {
-        worker ||= new Worker(new URL('./pairing-worker.mjs', location.href), { type: 'module' });
+        getWorker();
       } catch (error) {
         busy = false;
         reject(error);
