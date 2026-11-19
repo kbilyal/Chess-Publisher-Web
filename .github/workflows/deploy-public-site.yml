@@ -173,19 +173,26 @@ jobs:
               p.write_text(text, encoding='utf-8')
           PY
 
-      - name: Build and test browser pairing preview
+      - name: Build and test the desktop web workspace
         shell: bash
         run: |
           set -euo pipefail
-          preview=deploy/public-site/pairing-preview
-          bash "$preview/build.sh" site/pairing-preview
+          web_app=deploy/public-site/desktop-web
+          engine="$RUNNER_TEMP/cp-browser-engine"
+          bash deploy/public-site/pairing-preview/build.sh "$engine"
+          bash "$web_app/build.sh" site/app "$engine"
+          mkdir -p site/pairing-preview
+          cat > site/pairing-preview/index.html <<'HTML'
+          <!doctype html><html lang="bg"><meta charset="utf-8"><title>ChessPublisher Web</title>
+          <meta http-equiv="refresh" content="0;url=/app/"><a href="/app/">ChessPublisher Web</a></html>
+          HTML
           python deploy/public-site/add-online-pairings-section.py site/index.html
           npm install --prefix "$RUNNER_TEMP/cp-preview-test" --no-save playwright-core@1.65.1
           python -m http.server 8793 --bind 127.0.0.1 --directory site >"$RUNNER_TEMP/pairing-preview-http.log" 2>&1 &
           http_pid=$!
           trap 'kill "$http_pid" 2>/dev/null || true' EXIT
-          curl --fail --silent --show-error --retry 6 --retry-connrefused http://127.0.0.1:8793/pairing-preview/ >/dev/null
-          node "$preview/smoke.mjs" http://127.0.0.1:8793/pairing-preview/ "$RUNNER_TEMP/cp-preview-test" "$(command -v google-chrome)" "$preview/demo.trf"
+          curl --fail --silent --show-error --retry 6 --retry-connrefused http://127.0.0.1:8793/app/ >/dev/null
+          node "$web_app/smoke.mjs" http://127.0.0.1:8793/app/ "$RUNNER_TEMP/cp-preview-test" "$(command -v google-chrome)"
 
       - name: Public-site regression gate
         shell: bash
@@ -292,17 +299,17 @@ jobs:
           test "$ok" -eq 1
           echo 'PUBLIC WEBSITE v42 + PRE-FIDE r12 + HUB FIDE EVENT ID + USEFUL LINKS LIVE GATE: PASS'
 
-      - name: Verify live browser pairing preview
+      - name: Verify live desktop web workspace
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cf.outputs.configured == 'true'
         shell: bash
         run: |
           set -euo pipefail
           home="$(curl --fail --silent --show-error --retry 3 "$PUBLIC_ORIGIN/?preview_build=$GITHUB_SHA")"
-          grep -q 'data-pairing-entry="nav" href="/pairing-preview/"' <<<"$home"
-          grep -q 'id="online-pairings"' <<<"$home"
-          grep -q 'data-pairing-entry="section" href="/pairing-preview/"' <<<"$home"
+          grep -q 'data-desktop-web="nav" href="/app/"' <<<"$home"
+          grep -q 'id="chesspublisher-web"' <<<"$home"
+          grep -q 'data-desktop-web="section" href="/app/"' <<<"$home"
           for attempt in 1 2 3; do
-            if node deploy/public-site/pairing-preview/smoke.mjs "$PUBLIC_ORIGIN/pairing-preview/?build=$GITHUB_SHA-$attempt" "$RUNNER_TEMP/cp-preview-test" "$(command -v google-chrome)" deploy/public-site/pairing-preview/demo.trf; then
+            if node deploy/public-site/desktop-web/smoke.mjs "$PUBLIC_ORIGIN/app/?build=$GITHUB_SHA-$attempt" "$RUNNER_TEMP/cp-preview-test" "$(command -v google-chrome)"; then
               exit 0
             fi
             if [[ "$attempt" -lt 3 ]]; then sleep 10; fi

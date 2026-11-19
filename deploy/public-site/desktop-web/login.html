@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="bg">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>ChessPublisher Web | Вход</title>
+  <link rel="stylesheet" href="./login.css">
+  <script src="./login.mjs" type="module"></script>
+</head>
+<body>
+  <main>
+    <p><a href="/">ChessPublisher</a></p>
+    <h1>ChessPublisher Web</h1>
+    <p>Управлявайте турнири, участници, кръгове, резултати и класиране в работния интерфейс на ChessPublisher.</p>
+    <form>
+      <label for="organizer-token">Organizer Token</label>
+      <input id="organizer-token" type="password" maxlength="2048" autocomplete="off" required>
+      <button type="submit">Отвори приложението</button>
+      <p role="status" id="login-status"></p>
+    </form>
+  </main>
+</body>
+</html>

@@ -1,0 +1,19 @@
+html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
+#appWindow {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  margin: 0 !important;
+  resize: none !important;
+}
+#appWindow .app-resize-handle,
+#appWindow .window-controls .win-btn { display: none !important; }
+#cpDesktopWebSignOut { margin-left: auto; }
+@media (max-width: 700px) {
+  #appWindow .tabs { overflow-x: auto; flex-wrap: nowrap; }
+  #appWindow .tabs .tab { flex: 0 0 auto; white-space: nowrap; }
+  #appWindow .content { min-width: 0; overflow: auto; }
+}
