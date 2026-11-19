@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="bg">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Жребий | ChessPublisher</title>
+    <link rel="stylesheet" href="./styles.css">
+    <script type="module" src="./app.mjs"></script>
+  </head>
+  <body>
+    <main>
+      <header>
+        <a href="https://chess-publisher.org/">ChessPublisher</a>
+        <h1>Преглед на жребий</h1>
+        <p>Качете TRF с приключилите кръгове. Gacrux 1.11.65 изчислява двойките по FIDE Dutch в браузъра ви. Файлът остава на устройството.</p>
+      </header>
+      <form id="pairing-form">
+        <label for="trf">TRF файл</label>
+        <input id="trf" type="file" accept=".trf,.txt" required>
+        <div class="fields">
+          <div>
+            <label for="round">Кръг за жребий</label>
+            <input id="round" type="number" min="1" max="30" value="1" required>
+          </div>
+          <div>
+            <label for="rounds">Общо кръгове</label>
+            <input id="rounds" type="number" min="1" max="30" value="7" required>
+          </div>
+          <div>
+            <label for="colour">Цвят на първия играч</label>
+            <select id="colour"><option value="W">Бели</option><option value="B">Черни</option></select>
+          </div>
+        </div>
+        <button id="submit" type="submit">Изчисли жребий</button>
+        <button id="demo" type="button" class="secondary">Пробвай с пример</button>
+      </form>
+      <p id="status" role="status" aria-live="polite"></p>
+      <section id="preview" hidden aria-labelledby="preview-title">
+        <h2 id="preview-title">Двойки за преглед</h2>
+        <p id="details"></p>
+        <table>
+          <thead><tr><th scope="col">Дъска</th><th scope="col">Бели</th><th scope="col">Черни</th></tr></thead>
+          <tbody id="pairs"></tbody>
+        </table>
+      </section>
+    </main>
+  </body>
+</html>

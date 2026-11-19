@@ -173,6 +173,31 @@ jobs:
               p.write_text(text, encoding='utf-8')
           PY
 
+      - name: Build and test browser pairing preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          preview=deploy/public-site/pairing-preview
+          bash "$preview/build.sh" site/pairing-preview
+          python - <<'PY'
+          from pathlib import Path
+          page = Path('site/index.html')
+          html = page.read_text(encoding='utf-8')
+          hook = 'data-home-web-entry="hero" href="https://web.chess-publisher.org">Open WEB Companion</a>'
+          if html.count(hook) != 1:
+              raise SystemExit('Expected the existing WEB Companion button exactly once.')
+          if 'href="/pairing-preview/"' not in html:
+              button = '<a class="button button-secondary" href="/pairing-preview/">Try online pairings</a>'
+              html = html.replace(hook, hook + '\n' + button, 1)
+              page.write_text(html, encoding='utf-8')
+          PY
+          npm install --prefix "$RUNNER_TEMP/cp-preview-test" --no-save playwright-core@1.65.1
+          python -m http.server 8793 --bind 127.0.0.1 --directory site >"$RUNNER_TEMP/pairing-preview-http.log" 2>&1 &
+          http_pid=$!
+          trap 'kill "$http_pid" 2>/dev/null || true' EXIT
+          curl --fail --silent --show-error --retry 6 --retry-connrefused http://127.0.0.1:8793/pairing-preview/ >/dev/null
+          node "$preview/smoke.mjs" http://127.0.0.1:8793/pairing-preview/ "$RUNNER_TEMP/cp-preview-test" "$(command -v google-chrome)" "$preview/demo.trf"
+
       - name: Public-site regression gate
         shell: bash
         run: |
@@ -277,3 +302,11 @@ jobs:
           done
           test "$ok" -eq 1
           echo 'PUBLIC WEBSITE v42 + PRE-FIDE r12 + HUB FIDE EVENT ID + USEFUL LINKS LIVE GATE: PASS'
+
+      - name: Verify live browser pairing preview
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cf.outputs.configured == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 3 "$PUBLIC_ORIGIN/?preview_build=$GITHUB_SHA" | grep 'href="/pairing-preview/"'
+          node deploy/public-site/pairing-preview/smoke.mjs "$PUBLIC_ORIGIN/pairing-preview/?build=$GITHUB_SHA" "$RUNNER_TEMP/cp-preview-test" "$(command -v google-chrome)" deploy/public-site/pairing-preview/demo.trf
