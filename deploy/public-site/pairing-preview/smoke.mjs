@@ -11,7 +11,11 @@ try {
     const uploads = [];
     const errors = [];
     page.on('request', request => {
-      if (request.method() !== 'GET') uploads.push(request.url());
+      if (request.method() === 'GET') return;
+      const target = new URL(request.url());
+      const cloudflareTiming = target.origin === new URL(url).origin &&
+        target.pathname === '/cdn-cgi/rum' && !request.postData()?.includes('ChessPublisher integration test');
+      if (!cloudflareTiming) uploads.push(request.url());
     });
     page.on('pageerror', error => errors.push(error.message));
     page.on('console', message => {
