@@ -185,12 +185,16 @@ jobs:
         shell: bash
         run: python deploy/public-site/stable-downloads-only.py site
 
+      - name: Remove BETA badges from the homepage navigation
+        shell: bash
+        run: python deploy/public-site/remove-home-nav-beta.py site/index.html
+
       - name: Public-site regression gate
         shell: bash
         run: |
           set -euo pipefail
           grep -q 'data-site-build="2026-09-08-v42-platform-icons"' site/index.html
-          grep -q 'WEB Companion <sup class="nav-beta-index">BETA</sup>' site/index.html
+          python deploy/public-site/remove-home-nav-beta.py --check site/index.html
           grep -q 'Open WEB Companion' site/index.html
           grep -q 'data-home-web-entry="protected-v1"' site/index.html
           grep -q 'data-home-web-entry="nav"' site/index.html
@@ -265,7 +269,7 @@ jobs:
             if ! grep -q 'pre-fide-r12.js' <<<"$home" \
               && grep -q '/releases/download/v1.06.00/' <<<"$home" \
               && grep -q 'data-site-build="2026-09-08-v42-platform-icons"' <<<"$home" \
-              && grep -q 'WEB Companion' <<<"$home" \
+              && python deploy/public-site/remove-home-nav-beta.py --check /dev/stdin <<<"$home" \
               && grep -q 'Chess-Publisher is coming to Linux' <<<"$home" \
               && grep -q 'Meet WEB Companion' <<<"$news" \
               && grep -q '/hub-fide-event-id.js' <<<"$tournaments" \

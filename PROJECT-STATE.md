@@ -1,6 +1,8 @@
 # Chess-Publisher Web — Project State
 
-Updated: 2026-09-04
+Updated: 2026-11-19
+
+The public homepage deploy removes the BETA badges from the WEB Companion and Tournaments header links. The build and live checks require both destinations and their badge-free labels.
 
 ## Current repository baseline
 Starting source commit for the latest verified batch: `6aa2deb17d1f555772425226ba04e279dfe5903f`.
