@@ -194,6 +194,10 @@ jobs:
           curl --fail --silent --show-error --retry 6 --retry-connrefused http://127.0.0.1:8793/app/ >/dev/null
           node "$web_app/smoke.mjs" http://127.0.0.1:8793/app/ "$RUNNER_TEMP/cp-preview-test" "$(command -v google-chrome)"
 
+      - name: Remove September Update homepage sections
+        shell: bash
+        run: python deploy/public-site/remove-september-update.py site/index.html
+
       - name: Public-site regression gate
         shell: bash
         run: |
