@@ -87,8 +87,12 @@ try {
     saveData();
     if (!await fileSaveTournament(true)) throw new Error('Browser save failed');
   });
+  assert.equal(await page.locator('#tabDgt, #dgt').count(), 0);
+  await page.evaluate(() => cpPersistActiveTabUiPreference('dgt'));
   await page.reload();
   await page.waitForFunction(() => getCurrentTournament()?.pairings?.liveBoards?.['1']?.[0]?.result === '1 - 0');
+  await page.locator('#main.active').waitFor();
+  assert.equal(await page.locator('#tabDgt, #dgt').count(), 0);
   for (const tab of ['tabMain', 'tabRegistration', 'tabPairings', 'tabStandings', 'tabSchedule', 'tabExport']) {
     await page.locator(`#${tab}`).waitFor();
   }

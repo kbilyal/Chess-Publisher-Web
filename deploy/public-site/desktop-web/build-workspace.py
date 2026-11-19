@@ -39,6 +39,21 @@ html = replace_once(
     html, "data={currentTournament:name,tournaments:{[name]:tournament},preferences:",
     "data={currentTournament:name,tournaments:{...(data?.tournaments||{}),[name]:tournament},preferences:",
 )
+html = replace_once(
+    html, """    <div id="tabDgt" class="tab" onclick="showTab('dgt',this)">DGT Boards</div>\n""", "",
+)
+dgt_start = "    <!-- DGT FOUNDATION / HARDWARE DIAGNOSTICS ONLY -->"
+dgt_end = "    <!-- CHESS-RESULTS -->"
+if html.count(dgt_start) != 1 or html.count(dgt_end) != 1:
+    raise SystemExit("Unable to locate the desktop DGT Boards page.")
+start = html.index(dgt_start)
+end = html.index(dgt_end, start)
+html = html[:start] + html[end:]
+html = replace_once(html, ' dgt:"tabDgt",', "")
+html = replace_once(
+    html, "function showTab(id,button){",
+    'function showTab(id,button){\n  if(id==="dgt"){id="main";button=document.getElementById("tabMain");}',
+)
 html = replace_once(html, "<head>", '<head>\n<script src="./host.js"></script>')
 adapters = [
     "hub/client/hub-snapshot.js",
