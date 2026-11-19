@@ -1,3 +1,10 @@
+const workspaceEndpoint = 'https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev/api/v1/cloud/workspace';
+const loginForm = document.querySelector('#login-form');
+const login = document.querySelector('#login');
+const loginStatus = document.querySelector('#login-status');
+const organizerToken = document.querySelector('#organizer-token');
+const workspace = document.querySelector('#organizer-workspace');
+const logout = document.querySelector('#logout');
 const form = document.querySelector('#pairing-form');
 const submit = document.querySelector('#submit');
 const status = document.querySelector('#status');
@@ -45,8 +52,64 @@ function showDraft(data) {
 
 const demo = document.querySelector('#demo');
 let worker;
+let session;
 
-function compute(payload) {
+loginForm.addEventListener('submit', async event => {
+  event.preventDefault();
+  if (login.disabled || session) return;
+  const token = organizerToken.value.trim();
+  if (!/^[!-~]{1,2048}$/.test(token)) {
+    loginStatus.textContent = 'Въведете валиден Organizer Token.';
+    return;
+  }
+  login.disabled = organizerToken.disabled = true;
+  loginStatus.textContent = 'Проверка на достъпа…';
+  try {
+    const response = await fetch(workspaceEndpoint, {
+      headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+      credentials: 'omit',
+      redirect: 'error',
+      cache: 'no-store',
+      signal: AbortSignal.timeout(8000)
+    });
+    if ([401, 403].includes(response.status)) {
+      loginStatus.textContent = 'Organizer Token е невалиден или достъпът е отнет.';
+      return;
+    }
+    const data = response.ok ? await response.json() : null;
+    if (!data?.organizer) throw new Error('Workspace unavailable.');
+    organizerToken.value = '';
+    session = new AbortController();
+    loginStatus.textContent = '';
+    loginForm.hidden = true;
+    workspace.hidden = false;
+    document.querySelector('#workspace-title').focus();
+  } catch {
+    loginStatus.textContent = 'Входът е временно недостъпен. Опитайте отново.';
+  } finally {
+    login.disabled = organizerToken.disabled = false;
+    if (!session) organizerToken.focus();
+  }
+});
+
+logout.addEventListener('click', () => {
+  session?.abort();
+  session = undefined;
+  worker?.terminate();
+  worker = undefined;
+  form.reset();
+  syncInitialColourControl();
+  submit.disabled = demo.disabled = false;
+  preview.hidden = true;
+  rows.replaceChildren();
+  document.querySelector('#details').textContent = '';
+  status.textContent = '';
+  workspace.hidden = true;
+  loginForm.hidden = false;
+  organizerToken.focus();
+});
+
+function compute(payload, signal) {
   worker ||= new Worker(new URL('./pairing-worker.mjs', import.meta.url), { type: 'module' });
   return new Promise((resolve, reject) => {
     const activeWorker = worker;
@@ -59,8 +122,12 @@ function compute(payload) {
       clearTimeout(timer);
       activeWorker.removeEventListener('message', onMessage);
       activeWorker.removeEventListener('error', onError);
+      signal.removeEventListener('abort', onAbort);
       if (error) reject(error);
       else resolve(result);
+    }
+    function onAbort() {
+      finish(signal.reason);
     }
     function onError() {
       activeWorker.terminate();
@@ -80,27 +147,35 @@ function compute(payload) {
     }
     activeWorker.addEventListener('message', onMessage);
     activeWorker.addEventListener('error', onError);
+    signal.addEventListener('abort', onAbort, { once: true });
     activeWorker.postMessage(payload);
   });
 }
 
 async function run(loadPayload) {
+  if (!session || submit.disabled) return;
+  const { signal } = session;
   preview.hidden = true;
   rows.replaceChildren();
   submit.disabled = demo.disabled = true;
   status.textContent = 'Подготовка на жребия…';
   try {
-    showDraft(await compute(await loadPayload()));
+    const payload = await loadPayload();
+    signal.throwIfAborted();
+    const result = await compute(payload, signal);
+    signal.throwIfAborted();
+    showDraft(result);
     status.textContent = 'Готово. Двойките са показани за преглед.';
   } catch (error) {
-    status.textContent = error.message;
+    if (!signal.aborted) status.textContent = error.message;
   } finally {
-    submit.disabled = demo.disabled = false;
+    if (!signal.aborted) submit.disabled = demo.disabled = false;
   }
 }
 
 form.addEventListener('submit', event => {
   event.preventDefault();
+  if (!session || submit.disabled) return;
   const file = trfInput.files[0];
   if (!file || file.size > 512 * 1024 || round.valueAsNumber > rounds.valueAsNumber) {
     preview.hidden = true;

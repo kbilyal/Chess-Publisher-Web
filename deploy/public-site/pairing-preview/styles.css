@@ -41,3 +41,16 @@ th, td { text-align: left; border-bottom: 1px solid var(--line); padding: .55rem
 }
 
 .secondary { background: white; color: var(--action); margin-left: .3rem; }
+
+#login-form { max-width: 31rem; }
+#login-form h2, .workspace-header h2 { margin: 0; }
+#login-form > p { margin: .5rem 0 1rem; }
+#login-form #login-status { margin-bottom: 0; }
+#login-status:empty { display: none; }
+.workspace-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  margin-bottom: .85rem;
+}

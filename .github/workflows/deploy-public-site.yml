@@ -179,18 +179,7 @@ jobs:
           set -euo pipefail
           preview=deploy/public-site/pairing-preview
           bash "$preview/build.sh" site/pairing-preview
-          python - <<'PY'
-          from pathlib import Path
-          page = Path('site/index.html')
-          html = page.read_text(encoding='utf-8')
-          hook = 'data-home-web-entry="hero" href="https://web.chess-publisher.org">Open WEB Companion</a>'
-          if html.count(hook) != 1:
-              raise SystemExit('Expected the existing WEB Companion button exactly once.')
-          if 'href="/pairing-preview/"' not in html:
-              button = '<a class="button button-secondary" href="/pairing-preview/">Try online pairings</a>'
-              html = html.replace(hook, hook + '\n' + button, 1)
-              page.write_text(html, encoding='utf-8')
-          PY
+          python deploy/public-site/add-online-pairings-section.py site/index.html
           npm install --prefix "$RUNNER_TEMP/cp-preview-test" --no-save playwright-core@1.65.1
           python -m http.server 8793 --bind 127.0.0.1 --directory site >"$RUNNER_TEMP/pairing-preview-http.log" 2>&1 &
           http_pid=$!
@@ -308,7 +297,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --retry 3 "$PUBLIC_ORIGIN/?preview_build=$GITHUB_SHA" | grep 'href="/pairing-preview/"'
+          home="$(curl --fail --silent --show-error --retry 3 "$PUBLIC_ORIGIN/?preview_build=$GITHUB_SHA")"
+          grep -q 'data-pairing-entry="nav" href="/pairing-preview/"' <<<"$home"
+          grep -q 'id="online-pairings"' <<<"$home"
+          grep -q 'data-pairing-entry="section" href="/pairing-preview/"' <<<"$home"
           for attempt in 1 2 3; do
             if node deploy/public-site/pairing-preview/smoke.mjs "$PUBLIC_ORIGIN/pairing-preview/?build=$GITHUB_SHA-$attempt" "$RUNNER_TEMP/cp-preview-test" "$(command -v google-chrome)" deploy/public-site/pairing-preview/demo.trf; then
               exit 0
