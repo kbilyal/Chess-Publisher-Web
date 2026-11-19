@@ -13,7 +13,7 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
 #appWindow .window-controls .win-btn { display: none !important; }
 #cpDesktopWebSignOut { margin-left: auto; }
 @media (max-width: 700px) {
-  #appWindow .tabs { overflow-x: auto; flex-wrap: nowrap; }
-  #appWindow .tabs .tab { flex: 0 0 auto; white-space: nowrap; }
-  #appWindow .content { min-width: 0; overflow: auto; }
+  #appWindow .tabs { overflow-x: auto !important; flex-wrap: nowrap !important; }
+  #appWindow .tabs .tab { flex: 0 0 auto !important; white-space: nowrap; }
+  #appWindow .content { min-width: 0; overflow: auto !important; }
 }

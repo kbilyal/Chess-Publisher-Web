@@ -66,3 +66,4 @@ html = replace_once(
 )
 (output / "workspace.html").write_text(html, encoding="utf-8")
 (output / "USER-MANUAL-EN.html").write_bytes((desktop / "USER-MANUAL-EN.html").read_bytes())
+(output / "LICENSE.txt").write_bytes((desktop / "LICENSE").read_bytes())

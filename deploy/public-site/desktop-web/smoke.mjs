@@ -52,27 +52,34 @@ try {
     await page.evaluate(() => cpFlushPersistence());
   }
 
-  await page.evaluate(() => {
+  await page.evaluate(async () => {
     const tournament = getCurrentTournament();
     Object.assign(tournament.settings, {
       fideRated: 'No', startDate: '2026-11-19T10:00', endDate: '2026-11-19T16:00',
-      timeControl: '15+5', rounds: '3'
+      timeControl: '15+5', timeControlPreset: '15+5', rounds: '3', lastSwissRounds: '3'
     });
-    tournament.players.forEach((player, index) => { player.pairingNumber = index + 1; });
-    setCurrentRegistrationsAsSynced(tournament);
-    const engine = getPairingEngineConfig();
-    engine.firstRoundRegistrationSyncedSignature = getFirstRoundRegistrationSignature(tournament);
-    engine.firstRoundRegistrationNeedsResort = engine.needsResort = false;
+    tournament.regulations.rating = 'Unrated';
     refreshEverything();
+    saveAll();
+    await resortStartingList();
   });
-  console.log("Four players registered; testing the desktop pairing action.");
+  const resortMessage = page.locator('#appMessageText');
+  assert.match(await resortMessage.textContent(), /resorted successfully/);
+  await page.locator('#appMessageOk').click();
   await page.locator('#tabPairings').click();
-  await page.locator('#btnGenerateGacrux').click();
-  await page.locator('#firstRoundColorModal button').filter({ hasText: 'White' }).click();
+  const preflight = await page.evaluate(() => ({
+    validation: validateOfficialPairingSetup(1, 'dutch'),
+    pairing: getPairingGenerationState(),
+    rated: hasRatedCalculation()
+  }));
+  assert.equal(preflight.validation.ok && preflight.pairing.canGenerate && !preflight.rated, true, JSON.stringify(preflight));
+  console.log('Four players registered and resorted; testing the desktop pairing action.');
   try {
+    await page.locator('#btnGenerateGacrux').click();
+    await page.locator('#firstRoundColorModal button').filter({ hasText: 'White' }).click({ timeout: 10000 });
     await page.waitForFunction(() => getCurrentTournament().pairings.liveBoards['1']?.length === 2, undefined, { timeout: 35000 });
   } catch (error) {
-    throw new Error(`Round failed: ${(await page.locator('body').innerText()).slice(-2200)}; ${errors.join('; ')}`, { cause: error });
+    throw new Error(`Round failed: ${await page.locator('#appMessageText').textContent()} · ${await page.locator('#status').textContent()} · ${errors.join('; ')}`, { cause: error });
   }
   await page.evaluate(async () => {
     const board = getCurrentTournament().pairings.liveBoards['1'][0];
