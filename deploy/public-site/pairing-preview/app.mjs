@@ -8,6 +8,12 @@ const rounds = document.querySelector('#rounds');
 const colour = document.querySelector('#colour');
 const trfInput = document.querySelector('#trf');
 
+function syncInitialColourControl() {
+  colour.disabled = round.valueAsNumber > 1;
+}
+round.addEventListener('input', syncInitialColourControl);
+syncInitialColourControl();
+
 async function readTrf(file) {
   const bytes = new Uint8Array(await file.arrayBuffer());
   const utf8Bom = bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf;

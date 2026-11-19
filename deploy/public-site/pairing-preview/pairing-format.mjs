@@ -29,6 +29,7 @@ export function preparePairing({ trf, round, rounds, topColor = 'W', unpaired = 
   const players = new Set();
   const historyEnd = 91 + (round - 1) * 10;
   let insertion = -1;
+  let fileTopColor;
   for (const line of trf.split(/\r\n|\n|\r/)) {
     if (!line.trim()) continue;
     if (!/^\d{3}(?:[ \t]|$)/.test(line)) throw invalid('Found a TRF record without a valid record number.');
@@ -36,6 +37,14 @@ export function preparePairing({ trf, round, rounds, topColor = 'W', unpaired = 
       if (!dutchCodes.has(line.slice(3).trim().toUpperCase())) {
         throw invalid('This pairing preview supports FIDE Dutch.');
       }
+      continue;
+    }
+    if (/^152(?:\s|$)/.test(line)) {
+      const colour = line.slice(3).trim().toUpperCase();
+      if (!['W', 'B'].includes(colour) || (fileTopColor && colour !== fileTopColor)) {
+        throw invalid('The TRF contains an invalid or conflicting initial colour.');
+      }
+      fileTopColor = colour;
       continue;
     }
     lines.push(line);
@@ -55,10 +64,11 @@ export function preparePairing({ trf, round, rounds, topColor = 'W', unpaired = 
   }
   const excluded = [...new Set(unpaired)].sort((first, second) => first - second);
   if (players.size - excluded.length < 2) throw invalid('At least two players must be eligible for pairing.');
-  lines.splice(insertion, 0, dutch);
+  const initialColour = round > 1 && fileTopColor ? fileTopColor : topColor;
+  lines.splice(insertion, 0, `152 ${initialColour}`, dutch);
   return {
     trf: lines.join('\r\n') + '\r\n',
-    round, rounds, topColor, excluded, players
+    round, rounds, topColor: initialColour, excluded, players
   };
 }
 

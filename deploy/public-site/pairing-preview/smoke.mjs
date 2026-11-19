@@ -14,6 +14,13 @@ try {
       if (request.method() !== 'GET') uploads.push(request.url());
     });
     page.on('pageerror', error => errors.push(error.message));
+    page.on('console', message => {
+      if (message.type() === 'error') errors.push(message.text());
+    });
+    page.on('requestfailed', request => errors.push(`${request.url()} ${request.failure()?.errorText}`));
+    page.on('response', response => {
+      if (response.status() >= 400) errors.push(`${response.status()} ${response.url()}`);
+    });
     await page.goto(url);
     await page.getByRole('button', { name: 'Пробвай с пример' }).click();
     try {
@@ -25,8 +32,10 @@ try {
     await page.getByLabel('TRF файл').setInputFiles({
       name: 'test.trf', mimeType: 'text/plain', buffer: await readFile(fixture)
     });
+    await page.getByLabel('Цвят на първия играч').selectOption('B');
     await page.getByRole('button', { name: 'Изчисли жребий' }).click();
     await page.getByRole('heading', { name: 'Двойки за преглед' }).waitFor();
+    assert.deepEqual(await page.locator('tbody tr').allTextContents(), ['151', '226', '373', '448']);
     assert.match(await page.locator('#details').textContent(), /Gacrux 1\.11\.65/);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     assert.deepEqual(uploads, []);
