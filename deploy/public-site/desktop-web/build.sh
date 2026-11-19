@@ -15,7 +15,7 @@ test "$(git -C "$work" rev-parse HEAD)" = "$commit"
 
 mkdir -p "$output"
 cp "$source/login.html" "$output/index.html"
-cp "$source"/{login.css,login.mjs,host.js,engine-adapter.js,workspace.css} "$output/"
+cp "$source"/{login.css,login.mjs,host.js,engine-adapter.js,autosave.js,workspace.css} "$output/"
 cp "$browser"/{pairing-format.mjs,pairing-worker.mjs} "$output/"
 cp -R "$browser/runtime" "$output/runtime"
 python "$source/build-workspace.py" "$work" "$output"

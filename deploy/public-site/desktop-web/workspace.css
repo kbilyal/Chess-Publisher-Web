@@ -17,3 +17,7 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
   #appWindow .tabs .tab { flex: 0 0 auto !important; white-space: nowrap; }
   #appWindow .content { min-width: 0; overflow: auto !important; }
 }
+
+#cpWebCloudSaveStatus { font-size: 11px; }
+#cloudWorkspace label:has(#cloudAutoSync) { display: none !important; }
+#cpNewTournamentOnlinePanel:not(.hidden) { display: block !important; }

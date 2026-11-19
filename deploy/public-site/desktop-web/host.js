@@ -65,6 +65,7 @@
         if (typeof fileSaveTournament === 'function' && getCurrentTournament()) {
           if (!await fileSaveTournament(true)) throw new Error('Tournament could not be saved.');
         }
+        await window.cpWebFlushAutosave?.();
         sessionStorage.removeItem(sessionKey);
         location.replace('./');
       } catch (error) {
