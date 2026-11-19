@@ -40,8 +40,9 @@ try {
   await page.locator('#firstTournamentName').waitFor();
   await page.locator('#firstTournamentName').fill('Browser workflow test');
   await page.locator('#cpNewTournamentCreateBtn').click();
-  await page.locator('#mainTournamentSelect').waitFor();
+  await page.locator('#main').waitFor();
   assert.equal(await page.locator('#mainTournamentSelect').inputValue(), 'Browser workflow test');
+  console.log('Tournament created in the desktop workspace.');
 
   await page.locator('#tabRegistration').click();
   for (const name of ['Alpha One', 'Beta Two', 'Gamma Three', 'Delta Four']) {
@@ -60,9 +61,11 @@ try {
     tournament.players.forEach((player, index) => { player.pairingNumber = index + 1; });
     setCurrentRegistrationsAsSynced(tournament);
     const engine = getPairingEngineConfig();
+    engine.firstRoundRegistrationSyncedSignature = getFirstRoundRegistrationSignature(tournament);
     engine.firstRoundRegistrationNeedsResort = engine.needsResort = false;
     refreshEverything();
   });
+  console.log("Four players registered; testing the desktop pairing action.");
   await page.locator('#tabPairings').click();
   await page.locator('#btnGenerateGacrux').click();
   await page.locator('#firstRoundColorModal button').filter({ hasText: 'White' }).click();
