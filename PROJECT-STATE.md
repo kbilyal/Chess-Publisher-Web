@@ -1,5 +1,7 @@
 # Chess-Publisher Web — Project State
 
+The public /app/ build now runs the desktop TRF26 rating regression on the generated workspace. It checks round dates and default, half-point and zero-point pairing byes.
+
 Updated: 2026-11-19
 
 The public homepage deploy removes the BETA badges from the WEB Companion and Tournaments header links. The build and live checks require both destinations and their badge-free labels.

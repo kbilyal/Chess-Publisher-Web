@@ -6,7 +6,7 @@ browser="$(realpath "${2:?specify a built browser engine directory}")"
 source="$(cd "$(dirname "$0")" && pwd)"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
-commit=499af82e5074e2afd82e8304cdec91588db70823
+commit=1aa45c0d3c08789b579490a1618bc69f5547538a
 
 git init -q "$work"
 git -C "$work" fetch -q --depth 1 https://github.com/kbilyal/ChessPublisher.git "$commit"
@@ -19,3 +19,4 @@ cp "$source"/{login.css,login.mjs,host.js,engine-adapter.js,autosave.js,workspac
 cp "$browser"/{pairing-format.mjs,pairing-worker.mjs} "$output/"
 cp -R "$browser/runtime" "$output/runtime"
 python "$source/build-workspace.py" "$work" "$output"
+node "$work/TESTS/TRF26-RATING-EXPORT.cjs" "$output/workspace.html"

@@ -1,5 +1,7 @@
 # Next Task — TRF Full Parity (Integration Gate G)
 
+The public /app/ shares the desktop rating export regression. FIDE Rating Server acceptance remains a separate federation submission check.
+
 The public homepage navigation now has a deployment check for the WEB Companion and Tournaments labels without BETA badges.
 
 The preceding Chess-Results bridge batch is complete in source: validated XML preview, TNR lifecycle safety, server-only bridge transport, no simulated success path, and dedicated publication/bridge contract tests. Gate I remains pending live acceptance against provisioned official bridge credentials.

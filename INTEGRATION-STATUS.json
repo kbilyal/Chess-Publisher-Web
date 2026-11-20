@@ -1,6 +1,6 @@
 {
   "project": "Chess-Publisher-Web",
-  "updated": "2026-11-19",
+  "updated": "2026-11-20",
   "mainCommitVerified": "20862b7eea8281c43062db825d792751c007e6cb",
   "handoffReady": false,
   "baselineFeatureAudit": {
@@ -13,6 +13,7 @@
     "requiresFinalReaudit": true
   },
   "regressionStatus": {
+    "publicAppRatingExport": "TRF26 rating regression runs against the generated /app/ workspace during the site build.",
     "publicHomepageNavigation": "Deployment checks require the WEB Companion and Tournaments header links without BETA badges.",
     "architecture": "34/34 PASS reported",
     "desktopParity": "11/11 PASS reported",
