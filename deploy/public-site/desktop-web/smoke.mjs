@@ -111,15 +111,17 @@ try {
     refreshEverything();
   });
   await page.locator('#cpFideEligibility summary').click();
+  const eligibilityResult = page.locator('#cpEligibilityResult');
+  await eligibilityResult.filter({ hasText: 'Select the event purpose.' }).waitFor();
   await page.locator('#cpEligibilityPurpose').selectOption('norm');
   await page.locator('#cpFastStandard button[type="submit"]').click();
-  assert.match(await page.locator('#cpEligibilityResult').textContent(), /Standard rating: Ineligible/);
+  await eligibilityResult.filter({ hasText: 'Standard rating: Ineligible' }).waitFor();
   assert.equal(await page.evaluate(() => cpSmartScheduleProfile().maxRoundsPerDay), 2);
   assert.ok(await page.evaluate(() => window.__cpTrfCompliance.validate(26, 1, {syncUi: false})
     .warnings.some(warning => warning.includes('FIDE Fast Classical 60+30') && warning.includes('Ineligible'))));
   await page.locator('#cpEligibilityPurpose').selectOption('rating');
   await page.locator('#cpFastStandard button[type="submit"]').click();
-  assert.match(await page.locator('#cpEligibilityResult').textContent(), /Standard rating: Eligible/);
+  await eligibilityResult.filter({ hasText: 'Standard rating: Eligible' }).waitFor();
   assert.ok(await page.evaluate(() => cpSmartScheduleProfile().maxRoundsPerDay > 2));
   assert.equal(await page.evaluate(() => window.__cpTrfCompliance.validate(26, 1, {syncUi: false})
     .warnings.some(warning => /FIDE Fast Classical|FIDE Rating Regulations 1.1/.test(warning))), false);
