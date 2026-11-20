@@ -6,7 +6,7 @@ browser="$(realpath "${2:?specify a built browser engine directory}")"
 source="$(cd "$(dirname "$0")" && pwd)"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
-commit=80b781002d97d2fc7643deb49c9fa45b5b64e9a9
+commit=1944bade3caede512230cb354c143b0f6e0114cc
 
 git init -q "$work"
 git -C "$work" fetch -q --depth 1 https://github.com/kbilyal/ChessPublisher.git "$commit"
@@ -20,3 +20,4 @@ cp "$browser"/{pairing-format.mjs,pairing-worker.mjs} "$output/"
 cp -R "$browser/runtime" "$output/runtime"
 python "$source/build-workspace.py" "$work" "$output"
 node "$work/TESTS/TRF26-RATING-EXPORT.cjs" "$output/workspace.html"
+CP_ELIGIBILITY_HTML="$output/workspace.html" node --test "$work/TESTS/FIDE-ELIGIBILITY-REGRESSION.js"

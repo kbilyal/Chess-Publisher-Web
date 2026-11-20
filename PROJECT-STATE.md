@@ -1,5 +1,7 @@
 # Chess-Publisher Web — Project State
 
+The public /app/ workspace uses the desktop Fast Classical controls and eligibility review for 60+30 and 45+30. The generated workspace runs the Fast Classical regression and the browser smoke test covers Standard classification, schedule limits and rating export preflight.
+
 The public /app/ build now runs the desktop TRF26 rating regression on the generated workspace. It checks round dates and default, half-point and zero-point pairing byes, shared places and recorded tie resolutions.
 
 Updated: 2026-11-19

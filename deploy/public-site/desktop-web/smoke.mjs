@@ -94,6 +94,38 @@ try {
   assert.equal(await page.locator('#mainTournamentSelect').inputValue(), 'Browser workflow test');
   console.log('Tournament created in the desktop workspace.');
 
+  const timeControl = page.locator('#timeControl');
+  assert.equal(await timeControl.locator('option[value="60+30"]').textContent(), '60+30 (Fast Classical)');
+  assert.equal(await timeControl.locator('option[value="45+30"]').textContent(), '45+30 (Fast Classical)');
+  await timeControl.selectOption('60+30');
+  assert.equal(await page.locator('#tournamentRatingType').inputValue(), 'Standard');
+  await page.evaluate(() => {
+    const tournament = getCurrentTournament();
+    Object.assign(tournament.settings, {
+      fideRated: 'Yes', startDate: '2026-11-19T08:00', endDate: '2026-11-19T22:00',
+      rounds: '3', lastSwissRounds: '3'
+    });
+    tournament.schedule.rows = ['09:00', '13:00', '17:00'].map((time, index) => ({
+      event: 'Round ' + (index + 1), dateTime: '2026-11-19T' + time
+    }));
+    refreshEverything();
+  });
+  await page.locator('#cpFideEligibility summary').click();
+  await page.locator('#cpEligibilityPurpose').selectOption('norm');
+  await page.locator('#cpFastStandard button[type="submit"]').click();
+  assert.match(await page.locator('#cpEligibilityResult').textContent(), /Standard rating: Ineligible/);
+  assert.equal(await page.evaluate(() => cpSmartScheduleProfile().maxRoundsPerDay), 2);
+  assert.ok(await page.evaluate(() => window.__cpTrfCompliance.validate(26, 1, {syncUi: false})
+    .warnings.some(warning => warning.includes('FIDE Fast Classical 60+30') && warning.includes('Ineligible'))));
+  await page.locator('#cpEligibilityPurpose').selectOption('rating');
+  await page.locator('#cpFastStandard button[type="submit"]').click();
+  assert.match(await page.locator('#cpEligibilityResult').textContent(), /Standard rating: Eligible/);
+  assert.ok(await page.evaluate(() => cpSmartScheduleProfile().maxRoundsPerDay > 2));
+  assert.equal(await page.evaluate(() => window.__cpTrfCompliance.validate(26, 1, {syncUi: false})
+    .warnings.some(warning => /FIDE Fast Classical|FIDE Rating Regulations 1.1/.test(warning))), false);
+  await page.locator('#cpFideEligibility summary').click();
+  console.log('Fast Classical review, Smart Schedule and rating export preflight passed.');
+
   await page.locator('#tabRegistration').click();
   for (const name of ['Alpha One', 'Beta Two', 'Gamma Three', 'Delta Four']) {
     await page.locator('#manualName').fill(name);
