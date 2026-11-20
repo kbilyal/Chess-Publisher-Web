@@ -1,6 +1,6 @@
 # Chess-Publisher Web — Project State
 
-The public /app/ build now runs the desktop TRF26 rating regression on the generated workspace. It checks round dates and default, half-point and zero-point pairing byes.
+The public /app/ build now runs the desktop TRF26 rating regression on the generated workspace. It checks round dates and default, half-point and zero-point pairing byes, shared places and recorded tie resolutions.
 
 Updated: 2026-11-19
 

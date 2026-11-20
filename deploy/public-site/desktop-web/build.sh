@@ -6,7 +6,7 @@ browser="$(realpath "${2:?specify a built browser engine directory}")"
 source="$(cd "$(dirname "$0")" && pwd)"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
-commit=1aa45c0d3c08789b579490a1618bc69f5547538a
+commit=80b781002d97d2fc7643deb49c9fa45b5b64e9a9
 
 git init -q "$work"
 git -C "$work" fetch -q --depth 1 https://github.com/kbilyal/ChessPublisher.git "$commit"
