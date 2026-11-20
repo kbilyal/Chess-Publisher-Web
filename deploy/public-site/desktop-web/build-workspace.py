@@ -135,6 +135,33 @@ html = replace_once(
     if(btn.textContent!==label)btn.textContent=label;""",
 )
 
+# Compact checker feedback while retaining the desktop failure diagnostics.
+start = html.index("      checkerHtml+'<br>'+")
+end = html.index("      (colorCorrectionHtml", start)
+html = html[:start] + """      (() => {
+        const tie = window.cpWebTieStatus?.();
+        const issues = [];
+        if (checkerState === "rejected" && checkerIsCurrent) issues.push(checkerHtml);
+        if (tie && !["pass", "pending"].includes(tie)) issues.push(window.renderTieBreakCheckerLogHtml());
+        if (issues.length) return issues.join("<br>")+"<br>";
+        if (tie === "pending" || !checkerIsCurrent || checkerState !== "approved") return "";
+        return '<span class="cp-log-ok">OK</span><br>';
+      })()+
+""" + html[end:]
+html = replace_once(html, "  window.tieBreakCheckerAction=function()", """
+  window.cpWebTieStatus = () => {
+    if (!getCompletedRounds()) return null;
+    const stored = currentStored();
+    if (storedIsFresh(stored)) return stored.state;
+    if (!runtime.busy && !runtime.autoTimer) scheduleAutoCheck(350);
+    return "pending";
+  };
+  window.tieBreakCheckerAction=function()""")
+html = replace_once(html, '      try{\n        if(runtime.state!=="ready"||runtime.busy)return;',
+    '      runtime.autoTimer=null;\n      try{\n        if(runtime.state!=="ready"||runtime.busy)return;')
+html = replace_once(html, '    }finally{runtime.busy=false;renderStatus();}\n  }\n\n  function scheduleAutoCheck',
+    '    }finally{runtime.busy=false;renderStatus();window.cpRefreshRoundControlLog?.();}\n  }\n\n  function scheduleAutoCheck')
+
 scripts = "\n".join(f'<script src="./{relative}"></script>' for relative in adapters)
 html = replace_once(
     html, "\n</body>\n</html>",

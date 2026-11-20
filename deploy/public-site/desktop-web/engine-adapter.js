@@ -58,15 +58,22 @@
     });
   }
 
+  let queue = Promise.resolve();
+  function checkedRequest(payload) {
+    const result = queue.then(() => draw(payload));
+    queue = result.catch(() => {});
+    return result;
+  }
+
   window.cpDesktopWebEngine = async (path, options) => {
     if (path === '/pair') {
       try {
-        const result = await draw(JSON.parse(options.body));
+        const result = await checkedRequest(JSON.parse(options.body));
         return Response.json({
           ok: true,
           output: [result.pairs.length, ...result.pairs.map(pair => `${pair.white} ${pair.black}`)].join('\r\n'),
           engine: `Gacrux ${engineVersion}`,
-          checker: { ok: true, check: true, mode: 'gacrux-regeneration' },
+          checker: { ok: true, check: true, mode: 'gacrux-verification' },
           independentChecker: {
             available: false, state: 'unavailable', version: '6.0.0', checker: 'bbpPairings',
             message: 'The independent BBP checker requires the native service.'
@@ -74,6 +81,16 @@
         });
       } catch (error) {
         return Response.json({ ok: false, error: error.message }, { status: 422 });
+      }
+    }
+    if (path === '/tiebreak-checker/status' || path === '/tiebreak-checker/install') {
+      return Response.json({ok:true,available:true,ready:true,version:engineVersion});
+    }
+    if (path === '/tiebreak-checker/check' || path === '/trf26-exchange/check') {
+      try {
+        return Response.json(await checkedRequest({type:'standings',request:JSON.parse(options.body)}));
+      } catch (error) {
+        return Response.json({ok:false,error:error.message},{status:422});
       }
     }
     if (/^\/(pairing-checker|tiebreak-checker)\/(status|install)$/.test(path)) {

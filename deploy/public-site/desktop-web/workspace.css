@@ -21,3 +21,5 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
 #cpWebCloudSaveStatus { font-size: 11px; }
 #cloudWorkspace label:has(#cloudAutoSync) { display: none !important; }
 #cpNewTournamentOnlinePanel:not(.hidden) { display: block !important; }
+
+#tieBreakCheckerBadge, #tieBreakCheckerActionBtn, #independentCheckerBadge, #independentCheckerPrepareBtn { display: none !important; }

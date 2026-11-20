@@ -131,6 +131,23 @@ try {
   } catch (error) {
     throw new Error(`Round failed: ${await page.locator('#appMessageText').textContent()} · ${await page.locator('#status').textContent()} · ${errors.join('; ')}`, { cause: error });
   }
+  const checks = await page.evaluate(async () => {
+    const line = (n, opponent, color, score, outcome) => {
+      const row = ('001 '+String(n).padStart(4)+'      Player '+n).padEnd(80)
+        + String(score).padStart(4)+' '+String(n).padStart(4)+'  ';
+      return row + String(opponent).padStart(4)+' '+color+' '+outcome+'  ';
+    };
+    const trf = ['012 Checker test','142 3',line(1,2,'w','1.0','1'),line(2,1,'b','0.0','0')].join('\r\n');
+    const expected = [{startNo:1,rank:1,values:{PTS:1}}, {startNo:2,rank:2,values:{PTS:0}}];
+    const check = async () => (await window.cpDesktopWebEngine('/tiebreak-checker/check',{
+      body:JSON.stringify({round:1,mode:'swiss',tieBreaks:['PTS'],trf,expected})
+    })).json();
+    const pass = await check();
+    expected[0].values.PTS = 0;
+    return [pass,await check()];
+  });
+  assert.equal(checks[0].state,'pass',JSON.stringify(checks[0]));
+  assert.equal(checks[1].state,'fail',JSON.stringify(checks[1]));
   failNextUpload = true;
   await page.evaluate(() => {
     const board = getCurrentTournament().pairings.liveBoards['1'][0];
