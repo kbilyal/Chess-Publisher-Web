@@ -252,8 +252,17 @@ try {
   const manualDisclosure = page.locator('.cp-reg-manual-collapse-btn');
   await manualDisclosure.waitFor();
   assert.equal(await manualDisclosure.getAttribute('aria-expanded'), 'false');
+  // Optional non-production visual evidence, at the approved preview viewport.
+  // The browser returns to its previous viewport before functional checks.
+  if (process.env.CP_REG_UI_SCREENSHOT) {
+    const originalViewport = page.viewportSize();
+    await page.setViewportSize({ width: 1696, height: 896 });
+    await page.screenshot({ path: process.env.CP_REG_UI_SCREENSHOT });
+    if (originalViewport) await page.setViewportSize(originalViewport);
+  }
   await manualDisclosure.click();
   assert.equal(await manualDisclosure.getAttribute('aria-expanded'), 'true');
+  assert.equal(await page.locator('#manualName').isVisible(), true);
   for (const name of ['Alpha One', 'Beta Two', 'Gamma Three', 'Delta Four']) {
     await page.locator('#manualName').fill(name);
     await page.locator('#manualAddPlayerBtn').click();
