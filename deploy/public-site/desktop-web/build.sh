@@ -15,7 +15,7 @@ test "$(git -C "$work" rev-parse HEAD)" = "$commit"
 
 mkdir -p "$output"
 cp "$source/login.html" "$output/index.html"
-cp "$source"/{login.css,login.mjs,host.js,fide-cache.js,engine-adapter.js,autosave.js,workspace.css} "$output/"
+cp "$source"/{login.css,login.mjs,host.js,fide-cache.js,engine-adapter.js,autosave.js,registration-ui.js,workspace.css} "$output/"
 cp "$source/../../../production-web/web/chess-results-browser-adapter.js" "$output/"
 cp "$browser"/{pairing-format.mjs,pairing-worker.mjs} "$output/"
 cp -R "$browser/runtime" "$output/runtime"

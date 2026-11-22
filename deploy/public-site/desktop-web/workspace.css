@@ -111,3 +111,409 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
 
 
 #tieBreakCheckerBadge, #tieBreakCheckerActionBtn, #independentCheckerBadge, #independentCheckerPrepareBtn { display: none !important; }
+
+/* ==========================================================================
+   Lists & Players (#registration) Workspace-First Redesign
+   ========================================================================== */
+#registration > .current-row {
+  display: none !important;
+}
+
+#registration.page.active {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cp-reg-hidden-shell,
+.cp-reg-sr-select {
+  display: none !important;
+}
+
+/* Top Command Strip + Collapsible 2-Column Rating Drawer */
+#cpPlayersRatingDataBox {
+  padding: 0 !important;
+  overflow: hidden;
+  border-radius: 7px;
+}
+
+.cp-reg-command-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  flex-wrap: wrap;
+  background: #ffffff;
+}
+
+.cp-reg-strip-left,
+.cp-reg-strip-right {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.cp-reg-strip-right {
+  margin-left: auto;
+}
+
+.cp-reg-strip-divider {
+  width: 1px;
+  height: 20px;
+  background: #d8dee6;
+}
+
+.cp-reg-fide-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #f8fafc;
+  border: 1px solid #d8dee6;
+  font-size: 12px;
+  color: #475569;
+  white-space: nowrap;
+}
+
+.cp-reg-fide-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #16a34a;
+  flex-shrink: 0;
+}
+
+/* Prominent Download / Update FIDE Lists button */
+#registration #btnAutoUpdateFide {
+  background: #eef4ff;
+  border-color: #7ea8eb;
+  color: #0f3d91;
+  font-weight: 600;
+}
+#registration #btnAutoUpdateFide:hover:not(:disabled) {
+  background: #dce9ff;
+  border-color: #1d64d8;
+}
+
+/* Drawer Body */
+.cp-reg-drawer-body {
+  border-top: 1px solid #d8dee6;
+  padding: 10px 12px;
+  background: #f8fafc;
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 12px;
+}
+
+#cpPlayersRatingDataBox.cp-reg-drawer-collapsed .cp-reg-drawer-body {
+  display: none !important;
+}
+
+.cp-reg-drawer-card {
+  background: #ffffff;
+  border: 1px solid #d8dee6;
+  border-radius: 6px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cp-reg-drawer-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #eef2f6;
+  font-weight: 600;
+  font-size: 12.5px;
+}
+
+.cp-reg-drawer-card #cpRatingListLibraryHome {
+  margin: 0;
+  padding: 0;
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+.cp-reg-manual-txt-details {
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid #e2e8f0;
+  font-size: 12px;
+}
+
+.cp-reg-manual-txt-details > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #0f3d91;
+  user-select: none;
+}
+
+.cp-reg-manual-txt-inner {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Manual Add Player Bar */
+#registration .cp-reg-manual-box {
+  padding: 6px 10px 8px !important;
+  border-radius: 7px;
+}
+
+#registration .cp-reg-manual-box > .group-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+.cp-reg-manual-collapse-btn {
+  font-size: 11px;
+  padding: 2px 8px;
+  height: 22px;
+}
+
+#registration .cp-reg-manual-box.cp-reg-manual-collapsed > .toolbar {
+  display: none !important;
+}
+
+#registration .cp-reg-manual-box.cp-reg-manual-collapsed > .group-title {
+  margin-bottom: 0;
+}
+
+#registration .cp-reg-manual-box > .toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+#registration #manualName { flex: 2 1 190px; min-width: 160px; }
+#registration #manualRating { width: 70px; flex: 0 0 70px; }
+#registration #manualTitle { width: 84px; flex: 0 0 84px; }
+#registration #manualFed { width: 155px; flex: 0 1 155px; }
+#registration #manualFide { width: 105px; flex: 0 1 105px; }
+#registration #manualBirth { width: 145px; flex: 0 1 145px; }
+#registration #manualGender { width: 58px; flex: 0 0 58px; }
+
+/* Dual-Pane Workspace */
+#registration #registrationListsContainer {
+  gap: 0;
+  min-height: 300px;
+}
+
+#registration #fideResultsBox,
+#registration #startingRankBox {
+  display: flex;
+  flex-direction: column;
+  padding: 0 !important;
+  overflow: hidden;
+  border-radius: 7px;
+}
+
+#registration #fideResultsBox > .fide-results-title,
+#registration #startingRankBox > .group-title {
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 7px 10px !important;
+  background: #f8fafc;
+  border-bottom: 1px solid #d8dee6;
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Clear Rating Time-Control Switcher in Left Pane */
+.cp-reg-rating-control-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  background: #f0f5ff;
+  border-bottom: 1px solid #d2e0f7;
+  flex-shrink: 0;
+}
+
+.cp-reg-rating-control-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #0f3d91;
+  white-space: nowrap;
+}
+
+.cp-reg-rating-segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  background: #e2eaf8;
+  border: 1px solid #c5d6f3;
+  border-radius: 6px;
+}
+
+.cp-reg-rating-seg-btn {
+  height: 23px;
+  padding: 0 9px;
+  font-size: 11.5px;
+  font-weight: 600;
+  border: none !important;
+  background: transparent !important;
+  color: #475569 !important;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.cp-reg-rating-seg-btn:hover {
+  background: rgba(255, 255, 255, 0.7) !important;
+  color: #0f172a !important;
+}
+
+.cp-reg-rating-seg-btn.active {
+  background: #0f3d91 !important;
+  color: #ffffff !important;
+  box-shadow: 0 1px 2px rgba(15, 61, 145, 0.25);
+}
+
+.cp-reg-fide-search-bar {
+  padding: 6px 10px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #ffffff;
+  flex-shrink: 0;
+}
+
+#registration #fideSearch {
+  width: 100% !important;
+  max-width: none !important;
+  box-sizing: border-box;
+}
+
+#registration #fideResults {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 6px;
+}
+
+/* Right Pane Header & Subbars */
+.cp-reg-pane-head-left,
+.cp-reg-pane-head-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cp-reg-pane-head-right {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+#registration #btnStartingListToPairings {
+  background: #0f3d91 !important;
+  border-color: #0f3d91 !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  margin-left: 2px !important;
+  padding: 4px 12px;
+}
+
+#registration #btnStartingListToPairings:hover {
+  background: #0a2d6e !important;
+}
+
+.cp-reg-subbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #ffffff;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.cp-reg-subbar-muted {
+  background: #f8fafc;
+}
+
+.cp-reg-subbar-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+#registration #startingRankSearch {
+  width: 200px;
+  min-width: 140px;
+}
+
+/* Segmented Export Group */
+.cp-reg-export-segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 4px;
+  background: #ffffff;
+  border: 1px solid #d8dee6;
+  border-radius: 5px;
+}
+
+.cp-reg-export-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  padding: 0 4px;
+}
+
+.cp-reg-export-segmented button {
+  margin: 0 !important;
+}
+
+/* Button Hierarchy Restraint inside #registration */
+#registration #exportPlayersXmlBtn.primary,
+#registration #cpRatingListImportButton.primary,
+#registration #resortStartingListBtn:not(.cp-reg-needs-action) {
+  background: #ffffff;
+  border-color: #93b4e8;
+  color: #0f3d91;
+}
+
+#registration #resortStartingListBtn.cp-reg-needs-action {
+  background: #0f3d91;
+  border-color: #0f3d91;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+#registration #startingRankBox .table-frame {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+#registration #startingRankBox thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+@media (max-width: 1050px) {
+  .cp-reg-drawer-body {
+    grid-template-columns: 1fr;
+  }
+}
