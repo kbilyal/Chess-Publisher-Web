@@ -159,6 +159,10 @@ html = replace_once(
     html, 'if(typeof window.cpCloudSyncCurrent==="function"){\n    setTimeout(()=>window.cpCloudSyncCurrent',
     'if(!window.cpDesktopWebAllowed&&typeof window.cpCloudSyncCurrent==="function"){\n    setTimeout(()=>window.cpCloudSyncCurrent',
 )
+html = replace_once(
+    html, 'chessResultsLog("No TNR was consumed by this failed attempt.","warn");',
+    'chessResultsLog("No TNR was saved locally. Retry reuses the same tournament identity.","warn");',
+)
 html = replace_once(html, "<head>", '<head>\n<script src="./host.js"></script>')
 adapters = [
     "hub/client/hub-snapshot.js",
@@ -342,7 +346,7 @@ html = replace_once(html, '    }finally{runtime.busy=false;renderStatus();}\n  }
 scripts = "\n".join(f'<script src="./{relative}"></script>' for relative in adapters)
 html = replace_once(
     html, "\n</body>\n</html>",
-    "\n" + scripts + '\n<script src="./engine-adapter.js"></script>\n<script src="./autosave.js"></script>\n<link rel="stylesheet" href="./workspace.css">\n</body>\n</html>',
+    "\n" + scripts + '\n<script src="./chess-results-browser-adapter.js"></script>\n<script src="./engine-adapter.js"></script>\n<script src="./autosave.js"></script>\n<link rel="stylesheet" href="./workspace.css">\n</body>\n</html>',
 )
 (output / "workspace.html").write_text(html, encoding="utf-8")
 (output / "USER-MANUAL-EN.html").write_bytes((desktop / "USER-MANUAL-EN.html").read_bytes())

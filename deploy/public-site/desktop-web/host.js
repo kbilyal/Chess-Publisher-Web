@@ -28,6 +28,8 @@
     deleteDatabase: () => { throw new Error('Signed out.'); }
   };
 
+  window.cpDesktopWebOrganizerToken = () => allowed ? session?.token || '' : '';
+
   const secretsKey = allowed ? `cp.desktop-web.secrets:${session.scope}` : '';
   const secrets = new Map();
   if (secretsKey) {

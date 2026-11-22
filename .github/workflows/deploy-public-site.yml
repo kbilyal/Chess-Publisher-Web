@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'deploy/public-site/**'
+      - 'production-web/web/chess-results-browser-adapter.js'
       - '.github/workflows/deploy-public-site.yml'
   workflow_dispatch:
 

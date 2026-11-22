@@ -93,14 +93,6 @@ async function automaticContinuity(keyRaw: string, body: Record<string, unknown>
   if (cached) return cached;
 
   const { cloudTournamentId, clientId } = continuityContext(body);
-  if (!cloudTournamentId) {
-    throw new ChessResultsApiError(
-      'cloud_sync_required',
-      'Sync this tournament with Desktop/Cloud first, then retry Chess-Results. TNR access is restored automatically.',
-      409
-    );
-  }
-
   try {
     const result = await request('claim', { key, cloudTournamentId, clientId });
     const proof = String(result?.ownershipProof || '').trim();
@@ -132,8 +124,15 @@ async function automaticContinuity(keyRaw: string, body: Record<string, unknown>
 async function requestWithAutomaticContinuity(operation: string, body: Record<string, unknown>) {
   const key = String(body.key || '').trim();
   const { cloudTournamentId, clientId } = continuityContext(body);
-  const ownershipProof = await automaticContinuity(key, { ...body, cloudTournamentId, clientId });
-  return request(operation, { ...body, cloudTournamentId, clientId, ownershipProof });
+  const continuity = { ...body, cloudTournamentId, clientId };
+  const ownershipProof = await automaticContinuity(key, continuity);
+  try {
+    return await request(operation, { ...continuity, ownershipProof });
+  } catch (error) {
+    if (!(error instanceof ChessResultsApiError) || !['OWNERSHIP_PROOF_EXPIRED', 'OWNERSHIP_PROOF_INVALID', 'TNR_OWNERSHIP_MISMATCH'].includes(error.code)) throw error;
+    transientContinuity.delete(continuityCacheKey(key));
+    return request(operation, { ...continuity, ownershipProof: await automaticContinuity(key, continuity) });
+  }
 }
 
 export const chessResultsApi = {
@@ -146,7 +145,7 @@ export const chessResultsApi = {
     return result;
   },
   publish: (body: { key: string; xml: string; cloudTournamentId?: string; clientId?: string }) => requestWithAutomaticContinuity('publish', body),
-  adminLink: (body: { key: string; section?: 'admin' | 'upload'; cloudTournamentId?: string; clientId?: string }) => requestWithAutomaticContinuity('admin-link', body),
+  adminLink: (body: { key: string; section?: 'admin' | 'upload'; cloudTournamentId?: string; clientId?: string }) => requestWithAutomaticContinuity('admin-link', { ...body, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }),
   unlink: async (body: { key: string; clientId: string; serverError: string; cloudTournamentId?: string }) => {
     const result = await requestWithAutomaticContinuity('unlink', body);
     if (result?.canUnlink) transientContinuity.delete(continuityCacheKey(String(body.key || '').trim()));

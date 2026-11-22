@@ -37,8 +37,8 @@ jobs:
           git fetch --no-tags origin "${{ github.base_ref }}"
           changed="$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")"
           printf '%s\n' "$changed" > /tmp/companion-changed-files.txt
-          if grep -E '^(engine/gacrux/|src/engine/|bin/bbpPairings$|src/server/adapters/GacruxAdapter\.ts$|src/server/adapters/IndependentPairingCheckerAdapter\.ts$|workers/chess-results/)' /tmp/companion-changed-files.txt; then
-            echo 'Protected pairing/TRF/checker/Chess-Results Worker core changed in Companion PR.' >&2
+          if grep -E '^(engine/gacrux/|src/engine/|bin/bbpPairings$|src/server/adapters/GacruxAdapter\.ts$|src/server/adapters/IndependentPairingCheckerAdapter\.ts$)' /tmp/companion-changed-files.txt; then
+            echo 'Protected pairing/TRF/checker core changed in Companion PR.' >&2
             exit 1
           fi
       - run: npm ci

@@ -8,6 +8,7 @@ The browser calls only:
 
 - `POST /api/chess-results/test`
 - `POST /api/chess-results/create`
+- `POST /api/chess-results/claim`
 - `POST /api/chess-results/publish`
 - `POST /api/chess-results/admin-link`
 - `POST /api/chess-results/delete-authorize`
@@ -15,13 +16,11 @@ The browser calls only:
 
 The browser sends the authenticated user's Organizer Token in the `Authorization: Bearer ...` header. The Worker validates that token against the Chess-Publisher Hub only to resolve the authenticated organizer identity.
 
-Chess-Results itself is not coupled to Hub identities. The official bridge continues to use Source ID `21`, the Worker-side bridge CreatorID, GETSID, GETKEY and secure XML upload exactly as before.
+The full Web workspace at `https://chess-publisher.org/app/` builds from the pinned Windows desktop HTML and uses its tournament validation, snapshot builder and publication UI. Both that workspace and the Web Companion on `web.chess-publisher.org` call the Worker directly with their signed-in Organizer Token.
 
-TNR ownership is organizer-scoped inside Chess-Publisher: when a TNR is created, the Worker returns a signed ownership proof binding that TNR to the authenticated organizer identity. `publish`, `admin-link`, `delete-authorize` and `unlink` require that same organizer identity and proof. A different valid Organizer Token cannot operate on another organizer's TNR.
+The official protocol uses Source ID `21` and a stable CreatorID assigned to each organizer. Test tournaments use federation `XXX`. The Worker persists each GETKEY allocation under the organizer and stable `clientId`. A retry returns the same TNR. A transport failure during GETKEY leaves the request pending for operator reconciliation because the provider may already have allocated a key.
 
-Test tournaments are always forced to federation `XXX`.
-
-No AES key, AES IV or ownership signing secret belongs in browser code, GitHub Pages, or public repository variables.
+The Worker issues signed organizer-scoped ownership proofs. A second browser can recover a Web-created TNR through `claim`. A Desktop TNR or a TNR from the previous Worker can be recovered after explicit server enrollment and verification that it appears in that organizer's synchronized tournament. The Cloud snapshot alone cannot confer Chess-Results ownership.
 
 ## Authenticated Upload Data link
 
@@ -32,9 +31,9 @@ For a verified TNR, `POST /api/chess-results/admin-link` with `section: "upload"
 - `sid1` = encrypted Worker-side CreatorID
 - `source` = `21`
 - `lan` = `0`
-- `time` = 14-digit request timestamp
+- `time` = 14-digit `ddMMyyyyHHmmss` request timestamp in the browser time zone, matching the desktop local-time format
 
-The Web Companion exposes this as **Upload data** beside the Chess-Results **Admin** action. AES material never enters the browser, and the browser never constructs `sid` or `sid1` itself.
+The full Web workspace exposes **Upload Section** and **Open Admin**. The Web Companion exposes **Upload data** and **Admin**. AES material never enters the browser, and the browser never constructs `sid` or `sid1` itself.
 
 ## GitHub Actions deployment credentials
 
@@ -52,18 +51,24 @@ Configure these as Worker secrets, never as public Wrangler variables:
 - `CHESS_RESULTS_AES_KEY`
 - `CHESS_RESULTS_AES_IV`
 - `CHESS_RESULTS_OWNERSHIP_HMAC_SECRET`
+- `CHESS_RESULTS_CREATOR_MAP`
+- `CHESS_RESULTS_LEGACY_TNRS` when migrating existing tournaments
 
-`CHESS_RESULTS_CREATOR_MAP` is no longer used by the deployed Worker. The bridge CreatorID is a single Worker-side protocol parameter and is not used to decide organizer ownership.
+The AES secrets accept `base64:<value>`, `hex:<value>`, a JSON byte array, or a comma-separated byte list. Use the official values supplied for this source.
 
-The AES secrets accept `base64:<value>`, `hex:<value>`, a JSON byte array, or a comma-separated byte list. Use the exact official Chess-Results values supplied for the integration.
+Set `CHESS_RESULTS_CREATOR_MAP` to a JSON object mapping authenticated Hub organizer IDs to unique CreatorIDs assigned for Source ID 21. Keep each assignment stable. Example with fictitious IDs:
 
-## Safe public variables
+```json
+{"organizer-example-1": 100, "organizer-example-2": 101}
+```
 
-`wrangler.toml` contains only non-browser routing and endpoint values. `WEB_ORIGIN` is restricted to:
+Before releasing, enroll verified Desktop and prior-Web TNRs that their organizers still need to manage. Set `CHESS_RESULTS_LEGACY_TNRS` as a map from organizer ID to TNR records. Verify the original owner, mode, federation and CreatorID independently of the organizer's editable Cloud snapshot. The optional `creatorId` preserves the historical CreatorID if it differs from the organizer's new assignment. Each TNR can have one enrolled owner.
 
-`https://web.chess-publisher.org`
+```json
+{"organizer-example-2":{"123456":{"mode":"real","federation":"BUL","creatorId":100}}}
+```
 
-The deployed entry point is `ownership-worker.js`, which injects the Worker-side bridge CreatorID into the unchanged official bridge implementation while preserving organizer-scoped TNR ownership.
+The public CORS allowlist consists of the exact Web Companion and full Web workspace origins. The deployed Worker exposes the Durable Object through `entry.js` and delegates publication and authentication to the ownership Worker. The first Worker deploy applies the SQLite-backed Durable Object migration in `wrangler.toml`.
 
 ## Deployment
 
@@ -76,6 +81,9 @@ cd workers/chess-results
 npx wrangler secret put CHESS_RESULTS_AES_KEY
 npx wrangler secret put CHESS_RESULTS_AES_IV
 npx wrangler secret put CHESS_RESULTS_OWNERSHIP_HMAC_SECRET
+npx wrangler secret put CHESS_RESULTS_CREATOR_MAP
+# For verified legacy enrollments
+npx wrangler secret put CHESS_RESULTS_LEGACY_TNRS
 npx wrangler deploy
 ```
 
@@ -89,7 +97,7 @@ A request without an Organizer Token must fail closed:
 curl -i -X POST \
   -H 'Origin: https://web.chess-publisher.org' \
   -H 'Content-Type: application/json' \
-  https://web.chess-publisher.org/api/chess-results/test \
+  https://chess-publisher-chess-results.kyamranbilyal.workers.dev/api/chess-results/test \
   --data '{}'
 ```
 
@@ -102,7 +110,7 @@ curl -i -X POST \
   -H 'Origin: https://web.chess-publisher.org' \
   -H 'Content-Type: application/json' \
   -H 'Authorization: Bearer <ORGANIZER_TOKEN>' \
-  https://web.chess-publisher.org/api/chess-results/test \
+  https://chess-publisher-chess-results.kyamranbilyal.workers.dev/api/chess-results/test \
   --data '{}'
 ```
 
@@ -115,10 +123,12 @@ curl -i -X POST \
   -H 'Origin: https://web.chess-publisher.org' \
   -H 'Content-Type: application/json' \
   -H 'Authorization: Bearer <ORGANIZER_TOKEN>' \
-  https://web.chess-publisher.org/api/chess-results/create \
+  https://chess-publisher-chess-results.kyamranbilyal.workers.dev/api/chess-results/create \
   --data '{"mode":"test","federation":"BUL","tournament":"Chess-Publisher Worker Smoke Test","clientId":"manual-smoke"}'
 ```
 
 Expected: `200`, a numeric `key`, an `ownershipProof`, `sourceId: 21`, and `federation: "XXX"`.
 
 Do not run create/publish smoke tests against production unless a disposable Chess-Results test tournament is intended.
+
+For release acceptance, use the same disposable Test tournament to check the official publish endpoint, re-publish its changed results using the same TNR, and open both authenticated pages. The browser regression exercises this sequence against isolated fixtures, including a failed-upload retry.

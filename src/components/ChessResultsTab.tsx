@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, ClipboardCheck, ExternalLink, Globe, Link2, ShieldCheck, Upload } from 'lucide-react';
 import { Tournament } from '../types';
 import { chessResultsApi } from '../chessResults/api';
+import { openChessResultsPage } from '../chessResults/openPage';
 import { buildChessResultsXml } from '../chessResults/publication';
 
 interface Props { tournament: Tournament; onUpdateTournament: (updater: (previous: Tournament) => Tournament) => void; }
@@ -35,9 +36,11 @@ export const ChessResultsTab: React.FC<Props> = ({ tournament, onUpdateTournamen
     setBusy('create'); try {
       const payload = ready();
       if (isTnr(cr.key)) throw new Error(`This tournament is already linked to TNR ${cr.key}; a second key will not be requested.`);
-      const result = await chessResultsApi.create({ tournament: tournament.name || '', federation: payload.federation, mode: tournament.settings.tournamentType, clientId: cr.clientId || clientId() });
+      const stableClientId = cr.clientId || clientId();
+      if (!cr.clientId) update(state => ({ ...state, clientId: stableClientId }));
+      const result = await chessResultsApi.create({ tournament: tournament.name || '', federation: payload.federation, mode: tournament.settings.tournamentType, clientId: stableClientId });
       const key = String(result.key || '').trim(); if (!isTnr(key)) throw new Error('The bridge returned an invalid Chess-Results TNR.');
-      onUpdateTournament(previous => ({ ...previous, settings: { ...previous.settings, tnr: key }, chessResults: { ...previous.chessResults, clientId: previous.chessResults.clientId || clientId(), key, mode: previous.settings.tournamentType, federation: payload.federation, createdAt: new Date().toISOString(), freshTnrRequired: false, lastError: '', uploadStatus: 'TNR assigned — not published' } }));
+      onUpdateTournament(previous => ({ ...previous, settings: { ...previous.settings, tnr: key }, chessResults: { ...previous.chessResults, clientId: stableClientId, key, mode: previous.settings.tournamentType, federation: payload.federation, createdAt: new Date().toISOString(), freshTnrRequired: false, lastError: '', uploadStatus: 'TNR assigned — not published' } }));
       log('ok', result.recovered ? `Recovered existing TNR ${key}; GETKEY was not requested again.` : `TNR ${key} created and saved. Publish will reuse this exact TNR.`);
     } catch (error) { fail('TNR creation', error); } finally { setBusy(null); }
   };
@@ -45,9 +48,11 @@ export const ChessResultsTab: React.FC<Props> = ({ tournament, onUpdateTournamen
     setBusy('publish'); try {
       const initial = ready(); let key = String(cr.key || '').trim(); let created = false;
       if (!isTnr(key)) {
-        const result = await chessResultsApi.create({ tournament: tournament.name || '', federation: initial.federation, mode: tournament.settings.tournamentType, clientId: cr.clientId || clientId() });
+        const stableClientId = cr.clientId || clientId();
+        if (!cr.clientId) update(state => ({ ...state, clientId: stableClientId }));
+        const result = await chessResultsApi.create({ tournament: tournament.name || '', federation: initial.federation, mode: tournament.settings.tournamentType, clientId: stableClientId });
         key = String(result.key || '').trim(); if (!isTnr(key)) throw new Error('The bridge returned an invalid Chess-Results TNR.'); created = true;
-        onUpdateTournament(previous => ({ ...previous, settings: { ...previous.settings, tnr: key }, chessResults: { ...previous.chessResults, clientId: previous.chessResults.clientId || clientId(), key, mode: previous.settings.tournamentType, federation: initial.federation, createdAt: new Date().toISOString(), freshTnrRequired: false, uploadStatus: 'TNR assigned — preparing upload' } }));
+        onUpdateTournament(previous => ({ ...previous, settings: { ...previous.settings, tnr: key }, chessResults: { ...previous.chessResults, clientId: stableClientId, key, mode: previous.settings.tournamentType, federation: initial.federation, createdAt: new Date().toISOString(), freshTnrRequired: false, uploadStatus: 'TNR assigned — preparing upload' } }));
         log('ok', `TNR ${key} was saved before upload and will be retained if upload fails.`);
       }
       const publication = buildChessResultsXml(tournament, { requireKey: true, key });
@@ -58,8 +63,8 @@ export const ChessResultsTab: React.FC<Props> = ({ tournament, onUpdateTournamen
   };
   const openAdmin = async (section: 'admin' | 'upload') => {
     if (!isTnr(cr.key)) return; setBusy('admin'); try {
-      const result = await chessResultsApi.adminLink({ key: cr.key, section }); if (!result.url) throw new Error('The bridge did not return an authenticated URL.');
-      window.open(result.url, '_blank', 'noopener,noreferrer'); log('ok', `Opened authenticated ${section === 'upload' ? 'Upload Data' : 'Admin'} access for TNR ${cr.key}.`);
+      await openChessResultsPage(cr.key, section);
+      log('ok', `Opened authenticated ${section === 'upload' ? 'Upload Data' : 'Admin'} access for TNR ${cr.key}.`);
     } catch (error) { fail('admin link', error); } finally { setBusy(null); }
   };
   const unlink = async () => {

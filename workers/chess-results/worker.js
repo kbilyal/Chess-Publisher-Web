@@ -1,7 +1,7 @@
 const SOURCE_ID = 21;
 const DEFAULT_HUB_API_BASE = 'https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev';
-const DEFAULT_XML_URL = 'https://chess-results.com/xml.aspx';
-const DEFAULT_UPLOAD_XML_URL = 'https://chess-results.com/uploadxml.aspx';
+const DEFAULT_XML_URL = 'https://chess-results.com/UploadXML.aspx';
+const DEFAULT_UPLOAD_XML_URL = 'https://chess-results.com/UploadXML.aspx?key1=UPLOAD';
 const DEFAULT_ADMIN_URL = 'https://chess-results.com/Stammdaten.aspx';
 const DEFAULT_UPLOAD_SECTION_URL = 'https://chess-results.com/UploadData.aspx';
 const DEFAULT_PUBLIC_BASE = 'https://chess-results.com';
@@ -9,7 +9,7 @@ const ALLOWED_OPERATIONS = new Set(['test', 'create', 'publish', 'admin-link', '
 
 export const AUTHENTICATED_ORGANIZER = Symbol('chess-results-authenticated-organizer');
 
-class BridgeError extends Error {
+export class BridgeError extends Error {
   constructor(status, code, message) {
     super(message);
     this.name = 'BridgeError';
@@ -28,12 +28,17 @@ const json = (body, status = 200, extraHeaders = {}) => new Response(JSON.string
   },
 });
 
-function corsHeaders(request, env) {
+export function originAllowed(request, env) {
+  const origins = [env.WEB_ORIGIN, env.DESKTOP_WEB_ORIGIN].map(text).filter(Boolean);
   const origin = text(request.headers.get('Origin'));
-  const allowed = text(env.WEB_ORIGIN);
-  if (!origin || !allowed || origin !== allowed) return { 'Vary': 'Origin' };
+  return origins.length > 0 && (!origin || origins.includes(origin));
+}
+
+export function corsHeaders(request, env) {
+  const origin = text(request.headers.get('Origin'));
+  if (!origin || !originAllowed(request, env)) return { 'Vary': 'Origin' };
   return {
-    'Access-Control-Allow-Origin': allowed,
+    'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Headers': 'Authorization, Content-Type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Vary': 'Origin',
@@ -43,8 +48,7 @@ function corsHeaders(request, env) {
 function assertOrigin(request, env) {
   const allowed = text(env.WEB_ORIGIN);
   if (!allowed) throw new BridgeError(500, 'WEB_ORIGIN_NOT_CONFIGURED', 'WEB_ORIGIN is not configured on the Chess-Results Worker.');
-  const origin = text(request.headers.get('Origin'));
-  if (origin && origin !== allowed) throw new BridgeError(403, 'ORIGIN_NOT_ALLOWED', 'This origin is not allowed to use the Chess-Results Worker.');
+  if (!originAllowed(request, env)) throw new BridgeError(403, 'ORIGIN_NOT_ALLOWED', 'This origin is not allowed to use the Chess-Results Worker.');
 }
 
 function bearerToken(request) {
@@ -85,18 +89,42 @@ async function hubOrganizer(request, env) {
   return { organizerId };
 }
 
-function creatorMapping(env, organizerId) {
+export function creatorMapping(env, organizerId) {
   let mapping;
   try {
     mapping = JSON.parse(text(env.CHESS_RESULTS_CREATOR_MAP) || '{}');
   } catch {
     throw new BridgeError(500, 'CREATOR_MAP_INVALID', 'Chess-Results creator mapping is not valid JSON.');
   }
-  const creatorId = Number(mapping[organizerId]);
+  if (!mapping || typeof mapping !== 'object' || Array.isArray(mapping)) {
+    throw new BridgeError(500, 'CREATOR_MAP_INVALID', 'Chess-Results creator mapping is not valid.');
+  }
+  const creatorId = Object.hasOwn(mapping, organizerId) ? Number(mapping[organizerId]) : NaN;
   if (!Number.isInteger(creatorId) || creatorId <= 0 || creatorId > 2147483647) {
     throw new BridgeError(403, 'CREATOR_ID_NOT_ASSIGNED', 'This Organizer Token has no Chess-Results CreatorID assignment.');
   }
+  if (Object.values(mapping).filter(value => Number(value) === creatorId).length !== 1) {
+    throw new BridgeError(500, 'CREATOR_MAP_INVALID', 'Chess-Results CreatorIDs must be unique per organizer.');
+  }
   return creatorId;
+}
+
+export function legacyRegistration(env, organizerId, key, creatorId) {
+  let mapping;
+  try { mapping = JSON.parse(text(env.CHESS_RESULTS_LEGACY_TNRS) || '{}'); }
+  catch { throw new BridgeError(500, 'LEGACY_TNRS_INVALID', 'Legacy Chess-Results registrations are not valid JSON.'); }
+  const registrations = mapping && Object.hasOwn(mapping, organizerId) ? mapping[organizerId] : null;
+  const entry = registrations && Object.hasOwn(registrations, key) ? registrations[key] : null;
+  if (!entry) return null;
+  if (!['test', 'real'].includes(entry.mode) || !/^[A-Z]{3}$/.test(entry.federation) || (entry.mode === 'test') !== (entry.federation === 'XXX')) {
+    throw new BridgeError(500, 'LEGACY_TNRS_INVALID', 'The legacy Chess-Results registration has an invalid mode or federation.');
+  }
+  const registeredCreator = Number(entry.creatorId ?? creatorId);
+  const matchingOwners = Object.values(mapping).filter(owner => owner && Object.hasOwn(owner, key)).length;
+  if (!Number.isInteger(registeredCreator) || registeredCreator < 1 || registeredCreator > 2147483647 || matchingOwners !== 1) {
+    throw new BridgeError(500, 'LEGACY_TNRS_INVALID', 'Legacy Chess-Results registrations require a unique TNR assignment and valid CreatorID.');
+  }
+  return { mode: entry.mode, federation: entry.federation, creatorId: registeredCreator, legacy: true };
 }
 
 function bytesFromSecret(raw, label, allowedLengths) {
@@ -196,30 +224,19 @@ function officialXmlUrl(env, action) {
   return url;
 }
 
-function safeBridgePreview(raw) {
-  return String(raw || '')
-    .replace(/[\r\n\t]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .replace(/[\u0000-\u001f\u007f]/g, '')
-    .slice(0, 180);
-}
-
 async function getSid(env) {
   const action = text(env.CHESS_RESULTS_GETSID_ACTION) || 'GETSID';
   const url = officialXmlUrl(env, action);
   url.searchParams.set('source', String(SOURCE_ID));
-  const raw = await upstreamText(url.toString(), { method: 'GET', headers: { 'Accept': 'application/xml,text/xml;q=0.9,*/*;q=0.1' } }, 'GETSID_FAILED');
+  const raw = await upstreamText(url.toString(), { method: 'GET', signal: AbortSignal.timeout(8000), headers: { 'Accept': 'application/xml,text/xml;q=0.9,*/*;q=0.1' } }, 'GETSID_FAILED');
   const parsed = parseBridgeXml(raw);
-  if (parsed.status && parsed.status !== 'OK') throw new BridgeError(502, 'GETSID_REJECTED', parsed.message || 'Chess-Results rejected GETSID.');
+  if (parsed.status !== 'OK') throw new BridgeError(502, 'GETSID_REJECTED', parsed.message || 'Chess-Results did not confirm GETSID.');
   const sid = text(parsed.attrs.sid);
-  if (!sid) {
-    const preview = safeBridgePreview(raw);
-    throw new BridgeError(502, 'GETSID_INVALID_RESPONSE', `Chess-Results GETSID did not return a SID.${preview ? ` Response starts: ${preview}` : ''}`);
-  }
+  if (!sid) throw new BridgeError(502, 'GETSID_INVALID_RESPONSE', 'Chess-Results GETSID did not return a SID.');
   const encryptedSid = await encryptValue(sid, env);
   const expected = text(parsed.attrs.sidEncrypt).toUpperCase();
   if (expected && encryptedSid !== expected) throw new BridgeError(500, 'AES_VERIFICATION_FAILED', 'Chess-Results SID encryption verification failed.');
-  return { encryptedSid, sidVerified: !expected || encryptedSid === expected, sidComparisonAvailable: Boolean(expected) };
+  return { encryptedSid, sidVerified: Boolean(expected), sidComparisonAvailable: Boolean(expected) };
 }
 
 function braceXml(xml) {
@@ -232,18 +249,21 @@ function formBody(xml) {
   return form.toString();
 }
 
-async function getKey(env, input, creatorId) {
+export async function getKey(env, input, creatorId, beforeRequest) {
   const { encryptedSid } = await getSid(env);
   const action = text(env.CHESS_RESULTS_GETKEY_ACTION) || 'GETKEY';
   const url = officialXmlUrl(env, action);
   const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<chessresults>\n<getkey source="${SOURCE_ID}" sid="${encryptedSid}" creatorID="${creatorId}" federation="${xmlEscape(input.federation)}" tournament="${xmlEscape(input.tournament)}" />\n</chessresults>`;
+  await beforeRequest?.();
   const raw = await upstreamText(url.toString(), {
     method: 'POST',
+    signal: AbortSignal.timeout(12000),
     headers: { 'Accept': 'application/xml,text/xml;q=0.9,*/*;q=0.1', 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
     body: formBody(xml),
   }, 'GETKEY_FAILED');
   const parsed = parseBridgeXml(raw);
-  if (parsed.status && parsed.status !== 'OK') throw new BridgeError(502, 'GETKEY_REJECTED', parsed.message || 'Chess-Results rejected GETKEY.');
+  if (parsed.status === 'ERROR') throw new BridgeError(502, 'GETKEY_REJECTED', parsed.message || 'Chess-Results rejected GETKEY.');
+  if (parsed.status !== 'OK') throw new BridgeError(502, 'GETKEY_INVALID_RESPONSE', 'Chess-Results did not confirm the TNR allocation.');
   const key = text(parsed.attrs.key);
   if (!/^\d+$/.test(key)) throw new BridgeError(502, 'GETKEY_INVALID_RESPONSE', 'Chess-Results GETKEY did not return a numeric tournament key.');
   return key;
@@ -293,13 +313,14 @@ async function verifyObject(proof, env) {
   return payload;
 }
 
-async function createOwnershipProof(env, organizerId, creatorId, key, input) {
+export async function createOwnershipProof(env, organizerId, creatorId, key, input) {
   return signObject({
-    v: 1,
+    v: 2,
     purpose: 'chess-results-ownership',
     organizerId,
     creatorId,
     sourceId: SOURCE_ID,
+    ...(input.legacy ? { legacy: true } : {}),
     key,
     clientId: text(input.clientId).slice(0, 160),
     mode: input.mode,
@@ -308,16 +329,21 @@ async function createOwnershipProof(env, organizerId, creatorId, key, input) {
   }, env);
 }
 
-async function verifiedOwnership(env, organizerId, creatorId, key, proof) {
+export async function verifiedOwnership(env, organizerId, creatorId, key, proof) {
   if (!/^\d+$/.test(text(key))) throw new BridgeError(400, 'INVALID_TNR', 'A numeric Chess-Results TNR is required.');
   const payload = await verifyObject(proof, env);
-  if (payload?.purpose !== 'chess-results-ownership' || Number(payload.sourceId) !== SOURCE_ID || text(payload.organizerId) !== organizerId || Number(payload.creatorId) !== creatorId || text(payload.key) !== text(key)) {
+  if (payload?.v === 1) throw new BridgeError(403, 'OWNERSHIP_PROOF_EXPIRED', 'Chess-Results ownership must be recovered for this TNR.');
+  if (payload?.v !== 2 || payload.purpose !== 'chess-results-ownership' || Number(payload.sourceId) !== SOURCE_ID || text(payload.organizerId) !== organizerId || text(payload.key) !== text(key)) {
+    throw new BridgeError(403, 'TNR_OWNERSHIP_MISMATCH', 'This TNR is not verified as owned by the authenticated organizer.');
+  }
+  const expected = payload.legacy ? legacyRegistration(env, organizerId, key, creatorId) : { creatorId };
+  if (!expected || payload.creatorId !== expected.creatorId || (payload.legacy && (payload.mode !== expected.mode || payload.federation !== expected.federation))) {
     throw new BridgeError(403, 'TNR_OWNERSHIP_MISMATCH', 'This TNR is not verified as owned by the authenticated organizer.');
   }
   return payload;
 }
 
-function normalizeCreateInput(body) {
+export function normalizeCreateInput(body) {
   const modeRaw = text(body.mode).toLowerCase();
   const mode = modeRaw === 'test' ? 'test' : (modeRaw === 'real' || modeRaw === 'real-online' ? 'real' : '');
   if (!mode) throw new BridgeError(400, 'TOURNAMENT_MODE_REQUIRED', 'Choose Real tournament or Test tournament before requesting a TNR.');
@@ -325,8 +351,10 @@ function normalizeCreateInput(body) {
   if (!tournament) throw new BridgeError(400, 'TOURNAMENT_NAME_REQUIRED', 'Tournament name is required.');
   const requestedFederation = text(body.federation).toUpperCase();
   const federation = mode === 'test' ? 'XXX' : requestedFederation;
-  if (!/^[A-Z]{3}$/.test(federation)) throw new BridgeError(400, 'INVALID_FEDERATION', 'A three-letter FIDE federation code is required.');
-  return { mode, tournament, federation, clientId: text(body.clientId) };
+  if (!/^[A-Z]{3}$/.test(federation) || (mode === 'real' && federation === 'XXX')) throw new BridgeError(400, 'INVALID_FEDERATION', 'A three-letter FIDE federation code is required.');
+  const clientId = text(body.clientId);
+  if (!clientId || clientId.length > 160) throw new BridgeError(400, 'CLIENT_ID_REQUIRED', 'A stable local tournament identity is required to allocate a TNR.');
+  return { mode, tournament, federation, clientId };
 }
 
 function replaceTournamentAttribute(xml, name, value) {
@@ -361,19 +389,25 @@ async function uploadPublication(env, key, ownership, creatorId, xml) {
     body: formBody(securedXml),
   }, 'UPLOAD_FAILED');
   const parsed = parseBridgeXml(raw);
-  const statusMatch = raw.match(/\bstatus\s*=\s*["'](OK|WARNING|ERROR)["']/i);
-  const status = text(parsed.status || statusMatch?.[1]).toUpperCase();
+  const status = parsed.status;
   if (status === 'ERROR') throw new BridgeError(502, 'UPLOAD_REJECTED', parsed.message || 'Chess-Results rejected the XML upload.');
   if (status !== 'OK' && status !== 'WARNING') throw new BridgeError(502, 'UPLOAD_INVALID_RESPONSE', 'Chess-Results upload did not return a verifiable success status.');
   return { status, message: parsed.message || '' };
 }
 
-function chessResultsTimestamp(date = new Date()) {
-  const parts = [date.getUTCDate(), date.getUTCMonth() + 1, date.getUTCFullYear(), date.getUTCHours(), date.getUTCMinutes(), date.getUTCSeconds()];
-  return parts.map((part, index) => String(part).padStart(index === 2 ? 4 : 2, '0')).join('');
+function chessResultsTimestamp(timeZone, date = new Date()) {
+  const options = { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' };
+  let formatter;
+  try {
+    formatter = new Intl.DateTimeFormat('en-GB', { ...options, timeZone: text(timeZone) || 'Europe/Vienna' });
+  } catch {
+    formatter = new Intl.DateTimeFormat('en-GB', { ...options, timeZone: 'Europe/Vienna' });
+  }
+  const parts = Object.fromEntries(formatter.formatToParts(date).map(({ type, value }) => [type, value]));
+  return ['day', 'month', 'year', 'hour', 'minute', 'second'].map(part => parts[part]).join('');
 }
 
-async function adminUrl(env, key, creatorId, section) {
+async function adminUrl(env, key, creatorId, section, timeZone) {
   const [encryptedCreator, encryptedTnr] = await Promise.all([encryptValue(String(creatorId), env), encryptValue(String(key), env)]);
   if (section === 'upload') {
     const url = new URL(text(env.CHESS_RESULTS_UPLOAD_SECTION_URL) || DEFAULT_UPLOAD_SECTION_URL);
@@ -382,7 +416,7 @@ async function adminUrl(env, key, creatorId, section) {
     url.searchParams.set('sid1', encryptedCreator);
     url.searchParams.set('source', String(SOURCE_ID));
     url.searchParams.set('lan', '0');
-    url.searchParams.set('time', chessResultsTimestamp());
+    url.searchParams.set('time', chessResultsTimestamp(timeZone));
     return url.toString();
   }
   const url = new URL(text(env.CHESS_RESULTS_ADMIN_URL) || DEFAULT_ADMIN_URL);
@@ -404,6 +438,7 @@ async function publicTournamentDeleted(env, key) {
     throw new BridgeError(503, 'OWNERSHIP_CHECK_UNAVAILABLE', 'Chess-Results deletion verification is temporarily unavailable.');
   }
   if (response.status === 404 || response.status === 410) return true;
+  if (!response.ok) throw new BridgeError(503, 'OWNERSHIP_CHECK_UNAVAILABLE', 'Chess-Results deletion verification is temporarily unavailable.');
   const body = (await response.text()).slice(0, 300000);
   if (/tournament\s+(?:was\s+)?(?:not\s+found|does\s+not\s+exist)|no\s+tournament\s+found|turnier\s+(?:wurde\s+)?nicht\s+gefunden|turnier\s+existiert\s+nicht/i.test(body)) return true;
   return false;
@@ -442,17 +477,17 @@ async function handleOperation(operation, request, env) {
 
   if (operation === 'publish') {
     if (typeof body.xml !== 'string') throw new BridgeError(400, 'INVALID_PUBLICATION_PAYLOAD', 'XML publication payload is required.');
-    const result = await uploadPublication(env, key, ownership, creatorId, body.xml);
+    const result = await uploadPublication(env, key, ownership, ownership.creatorId, body.xml);
     return { ok: true, key, uploaded: true, upstreamStatus: result.status, message: result.message };
   }
 
   if (operation === 'admin-link') {
     const section = body.section === 'upload' ? 'upload' : 'admin';
-    return { ok: true, key, section, url: await adminUrl(env, key, creatorId, section) };
+    return { ok: true, key, section, url: await adminUrl(env, key, ownership.creatorId, section, body.timeZone) };
   }
 
   if (operation === 'delete-authorize') {
-    return { ok: true, key, url: await adminUrl(env, key, creatorId, 'admin'), verifiedOwner: true };
+    return { ok: true, key, url: await adminUrl(env, key, ownership.creatorId, 'admin'), verifiedOwner: true };
   }
 
   if (operation === 'unlink') {

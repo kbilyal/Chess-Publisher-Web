@@ -16,6 +16,7 @@ import {
 import { Tournament } from '../types';
 import { createInitialEmptyTournament } from '../data/initialData';
 import { chessResultsApi } from '../chessResults/api';
+import { openChessResultsPage } from '../chessResults/openPage';
 import { buildChessResultsXml } from '../chessResults/publication';
 import { CompanionRegistration } from './CompanionRegistration';
 import { CompanionSetup } from './CompanionSetup';
@@ -225,7 +226,7 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
       await cloud.syncNow(tournamentRef.current);
       const current = adoptSynchronizedTournament();
       const initial = buildChessResultsXml(current);
-      const clientId = current.chessResults?.clientId || newClientId();
+      const clientId = 'cp-replace-' + oldKey;
       const created = await chessResultsApi.create({
         tournament: current.name || '',
         federation: initial.federation,
@@ -329,6 +330,7 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
           chessResults: {
             ...localBeforeSync.chessResults,
             key: '',
+            clientId: 'cp-replace-' + linkedKeyBeforeSync,
             mode: transitionMode,
             federation: transitionFederation,
             freshTnrRequired: true,
@@ -373,7 +375,10 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
       const replacedKey = transitionedFromTnr || (requiresFreshTnr && isTnr(key) ? key : '');
 
       if (!isTnr(key) || requiresFreshTnr) {
-        const clientId = current.chessResults?.clientId || newClientId();
+        const clientId = current.chessResults?.clientId || identityAfterSync.internalId || identityAfterSync.cloudTournamentId || newClientId();
+        if (!current.chessResults?.clientId) {
+          persistTournament({ ...current, chessResults: { ...current.chessResults, clientId } });
+        }
         const created = await chessResultsApi.create({
           tournament: identityBeforeSync.name,
           federation: initial.federation,
@@ -456,9 +461,7 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
     if (!isTnr(tnr)) return;
     setBusy('cr-admin');
     try {
-      const result = await chessResultsApi.adminLink({ key: tnr, section: 'admin' });
-      if (!result?.url) throw new Error('Authenticated Chess-Results admin URL was not returned.');
-      window.open(result.url, '_blank', 'noopener,noreferrer');
+      await openChessResultsPage(tnr, 'admin');
     } catch (error: any) {
       setNotice('error', error?.message || 'Could not open Chess-Results admin.');
     } finally {
@@ -470,9 +473,7 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
     if (!isTnr(tnr)) return;
     setBusy('cr-admin');
     try {
-      const result = await chessResultsApi.adminLink({ key: tnr, section: 'upload' });
-      if (!result?.url) throw new Error('Authenticated Chess-Results Upload Data URL was not returned.');
-      window.open(result.url, '_blank', 'noopener,noreferrer');
+      await openChessResultsPage(tnr, 'upload');
     } catch (error: any) {
       setNotice('error', error?.message || 'Could not open Chess-Results Upload Data.');
     } finally {

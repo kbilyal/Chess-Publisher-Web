@@ -1,5 +1,5 @@
 name = "chess-publisher-chess-results"
-main = "smoke-worker.js"
+main = "entry.js"
 compatibility_date = "2026-09-05"
 workers_dev = true
 
@@ -15,14 +15,22 @@ service = "chess-publisher-hub-api-beta"
 binding = "WEB_ENGINE_SERVICE"
 service = "chess-publisher-web-engine"
 
+[[durable_objects.bindings]]
+name = "CHESS_RESULTS_JOURNAL"
+class_name = "ChessResultsTnrJournal"
+
+[[migrations]]
+tag = "tnr-journal-v1"
+new_sqlite_classes = ["ChessResultsTnrJournal"]
+
 [vars]
 WEB_ORIGIN = "https://web.chess-publisher.org"
 HUB_API_BASE = "https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev"
-CHESS_RESULTS_CREATOR_ID = "100"
-CHESS_RESULTS_XML_URL = "https://chess-results.com/uploadxml.aspx"
+DESKTOP_WEB_ORIGIN = "https://chess-publisher.org"
+CHESS_RESULTS_XML_URL = "https://chess-results.com/UploadXML.aspx"
 CHESS_RESULTS_GETSID_ACTION = "GETSID"
 CHESS_RESULTS_GETKEY_ACTION = "GETKEY"
-CHESS_RESULTS_UPLOAD_XML_URL = "https://chess-results.com/Uploadxml.aspx?key1=UPLOAD"
+CHESS_RESULTS_UPLOAD_XML_URL = "https://chess-results.com/UploadXML.aspx?key1=UPLOAD"
 CHESS_RESULTS_ADMIN_URL = "https://chess-results.com/Stammdaten.aspx"
 CHESS_RESULTS_UPLOAD_SECTION_URL = "https://chess-results.com/UploadData.aspx"
 CHESS_RESULTS_PUBLIC_BASE = "https://chess-results.com"

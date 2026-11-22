@@ -13,6 +13,12 @@ function storage(seed: Record<string, string> = {}) {
 
 type Call = { url: string; init: RequestInit; body: any };
 const calls: Call[] = [];
+let adminLinkOverride = '';
+let expireContinuityOnce = false;
+const fixtureSid = 'A'.repeat(32);
+const fixtureCreator = 'B'.repeat(32);
+const fixtureUploadParameters = '&sid=' + fixtureSid + '&sid1=' + fixtureCreator + '&source=21&lan=0&time=22112026213520';
+const fixtureAdminParameters = '&tnr_sec=' + fixtureSid + '&luser_sec=' + fixtureCreator;
 const tournament = {
   name: 'Desktop synced tournament',
   cloud: { cloudTournamentId: 'cloud-123', internalId: 'desktop-local-123' },
@@ -27,12 +33,18 @@ const tournament = {
   const parsedBody = init.body ? JSON.parse(String(init.body)) : {};
   calls.push({ url: String(url), init, body: parsedBody });
   const operation = String(url).split('/').pop();
+  if (operation === 'admin-link' && expireContinuityOnce) {
+    expireContinuityOnce = false;
+    return Response.json({ ok: false, code: 'OWNERSHIP_PROOF_EXPIRED' }, { status: 403 });
+  }
   const payload = operation === 'claim'
     ? { ok: true, key: parsedBody.key, ownershipProof: `auto-continuity-${parsedBody.key}` }
     : operation === 'create'
       ? { ok: true, key: '1555001', ownershipProof: 'created-continuity-1555001', federation: 'XXX', mode: 'test' }
       : operation === 'admin-link'
-        ? { ok: true, key: parsedBody.key, url: 'https://chess-results.com/admin-test' }
+        ? { ok: true, key: parsedBody.key, url: adminLinkOverride || (parsedBody.section === 'upload'
+          ? 'https://chess-results.com/UploadData.aspx?tnr=' + parsedBody.key + fixtureUploadParameters
+          : 'https://chess-results.com/Stammdaten.aspx?key1=' + parsedBody.key + fixtureAdminParameters) }
         : operation === 'unlink'
           ? { ok: true, key: parsedBody.key, canUnlink: true }
           : operation === 'publish'
@@ -86,10 +98,49 @@ await chessResultsApi.publish({ key: '1555001', xml: '<chessresults />' });
 assert.equal(calls.filter(call => call.url.endsWith('/claim')).length, 0, 'A newly created TNR must use the transient continuity returned by GETKEY without a separate ownership step.');
 assert.equal(calls.at(-1)?.body.ownershipProof, 'created-continuity-1555001');
 
+calls.length = 0;
+expireContinuityOnce = true;
+await chessResultsApi.adminLink({ key: '1492376', section: 'admin' });
+assert.deepEqual(calls.map(call => call.url.split('/').at(-1)), ['admin-link', 'claim', 'admin-link']);
+
+const { openChessResultsPage } = await import('../../chessResults/openPage');
+const navigations: string[] = [];
+const popups: Array<{ opener: unknown; closed: boolean }> = [];
+(globalThis as any).window.open = (url: string, target: string) => {
+  assert.equal(url, 'about:blank');
+  assert.equal(target, '_blank');
+  const popup = {
+    opener: {},
+    closed: false,
+    location: { replace(url: string) { navigations.push(url); } },
+    close() { this.closed = true; },
+  };
+  popups.push(popup);
+  return popup;
+};
+calls.length = 0;
+const open = openChessResultsPage('1492376', 'upload');
+assert.equal(popups.length, 1, 'Open the tab synchronously while the user click is active.');
+assert.equal(popups[0].opener, null);
+await open;
+assert.equal(navigations[0], 'https://chess-results.com/UploadData.aspx?tnr=1492376' + fixtureUploadParameters);
+assert.equal(calls[0].body.timeZone, Intl.DateTimeFormat().resolvedOptions().timeZone);
+adminLinkOverride = 'https://example.invalid/UploadData.aspx?tnr=1492376' + fixtureUploadParameters;
+await assert.rejects(openChessResultsPage('1492376', 'upload'), /invalid authenticated link/);
+assert.equal(popups[1].closed, true);
+assert.equal(navigations.length, 1);
+adminLinkOverride = 'https://chess-results.com/UploadData.aspx?tnr=1492376';
+await assert.rejects(openChessResultsPage('1492376', 'upload'), /invalid authenticated link/);
+assert.equal(popups[2].closed, true);
+(globalThis as any).window.open = () => null;
+calls.length = 0;
+await assert.rejects(openChessResultsPage('1492376', 'upload'), /Allow pop-ups/);
+assert.equal(calls.length, 0, 'A blocked tab should not request a privileged link.');
+
 const workspaceSource = readFileSync(resolve(process.cwd(), 'src/companion/CompanionWorkspace.tsx'), 'utf8');
 assert.match(
   workspaceSource,
-  /const openChessResultsUpload = async \(\) => \{[\s\S]*section: 'upload'[\s\S]*window\.open\(result\.url/,
+  /const openChessResultsUpload = async \(\) => \{[\s\S]*await openChessResultsPage\(tnr, 'upload'\)/,
   'Web Companion Upload Data must request a server-generated authenticated UploadData.aspx URL.'
 );
 assert.match(

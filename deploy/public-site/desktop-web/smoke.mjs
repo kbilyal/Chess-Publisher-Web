@@ -72,6 +72,85 @@ async function installCloudFixture(page) {
   });
 }
 
+const chessResultsTnr = '987654321';
+const chessResultsCalls = [];
+const chessResultsProof = 'fixture-owner-proof';
+async function installChessResultsFixture(context) {
+  await context.route('https://chess-publisher-chess-results.kyamranbilyal.workers.dev/api/chess-results/**', async route => {
+    const request = route.request();
+    const headers = {
+      'access-control-allow-origin': origin,
+      'access-control-allow-methods': 'POST, OPTIONS',
+      'access-control-allow-headers': 'Authorization, Content-Type',
+    };
+    const reply = (json, status = 200) => route.fulfill({ status, headers, json });
+    if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
+    const operation = new URL(request.url()).pathname.split('/').at(-1);
+    const body = request.postDataJSON();
+    chessResultsCalls.push({ operation, body, auth: (await request.allHeaders()).authorization });
+    if (operation === 'test') return reply({ ok: true, sidVerified: true });
+    if (operation === 'create') return reply({ ok: true, key: chessResultsTnr, ownershipProof: chessResultsProof });
+    if (operation === 'publish') {
+      if (chessResultsCalls.filter(call => call.operation === 'publish').length === 1) {
+        return reply({ ok: false, code: 'UPLOAD_FAILED', message: 'Fixture upload interrupted.' }, 502);
+      }
+      return reply({ ok: true, key: chessResultsTnr, uploaded: true });
+    }
+    if (operation === 'admin-link') {
+      const sid = 'A'.repeat(32);
+      const creator = 'B'.repeat(32);
+      const url = body.section === 'upload'
+        ? 'https://chess-results.com/UploadData.aspx?tnr=' + chessResultsTnr + '&sid=' + sid + '&sid1=' + creator + '&source=21&lan=0&time=22112026213520'
+        : 'https://chess-results.com/Stammdaten.aspx?key1=' + chessResultsTnr + '&tnr_sec=' + sid + '&luser_sec=' + creator;
+      return reply({ ok: true, key: chessResultsTnr, url });
+    }
+    return reply({ ok: false, code: 'Unexpected fixture operation' }, 404);
+  });
+  await context.route('https://chess-results.com/**', route => route.fulfill({
+    contentType: 'text/html', body: '<title>Chess-Results authenticated page fixture</title>',
+  }));
+}
+
+async function verifyChessResults(page) {
+  await installChessResultsFixture(page.context());
+  await page.locator('#tabMain').click();
+  await page.locator('#tournamentType').selectOption('test');
+  await page.locator('#tabChessResults').click();
+  await page.evaluate(() => { void testChessResultsConnection(); });
+  await page.locator('#appMessageText').filter({ hasText: 'connection test passed' }).waitFor();
+  await page.locator('#appMessageOk').click();
+  await page.locator('#crXmlPublishButton').click();
+  await page.waitForFunction(() => chessResultsState().lastError.includes('Fixture upload interrupted'));
+  assert.equal(await page.evaluate(() => chessResultsState().key), chessResultsTnr);
+  await page.locator('#crXmlPublishButton').click();
+  await page.waitForFunction(() => chessResultsState().publishCount === 1);
+
+  for (const [button, path] of [
+    ['#crXmlOpenAdminButton', '/Stammdaten.aspx'],
+    ['#crXmlOpenUploadButton', '/UploadData.aspx'],
+  ]) {
+    const [tab] = await Promise.all([page.waitForEvent('popup'), page.locator(button).click()]);
+    await tab.waitForURL(url => url.pathname === path);
+    assert.equal(await tab.evaluate(() => window.opener), null);
+    await tab.close();
+  }
+
+  assert.deepEqual(chessResultsCalls.map(call => call.operation), ['test', 'create', 'publish', 'publish', 'admin-link', 'admin-link']);
+  assert.ok(chessResultsCalls.every(call => call.auth === 'Bearer ' + token));
+  const creation = chessResultsCalls[1].body;
+  assert.equal(creation.federation, 'XXX');
+  assert.equal(creation.mode, 'test');
+  assert.ok(creation.clientId);
+  for (const call of chessResultsCalls.slice(2)) {
+    assert.equal(call.body.key, chessResultsTnr);
+    assert.equal(call.body.ownershipProof, chessResultsProof);
+  }
+  assert.match(chessResultsCalls[3].body.xml, /<chessresults>[\s\S]*<players>[\s\S]*<playerpairings>/);
+  assert.equal(chessResultsCalls.at(-1).body.section, 'upload');
+  assert.equal(await page.evaluate(() => JSON.stringify(localStorage).includes('UploadData.aspx?tnr=')), false);
+  console.log('Chess-Results Desktop workflow in Chrome passed, including failed upload retry, Admin and Upload Data.');
+}
+
 function savedResult() {
   const snapshot = [...rows.values()][0]?.snapshot;
   const tournament = snapshot?.data?.tournaments?.['Browser workflow test'];
@@ -275,6 +354,8 @@ try {
   for (const tab of ['tabMain', 'tabRegistration', 'tabPairings', 'tabStandings', 'tabSchedule', 'tabExport']) {
     await page.locator(`#${tab}`).waitFor();
   }
+  await verifyChessResults(page);
+
   await page.locator('#cpDesktopWebSignOut').click();
   await page.getByRole('heading', { name: 'ChessPublisher Web' }).waitFor();
   assert.deepEqual(
