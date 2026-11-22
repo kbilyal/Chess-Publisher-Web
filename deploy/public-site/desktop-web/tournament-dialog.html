@@ -1,0 +1,60 @@
+<!-- NEW TOURNAMENT / OPEN EXISTING -->
+<div id="createScreen" class="modal-overlay" aria-hidden="true">
+  <div class="modal-window cp-new-tournament-window" role="dialog" aria-modal="true" aria-labelledby="cpNewTournamentTitle">
+    <div id="cpNewTournamentTitle" class="modal-titlebar">Tournaments</div>
+    <div class="modal-body cp-new-tournament-body">
+      <div class="cp-web-tournament-toolbar">
+        <div class="cp-web-tournament-views" role="group" aria-label="Tournament workspace">
+          <button id="cpNewTournamentBackBtn" type="button" aria-controls="cpNewTournamentCreateWorkspace" aria-pressed="true" onclick="selectNewTournamentKind(cpNewTournamentKind,{focusName:false})">Create new</button>
+          <button id="cpNewOnlineChoice" type="button" aria-controls="cpNewTournamentOnlinePanel" aria-pressed="false" onclick="openMyOnlineTournamentsFromNewDialog()">My online tournaments</button>
+        </div>
+        <button id="cpNewLocalChoice" type="button" onclick="openLocalTournamentFromNewDialog()">Open local file…</button>
+      </div>
+
+      <form id="cpNewTournamentCreateWorkspace" onsubmit="event.preventDefault();createFirstTournament()">
+        <div id="cpNewTournamentCreatePanel">
+          <label class="cp-web-tournament-name" for="firstTournamentName">Tournament name</label>
+          <input id="firstTournamentName" class="full" autocomplete="off" placeholder="eg. My tournament">
+          <fieldset id="cpNewTournamentChoiceGrid">
+            <legend>Pairing system</legend>
+            <label>
+              <input id="cpNewSwissChoice" name="cpNewTournamentFormat" type="radio" value="swiss" checked aria-labelledby="cpWebSwissLabel" aria-describedby="cpWebSwissDetails" onchange="selectNewTournamentKind(this.value,{focusName:false})">
+              <span><strong id="cpWebSwissLabel">Swiss Dutch</strong><small id="cpWebSwissDetails">FIDE Dutch System for individual Swiss tournaments.</small></span>
+            </label>
+            <label>
+              <input id="cpNewBakuChoice" name="cpNewTournamentFormat" type="radio" value="baku" aria-labelledby="cpWebBakuLabel" aria-describedby="cpWebBakuDetails" onchange="selectNewTournamentKind(this.value,{focusName:false})">
+              <span><strong id="cpWebBakuLabel">Accelerated Baku</strong><small id="cpWebBakuDetails">FIDE Dutch with Baku acceleration from round one.</small></span>
+            </label>
+            <label>
+              <input id="cpNewRoundRobinChoice" name="cpNewTournamentFormat" type="radio" value="round-robin" aria-labelledby="cpWebBergerLabel" aria-describedby="cpWebBergerDetails" onchange="selectNewTournamentKind(this.value,{focusName:false})">
+              <span><strong id="cpWebBergerLabel">Round Robin</strong><small id="cpWebBergerDetails">FIDE Berger Tables. Pairings are set once the roster is final.</small></span>
+            </label>
+          </fieldset>
+          <div class="cp-web-tournament-submit">
+            <button id="cpNewTournamentCreateBtn" class="primary" type="submit">Create tournament</button>
+          </div>
+        </div>
+      </form>
+
+      <section id="cpNewTournamentOnlinePanel" class="hidden" aria-labelledby="cpNewOnlineChoice">
+        <div class="cp-web-tournament-online-tools">
+          <div id="cpNewOnlineState" class="muted" role="status">Loading online tournaments…</div>
+          <button id="cpNewOnlineRefreshBtn" type="button" onclick="loadMyOnlineTournamentsForNewDialog(true)">Refresh</button>
+        </div>
+        <div class="table-frame cp-new-online-table-frame">
+          <table aria-label="Online tournaments">
+            <thead><tr><th scope="col">Name</th><th scope="col">Rev.</th><th scope="col">Updated</th><th scope="col">Action</th></tr></thead>
+            <tbody id="cpNewOnlineTournamentBody"><tr><td colspan="4" class="muted">Loading…</td></tr></tbody>
+          </table>
+        </div>
+        <div id="cpNewOnlineTokenHelp" class="cp-new-online-token-help hidden">
+          Connect your Organizer Token in <b>Online &amp; Cloud</b> to open your online tournaments.
+          <button type="button" onclick="openOnlineCloudFromNewDialog()">Open Online &amp; Cloud</button>
+        </div>
+      </section>
+    </div>
+    <div class="modal-bottom cp-web-tournament-footer">
+      <button id="cpNewTournamentCancelBtn" type="button" onclick="closeNewTournamentDialog()">Cancel</button>
+    </div>
+  </div>
+</div>

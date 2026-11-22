@@ -13,6 +13,7 @@
     "requiresFinalReaudit": true
   },
   "regressionStatus": {
+    "publicAppTournamentDialog": "Browser smoke covers the tournament-name placeholder, Files → New Tournament, local file selection and online tournament opening.",
     "publicAppFastClassical": "Desktop eligibility regression runs on the generated workspace. Browser smoke covers Standard classification, schedule limits and rating export warnings.",
     "publicAppRatingExport": "TRF26 rating regression runs against the generated /app/ workspace during the site build.",
     "publicHomepageNavigation": "Deployment checks require the WEB Companion and Tournaments header links without BETA badges.",

@@ -22,4 +22,79 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
 #cloudWorkspace label:has(#cloudAutoSync) { display: none !important; }
 #cpNewTournamentOnlinePanel:not(.hidden) { display: block !important; }
 
+#createScreen .cp-new-tournament-window {
+  width: min(580px, 96vw);
+  min-width: 0;
+  max-height: 94dvh;
+  overflow: auto;
+}
+#createScreen .cp-new-tournament-body { padding: 12px 18px 18px !important; }
+.cp-web-tournament-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0 12px;
+  margin-bottom: 16px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--cp-border);
+}
+.cp-web-tournament-views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 14px;
+}
+#createScreen .cp-web-tournament-views button {
+  min-height: 36px !important;
+  height: auto !important;
+  padding: 6px 0 !important;
+  border: 0 !important;
+  border-bottom: 2px solid transparent !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  transform: none !important;
+  color: var(--cp-muted) !important;
+}
+#createScreen .cp-web-tournament-views button[aria-pressed="true"] {
+  border-bottom-color: var(--cp-accent) !important;
+  color: var(--cp-accent) !important;
+}
+#createScreen button[onclick]::before { display: none !important; }
+#cpNewTournamentCreatePanel .cp-web-tournament-name { display: block; font-weight: 600; }
+#createScreen #firstTournamentName {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 36px !important;
+  margin: 5px 0 14px;
+}
+#cpNewTournamentChoiceGrid { min-inline-size: 0; margin: 0; padding: 0; border: 0; }
+#cpNewTournamentChoiceGrid legend { margin-bottom: 3px; padding: 0; font-weight: 600; }
+#cpNewTournamentChoiceGrid label {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--cp-border);
+  cursor: pointer;
+}
+#cpNewTournamentChoiceGrid input[type="radio"] { margin: 2px 0 0; accent-color: var(--cp-accent); }
+#cpNewTournamentChoiceGrid label small { display: block; margin-top: 2px; color: var(--cp-muted); }
+.cp-web-tournament-submit { display: flex; justify-content: flex-end; margin-top: 14px; }
+.cp-web-tournament-online-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+#createScreen .cp-new-online-table-frame { height: auto; max-height: 250px; overflow: auto; }
+#createScreen .cp-new-online-table-frame:has(td[colspan]) { display: none; }
+#createScreen .cp-new-online-table-frame th:last-child,
+#createScreen .cp-new-online-table-frame td:last-child { text-align: end; }
+.cp-new-online-token-help { margin-top: 8px; }
+#createScreen .cp-web-tournament-footer:has(button.hidden) { display: none !important; }
+
+
 #tieBreakCheckerBadge, #tieBreakCheckerActionBtn, #independentCheckerBadge, #independentCheckerPrepareBtn { display: none !important; }

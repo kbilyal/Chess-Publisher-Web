@@ -14,6 +14,55 @@ def replace_once(text, before, after):
 
 # Windows behavior stays in the pinned source. Only the browser artifact gets
 # an account-scoped storage namespace and an authoritative local engine adapter.
+dialog = re.search(
+    r'<!-- NEW TOURNAMENT / OPEN EXISTING -->.*?<style id="cpNewTournamentLayoutStyle">.*?</style>',
+    html,
+    re.DOTALL,
+)
+if not dialog:
+    raise SystemExit("Unable to locate the desktop tournament dialog.")
+html = replace_once(
+    html, dialog.group(), Path(__file__).with_name("tournament-dialog.html").read_text(encoding="utf-8").rstrip(),
+)
+html = replace_once(
+    html,
+    '    const el=document.getElementById(id);el?.classList.remove("cp-selected");el?.setAttribute("aria-checked","false");',
+    '    const el=document.getElementById(id);if(el)el.checked=false;',
+)
+html = replace_once(
+    html,
+    '    el?.classList.toggle("cp-selected",selected);el?.setAttribute("aria-checked",selected?"true":"false");',
+    '    if(el)el.checked=selected;',
+)
+format_copy = re.search(
+    r'  const title=document.getElementById\("cpNewTournamentKindTitle"\);.*?(?=  if\(options\?\.focusName)',
+    html,
+    re.DOTALL,
+)
+if not format_copy:
+    raise SystemExit("Unable to locate the desktop tournament format labels.")
+html = replace_once(html, format_copy.group(), "")
+html = replace_once(
+    html,
+    '  document.getElementById("cpNewTournamentBackBtn")?.classList.add("hidden");\n  const map=',
+    '''  document.getElementById("cpNewTournamentBackBtn")?.setAttribute("aria-pressed","true");
+  document.getElementById("cpNewOnlineChoice")?.setAttribute("aria-pressed","false");
+  const map=''',
+)
+html = replace_once(
+    html,
+    '  document.getElementById("cpNewTournamentBackBtn")?.classList.add("hidden");\n  document.getElementById("cpNewOnlineTokenHelp")',
+    '  document.getElementById("cpNewOnlineTokenHelp")',
+)
+html = replace_once(html, '  cpNewTournamentKind="online";\n', "")
+html = replace_once(
+    html,
+    '  document.getElementById("cpNewTournamentBackBtn")?.classList.remove("hidden");',
+    '''  document.getElementById("cpNewTournamentBackBtn")?.setAttribute("aria-pressed","false");
+  document.getElementById("cpNewOnlineChoice")?.setAttribute("aria-pressed","true");''',
+)
+html = replace_once(html, 'document.getElementById("cpNewSwissChoice")?.focus()', 'document.getElementById("cpNewLocalChoice")?.focus()')
+
 html = re.sub(r"\b(?:window\.)?localStorage\.", "window.cpWebStorage.", html)
 html = html.replace('return location.protocol==="http:" && location.hostname==="127.0.0.1";', "return false;")
 html = html.replace("indexedDB.open(", "window.cpWebDatabase.open(")

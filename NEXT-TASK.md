@@ -1,5 +1,7 @@
 # Next Task — TRF Full Parity (Integration Gate G)
 
+Keep startup and Files → New Tournament on the same public /app/ chooser when updating the pinned workspace source.
+
 The public /app/ build includes Fast Classical eligibility checks in the rating export preflight. Keep the same desktop rules and TRF26 time-control encoding when updating the pinned workspace source.
 
 The public /app/ shares the desktop rating export regression. FIDE Rating Server acceptance remains a separate federation submission check.
