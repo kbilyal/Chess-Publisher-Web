@@ -844,3 +844,46 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
     flex-wrap: wrap;
   }
 }
+
+
+/* Compact hierarchy polish from the approved static preview. */
+#registration #cpPlayersRatingDataBox .cp-reg-import-players {
+  background: #fff !important;
+  border: 1px solid #93b4e8 !important;
+  color: #0f3d91 !important;
+  font-weight: 600 !important;
+}
+#registration #cpPlayersRatingDataBox #btnAutoUpdateFide {
+  background: #eef4ff !important;
+  border: 1px solid #7ea8eb !important;
+  color: #0f3d91 !important;
+  font-weight: 600 !important;
+}
+#registration #cpPlayersRatingDataBox #btnUpdateRegisteredFromFide {
+  background: #f8fafc !important;
+  border-color: #d8dee6 !important;
+  color: #5a6778 !important;
+  font-weight: 500 !important;
+}
+#registration .cp-reg-rating-control-bar .cp-reg-rating-seg-btn.active {
+  background: #0f3d91 !important;
+  color: #fff !important;
+}
+#registration .cp-reg-fide-search-hint {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  border-bottom: 1px solid #f1f5f9;
+  background: #f8fafc;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: #7c899b;
+}
+#registration #startingRankBox > .cp-reg-subbar:not(.cp-reg-subbar-muted) {
+  box-sizing: border-box;
+  flex: 0 0 auto !important;
+  min-height: 42px;
+  padding: 7px 10px;
+  align-items: center;
+}
