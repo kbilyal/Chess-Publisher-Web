@@ -434,6 +434,13 @@ try {
   await fresh.locator('#main').waitFor();
   assert.equal(await fresh.locator('#mainTournamentSelect').inputValue(), 'Baku test');
   await fresh.locator('#tabRegistration').click();
+  // A newly opened tournament also starts in the approved compact mode.
+  const bakuManualDisclosure = fresh.locator('.cp-reg-manual-collapse-btn');
+  await bakuManualDisclosure.waitFor();
+  if (await bakuManualDisclosure.getAttribute('aria-expanded') === 'false') {
+    await bakuManualDisclosure.click();
+  }
+  await fresh.locator('#manualName').waitFor({ state: 'visible' });
   for (const name of ['Baku One', 'Baku Two', 'Baku Three', 'Baku Four', 'Baku Five', 'Baku Six']) {
     await fresh.locator('#manualName').fill(name);
     await fresh.locator('#manualAddPlayerBtn').click();
