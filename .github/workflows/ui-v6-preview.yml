@@ -48,6 +48,7 @@ jobs:
           import React from 'react';
           import { createRoot } from 'react-dom/client';
           import { CompanionWorkspace } from './src/companion/CompanionWorkspace.tsx';
+          import { OnlineCloudProvider } from './src/cloud/OnlineCloudProviderV2.tsx';
           import { createInitialEmptyTournament } from './src/data/initialData.ts';
           import './src/index.css';
           import './src/companion.css';
@@ -75,7 +76,7 @@ jobs:
             openPublicPage: () => {}, returnToCloudList: async () => {}
           };
 
-          createRoot(document.getElementById('root')!).render(<CompanionWorkspace cloud={cloud} />);
+          createRoot(document.getElementById('root')!).render(<OnlineCloudProvider><CompanionWorkspace cloud={cloud} /></OnlineCloudProvider>);
           EOF
       - name: Start real Vite app
         run: |
