@@ -89,7 +89,10 @@
 
       const stripLeft = document.createElement("div");
       stripLeft.className = "cp-reg-strip-left";
-      if (importBtn) stripLeft.appendChild(importBtn);
+      if (importBtn) {
+        importBtn.classList.add("cp-reg-import-players");
+        stripLeft.appendChild(importBtn);
+      }
 
       const div1 = document.createElement("span");
       div1.className = "cp-reg-strip-divider";
