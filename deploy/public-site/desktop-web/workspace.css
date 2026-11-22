@@ -758,3 +758,89 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
   #registration .cp-reg-command-strip { align-items: flex-start; }
   #registration .cp-reg-fide-mini { white-space: normal; }
 }
+
+
+/* Final preview-alignment fixes for the inherited pinned Desktop layout.
+   The original `tools-collapsed` groupbox sets a 24px row height, which
+   clipped the new command strip even though its buttons remained in the DOM.
+   The `hidden-shell` class also loses to old high-specificity flex rules. */
+#registration #cpPlayersRatingDataBox.groupbox {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  flex: 0 0 auto !important;
+  height: auto !important;
+  max-height: none !important;
+  min-height: 42px !important;
+  overflow: hidden !important;
+}
+#registration #cpPlayersRatingDataBox > .cp-reg-command-strip {
+  box-sizing: border-box;
+  display: flex !important;
+  flex: 0 0 auto !important;
+  width: 100% !important;
+  min-width: 0;
+  min-height: 42px;
+  padding: 6px 10px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+#registration #cpPlayersRatingDataBox > .group-title.cp-reg-hidden-shell,
+#registration #cpPlayersRatingDataBox .button-cluster-grid.cp-reg-hidden-shell,
+#registration > .player-action-row.cp-reg-hidden-shell,
+#registration > .publish-strip-pro.cp-reg-hidden-shell {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+}
+#registration .cp-reg-command-strip .cp-reg-strip-left {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+#registration .cp-reg-command-strip .cp-reg-strip-right {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+#registration #registrationListsContainer {
+  flex: 1 1 auto;
+  min-height: 260px;
+}
+#registration #startingRankBox .cp-reg-subbar-muted {
+  flex-wrap: nowrap;
+  column-gap: 8px;
+}
+#registration #startingRankBox .cp-reg-subbar-muted .cp-reg-subbar-group {
+  flex-wrap: nowrap;
+  gap: 5px;
+}
+#registration #startingRankBox .cp-reg-export-segmented {
+  gap: 0;
+  padding: 2px 4px;
+  white-space: nowrap;
+}
+#registration #startingRankBox .cp-reg-export-segmented button {
+  box-shadow: none !important;
+  background: transparent !important;
+  border-color: transparent !important;
+  color: #16202e !important;
+  font-size: 11.5px;
+  font-weight: 500;
+  min-height: 24px !important;
+  height: 24px !important;
+  padding: 0 7px !important;
+}
+#registration #startingRankBox .cp-reg-export-segmented button:hover:not(:disabled) {
+  background: #fff !important;
+  border-color: #d8dee6 !important;
+}
+@media (max-width: 1200px) {
+  #registration #startingRankBox .cp-reg-subbar-muted {
+    flex-wrap: wrap;
+  }
+}
