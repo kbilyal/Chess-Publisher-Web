@@ -53,7 +53,19 @@
     if (ratingBox) {
       ratingBox.classList.add("cp-reg-drawer-collapsed");
 
-      const importBtn = qs(".player-import-toolbar button", ratingBox);
+      const originalImportBtn = qs(".player-import-toolbar button", ratingBox);
+      const importInput = document.getElementById("tournamentImportFile") ||
+        qs(".player-import-toolbar input[type=\"file\"]", ratingBox);
+      // The pinned desktop DOM sometimes uses a file input with no visible button.
+      // Provide only a cosmetic trigger for that *same* native input/handler.
+      let importBtn = originalImportBtn;
+      if (!importBtn && importInput) {
+        importBtn = document.createElement("button");
+        importBtn.type = "button";
+        importBtn.className = "primary cp-reg-import-players";
+        importBtn.textContent = "↓ Import Players";
+        importBtn.addEventListener("click", () => importInput.click());
+      }
       const updateBtn = document.getElementById("btnAutoUpdateFide");
       const reviewBtn = document.getElementById("btnUpdateRegisteredFromFide");
       const toggleBtn = document.getElementById("btnToggleRatingTools");
@@ -269,6 +281,17 @@
       searchBar.className = "cp-reg-fide-search-bar";
       if (fideSearch) searchBar.appendChild(fideSearch);
 
+      if (fideTitle) {
+        // Text-only rename. Do not replace containers or registered font controls.
+        const label = qs("span:first-child", fideTitle);
+        if (label && /FIDE Database Results/.test(label.textContent || "") && !label.children.length) {
+          label.textContent = "FIDE & Rating Lists";
+        } else {
+          const textNode = Array.from(fideTitle.childNodes).find(n =>
+            n.nodeType === 3 && /FIDE Database Results/.test(n.textContent || ""));
+          if (textNode) textNode.textContent = "FIDE & Rating Lists";
+        }
+      }
       if (fideTitle && fideTitle.nextSibling) {
         fideResultsBox.insertBefore(controlBar, fideTitle.nextSibling);
         fideResultsBox.insertBefore(searchBar, controlBar.nextSibling);
@@ -311,6 +334,10 @@
       const searchInput = document.getElementById("startingRankSearch");
       const sortMode = document.getElementById("sortMode");
       const sortTools = sortMode?.closest(".inline-tools");
+      const sortLabel = sortTools ? qs("label", sortTools) : null;
+      if (sortLabel && !sortLabel.children.length && /sort/i.test(sortLabel.textContent || "")) {
+        sortLabel.textContent = "Sort:";
+      }
       const actionRow = qs(".player-action-row", reg);
       const editBtn = actionRow ? qs('button[onclick*="editSelectedPlayer"]', actionRow) : null;
       const deleteBtn = document.getElementById("deleteSelectedPlayersBtn");
@@ -339,6 +366,9 @@
       const txtBtn = publishStrip ? qs('button[onclick*="exportParticipantsTxt"]', publishStrip) : null;
       const pdfBtn = publishStrip ? qs('button[onclick*="openStartingListExportDialog"]', publishStrip) : null;
       const xmlBtn = document.getElementById("exportPlayersXmlBtn");
+      // Compact labels only: retain buttons, IDs and original click handlers.
+      if (pdfBtn) pdfBtn.textContent = "PDF";
+      if (xmlBtn) xmlBtn.textContent = "Players XML";
 
       const row3 = document.createElement("div");
       row3.className = "cp-reg-subbar cp-reg-subbar-muted";
