@@ -8,14 +8,20 @@ on:
       - 'deploy/public-site/**'
       - 'production-web/web/chess-results-browser-adapter.js'
       - '.github/workflows/deploy-public-site.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'deploy/public-site/**'
+      - '.github/workflows/deploy-public-site.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: chess-publisher-public-site-production
-  cancel-in-progress: false
+  group: ${{ github.event_name == 'pull_request' && format('chess-publisher-public-site-pr-{0}', github.event.pull_request.number) || 'chess-publisher-public-site-production' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   validate-and-deploy:
@@ -159,6 +165,8 @@ jobs:
 
       - name: Build and test the desktop web workspace
         shell: bash
+        env:
+          CP_REG_UI_SCREENSHOT: ${{ github.event_name == 'pull_request' && format('{0}/registration-visual-parity.png', runner.temp) || '' }}
         run: |
           set -euo pipefail
           web_app=deploy/public-site/desktop-web
@@ -178,6 +186,15 @@ jobs:
           curl --fail --silent --show-error --retry 6 --retry-connrefused http://127.0.0.1:8793/app/ >/dev/null
           node "$web_app/fide-cache-smoke.mjs" http://127.0.0.1:8793/app/ "$RUNNER_TEMP/cp-preview-test" "$(command -v google-chrome)"
           node "$web_app/smoke.mjs" http://127.0.0.1:8793/app/ "$RUNNER_TEMP/cp-preview-test" "$(command -v google-chrome)"
+
+      - name: Archive screenshot of compact registration for PR review
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: chess-publisher-registration-visual-review
+          path: ${{ runner.temp }}/registration-visual-*.png
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Remove September Update homepage sections
         shell: bash

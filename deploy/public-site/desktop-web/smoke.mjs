@@ -247,11 +247,67 @@ try {
   console.log('Fast Classical review, Smart Schedule and rating export preflight passed.');
 
   await page.locator('#tabRegistration').click();
+  // The approved compact design starts with manual entry closed; expand it
+  // through its real UI control before exercising the existing player workflow.
+  const manualDisclosure = page.locator('.cp-reg-manual-collapse-btn');
+  await manualDisclosure.waitFor();
+  assert.equal(await manualDisclosure.getAttribute('aria-expanded'), 'false');
+  // Temporary fixture-only DOM geometry to investigate preview fidelity.
+  // No user data, token, or tournament snapshot is logged.
+  if (process.env.CP_REG_UI_SCREENSHOT) {
+    const layout = await page.evaluate(() => {
+      const inspect = selector => Array.from(document.querySelectorAll(selector)).slice(0, 5).map(el => {
+        const cs = getComputedStyle(el);
+        const r = el.getBoundingClientRect();
+        return { tag: el.tagName, id: el.id, className: typeof el.className === 'string' ? el.className.slice(0, 120) : '',
+          text: (el.innerText || '').slice(0, 110), display: cs.display, visibility: cs.visibility,
+          width: Math.round(r.width), height: Math.round(r.height),
+          parent: el.parentElement?.id || el.parentElement?.className?.slice?.(0, 60) || '' };
+      });
+      return {
+        groups: Array.from(document.querySelectorAll('#registration > *')).map(el =>
+          ({ id: el.id, cls: typeof el.className === 'string' ? el.className.slice(0, 100) : '', text: (el.innerText || '').slice(0, 85) })),
+        selectors: Object.fromEntries([
+          '#cpPlayersRatingDataBox', '#cpPlayersRatingDataBox > *', '.cp-reg-command-strip',
+          '.cp-reg-strip-left', '.cp-reg-strip-right', '.cp-reg-fide-mini',
+          '#btnAutoUpdateFide', '#btnToggleRatingTools', '#btnUpdateRegisteredFromFide',
+          '#cpRatingListLibraryStatus', '.player-import-toolbar',
+          '#registration #fideResultsBox', '#registration #startingRankBox',
+          '#registration .rating-control-bar', '#registration .publish-strip-pro',
+          '#registration .cp-reg-subbar', '#registration .fide-results-title'
+        ].map(k => [k, inspect(k)])),
+      };
+    });
+    console.log('REGISTRATION_LAYOUT_INSPECTION=' + JSON.stringify(layout));
+  }
+  // Optional non-production visual evidence, at the approved preview viewport.
+  // The browser returns to its previous viewport before functional checks.
+  if (process.env.CP_REG_UI_SCREENSHOT) {
+    const originalViewport = page.viewportSize();
+    await page.setViewportSize({ width: 1696, height: 896 });
+    await page.screenshot({ path: process.env.CP_REG_UI_SCREENSHOT });
+    if (originalViewport) await page.setViewportSize(originalViewport);
+  }
+  await manualDisclosure.click();
+  assert.equal(await manualDisclosure.getAttribute('aria-expanded'), 'true');
+  assert.equal(await page.locator('#manualName').isVisible(), true);
   for (const name of ['Alpha One', 'Beta Two', 'Gamma Three', 'Delta Four']) {
     await page.locator('#manualName').fill(name);
     await page.locator('#manualAddPlayerBtn').click();
     await page.waitForFunction(expected => getCurrentTournament().players.some(player => player.name === expected), name);
     await page.evaluate(() => cpFlushPersistence());
+  }
+  // Second screenshot uses real registered test players instead of mock preview
+  // data. Restore viewport and use the disclosure control like an organizer.
+  if (process.env.CP_REG_UI_SCREENSHOT) {
+    const disclosure = page.locator('.cp-reg-manual-collapse-btn');
+    if (await disclosure.getAttribute('aria-expanded') === 'true') await disclosure.click();
+    const previousViewport = page.viewportSize();
+    await page.setViewportSize({ width: 1696, height: 896 });
+    await page.screenshot({
+      path: process.env.CP_REG_UI_SCREENSHOT.replace(/\.png$/, '-with-players.png')
+    });
+    if (previousViewport) await page.setViewportSize(previousViewport);
   }
 
   await page.evaluate(async () => {
@@ -418,6 +474,13 @@ try {
   await fresh.locator('#main').waitFor();
   assert.equal(await fresh.locator('#mainTournamentSelect').inputValue(), 'Baku test');
   await fresh.locator('#tabRegistration').click();
+  // A newly opened tournament also starts in the approved compact mode.
+  const bakuManualDisclosure = fresh.locator('.cp-reg-manual-collapse-btn');
+  await bakuManualDisclosure.waitFor();
+  if (await bakuManualDisclosure.getAttribute('aria-expanded') === 'false') {
+    await bakuManualDisclosure.click();
+  }
+  await fresh.locator('#manualName').waitFor({ state: 'visible' });
   for (const name of ['Baku One', 'Baku Two', 'Baku Three', 'Baku Four', 'Baku Five', 'Baku Six']) {
     await fresh.locator('#manualName').fill(name);
     await fresh.locator('#manualAddPlayerBtn').click();
