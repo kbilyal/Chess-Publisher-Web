@@ -189,21 +189,28 @@
       syncFideMiniSummary();
     }
 
-    /* 2. Add Player Groupbox (kept visible by default for instant access & smoke tests) */
+    /* 2. Manual player entry: preview-matching compact disclosure.
+       The original form, field IDs and event handlers are retained intact. */
     const manualAddBtn = document.getElementById("manualAddPlayerBtn");
     const manualBox = manualAddBtn?.closest(".groupbox");
     if (manualBox) {
-      manualBox.classList.add("cp-reg-manual-box");
+      manualBox.classList.add("cp-reg-manual-box", "cp-reg-manual-collapsed");
       const mTitle = qs(":scope > .group-title", manualBox);
       if (mTitle && !qs(".cp-reg-manual-collapse-btn", mTitle)) {
+        const hint = document.createElement("span");
+        hint.className = "cp-reg-manual-hint";
+        hint.textContent = "— add unrated or unlisted player directly to Starting Rank List";
+        mTitle.appendChild(hint);
         const mToggle = document.createElement("button");
         mToggle.type = "button";
         mToggle.className = "cp-reg-manual-collapse-btn";
-        mToggle.textContent = "▲ Hide";
+        mToggle.textContent = "Show Form ▾";
         mToggle.title = "Collapse or expand manual player entry form";
+        mToggle.setAttribute("aria-expanded", "false");
         mToggle.addEventListener("click", () => {
           const isHidden = manualBox.classList.toggle("cp-reg-manual-collapsed");
-          mToggle.textContent = isHidden ? "▾ Show Form" : "▲ Hide";
+          mToggle.textContent = isHidden ? "Show Form ▾" : "Hide Form ▴";
+          mToggle.setAttribute("aria-expanded", String(!isHidden));
         });
         mTitle.appendChild(mToggle);
       }
