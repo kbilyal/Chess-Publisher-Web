@@ -523,3 +523,238 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
     grid-template-columns: 1fr;
   }
 }
+
+
+/* ==========================================================================
+   Lists & Players · screenshot-aligned cosmetic shell (preview v1.06.00)
+   Presentation only: no tournament, FIDE, pairing, TPN or cloud state changes.
+   All rules are scoped to #registration so other application tabs keep their
+   existing behavior and design.
+   ========================================================================== */
+#registration.page.active {
+  --cp-reg-surface: #ffffff;
+  --cp-reg-border: #d8dee6;
+  --cp-reg-muted: #5a6778;
+  --cp-reg-ink: #16202e;
+  --cp-reg-blue: #0f3d91;
+  box-sizing: border-box;
+  min-height: 0;
+  overflow: hidden;
+  padding: 10px 14px 12px !important;
+  background: #f3f5f8;
+  color: var(--cp-reg-ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 13px;
+}
+#registration #cpPlayersRatingDataBox,
+#registration .cp-reg-manual-box,
+#registration #fideResultsBox,
+#registration #startingRankBox {
+  background: var(--cp-reg-surface);
+  border: 1px solid var(--cp-reg-border);
+  border-radius: 7px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .05);
+}
+#registration .cp-reg-command-strip {
+  padding: 7px 10px;
+  gap: 10px;
+  min-height: 42px;
+}
+#registration .cp-reg-fide-mini {
+  font-size: 12px;
+  font-weight: 500;
+}
+#registration .cp-reg-command-strip button,
+#registration .cp-reg-subbar button,
+#registration .cp-reg-pane-head-right button,
+#registration .cp-reg-rating-control-bar button,
+#registration .cp-reg-manual-collapse-btn {
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.2;
+  min-height: 28px;
+  border-radius: 5px;
+  box-shadow: none;
+}
+#registration .cp-reg-command-strip button:not(:disabled):not(:hover),
+#registration .cp-reg-subbar button:not(:disabled):not(:hover) {
+  transform: none;
+}
+#registration .cp-reg-command-strip #btnAutoUpdateFide {
+  background: #eef4ff;
+  border-color: #7ea8eb;
+  color: var(--cp-reg-blue);
+  font-weight: 600;
+}
+#registration .cp-reg-command-strip #btnUpdateRegisteredFromFide {
+  background: #f8fafc;
+  border-color: var(--cp-reg-border);
+  color: var(--cp-reg-muted);
+  font-weight: 500;
+}
+#registration .cp-reg-manual-box {
+  padding: 0 !important;
+  flex: 0 0 auto;
+  overflow: hidden;
+}
+#registration .cp-reg-manual-box > .group-title {
+  position: static !important;
+  box-sizing: border-box;
+  min-height: 36px;
+  width: 100% !important;
+  padding: 6px 10px !important;
+  margin: 0 !important;
+  border: 0;
+  background: #fff;
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cp-reg-ink);
+}
+#registration .cp-reg-manual-hint {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  font-weight: 400;
+  color: #7c899b;
+}
+#registration .cp-reg-manual-collapse-btn {
+  margin-left: auto;
+  flex: 0 0 auto;
+  padding: 0 9px;
+  min-height: 26px !important;
+  color: var(--cp-reg-muted);
+  background: #f8fafc;
+  border: 1px solid var(--cp-reg-border);
+}
+#registration .cp-reg-manual-box:not(.cp-reg-manual-collapsed) > .toolbar {
+  padding: 10px;
+  margin: 0;
+  background: #f8fafc;
+  border-top: 1px solid var(--cp-reg-border);
+}
+#registration #registrationListsContainer {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: stretch;
+  min-height: 260px;
+  gap: 0;
+  overflow: hidden;
+}
+#registration #fideResultsBox {
+  width: 38%;
+  flex: 0 1 auto;
+  min-width: 260px;
+}
+#registration #startingRankBox {
+  flex: 1 1 0;
+  min-width: 420px;
+}
+#registration #registrationSplitter {
+  flex: 0 0 10px;
+  width: 10px;
+}
+#registration #fideResultsBox > .fide-results-title,
+#registration #startingRankBox > .group-title {
+  min-height: 43px;
+  padding: 8px 10px !important;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--cp-reg-ink);
+}
+#registration .cp-reg-rating-control-bar {
+  padding: 6px 10px;
+  min-height: 37px;
+}
+#registration .cp-reg-fide-search-bar {
+  padding: 7px 10px;
+}
+#registration #fideSearch,
+#registration #startingRankSearch,
+#registration #sortMode {
+  box-sizing: border-box;
+  height: 28px;
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid #c2cbd6;
+  border-radius: 5px;
+  background: #fff;
+  color: var(--cp-reg-ink);
+  font-family: inherit;
+  font-size: 12.5px;
+}
+#registration #fideSearch:focus,
+#registration #startingRankSearch:focus,
+#registration #sortMode:focus {
+  border-color: #1d64d8;
+  outline: 2px solid rgba(29, 100, 216, .14);
+  outline-offset: 0;
+}
+#registration .cp-reg-subbar {
+  padding: 7px 10px;
+  min-height: 42px;
+}
+#registration .cp-reg-subbar-muted { background: #f8fafc; }
+#registration .cp-reg-export-segmented {
+  background: #f8fafc;
+  border-color: var(--cp-reg-border);
+}
+#registration #startingRankBox .table-frame {
+  min-height: 0;
+  overflow: auto;
+  background: #fff;
+}
+#registration #startingRankBox thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 7px 9px;
+  background: #f8fafc;
+  border-bottom: 1px solid var(--cp-reg-border);
+  color: var(--cp-reg-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+#registration #startingRankBox tbody td {
+  padding: 6px 9px;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 12.5px;
+  vertical-align: middle;
+}
+#registration #startingRankBox tbody tr:hover { background: #f8fafc; }
+#registration #fideResults {
+  min-height: 0;
+  padding: 4px 6px;
+  background: #fff;
+}
+@media (max-width: 1100px) {
+  #registration.page.active { overflow: auto; }
+  #registration #registrationListsContainer {
+    flex-direction: column;
+    overflow: visible;
+    min-height: 520px;
+  }
+  #registration #fideResultsBox {
+    flex: 0 0 220px;
+    width: 100% !important;
+    min-width: 0;
+  }
+  #registration #startingRankBox {
+    min-width: 0;
+    min-height: 320px;
+  }
+  #registration #registrationSplitter { display: none !important; }
+}
+@media (max-width: 700px) {
+  #registration.page.active { padding: 8px !important; }
+  #registration .cp-reg-manual-hint { display: none; }
+  #registration .cp-reg-command-strip { align-items: flex-start; }
+  #registration .cp-reg-fide-mini { white-space: normal; }
+}
