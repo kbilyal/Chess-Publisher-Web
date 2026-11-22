@@ -209,6 +209,10 @@
       manualBox.classList.add("cp-reg-manual-box", "cp-reg-manual-collapsed");
       const mTitle = qs(":scope > .group-title", manualBox);
       if (mTitle && !qs(".cp-reg-manual-collapse-btn", mTitle)) {
+        // Rename only the visible text. Keep the desktop group and its inputs.
+        const mText = Array.from(mTitle.childNodes).find(node =>
+          node.nodeType === 3 && /Add Player/i.test(node.textContent || ""));
+        if (mText) mText.textContent = "▸ + Manual Player Entry";
         const hint = document.createElement("span");
         hint.className = "cp-reg-manual-hint";
         hint.textContent = "— add unrated or unlisted player directly to Starting Rank List";
@@ -221,6 +225,7 @@
         mToggle.setAttribute("aria-expanded", "false");
         mToggle.addEventListener("click", () => {
           const isHidden = manualBox.classList.toggle("cp-reg-manual-collapsed");
+          if (mText) mText.textContent = isHidden ? "▸ + Manual Player Entry" : "▾ + Manual Player Entry";
           mToggle.textContent = isHidden ? "Show Form ▾" : "Hide Form ▴";
           mToggle.setAttribute("aria-expanded", String(!isHidden));
         });
@@ -299,6 +304,10 @@
         fideResultsBox.prepend(searchBar);
         fideResultsBox.prepend(controlBar);
       }
+      const fideSearchHint = document.createElement("div");
+      fideSearchHint.className = "cp-reg-fide-search-hint";
+      fideSearchHint.textContent = "Double-click any player below to add to Starting Rank List";
+      searchBar.insertAdjacentElement("afterend", fideSearchHint);
       syncSegmentedRatingUI();
     }
 
