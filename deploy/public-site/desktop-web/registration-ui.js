@@ -29,12 +29,10 @@
     if (std) parts.push(`STD ${std}`);
     if (rpd) parts.push(`RPD ${rpd}`);
     if (blz) parts.push(`BLZ ${blz}`);
-    if (parts.length) {
-      el.textContent = `FIDE ${date ? date + " · " : ""}${parts.join(" · ")}`;
-    } else {
-      const autoText = (qs("#fideAutoStatus")?.textContent || "").trim();
-      el.textContent = autoText || "FIDE Rating DB";
-    }
+    const next = parts.length
+      ? `FIDE ${date ? date + " · " : ""}${parts.join(" · ")}`
+      : ((qs("#fideAutoStatus")?.textContent || "").trim() || "FIDE Rating DB");
+    if (el.textContent !== next) el.textContent = next;
   }
 
   function syncResortButtonHighlight() {
@@ -377,32 +375,39 @@
     }
 
     /* 5. Lightweight observer for late-injected elements & status updates */
+    const obsOpts = { childList: true, subtree: true, characterData: true };
     const observer = new MutationObserver(() => {
-      syncFideMiniSummary();
-      syncResortButtonHighlight();
-      syncSegmentedRatingUI();
+      // Disconnect around our own DOM sync so mutations never cascade synchronously.
+      observer.disconnect();
+      try {
+        syncFideMiniSummary();
+        syncResortButtonHighlight();
+        syncSegmentedRatingUI();
 
-      const tpnGroup = qs(".cp-reg-tpn-group", reg);
-      if (tpnGroup) {
-        ["cpRrTpnDrawBtn", "cpTpnExchangeBtn"].forEach(id => {
-          const b = document.getElementById(id);
-          if (b && b.parentElement !== tpnGroup) tpnGroup.appendChild(b);
-        });
-      }
+        const tpnGroup = qs(".cp-reg-tpn-group", reg);
+        if (tpnGroup) {
+          ["cpRrTpnDrawBtn", "cpTpnExchangeBtn"].forEach(id => {
+            const b = document.getElementById(id);
+            if (b && b.parentElement !== tpnGroup) tpnGroup.appendChild(b);
+          });
+        }
 
-      const startingTable = qs("#startingRankBox .table-frame", reg);
-      const lateBar = document.getElementById("cpR11LateEntryBar");
-      if (lateBar && startingTable && lateBar.parentElement !== startingTable.parentElement) {
-        startingTable.parentElement.insertBefore(lateBar, startingTable);
-      }
+        const startingTable = qs("#startingRankBox .table-frame", reg);
+        const lateBar = document.getElementById("cpR11LateEntryBar");
+        if (lateBar && startingTable && lateBar.parentElement !== startingTable.parentElement) {
+          startingTable.parentElement.insertBefore(lateBar, startingTable);
+        }
 
-      const fideDrawer = qs(".cp-reg-fide-drawer-body", reg);
-      const panel = document.getElementById("integratedRatingListsPanel");
-      if (panel && fideDrawer && panel.parentElement !== fideDrawer) {
-        fideDrawer.prepend(panel);
+        const fideDrawer = qs(".cp-reg-fide-drawer-body", reg);
+        const panel = document.getElementById("integratedRatingListsPanel");
+        if (panel && fideDrawer && panel.parentElement !== fideDrawer) {
+          fideDrawer.prepend(panel);
+        }
+      } finally {
+        observer.observe(reg, obsOpts);
       }
     });
-    observer.observe(reg, { childList: true, subtree: true, characterData: true });
+    observer.observe(reg, obsOpts);
   }
 
   if (document.readyState === "loading") {
