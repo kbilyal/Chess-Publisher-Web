@@ -247,6 +247,13 @@ try {
   console.log('Fast Classical review, Smart Schedule and rating export preflight passed.');
 
   await page.locator('#tabRegistration').click();
+  // The approved compact design starts with manual entry closed; expand it
+  // through its real UI control before exercising the existing player workflow.
+  const manualDisclosure = page.locator('.cp-reg-manual-collapse-btn');
+  await manualDisclosure.waitFor();
+  assert.equal(await manualDisclosure.getAttribute('aria-expanded'), 'false');
+  await manualDisclosure.click();
+  assert.equal(await manualDisclosure.getAttribute('aria-expanded'), 'true');
   for (const name of ['Alpha One', 'Beta Two', 'Gamma Three', 'Delta Four']) {
     await page.locator('#manualName').fill(name);
     await page.locator('#manualAddPlayerBtn').click();
