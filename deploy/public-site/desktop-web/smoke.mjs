@@ -297,6 +297,18 @@ try {
     await page.waitForFunction(expected => getCurrentTournament().players.some(player => player.name === expected), name);
     await page.evaluate(() => cpFlushPersistence());
   }
+  // Second screenshot uses real registered test players instead of mock preview
+  // data. Restore viewport and use the disclosure control like an organizer.
+  if (process.env.CP_REG_UI_SCREENSHOT) {
+    const disclosure = page.locator('.cp-reg-manual-collapse-btn');
+    if (await disclosure.getAttribute('aria-expanded') === 'true') await disclosure.click();
+    const previousViewport = page.viewportSize();
+    await page.setViewportSize({ width: 1696, height: 896 });
+    await page.screenshot({
+      path: process.env.CP_REG_UI_SCREENSHOT.replace(/\.png$/, '-with-players.png')
+    });
+    if (previousViewport) await page.setViewportSize(previousViewport);
+  }
 
   await page.evaluate(async () => {
     const tournament = getCurrentTournament();
