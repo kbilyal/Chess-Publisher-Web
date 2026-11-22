@@ -192,7 +192,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: chess-publisher-registration-visual-review
-          path: ${{ runner.temp }}/registration-visual-parity.png
+          path: ${{ runner.temp }}/registration-visual-*.png
           if-no-files-found: error
           retention-days: 7
 
