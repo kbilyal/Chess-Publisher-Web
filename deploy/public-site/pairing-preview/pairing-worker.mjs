@@ -2,6 +2,13 @@ import { loadPyodide } from './runtime/pyodide.mjs';
 import { PairingError, parsePairingOutput, preparePairing, version } from './pairing-format.mjs';
 
 let runtime;
+function toLatin1Bytes(text) {
+  return Uint8Array.from(String(text), char => {
+    const code = char.charCodeAt(0);
+    return code <= 0xff ? code : 0x3f;
+  });
+}
+
 async function loadRuntime() {
   const pythonReady = loadPyodide({
     indexURL: new URL('./runtime/', import.meta.url).href,
@@ -57,7 +64,7 @@ async function draw(payload) {
   ]);
   const runPairing = python.globals.get('run_pairing');
   try {
-    python.FS.writeFile(input, Uint8Array.from(trf, char => char.charCodeAt(0)));
+    python.FS.writeFile(input, toLatin1Bytes(trf));
     function run() {
       let code;
       try {
@@ -84,7 +91,7 @@ async function draw(payload) {
       const end = 91 + 10 * (round - 1);
       const checked = trf.split(/\r?\n/).map(line => line.startsWith('001')
         ? line.slice(0, end) + blocks.get(Number(line.slice(4, 8))) : line).join('\r\n');
-      python.FS.writeFile(input, Uint8Array.from(checked, char => char.charCodeAt(0)));
+      python.FS.writeFile(input, toLatin1Bytes(checked));
       const checkArgs = python.toPy(['-c','-m','dutch','-i',input,'-o',output,'-f','TRF','-F','JSON',
         '-n',String(round),'-N',String(rounds),'-t',topColor,'-x','weighted','-d','T']);
       try {
@@ -108,12 +115,12 @@ async function checkStandings(req) {
   const input = '/standings.trf', output = '/standings.txt';
   const args = ['-i',input,'-o',output,'-f','TRF','-F','TXT','-n',String(req.round),
     '-c','-r','-d','T',req.mode === 'rr' ? '-p' : '-s'];
-  if (req.tieBreaks) args.push('-t', ...req.tieBreaks);
+  if (Array.isArray(req.tieBreaks) && req.tieBreaks.length) args.push('-t', ...req.tieBreaks);
   if (req.unratedRating != null) args.push('-u',String(req.unratedRating));
   const argv = python.toPy(args);
   const checker = python.globals.get('run_pairing');
   try {
-    python.FS.writeFile(input, Uint8Array.from(req.trf, char => char.charCodeAt(0)));
+    python.FS.writeFile(input, toLatin1Bytes(req.trf));
     if (checker(argv,true) !== 0) throw new Error('Gacrux could not read the standings.');
     const lines = python.FS.readFile(output,{encoding:'utf8'}).trim().split(/\r?\n/);
     const header = lines.shift().split('\t');

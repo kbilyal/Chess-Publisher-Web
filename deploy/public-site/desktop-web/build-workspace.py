@@ -119,9 +119,37 @@ html = replace_once(
   if(cloud) for(const tournament of Object.values(data?.tournaments||{})) cloud.ensureCloudMeta(tournament);""",
 )
 html = replace_once(
+    html, "    sequence:++cpPersistenceSequence,\n    revision:cpStateRevision,\n    showStatus:!!showStatus,\n    force:!!force,\n    snapshot,\n    saveContext,\n    capturedAt:new Date().toISOString()",
+    """    sequence:++cpPersistenceSequence,
+    revision:cpStateRevision,
+    showStatus:!!showStatus,
+    force:!!force,
+    snapshot,
+    saveContext,
+    skipCloudAutosave:!!(window.__cpWebSuppressAutosaveQueue>0),
+    capturedAt:new Date().toISOString()""",
+)
+html = replace_once(
     html, '    if((!force || window.cpDesktopWebAllowed) && !idbOk && !localOk && !managedFileOk) throw new Error("All available save locations failed.");',
     """    if((!force || window.cpDesktopWebAllowed) && !idbOk && !localOk && !managedFileOk) throw new Error("All available save locations failed.");
-    if(globalSnapshotCurrent && (idbOk || localOk || managedFileOk)) window.cpWebQueueAutosave?.(snapshot);""",
+    if(!job.skipCloudAutosave && globalSnapshotCurrent && (idbOk || localOk || managedFileOk)) window.cpWebQueueAutosave?.(snapshot);""",
+)
+html = replace_once(
+    html, '    try{window.cpWebStorage.setItem(STORAGE_KEY,JSON.stringify(data));}catch(err){console.warn("Core local save after rename failed:",err);}',
+    """    try{window.cpWebStorage.setItem(STORAGE_KEY,JSON.stringify(data));}catch(err){console.warn("Core local save after rename failed:",err);}
+    if(window.cpDesktopWebAllowed){ cpStateRevision++; await writePersistentState(false,true); }""",
+)
+html = replace_once(
+    html, '  if(window.__cpOnlineCloudBusy){\n    const state=document.getElementById("cpNewOnlineState");if(state)state.textContent="Another Online & Cloud operation is still running.";\n    return false;\n  }',
+    """  await window.cpWebWaitAutosaveIdle?.();
+  if(window.__cpOnlineCloudBusy){
+    const state=document.getElementById("cpNewOnlineState");if(state)state.textContent="Another Online & Cloud operation is still running.";
+    return false;
+  }""",
+)
+html = replace_once(
+    html, '    const opened=await window.cpCloudOpenTournament(id);',
+    '    const opened=await (window.cpWebRunCloudExclusive ? window.cpWebRunCloudExclusive(()=>window.cpCloudOpenTournament(id)) : window.cpCloudOpenTournament(id));',
 )
 html = replace_once(
     html, 'if(savedNewTournament&&typeof window.cpCloudSyncCurrent==="function"){',
@@ -147,8 +175,52 @@ for relative in adapters:
     if relative == "webview/HubAdapter.js":
         js = replace_once(js, "window.chrome.webview.postMessage(payload);", "window.__cpBrowserHostBridge.postMessage(payload);")
         js = replace_once(js, 'window.chrome.webview.addEventListener("message",event=>{', 'window.__cpBrowserHostBridge.addEventListener("message",event=>{')
+        js = replace_once(
+            js, '    async function runBusy(label,action){\n      if(busy||window.__cpOnlineCloudBusy)return;',
+            '    async function runBusy(label,action){\n      await window.cpWebWaitAutosaveIdle?.();\n      if(busy||window.__cpOnlineCloudBusy)return;',
+        )
     if relative == "webview/CloudWorkspaceAdapter.js":
         js = replace_once(js, 'try{return window.cpWebStorage.getItem(AUTO_SYNC_KEY)!=="0";}catch(_){return true;}', "return true;")
+        js = replace_once(
+            js, '    async function getOrganizerToken(){',
+            '    window.cpWebOnAuthCleared?.(()=>{tokenCache="";organizerInfo=null;workspaceInfo=null;});\n    async function getOrganizerToken(){',
+        )
+        js = replace_once(
+            js, """    async function persistCurrentSyncBaseDurably(tournament,before,message){
+      if(tournament!==currentTournament()){""",
+            """    async function persistWebSyncMeta(tournament,before,message){
+      if(typeof writePersistentState!=="function"){
+        restoreCommonBase(ensureCloudMeta(tournament),before);
+        throw new Error(message||"Web storage checkpoint is unavailable.");
+      }
+      window.__cpWebSuppressAutosaveQueue=(window.__cpWebSuppressAutosaveQueue||0)+1;
+      try{
+        const saved=await writePersistentState(false,true);
+        if(!saved){
+          restoreCommonBase(ensureCloudMeta(tournament),before);
+          throw new Error(message||"Web storage checkpoint failed.");
+        }
+        return true;
+      }finally{
+        window.__cpWebSuppressAutosaveQueue=Math.max(0,(window.__cpWebSuppressAutosaveQueue||0)-1);
+      }
+    }
+
+    async function persistCurrentSyncBaseDurably(tournament,before,message){
+      if(tournament!==currentTournament()){""",
+        )
+        js = replace_once(
+            js, '    async function ensureRemoteTournament(token,name,tournament){',
+            '    async function ensureRemoteTournament(token,name,tournament,{quietWeb=false}={}){',
+        )
+        js = replace_once(
+            js, '          meta.ownerId=text(organizerInfo.id);\n          persistCloudMeta();',
+            '          meta.ownerId=text(organizerInfo.id);\n          if(!quietWeb)persistCloudMeta();',
+        )
+        js = replace_once(
+            js, '      if(!meta.cloudTournamentId)throw new Error("Cloud Workspace did not return a tournament ID.");\n      persistCloudMeta();',
+            '      if(!meta.cloudTournamentId)throw new Error("Cloud Workspace did not return a tournament ID.");\n      if(!quietWeb)persistCloudMeta();',
+        )
         js = replace_once(js, 'renderAccount();renderCurrent();startPersistenceMonitor();', 'renderAccount();renderCurrent();')
         js = replace_once(js, 'if(startupSweepDone||!autoSyncEnabled())return;', 'if(window.cpWebQueueAutosave||startupSweepDone||!autoSyncEnabled())return;')
         js = replace_once(
@@ -160,6 +232,10 @@ for relative in adapters:
             'if(!savedTournament&&name===currentName()&&typeof unified==="function"',
         )
         js = replace_once(
+            js, '          const meta=await ensureRemoteTournament(token,name,tournament);',
+            '          const meta=await ensureRemoteTournament(token,name,tournament,{quietWeb:!!savedTournament});',
+        )
+        js = replace_once(
             js, 'const snapshot=cloudScopedSnapshot(name,tournament);',
             'const snapshot=cloudScopedSnapshot(name,savedTournament?{...savedTournament,cloud:{...meta}}:tournament);',
         )
@@ -167,8 +243,60 @@ for relative in adapters:
             js, 'const contentHash=await tournamentContentHash(name,tournament);',
             'const contentHash=savedTournament?await snapshotContentHash(snapshot):await tournamentContentHash(name,tournament);',
         )
-        js = replace_once(js, '    window.cpCloudSyncAllLocal=syncAllLocal;',
+        js = replace_once(
+            js, '              if(name===currentName()){\n                await persistCurrentSyncBaseDurably(tournament,before,"Desktop and Cloud already match, but the repaired schema-7 common base could not be saved to the managed tournament file.");\n              }else{\n                persistCloudMeta();\n              }',
+            '              if(savedTournament){\n                await persistWebSyncMeta(tournament,before,"Desktop and Cloud already match, but the repaired schema-7 common base could not be saved locally.");\n              }else if(name===currentName()){\n                await persistCurrentSyncBaseDurably(tournament,before,"Desktop and Cloud already match, but the repaired schema-7 common base could not be saved to the managed tournament file.");\n              }else{\n                persistCloudMeta();\n              }',
+        )
+        js = replace_once(
+            js, '          if(name===currentName()){\n            await persistCurrentSyncBaseDurably(\n              tournament,\n              before,\n              `Cloud accepted revision ${acceptedRevision}, but the new common base could not be saved to the managed tournament file. The Cloud revision is preserved; the next SYNC will repair the base from equal schema-7 content.`\n            );\n          }else{\n            persistCloudMeta();\n          }',
+            '          if(savedTournament){\n            await persistWebSyncMeta(\n              tournament,\n              before,\n              `Cloud accepted revision ${acceptedRevision}, but the new common base could not be saved locally.`\n            );\n          }else if(name===currentName()){\n            await persistCurrentSyncBaseDurably(\n              tournament,\n              before,\n              `Cloud accepted revision ${acceptedRevision}, but the new common base could not be saved to the managed tournament file. The Cloud revision is preserved; the next SYNC will repair the base from equal schema-7 content.`\n            );\n          }else{\n            persistCloudMeta();\n          }',
+        )
+        js = replace_once(
+            js, '    async function foreground(label,fn){\n      if(window.__cpOnlineCloudBusy){',
+            '    async function foreground(label,fn){\n      await window.cpWebWaitAutosaveIdle?.();\n      if(window.__cpOnlineCloudBusy){',
+        )
+        js = replace_once(
+            js, '    window.cpCloudSyncAllLocal=syncAllLocal;',
             '    window.cpCloudSyncAllLocal=syncAllLocal;\n    window.cpWebBackupTournament=(name,savedTournament)=>syncTournamentByName(name,{quiet:true,allowPull:false,savedTournament});')
+        js = replace_once(
+            js, """          if(id==="cloudWorkspace"){
+            const hub=document.getElementById("tabHub");
+            const result=originalShowTab.call(this,"hub",hub||button);
+            setTimeout(()=>openWorkspace().catch(error=>console.warn("Cloud Workspace open:",error)),0);
+            return result;
+          }
+          const result=originalShowTab.apply(this,arguments);
+          if(id==="hub")setTimeout(()=>openWorkspace().catch(error=>console.warn("Cloud Workspace open:",error)),0);""",
+            """          if(id==="cloudWorkspace"){
+            const hub=document.getElementById("tabHub");
+            const result=originalShowTab.call(this,"hub",hub||button);
+            setTimeout(()=>(window.cpCloudWorkspaceOpen||openWorkspace)().catch(error=>console.warn("Cloud Workspace open:",error)),0);
+            return result;
+          }
+          const result=originalShowTab.apply(this,arguments);
+          if(id==="hub")setTimeout(()=>(window.cpCloudWorkspaceOpen||openWorkspace)().catch(error=>console.warn("Cloud Workspace open:",error)),0);""",
+        )
+    if relative == "webview/CloudWorkspaceRedesign.js":
+        js = replace_once(
+            js, '    async function getToken(){',
+            '    window.cpWebOnAuthCleared?.(()=>{tokenCache="";});\n    async function getToken(){',
+        )
+        js = replace_once(
+            js, '          try{await resolveMissingBaseWholeTournament(side);overlay.remove();}',
+            '          try{await (window.cpWebRunCloudExclusive?window.cpWebRunCloudExclusive(()=>resolveMissingBaseWholeTournament(side)):resolveMissingBaseWholeTournament(side));overlay.remove();}',
+        )
+        js = replace_once(
+            js, 'if(btn.dataset.action==="save"){btn.disabled=true;try{await saveResolvedConflict(choices);overlay.remove();}',
+            'if(btn.dataset.action==="save"){btn.disabled=true;try{await (window.cpWebRunCloudExclusive?window.cpWebRunCloudExclusive(()=>saveResolvedConflict(choices)):saveResolvedConflict(choices));overlay.remove();}',
+        )
+        js = replace_once(
+            js, '        sync.addEventListener("click",()=>syncCurrentFromList().catch(async error=>{',
+            '        sync.addEventListener("click",()=>(window.cpWebRunCloudExclusive?window.cpWebRunCloudExclusive(()=>syncCurrentFromList()):syncCurrentFromList()).catch(async error=>{',
+        )
+        js = replace_once(
+            js, '          openCloudRowSafely(btn.dataset.cloudId).catch(async error=>{',
+            '          (window.cpWebRunCloudExclusive?window.cpWebRunCloudExclusive(()=>openCloudRowSafely(btn.dataset.cloudId)):openCloudRowSafely(btn.dataset.cloudId)).catch(async error=>{',
+        )
     target = output / relative
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(js, encoding="utf-8")

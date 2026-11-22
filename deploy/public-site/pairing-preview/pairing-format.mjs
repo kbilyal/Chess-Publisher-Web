@@ -1,7 +1,11 @@
 export const version = '1.11.65';
 export const maxTrfBytes = 512 * 1024;
 const dutch = '192 FIDE_DUTCH_2025';
-const dutchCodes = new Set(['', 'FIDE_DUTCH_2025', 'FIDE_DUTCH_2022', 'FIDE_DUTCH', 'DUTCH']);
+const dutchBaku = '192 FIDE_DUTCH_2025_BAKU';
+const dutchCodes = new Set([
+  '', 'FIDE_DUTCH_2026', 'FIDE_DUTCH_2025', 'FIDE_DUTCH_2022', 'FIDE_DUTCH_2017', 'FIDE_DUTCH', 'DUTCH',
+  'FIDE_DUTCH_2026_BAKU', 'FIDE_DUTCH_2025_BAKU', 'FIDE_DUTCH_2017_BAKU', 'FIDE_DUTCH_BAKU'
+]);
 
 export class PairingError extends Error {
   constructor(status, code, message) {
@@ -30,15 +34,19 @@ export function preparePairing({ trf, round, rounds, topColor = 'W', unpaired = 
   const historyEnd = 91 + (round - 1) * 10;
   let insertion = -1;
   let fileTopColor;
+  let baku = false;
   for (const line of trf.split(/\r\n|\n|\r/)) {
     if (!line.trim()) continue;
     if (!/^\d{3}(?:[ \t]|$)/.test(line)) throw invalid('Found a TRF record without a valid record number.');
     if (/^192(?:\s|$)/.test(line)) {
-      if (!dutchCodes.has(line.slice(3).trim().toUpperCase())) {
+      const code = line.slice(3).trim().toUpperCase();
+      if (!dutchCodes.has(code)) {
         throw invalid('This pairing preview supports FIDE Dutch.');
       }
+      if (code.endsWith('_BAKU')) baku = true;
       continue;
     }
+    if (/^250(?:\s|$)/.test(line)) baku = true;
     if (/^152(?:\s|$)/.test(line)) {
       const colour = line.slice(3).trim().toUpperCase();
       if (!['W', 'B'].includes(colour) || (fileTopColor && colour !== fileTopColor)) {
@@ -65,7 +73,7 @@ export function preparePairing({ trf, round, rounds, topColor = 'W', unpaired = 
   const excluded = [...new Set(unpaired)].sort((first, second) => first - second);
   if (players.size - excluded.length < 2) throw invalid('At least two players must be eligible for pairing.');
   const initialColour = round > 1 && fileTopColor ? fileTopColor : topColor;
-  lines.splice(insertion, 0, `152 ${initialColour}`, dutch);
+  lines.splice(insertion, 0, `152 ${initialColour}`, baku ? dutchBaku : dutch);
   return {
     trf: lines.join('\r\n') + '\r\n',
     round, rounds, topColor: initialColour, excluded, players
