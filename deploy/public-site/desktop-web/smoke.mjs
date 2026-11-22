@@ -252,6 +252,34 @@ try {
   const manualDisclosure = page.locator('.cp-reg-manual-collapse-btn');
   await manualDisclosure.waitFor();
   assert.equal(await manualDisclosure.getAttribute('aria-expanded'), 'false');
+  // Temporary fixture-only DOM geometry to investigate preview fidelity.
+  // No user data, token, or tournament snapshot is logged.
+  if (process.env.CP_REG_UI_SCREENSHOT) {
+    const layout = await page.evaluate(() => {
+      const inspect = selector => Array.from(document.querySelectorAll(selector)).slice(0, 5).map(el => {
+        const cs = getComputedStyle(el);
+        const r = el.getBoundingClientRect();
+        return { tag: el.tagName, id: el.id, className: typeof el.className === 'string' ? el.className.slice(0, 120) : '',
+          text: (el.innerText || '').slice(0, 110), display: cs.display, visibility: cs.visibility,
+          width: Math.round(r.width), height: Math.round(r.height),
+          parent: el.parentElement?.id || el.parentElement?.className?.slice?.(0, 60) || '' };
+      });
+      return {
+        groups: Array.from(document.querySelectorAll('#registration > *')).map(el =>
+          ({ id: el.id, cls: typeof el.className === 'string' ? el.className.slice(0, 100) : '', text: (el.innerText || '').slice(0, 85) })),
+        selectors: Object.fromEntries([
+          '#cpPlayersRatingDataBox', '#cpPlayersRatingDataBox > *', '.cp-reg-command-strip',
+          '.cp-reg-strip-left', '.cp-reg-strip-right', '.cp-reg-fide-mini',
+          '#btnAutoUpdateFide', '#btnToggleRatingTools', '#btnUpdateRegisteredFromFide',
+          '#cpRatingListLibraryStatus', '.player-import-toolbar',
+          '#registration #fideResultsBox', '#registration #startingRankBox',
+          '#registration .rating-control-bar', '#registration .publish-strip-pro',
+          '#registration .cp-reg-subbar', '#registration .fide-results-title'
+        ].map(k => [k, inspect(k)])),
+      };
+    });
+    console.log('REGISTRATION_LAYOUT_INSPECTION=' + JSON.stringify(layout));
+  }
   // Optional non-production visual evidence, at the approved preview viewport.
   // The browser returns to its previous viewport before functional checks.
   if (process.env.CP_REG_UI_SCREENSHOT) {
