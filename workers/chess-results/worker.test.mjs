@@ -60,7 +60,7 @@ globalThis.fetch = async (url, init = {}) => {
     return new Response('<?xml version="1.0"?><chessresults><result status="OK"/></chessresults>', { status: 200 });
   }
   if (href === 'https://chess-results.example.test/tnr7654321.aspx?lan=1') {
-    return new Response('Tournament not found', { status: 200 });
+    return new Response('<div id="P_Error" class="error"><h3>Record not found </h3></div>', { status: 200 });
   }
   throw new Error(`Unexpected mock fetch: ${href}`);
 };

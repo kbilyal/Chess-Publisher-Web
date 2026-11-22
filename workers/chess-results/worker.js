@@ -440,6 +440,7 @@ async function publicTournamentDeleted(env, key) {
   if (response.status === 404 || response.status === 410) return true;
   if (!response.ok) throw new BridgeError(503, 'OWNERSHIP_CHECK_UNAVAILABLE', 'Chess-Results deletion verification is temporarily unavailable.');
   const body = (await response.text()).slice(0, 300000);
+  if (/<div\b[^>]*\bid=["']P_Error["'][^>]*>\s*<h3>\s*Record not found\s*<\/h3>/i.test(body)) return true;
   if (/tournament\s+(?:was\s+)?(?:not\s+found|does\s+not\s+exist)|no\s+tournament\s+found|turnier\s+(?:wurde\s+)?nicht\s+gefunden|turnier\s+existiert\s+nicht/i.test(body)) return true;
   return false;
 }
