@@ -6,6 +6,8 @@
   // returns HTTP 405. Call the already deployed Worker directly; it still
   // enforces WEB_ORIGIN CORS and validates the same Organizer Token server-side.
   const API_PREFIX="https://chess-publisher-chess-results.kyamranbilyal.workers.dev/api/chess-results/";
+  const desktopWeb=typeof window.cpDesktopWebOrganizerToken==="function";
+  const proofStorage=desktopWeb?window.cpWebStorage:localStorage;
   const ORGANIZER_SECRET_KEY="organizer-primary";
   const OWNERSHIP_PREFIX="cp:chess-results:ownership:";
   const CONTINUITY_KEY="cpweb.refresh.continuity.v1";
@@ -44,13 +46,13 @@
   function proofKey(key){return OWNERSHIP_PREFIX+String(key||"").trim();}
   function readProof(key){
     if(!/^\d+$/.test(String(key||"")))return "";
-    try{return String(localStorage.getItem(proofKey(key))||"");}catch(_){return "";}
+    try{return String(proofStorage.getItem(proofKey(key))||"");}catch(_){return "";}
   }
   function saveProof(key,proof){
     if(!/^\d+$/.test(String(key||""))||!proof)return;
-    try{localStorage.setItem(proofKey(key),String(proof));}catch(_){}
+    try{proofStorage.setItem(proofKey(key),String(proof));}catch(_){}
   }
-  function removeProof(key){try{localStorage.removeItem(proofKey(key));}catch(_){}}
+  function removeProof(key){try{proofStorage.removeItem(proofKey(key));}catch(_){}}
 
   function currentTournament(){
     try{return typeof window.getCurrentTournament==="function"?window.getCurrentTournament():null;}catch(_){return null;}
@@ -131,6 +133,7 @@
   }
 
   async function organizerToken(){
+    if(desktopWeb)return text(window.cpDesktopWebOrganizerToken());
     try{
       if(typeof window.cpNativeHubSecretGet==="function"){
         const token=String(await window.cpNativeHubSecretGet(ORGANIZER_SECRET_KEY)||"").trim();
@@ -173,8 +176,12 @@
     }
     let result={};
     try{result=await response.json();}catch{}
-    if(response.status===404)throw new Error("Chess-Results backend not connected. The secure Worker route is unavailable.");
-    if(!response.ok||!result.ok)throw new Error(result.message||result.error||`Chess-Results service HTTP ${response.status}`);
+    if(response.status===404&&!result.code)throw new Error("Chess-Results backend not connected. The secure Worker route is unavailable.");
+    if(!response.ok||!result.ok){
+      const error=new Error(result.message||result.error||"Chess-Results service HTTP "+response.status);
+      error.code=result.code;
+      throw error;
+    }
     return result;
   }
 
@@ -191,9 +198,6 @@
 
   async function recoverOwnership(key,payload,token){
     const cloudId=cloudTournamentId(payload);
-    if(!cloudId){
-      throw new Error(`TNR ${key} exists, but this browser has no synchronized tournament identity. Use Online & Cloud → Sync/Pull Changes first, then retry.`);
-    }
     const result=await post("claim",{
       key,
       cloudTournamentId:cloudId,
@@ -218,13 +222,20 @@
     }
     const key=String(payload.key||payload.tnr||"").trim();
 
-    if(operation!=="test"&&operation!=="create"&&operation!=="claim"&&/^\d+$/.test(key)&&!payload.ownershipProof){
-      let proof=readProof(key);
-      if(!proof)proof=await recoverOwnership(key,payload,token);
-      payload.ownershipProof=proof;
+    const ownershipRequired=!["test","create","claim"].includes(operation)&&/^\d+$/.test(key);
+    if(ownershipRequired&&!payload.ownershipProof){
+      payload.ownershipProof=readProof(key)||await recoverOwnership(key,payload,token);
     }
 
-    const result=await post(operation,payload,token);
+    let result;
+    try{
+      result=await post(operation,payload,token);
+    }catch(error){
+      if(!ownershipRequired||!["OWNERSHIP_PROOF_EXPIRED","OWNERSHIP_PROOF_INVALID","TNR_OWNERSHIP_MISMATCH"].includes(error.code))throw error;
+      removeProof(key);
+      payload.ownershipProof=await recoverOwnership(key,payload,token);
+      result=await post(operation,payload,token);
+    }
     const resultKey=String(result.key||key||"").trim();
     if((operation==="create"||operation==="claim")&&/^\d+$/.test(resultKey)&&result.ownershipProof)saveProof(resultKey,result.ownershipProof);
     if(operation==="unlink"&&result.canUnlink&&/^\d+$/.test(resultKey))removeProof(resultKey);
@@ -233,20 +244,58 @@
 
   window.chessResultsLocalJson=request;
 
-  const protectedOpenUploadSection=window.openChessResultsUploadPage;
-  if(typeof protectedOpenUploadSection==="function"){
-    window.openChessResultsUploadPage=async function(){
-      let state=typeof window.chessResultsState==="function"?window.chessResultsState():null;
-      const tournament=currentTournament();
-      const existing=text(state?.key||tournament?.chessResults?.key||tournament?.settings?.tnr);
-      if(!/^\d+$/.test(existing)){
-        if(typeof window.createChessResultsTournament!=="function")throw new Error("Chess-Results tournament creation is unavailable.");
-        await window.createChessResultsTournament();
-        state=typeof window.chessResultsState==="function"?window.chessResultsState():null;
-        if(!/^\d+$/.test(String(state?.key||"")))return;
+  async function openAuthenticatedPage(section){
+    const key=text(window.chessResultsState?.()?.key);
+    if(!/^\d+$/.test(key))return;
+    const label=section==="upload"?"Upload Data":"Admin";
+    let popup;
+    try{
+      popup=window.open("about:blank","_blank");
+      if(!popup)throw new Error("Allow pop-ups for this site and try again.");
+      popup.opener=null;
+      const result=await request("/chessresults/admin-link",{
+        key,section,timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone
+      });
+      const url=new URL(result.url||"about:blank");
+      const upload=section==="upload";
+      const path=upload?"/UploadData.aspx":"/Stammdaten.aspx";
+      const params=url.searchParams;
+      const encrypted=/^[A-Fa-f0-9]{32}$/;
+      if(url.origin!=="https://chess-results.com"||url.pathname!==path||params.get(upload?"tnr":"key1")!==key||
+        !encrypted.test(params.get(upload?"sid":"tnr_sec"))||!encrypted.test(params.get(upload?"sid1":"luser_sec"))||
+        (upload&&(params.get("source")!=="21"||params.get("lan")!=="0"||!/^\d{14}$/.test(params.get("time"))))){
+        throw new Error("Chess-Results returned an invalid "+label+" link.");
       }
-      return protectedOpenUploadSection();
+      if(popup.closed)throw new Error("The Chess-Results tab was closed.");
+      popup.location.replace(url.href);
+      window.chessResultsLog?.("Opened Chess-Results "+label+" for TNR "+key+".","ok");
+      window.setChessResultsUiMessage?.("Chess-Results "+label+" opened in a new tab.","ok");
+    }catch(error){
+      popup?.close();
+      const message=error?.message||"Chess-Results link could not be opened.";
+      window.chessResultsLog?.(label+": "+message,"error");
+      window.setChessResultsUiMessage?.(label+": "+message,"error");
+    }
+  }
+
+  if(!window.chrome?.webview?.postMessage){
+    window.openChessResultsAdminPage=()=>openAuthenticatedPage("admin");
+    window.openChessResultsUploadPage=()=>{
+      if(!desktopWeb&&!text(window.chessResultsState?.()?.key)&&typeof window.createChessResultsTournament==="function"){
+        return (async()=>{
+          await window.createChessResultsTournament();
+          await openAuthenticatedPage("upload");
+        })();
+      }
+      return openAuthenticatedPage("upload");
     };
+    if(desktopWeb){
+      window.deleteChessResultsTournament=()=>openAuthenticatedPage("admin");
+      const deleteButton=document.getElementById("crXmlDeleteRemoteButton");
+      if(deleteButton)deleteButton.textContent="Manage remote deletion";
+      const deleteOtherButton=document.getElementById("crXmlDeleteOtherButton");
+      if(deleteOtherButton)deleteOtherButton.hidden=true;
+    }
   }
 
   let continuityDisabled=false;
@@ -355,7 +404,7 @@
   }
 
   installLinkedTnrModeLock();
-  installRefreshContinuity();
+  if(!desktopWeb)installRefreshContinuity();
 
   window.__cpChessResultsBrowserAdapter={
     enabled:true,
@@ -364,10 +413,10 @@
     organizerScoped:true,
     ownershipProof:true,
     crossDeviceTnrRecovery:true,
-    recoveryAuthority:"organizer-owned-cloud-snapshot",
+    recoveryAuthority:"server-verified-tnr-registration",
     linkedTnrModeLock:true,
     linkedTnrModeAuthority:"chessResults.mode-until-reset",
-    refreshContinuity:true,
+    refreshContinuity:!desktopWeb,
     refreshContinuityStorage:"sessionStorage",
     secretsInBrowser:false
   };

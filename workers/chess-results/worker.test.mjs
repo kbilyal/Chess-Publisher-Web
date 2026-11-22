@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { mock } from 'node:test';
 import worker from './worker.js';
 
 const originalFetch = globalThis.fetch;
@@ -59,12 +60,15 @@ globalThis.fetch = async (url, init = {}) => {
     return new Response('<?xml version="1.0"?><chessresults><result status="OK"/></chessresults>', { status: 200 });
   }
   if (href === 'https://chess-results.example.test/tnr7654321.aspx?lan=1') {
-    return new Response('Tournament not found', { status: 200 });
+    return new Response('<div id="P_Error" class="error"><h3>Record not found </h3></div>', { status: 200 });
   }
   throw new Error(`Unexpected mock fetch: ${href}`);
 };
 
 try {
+  const test = await worker.fetch(request('test'), env);
+  assert.equal(test.status, 200);
+  assert.equal((await test.json()).sidVerified, false, 'GETSID without a comparison must not be reported as verified.');
   let response = await worker.fetch(request('create', { tournament: 'Worker Test', federation: 'BUL', mode: 'test', clientId: 'client-1' }), env);
   assert.equal(response.status, 200);
   const created = await response.json();
@@ -87,8 +91,16 @@ try {
   assert.match(admin.url, /luser_sec=/);
   assert.match(admin.url, /tnr_sec=/);
 
-  response = await worker.fetch(request('admin-link', { key: created.key, ownershipProof: created.ownershipProof, section: 'upload' }), env);
-  const uploadData = await response.json();
+  mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-22T22:01:02Z') });
+  let uploadData;
+  try {
+    response = await worker.fetch(request('admin-link', {
+      key: created.key, ownershipProof: created.ownershipProof, section: 'upload', timeZone: 'Europe/Sofia',
+    }), env);
+    uploadData = await response.json();
+  } finally {
+    mock.timers.reset();
+  }
   assert.equal(uploadData.ok, true);
   assert.equal(uploadData.section, 'upload');
   const uploadUrl = new URL(uploadData.url);
@@ -96,11 +108,12 @@ try {
   assert.equal(uploadUrl.searchParams.get('tnr'), '7654321');
   assert.equal(uploadUrl.searchParams.get('source'), '21');
   assert.equal(uploadUrl.searchParams.get('lan'), '0');
-  assert.match(uploadUrl.searchParams.get('sid') || '', /^[0-9A-F]+$/);
-  assert.match(uploadUrl.searchParams.get('sid1') || '', /^[0-9A-F]+$/);
+  const adminUrl = new URL(admin.url);
+  assert.equal(uploadUrl.searchParams.get('sid'), adminUrl.searchParams.get('tnr_sec'));
+  assert.equal(uploadUrl.searchParams.get('sid1'), adminUrl.searchParams.get('luser_sec'));
   assert.notEqual(uploadUrl.searchParams.get('sid'), '7654321', 'sid must contain encrypted database key/TNR, never the plaintext TNR.');
   assert.notEqual(uploadUrl.searchParams.get('sid1'), '4242', 'sid1 must contain encrypted creatorId, never the plaintext creatorId.');
-  assert.match(uploadUrl.searchParams.get('time') || '', /^\d{14}$/);
+  assert.equal(uploadUrl.searchParams.get('time'), '23112026000102', 'Upload Data must use the desktop-style local timestamp across midnight.');
 
   response = await worker.fetch(request('delete-authorize', { key: created.key, ownershipProof: created.ownershipProof }), env);
   assert.equal((await response.json()).verifiedOwner, true);

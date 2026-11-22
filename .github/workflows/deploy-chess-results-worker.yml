@@ -49,7 +49,9 @@ jobs:
 
       - name: Verify Worker syntax
         run: |
+          node --check workers/chess-results/entry.js
           node --check workers/chess-results/worker.js
+          node --check workers/chess-results/tnr-journal.js
           node --check workers/chess-results/ownership-worker.js
           node --check workers/chess-results/smoke-worker.js
           node --check production-web/web/chess-results-browser-adapter.js

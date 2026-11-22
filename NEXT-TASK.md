@@ -8,7 +8,7 @@ The public /app/ shares the desktop rating export regression. FIDE Rating Server
 
 The public homepage navigation now has a deployment check for the WEB Companion and Tournaments labels without BETA badges.
 
-The preceding Chess-Results bridge batch is complete in source: validated XML preview, TNR lifecycle safety, server-only bridge transport, no simulated success path, and dedicated publication/bridge contract tests. Gate I remains pending live acceptance against provisioned official bridge credentials.
+The full public Web workspace and Web Companion now share the official Chess-Results Worker. The official Test acceptance completed for TNR 1548947, including create, publish, update, Admin and Upload Data. The release runbook records production CreatorID assignments and verified legacy enrollment requirements.
 
 Creator XML examples have been reviewed and their required non-pairing and PAB mappings are covered by the Chess-Results publication contract test.
 

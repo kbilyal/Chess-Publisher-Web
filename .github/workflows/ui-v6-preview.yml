@@ -17,7 +17,7 @@ permissions:
   contents: read
 jobs:
   preview:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -40,6 +40,7 @@ jobs:
               <meta charset="UTF-8" />
               <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
               <title>Chess-Publisher Web Companion Preview</title>
+              <link rel="icon" href="data:," />
             </head>
             <body><div id="root"></div><script type="module" src="/preview-companion.tsx"></script></body>
           </html>
@@ -48,6 +49,7 @@ jobs:
           import React from 'react';
           import { createRoot } from 'react-dom/client';
           import { CompanionWorkspace } from './src/companion/CompanionWorkspace.tsx';
+          import { OnlineCloudProvider } from './src/cloud/OnlineCloudProviderV2.tsx';
           import { createInitialEmptyTournament } from './src/data/initialData.ts';
           import './src/index.css';
           import './src/companion.css';
@@ -75,7 +77,7 @@ jobs:
             openPublicPage: () => {}, returnToCloudList: async () => {}
           };
 
-          createRoot(document.getElementById('root')!).render(<CompanionWorkspace cloud={cloud} />);
+          createRoot(document.getElementById('root')!).render(<OnlineCloudProvider><CompanionWorkspace cloud={cloud} /></OnlineCloudProvider>);
           EOF
       - name: Start real Vite app
         run: |
@@ -92,13 +94,33 @@ jobs:
           cat > capture-companion.mjs <<'EOF'
           import { chromium } from 'playwright';
           const browser = await chromium.launch({ headless: true });
-          const base = 'http://127.0.0.1:4173/preview-companion.html';
+          const base = 'http://127.0.0.1:4173/preview-companion.html?cloud=cloud-preview-1';
 
           async function open(viewport) {
             const page = await browser.newPage({ viewport, deviceScaleFactor: 1 });
             const errors = [];
             page.on('pageerror', error => errors.push(`pageerror: ${error.message}`));
             page.on('console', message => { if (message.type() === 'error') errors.push(`console: ${message.text()}`); });
+            await page.addInitScript(() => sessionStorage.setItem('cpstudio.organizerToken.session', 'fixture-organizer'));
+            await page.route('**/api/v1/cloud/**', async route => {
+              const request = route.request();
+              const path = new URL(request.url()).pathname;
+              const headers = {
+                'Access-Control-Allow-Origin': 'http://127.0.0.1:4173',
+                'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+                'Access-Control-Allow-Methods': 'GET, OPTIONS',
+              };
+              if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
+              const tournament = { id: 'cloud-preview-1', name: 'Desktop Sync · Rhodopes Open 2026', revision: 12 };
+              let json;
+              if (path.endsWith('/workspace')) json = { ok: true, organizer: { id: 'preview', displayName: 'Preview organizer' } };
+              else if (path.endsWith('/tournaments')) json = { ok: true, tournaments: [tournament] };
+              else if (path.endsWith('/cloud-preview-1/snapshot')) {
+                const fixture = await request.frame().evaluate(() => JSON.parse(localStorage.getItem('fide_tournament_manager_v2')));
+                json = { ok: true, tournament, snapshot: { data: { currentTournament: fixture.name, tournaments: { [fixture.name]: fixture } } } };
+              } else json = { ok: true, tournament };
+              return route.fulfill({ headers, json });
+            });
             await page.goto(base, { waitUntil: 'networkidle' });
             await page.waitForTimeout(350);
             if (errors.length) throw new Error(errors.join('\n'));
@@ -127,12 +149,13 @@ jobs:
             const before = await page.locator('.companion-roster-row').count();
             await page.getByRole('button', { name: /Manual player/ }).click();
             const form = page.locator('.companion-manual-form');
-            await form.locator('input').nth(0).fill('Preview New Player');
-            await form.locator('input').nth(2).fill('BUL');
-            await form.locator('input').nth(3).fill('1760');
+            await form.getByLabel('First name *').fill('New Player');
+            await form.getByLabel('Last name *').fill('Preview');
+            await form.getByLabel('Federation').fill('BUL');
+            await form.getByLabel(/rating/i).fill('1760');
             await page.getByRole('button', { name: /Register player/ }).click();
             await page.waitForTimeout(180);
-            if (!await page.getByText('Preview New Player', { exact: true }).count()) throw new Error(`${label}: manual registration did not reach roster.`);
+            if (!await page.getByText('Preview, New Player', { exact: true }).count()) throw new Error(`${label}: manual registration did not reach roster.`);
             const after = await page.locator('.companion-roster-row').count();
             if (after !== before + 1) throw new Error(`${label}: roster count did not increase after registration.`);
             await assertNoOverflow(page, `${label} registration`);

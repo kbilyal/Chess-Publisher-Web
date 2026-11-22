@@ -91,7 +91,7 @@ assert(chessResultsAdapter.includes('const CONTINUITY_KEY="cpweb.refresh.continu
 assert(chessResultsAdapter.includes('window.cpCloudOpenTournament(text(state.cloudId),{skipLocalPreSync:true})'), "Web refresh does not reopen the active Cloud tournament");
 assert(chessResultsAdapter.includes('window.showTab(id,button)'), "Web refresh does not restore the active tab");
 assert(chessResultsAdapter.includes('#cpBeta7Back,#cpBeta7CloudRefresh,#cpBeta7SignOut'), "explicit return-to-list/sign-out does not clear refresh continuity");
-assert(chessResultsAdapter.includes('refreshContinuity:true'), "refresh continuity capability marker missing");
+assert(chessResultsAdapter.includes('if(!desktopWeb)installRefreshContinuity()') && chessResultsAdapter.includes('refreshContinuity:!desktopWeb'), "legacy Web refresh continuity must stay enabled and leave the desktop Web workspace restore to its own host");
 assert(!chessResultsAdapter.includes('function installAlwaysOnInstantPersistence()'), "unsafe Web instant autosave wrapper reintroduced");
 assert(!chessResultsAdapter.includes('window.scheduleAutosave=function()'), "production adapter must not override core autosave scheduling");
 assert(!chessResultsAdapter.includes('window.toggleAutosave=function()'), "production adapter must not override core autosave toggle/runtime state");

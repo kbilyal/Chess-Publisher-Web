@@ -6,9 +6,16 @@ The public /app/ workspace uses the desktop Fast Classical controls and eligibil
 
 The public /app/ build now runs the desktop TRF26 rating regression on the generated workspace. It checks round dates and default, half-point and zero-point pairing byes, shared places and recorded tie resolutions.
 
-Updated: 2026-11-19
+Updated: 2026-11-22
 
 The public homepage deploy removes the BETA badges from the WEB Companion and Tournaments header links. The build and live checks require both destinations and their badge-free labels.
+
+## Chess-Results desktop Web parity (2026-11-22)
+
+- The full public Web workspace at `/app/` builds from the pinned Windows desktop workflow and uses the official Chess-Results Worker for connection test, TNR allocation, XML publish/update, Admin, Upload Data and verified unlink. The Web Companion uses the same Worker. Individual Swiss remains the supported publication format.
+- TNR allocation is durable and organizer scoped. A repeated request recovers the saved TNR. New allocations use the organizer's assigned CreatorID. Existing Desktop and previous-Web TNRs require a verified server enrollment before ownership can be recovered from a synced tournament.
+- Chrome smoke passed through the generated desktop workspace, including a failed XML upload, retry of the same TNR, Admin, Upload Data and Cloud restore. The candidate Worker verified live GETSID and completed official GETKEY, XML publish and update with synthetic players, plus Admin and Upload Data, on Test TNR 1548947. Wrangler dry-run and local workerd restart/concurrent-allocation checks passed, along with lint/build, Worker and client regressions, Cloud roundtrip and protected desktop-shell checks.
+- The release uses server-side CreatorID assignments and verified legacy enrollments. The public deployment must pass the authenticated Worker and browser smoke after publication. The separate Gacrux/BBP pairing architecture and parity suites could not pass on this Windows host. The generated Web workspace pairing and checker smoke passed.
 
 ## Current repository baseline
 Starting source commit for the latest verified batch: `6aa2deb17d1f555772425226ba04e279dfe5903f`.

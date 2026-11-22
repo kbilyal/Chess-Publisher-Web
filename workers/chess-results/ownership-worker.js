@@ -1,4 +1,7 @@
-import bridgeWorker, { AUTHENTICATED_ORGANIZER } from './worker.js';
+import bridgeWorker, {
+  AUTHENTICATED_ORGANIZER, BridgeError, corsHeaders, createOwnershipProof,
+  creatorMapping, legacyRegistration, normalizeCreateInput, originAllowed, verifiedOwnership,
+} from './worker.js';
 
 const SOURCE_ID = 21;
 const text = value => String(value ?? '').trim();
@@ -14,30 +17,6 @@ const json = (body, status = 200, headers = {}) => new Response(JSON.stringify(b
 function bearerToken(request) {
   const match = /^Bearer\s+(.+)$/i.exec(text(request.headers.get('Authorization')));
   return text(match?.[1]);
-}
-
-function bridgeCreatorId(env) {
-  const creatorId = Number(text(env.CHESS_RESULTS_CREATOR_ID));
-  if (!Number.isInteger(creatorId) || creatorId <= 0 || creatorId > 2147483647) return null;
-  return creatorId;
-}
-
-function corsHeaders(request, env) {
-  const origin = text(request.headers.get('Origin'));
-  const allowed = text(env.WEB_ORIGIN);
-  if (!origin || !allowed || origin !== allowed) return { Vary: 'Origin' };
-  return {
-    'Access-Control-Allow-Origin': allowed,
-    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    Vary: 'Origin',
-  };
-}
-
-function originAllowed(request, env) {
-  const allowed = text(env.WEB_ORIGIN);
-  const origin = text(request.headers.get('Origin'));
-  return Boolean(allowed && (!origin || origin === allowed));
 }
 
 function hubHeaders(request) {
@@ -91,56 +70,31 @@ async function authenticatedOrganizerId(request, env) {
   return { ok: true, organizerId };
 }
 
-function scopedEnv(env, organizerId, creatorId) {
-  const creatorMap = JSON.stringify({ [organizerId]: String(creatorId) });
+function scopedEnv(env, organizerId) {
   return new Proxy(env, {
     get(target, property) {
       if (property === AUTHENTICATED_ORGANIZER) return { organizerId };
-      if (property === 'CHESS_RESULTS_CREATOR_MAP') return creatorMap;
       return Reflect.get(target, property);
     },
   });
 }
 
-function base64UrlEncode(bytes) {
-  let binary = '';
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+async function journal(env, organizerId, operation, body) {
+  const namespace = env.CHESS_RESULTS_JOURNAL;
+  if (!namespace) throw new BridgeError(503, 'TNR_JOURNAL_UNAVAILABLE', 'Chess-Results TNR storage is unavailable.');
+  const stub = namespace.get(namespace.idFromName(organizerId));
+  const response = await stub.fetch('https://journal.internal/' + operation, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  const result = await response.json();
+  if (!response.ok) throw new BridgeError(response.status, result.code, result.message);
+  return result;
 }
 
-function base64UrlDecode(value) {
-  const base64 = String(value).replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(value.length / 4) * 4, '=');
-  const binary = atob(base64);
-  return Uint8Array.from(binary, c => c.charCodeAt(0));
-}
-
-async function signOwnership(env, organizerId, creatorId, key, tournament, clientId) {
-  const secret = text(env.CHESS_RESULTS_OWNERSHIP_HMAC_SECRET);
-  if (secret.length < 32) throw new Error('OWNERSHIP_HMAC_NOT_CONFIGURED');
-  const mode = text(tournament?.chessResults?.mode || tournament?.settings?.tournamentType || 'real').toLowerCase();
-  const federationRaw = text(tournament?.chessResults?.federation || tournament?.settings?.country).toUpperCase();
-  const federation = mode === 'test' ? 'XXX' : federationRaw;
-  if (!/^[A-Z]{3}$/.test(federation)) throw new Error('TNR_CLAIM_FEDERATION_MISSING');
-  const payload = {
-    v: 1,
-    purpose: 'chess-results-ownership',
-    organizerId,
-    creatorId,
-    sourceId: SOURCE_ID,
-    key,
-    clientId: text(clientId).slice(0, 160),
-    mode: mode || 'real',
-    federation,
-    issuedAt: new Date().toISOString(),
-  };
-  const payloadBytes = new TextEncoder().encode(JSON.stringify(payload));
-  const hmacKey = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  const signature = await crypto.subtle.sign('HMAC', hmacKey, payloadBytes);
-  return {
-    proof: `${base64UrlEncode(payloadBytes)}.${base64UrlEncode(new Uint8Array(signature))}`,
-    federation,
-    mode: payload.mode,
-  };
+async function ownershipResult(env, organizerId, creatorId, key, input) {
+  const ownershipProof = await createOwnershipProof(env, organizerId, creatorId, key, input);
+  return { ok: true, key, ownershipProof, sourceId: SOURCE_ID, federation: input.federation, mode: input.mode };
 }
 
 function findTournamentWithTnr(snapshot, key) {
@@ -156,17 +110,23 @@ function findTournamentWithTnr(snapshot, key) {
   return null;
 }
 
-async function claimSyncedTnr(request, env, organizerId, creatorId) {
-  if (!originAllowed(request, env)) {
-    return json({ ok: false, code: 'ORIGIN_NOT_ALLOWED', message: 'This origin is not allowed to use the Chess-Results Worker.' }, 403, corsHeaders(request, env));
+async function claimTnr(request, env, organizerId, creatorId, body) {
+  const key = text(body.key);
+  if (!/^\d+$/.test(key)) throw new BridgeError(400, 'INVALID_TNR', 'A numeric Chess-Results TNR is required.');
+  const stored = await journal(env, organizerId, 'lookup', { key });
+  if (stored.record?.creatorId === creatorId) {
+    return json({ ...await ownershipResult(env, organizerId, creatorId, key, stored.record), recovered: true }, 200, corsHeaders(request, env));
   }
-  let body;
-  try { body = await request.json(); } catch { body = {}; }
-  const key = text(body?.key || body?.tnr);
-  const cloudTournamentId = text(body?.cloudTournamentId);
-  if (!/^\d+$/.test(key)) return json({ ok: false, code: 'INVALID_TNR', message: 'A numeric Chess-Results TNR is required.' }, 400, corsHeaders(request, env));
+
+  // A Cloud snapshot is editable by its organizer. Only a server-enrolled
+  // legacy TNR can use the snapshot for continuity, never for ownership.
+  const legacy = legacyRegistration(env, organizerId, key, creatorId);
+  if (!legacy) {
+    throw new BridgeError(403, 'TNR_NOT_REGISTERED', 'This TNR has no verified Chess-Results owner assignment. For a Desktop TNR, contact support to link it to your Organizer account.');
+  }
+  const cloudTournamentId = text(body.cloudTournamentId);
   if (!cloudTournamentId) {
-    return json({ ok: false, code: 'TNR_CLAIM_REQUIRES_CLOUD_SYNC', message: 'Sync this tournament with Online & Cloud before continuing a desktop-created TNR on the web.' }, 409, corsHeaders(request, env));
+    throw new BridgeError(409, 'TNR_CLAIM_REQUIRES_CLOUD_SYNC', 'Sync the Desktop tournament with Online & Cloud before continuing on the web.');
   }
 
   let response;
@@ -191,16 +151,10 @@ async function claimSyncedTnr(request, env, organizerId, creatorId) {
     return json({ ok: false, code: 'TNR_NOT_IN_SYNCED_TOURNAMENT', message: `TNR ${key} is not present in the organizer-owned synchronized tournament snapshot. Pull/Sync Changes first.` }, 409, corsHeaders(request, env));
   }
 
-  try {
-    const signed = await signOwnership(env, organizerId, creatorId, key, tournament, body?.clientId);
-    return json({ ok: true, key, ownershipProof: signed.proof, sourceId: SOURCE_ID, federation: signed.federation, mode: signed.mode, recoveredFromCloud: true }, 200, corsHeaders(request, env));
-  } catch (error) {
-    const code = error?.message === 'TNR_CLAIM_FEDERATION_MISSING' ? 'TNR_CLAIM_FEDERATION_MISSING' : 'OWNERSHIP_HMAC_NOT_CONFIGURED';
-    const message = code === 'TNR_CLAIM_FEDERATION_MISSING'
-      ? 'The synchronized tournament does not contain a valid three-letter federation for Chess-Results.'
-      : 'Chess-Results ownership signing is not configured on the Worker.';
-    return json({ ok: false, code, message }, 500, corsHeaders(request, env));
-  }
+  return json({
+    ...await ownershipResult(env, organizerId, legacy.creatorId, key, { ...legacy, clientId: tournament.chessResults?.clientId }),
+    recoveredFromCloud: true,
+  }, 200, corsHeaders(request, env));
 }
 
 function createPreflightFailure(env) {
@@ -263,21 +217,6 @@ function replaceTournamentAttribute(xml, name, value) {
   return xml.replace(re, `$1${xmlEscape(value)}$2`);
 }
 
-async function verifyDiagnosticProof(env, proof, organizerId, creatorId, key) {
-  const [payloadPart, signaturePart, extra] = text(proof).split('.');
-  if (!payloadPart || !signaturePart || extra) throw new Error('PROOF_INVALID');
-  const payloadBytes = base64UrlDecode(payloadPart);
-  const signatureBytes = base64UrlDecode(signaturePart);
-  const payload = JSON.parse(new TextDecoder().decode(payloadBytes));
-  const secret = text(env.CHESS_RESULTS_OWNERSHIP_HMAC_SECRET);
-  const hmacKey = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
-  const valid = await crypto.subtle.verify('HMAC', hmacKey, signatureBytes, payloadBytes);
-  if (!valid || payload?.purpose !== 'chess-results-ownership' || Number(payload.sourceId) !== SOURCE_ID || text(payload.organizerId) !== organizerId || Number(payload.creatorId) !== creatorId || text(payload.key) !== key) {
-    throw new Error('PROOF_MISMATCH');
-  }
-  return payload;
-}
-
 function safeUploadPreview(raw) {
   return String(raw || '')
     .replace(/[A-F0-9]{32,}/gi, '[hex-redacted]')
@@ -303,7 +242,8 @@ async function uploadDiagnostic(request, env, organizerId, creatorId) {
 
   let ownership;
   try {
-    ownership = await verifyDiagnosticProof(env, body.ownershipProof, organizerId, creatorId, key);
+    ownership = await verifiedOwnership(env, organizerId, creatorId, key, body.ownershipProof);
+    creatorId = ownership.creatorId;
   } catch {
     return json({ ok: false, code: 'TNR_OWNERSHIP_MISMATCH', message: 'Diagnostic upload requires the verified owner proof.' }, 403, corsHeaders(request, env));
   }
@@ -357,44 +297,44 @@ async function uploadDiagnostic(request, env, organizerId, creatorId) {
 
 export default {
   async fetch(request, env) {
-    if (request.method === 'OPTIONS') return bridgeWorker.fetch(request, env);
-
     const url = new URL(request.url);
-    if (!/^\/api\/chess-results\/[a-z-]+\/?$/i.test(url.pathname)) {
+    const operation = /^\/api\/chess-results\/(create|claim|upload-diagnostic)\/?$/i.exec(url.pathname)?.[1].toLowerCase();
+    if (request.method === 'OPTIONS' || !originAllowed(request, env) || request.method !== 'POST') {
       return bridgeWorker.fetch(request, env);
     }
 
+    const headers = corsHeaders(request, env);
     const auth = await authenticatedOrganizerId(request, env);
     if (!auth.ok) {
       const body = { ok: false, code: auth.code, message: auth.message };
       if (auth.upstreamStatus) body.upstreamStatus = auth.upstreamStatus;
-      return json(body, auth.status, corsHeaders(request, env));
+      return json(body, auth.status, headers);
     }
 
-    const creatorId = bridgeCreatorId(env);
-    if (!creatorId) {
-      return json({ ok: false, code: 'CREATOR_ID_NOT_CONFIGURED', message: 'Chess-Results CreatorID is not configured on the Worker.' }, 500, corsHeaders(request, env));
-    }
+    const { organizerId } = auth;
+    const authenticated = scopedEnv(env, organizerId);
+    if (!operation) return bridgeWorker.fetch(request, authenticated);
 
-    if (/\/claim\/?$/i.test(url.pathname)) {
-      return claimSyncedTnr(request, env, auth.organizerId, creatorId);
-    }
-
-    if (/\/upload-diagnostic\/?$/i.test(url.pathname)) {
-      return uploadDiagnostic(request, env, auth.organizerId, creatorId);
-    }
-
-    if (/\/create\/?$/i.test(url.pathname)) {
-      const preflightFailure = createPreflightFailure(env);
-      if (preflightFailure) {
-        return json({ ok: false, ...preflightFailure }, 500, corsHeaders(request, env));
+    try {
+      const creatorId = creatorMapping(env, organizerId);
+      if (operation === 'upload-diagnostic') return uploadDiagnostic(request, env, organizerId, creatorId);
+      if (!request.headers.get('Content-Type')?.toLowerCase().includes('application/json')) {
+        throw new BridgeError(415, 'JSON_REQUIRED', 'Chess-Results Worker accepts JSON requests only.');
       }
-    }
+      const body = await request.json().catch(() => null);
+      if (!body || typeof body !== 'object' || Array.isArray(body)) {
+        throw new BridgeError(400, 'INVALID_JSON', 'Request body must be a JSON object.');
+      }
+      if (operation === 'claim') return await claimTnr(request, env, organizerId, creatorId, body);
 
-    // Hub authentication is completed exactly once above. The verified organizer
-    // identity is passed to the bridge core through a private Symbol capability.
-    // For create, all signing/encryption prerequisites are checked before GETKEY so
-    // a missing Worker secret can never allocate a tournament key and fail afterward.
-    return bridgeWorker.fetch(request, scopedEnv(env, auth.organizerId, creatorId));
+      const preflightFailure = createPreflightFailure(env);
+      if (preflightFailure) return json({ ok: false, ...preflightFailure }, 500, headers);
+      const input = normalizeCreateInput(body);
+      const { key, recovered } = await journal(env, organizerId, 'allocate', { input, creatorId });
+      return json({ ...await ownershipResult(env, organizerId, creatorId, key, input), recovered }, 200, headers);
+    } catch (error) {
+      if (error instanceof BridgeError) return json({ ok: false, code: error.code, message: error.message }, error.status, headers);
+      return json({ ok: false, code: 'CHESS_RESULTS_WORKER_ERROR', message: 'Chess-Results Worker failed safely.' }, 500, headers);
+    }
   },
 };
