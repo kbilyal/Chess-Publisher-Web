@@ -91,7 +91,18 @@ try {
   await tournamentName.waitFor();
   assert.equal(await tournamentName.getAttribute('placeholder'), 'eg. My tournament');
   assert.equal(await tournamentName.inputValue(), '');
-  assert.equal(await page.getByRole('radio', { name: 'Swiss Dutch' }).isChecked(), true);
+  const swiss = page.getByRole('radio', { name: 'Swiss Dutch' });
+  assert.equal(await swiss.isChecked(), true);
+  await tournamentName.press('Tab');
+  assert.equal(await swiss.evaluate(input => input === document.activeElement), true);
+  assert.equal(await swiss.evaluate(input => getComputedStyle(input).boxShadow), 'none', 'The focused radio has no extra ring');
+  assert.equal(await swiss.evaluate(input => getComputedStyle(input.parentElement).outlineStyle), 'solid', 'Keyboard focus is visible on the format row');
+  await swiss.press('ArrowDown');
+  const bakuRadio = page.getByRole('radio', { name: 'Accelerated Baku' });
+  assert.equal(await bakuRadio.isChecked(), true);
+  await bakuRadio.press('ArrowUp');
+  assert.equal(await swiss.isChecked(), true);
+  console.log('Pairing-system radios use a single native indicator and show keyboard focus on the format row.');
   await tournamentName.fill('Browser workflow test');
   await tournamentName.press('Enter');
   await page.locator('#main').waitFor();
@@ -226,6 +237,8 @@ try {
   await draftName.fill('Unfinished draft');
   const baku = fresh.getByRole('radio', { name: 'Accelerated Baku' });
   await baku.check();
+  assert.equal(await baku.evaluate(input => getComputedStyle(input).boxShadow), 'none');
+  assert.equal(await baku.evaluate(input => getComputedStyle(input.parentElement).outlineStyle), 'none');
   const localOpen = fresh.getByRole('button', { name: 'Open local file…' });
   const [fileChooser] = await Promise.all([fresh.waitForEvent('filechooser'), localOpen.click()]);
   assert.equal(await fileChooser.element().getAttribute('accept'), '.json,application/json');

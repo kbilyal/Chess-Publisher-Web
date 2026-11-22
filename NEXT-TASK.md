@@ -1,6 +1,6 @@
 # Next Task — TRF Full Parity (Integration Gate G)
 
-Keep startup and Files → New Tournament on the same public /app/ chooser when updating the pinned workspace source.
+Keep startup and Files → New Tournament on the same public /app/ chooser, with native pairing-system radios and visible keyboard focus on the format row, when updating the pinned workspace source.
 
 The public /app/ build includes Fast Classical eligibility checks in the rating export preflight. Keep the same desktop rules and TRF26 time-control encoding when updating the pinned workspace source.
 
