@@ -176,6 +176,7 @@ jobs:
           http_pid=$!
           trap 'kill "$http_pid" 2>/dev/null || true' EXIT
           curl --fail --silent --show-error --retry 6 --retry-connrefused http://127.0.0.1:8793/app/ >/dev/null
+          node "$web_app/fide-cache-smoke.mjs" http://127.0.0.1:8793/app/ "$RUNNER_TEMP/cp-preview-test" "$(command -v google-chrome)"
           node "$web_app/smoke.mjs" http://127.0.0.1:8793/app/ "$RUNNER_TEMP/cp-preview-test" "$(command -v google-chrome)"
 
       - name: Remove September Update homepage sections

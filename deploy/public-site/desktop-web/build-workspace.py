@@ -163,7 +163,88 @@ html = replace_once(
     html, 'chessResultsLog("No TNR was consumed by this failed attempt.","warn");',
     'chessResultsLog("No TNR was saved locally. Retry reuses the same tournament identity.","warn");',
 )
-html = replace_once(html, "<head>", '<head>\n<script src="./host.js"></script>')
+html = replace_once(
+    html, "<head>", '<head>\n<script src="./host.js"></script>\n<script src="./fide-cache.js"></script>',
+)
+
+# Store bounded records inside one IndexedDB transaction so Chromium can
+# persist a complete FIDE download without losing the active-generation swap.
+html = replace_once(
+    html,
+    "async function cacheGet(key){const db=await openFideCacheDb();return await new Promise((resolve,reject)=>"
+    "{const tx=db.transaction(FIDE_CACHE_STORE,'readonly');const req=tx.objectStore(FIDE_CACHE_STORE).get(key);"
+    "req.onsuccess=()=>resolve(req.result||null);req.onerror=()=>reject(req.error||new Error('Rating-list cache read failed.'));});}",
+    "async function cacheGet(key){return window.cpWebFideCache.read(await openFideCacheDb(), FIDE_CACHE_STORE, key);}",
+)
+html = replace_once(
+    html,
+    """  await new Promise((resolve,reject)=>{
+    const tx=db.transaction(FIDE_CACHE_STORE,'readwrite');
+    const store=tx.objectStore(FIDE_CACHE_STORE);
+    store.put(snapshot,generationKey);
+    store.put(pointer,ACTIVE_KEY);
+    tx.oncomplete=()=>resolve(true);
+    tx.onerror=()=>reject(tx.error||new Error('Atomic rating-list generation swap failed.'));
+    tx.onabort=()=>reject(tx.error||new Error('Atomic rating-list generation swap aborted.'));
+  });""",
+    "  await window.cpWebFideCache.write(db, FIDE_CACHE_STORE, generationKey, snapshot, {key:ACTIVE_KEY, pointer});",
+)
+html = replace_once(
+    html,
+    "  await new Promise((resolve,reject)=>{const tx=db.transaction(FIDE_CACHE_STORE,'readwrite');"
+    "tx.objectStore(FIDE_CACHE_STORE).put(current,pointer.generationKey);tx.oncomplete=()=>resolve(true);"
+    "tx.onerror=()=>reject(tx.error||new Error('Rating-list generation save failed.'));});",
+    "  await window.cpWebFideCache.write(db, FIDE_CACHE_STORE, pointer.generationKey, current);",
+)
+html = replace_once(
+    html,
+    "function syncWorker(){clearDirectorySearchCache();return false;}",
+    """function syncWorker(){
+  clearDirectorySearchCache();
+  window.cpBeta98R7?.invalidateRatingSearch();
+  return false;
+}""",
+)
+html = replace_once(
+    html,
+    "return rememberDirectorySearch(key,rows.slice(0,limit));",
+    """const results=rows.slice(0,limit);
+    if(results.length&&directorySearchInFlight.get(key)===task)rememberDirectorySearch(key,results);
+    return results;""",
+)
+html = replace_once(
+    html,
+    "finally{directorySearchInFlight.delete(key);}",
+    "finally{if(directorySearchInFlight.get(key)===task)directorySearchInFlight.delete(key);}",
+)
+html = replace_once(
+    html,
+    "function configFingerprint(c=readConfig())",
+    """let ratingSearchRevision=0;
+function invalidateRatingSearch(){
+  ratingSearchRevision++;
+  unifiedCache.clear();
+  if(txt(document.getElementById('fideSearch')?.value))queueUnifiedSearch();
+}
+function configFingerprint(c=readConfig())""",
+)
+html = replace_once(
+    html,
+    "const cat=await externalCatalogue(),extIds=activeExternalIds(c,cat),key=`${configFingerprint(c)}|${nameQ}|${limit}`;",
+    """const cat=await externalCatalogue(),extIds=activeExternalIds(c,cat),revision=ratingSearchRevision;
+  const key=`${configFingerprint(c)}|${revision}|${nameQ}|${limit}`;""",
+)
+html = replace_once(
+    html,
+    "return cachePut(key,merged.slice(0,Math.max(1,Math.min(60,limit))));",
+    """const results=merged.slice(0,Math.max(1,Math.min(60,limit)));
+  return (!officialWanted||official.length)&&revision===ratingSearchRevision?cachePut(key,results):results;""",
+)
+html = replace_once(
+    html,
+    "unifiedSearch,queueUnifiedSearch,openManager",
+    "unifiedSearch,queueUnifiedSearch,invalidateRatingSearch,openManager",
+)
 adapters = [
     "hub/client/hub-snapshot.js",
     "hub/client/hub-api-client.js",

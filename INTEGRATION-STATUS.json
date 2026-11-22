@@ -13,6 +13,7 @@
     "requiresFinalReaudit": true
   },
   "regressionStatus": {
+    "publicAppFideCache": "PASS in Chromium: full update from the available browser mirror imported 778,954 players and found Carlsen by name and FIDE ID. Browser smoke also covers atomic rollback, legacy-cache reads and reload.",
     "publicAppTournamentDialog": "Browser smoke covers the tournament-name placeholder, Files → New Tournament, pairing-system selection and focus styling, local file selection and online tournament opening.",
     "publicAppFastClassical": "Desktop eligibility regression runs on the generated workspace. Browser smoke covers Standard classification, schedule limits and rating export warnings.",
     "publicAppRatingExport": "TRF26 rating regression runs against the generated /app/ workspace during the site build.",

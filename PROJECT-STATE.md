@@ -1,5 +1,7 @@
 # Chess-Publisher Web — Project State
 
+The public /app/ FIDE update must activate a complete rating generation only after it is stored successfully. The production browser reproduced a rolled-back full download with IndexedDB TransactionInactiveError. The Web workspace uses bounded records in a single transaction, preserves earlier cache formats and refreshes an active player search after activation.
+
 The public /app/ build includes the compact Tournaments dialog with native pairing-system radios, Create new, My online tournaments, and Open local file. The tournament-name placeholder is `eg. My tournament`. The public-site browser smoke covers startup, Files → New Tournament, keyboard selection with visible focus on the format row, local file selection, and opening an online tournament.
 
 The public /app/ workspace uses the desktop Fast Classical controls and eligibility review for 60+30 and 45+30. The generated workspace runs the Fast Classical regression and the browser smoke test covers Standard classification, schedule limits and rating export preflight.
