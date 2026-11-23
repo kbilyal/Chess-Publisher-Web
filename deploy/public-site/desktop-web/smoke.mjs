@@ -450,8 +450,18 @@ try {
   ];
   for (const vp of viewports) {
     await page.setViewportSize(vp);
+    const menuOverlap = await page.locator('#classicMenuBar').evaluate(menu => {
+      const tabsTop = document.querySelector('.tabs').getBoundingClientRect().top;
+      return [menu, ...menu.children].filter(element => {
+        const rect = element.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0 && rect.bottom > tabsTop + 1;
+      }).map(element => element.id || element.textContent.trim());
+    });
+    assert.deepEqual(menuOverlap, [], `${vp.width}px classic menu overlaps workspace tabs`);
+    await page.locator('#cpDesktopWebSignOut').click({ trial: true });
     for (const [tabId, pageId] of allTabs) {
       await page.locator(`#${tabId}`).click();
+      await page.locator(`#${pageId}.active`).waitFor();
       await page.waitForTimeout(50);
       const audit = await page.evaluate((pid) => {
         const docOverflowX = document.documentElement.scrollWidth - document.documentElement.clientWidth;
@@ -508,6 +518,7 @@ try {
       assert.deepEqual(audit.blocked, [], `${vp.width}px ${pageId} blocked controls: ${JSON.stringify(audit.blocked)}`);
     }
   }
+  console.log('All eight workspace tabs and Sign out passed pointer checks at all five viewports.');
   await page.setViewportSize({ width: 1440, height: 920 });
   await page.locator('#tabPairings').click();
   await page.locator('#cpWebCloudSaveStatus').filter({ hasText: 'Saved to private Cloud' }).waitFor({ timeout: 10000 });

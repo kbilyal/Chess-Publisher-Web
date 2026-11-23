@@ -1,5 +1,7 @@
 # Chess-Publisher Web — Project State
 
+The public `/app/` Pairings TXT dialog offers the existing download and a fixed-width Print TXT action that uses the selected round and the dialog's current options. The mobile menu grows when its controls wrap so Sign out stays above the workspace tabs (Issue #93).
+
 The public web workspace uses the Chess-Results console styling for the Round Control Log. Resort Starting List shares the Pairings toolbar with Generate Pairings and Publish to Chess-Results. Browser smoke checks the presentation, the resort action, and its disabled state while generation runs.
 
 The generated `/app/` workspace uses a shared English PDF dialog for the starting list and the selected round's pairings. The pairings sheet shows round details, a results summary, and the tournament and round on every printed page. The Result column between White and Black prints recorded scores and gives pending games a blank box for handwriting. The Arbiter sheet preset adds an optional sign-off. The browser smoke covers single-page and multipage A4 output, mixed results, bye rows, mobile controls and the existing TXT dialog.
