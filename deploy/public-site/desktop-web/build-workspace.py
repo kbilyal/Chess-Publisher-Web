@@ -1,3 +1,4 @@
+import hashlib
 import re
 import sys
 from pathlib import Path
@@ -10,6 +11,13 @@ def replace_once(text, before, after):
     if text.count(before) != 1:
         raise SystemExit(f"Expected exactly one desktop hook: {before[:100]}")
     return text.replace(before, after, 1)
+
+
+def asset_version(filename):
+    asset = output / filename
+    if not asset.is_file():
+        return ""
+    return "?v=" + hashlib.sha256(asset.read_bytes()).hexdigest()[:10]
 
 
 # Windows behavior stays in the pinned source. Only the browser artifact gets
@@ -451,9 +459,21 @@ html = replace_once(html, '    }finally{runtime.busy=false;renderStatus();}\n  }
     '    }finally{runtime.busy=false;renderStatus();window.cpRefreshRoundControlLog?.();}\n  }\n\n  function scheduleAutoCheck')
 
 scripts = "\n".join(f'<script src="./{relative}"></script>' for relative in adapters)
+reg_v = asset_version("registration-ui.js")
+ws_js_v = asset_version("workspace-ui.js")
+ws_css_v = asset_version("workspace.css")
 html = replace_once(
     html, "\n</body>\n</html>",
-    "\n" + scripts + '\n<script src="./chess-results-browser-adapter.js"></script>\n<script src="./engine-adapter.js"></script>\n<script src="./autosave.js"></script>\n<script src="./registration-ui.js"></script>\n<script src="./workspace-ui.js"></script>\n<link rel="stylesheet" href="./workspace.css">\n<link rel="stylesheet" href="./pdf-export.css">\n<script src="./pdf-export.js"></script>\n</body>\n</html>',
+    "\n" + scripts
+    + '\n<script src="./chess-results-browser-adapter.js"></script>'
+    + '\n<script src="./engine-adapter.js"></script>'
+    + '\n<script src="./autosave.js"></script>'
+    + f'\n<script src="./registration-ui.js{reg_v}"></script>'
+    + f'\n<script src="./workspace-ui.js{ws_js_v}"></script>'
+    + f'\n<link rel="stylesheet" href="./workspace.css{ws_css_v}">'
+    + '\n<link rel="stylesheet" href="./pdf-export.css">'
+    + '\n<script src="./pdf-export.js"></script>'
+    + '\n</body>\n</html>',
 )
 (output / "workspace.html").write_text(html, encoding="utf-8")
 (output / "USER-MANUAL-EN.html").write_bytes((desktop / "USER-MANUAL-EN.html").read_bytes())

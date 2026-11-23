@@ -468,15 +468,13 @@
     const fideDetails = byId('cpFideEligibility');
     if (fideDetails) fideDetails.classList.add('cp-ws-details-card');
 
-    // Side-by-side Pairing Essentials + Tournament Rules & Ranking
+    // Full-width Pairing Essentials followed by Tournament Rules & Ranking
     const essentials = qs('.pairing-essentials-box', main);
     const rules = qs('.setup-rules-box', main);
+    if (essentials) essentials.classList.add('cp-ws-card', 'cp-ws-setup-card');
+    if (rules) rules.classList.add('cp-ws-card', 'cp-ws-setup-card');
     if (essentials && rules) {
-      const twoCol = make('div', 'cp-ws-setup-two-col');
-      essentials.parentElement.insertBefore(twoCol, essentials);
-      essentials.classList.add('cp-ws-card');
-      rules.classList.add('cp-ws-card');
-      twoCol.append(essentials, rules);
+      essentials.insertAdjacentElement('afterend', rules);
     }
 
     // Collapsible Secondary Setup Cards
