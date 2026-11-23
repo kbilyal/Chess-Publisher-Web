@@ -464,6 +464,20 @@ try {
     ]) {
       await page.locator('#' + tabId).click();
       await page.locator('#' + pageId + '.active').waitFor();
+      if (pageId === 'pairings') {
+        const columns = await page.evaluate(() => {
+          const n = document.querySelector('#pairings > .live-pairing-layout');
+          if (!n) return null;
+          return { display: getComputedStyle(n).display,
+            tracks: getComputedStyle(n).gridTemplateColumns,
+            width: Math.round(n.getBoundingClientRect().width),
+            children: Array.from(n.children, child => ({
+              cls: String(child.className || '').slice(0, 100),
+              width: Math.round(child.getBoundingClientRect().width)
+            })) };
+        });
+        console.log('CP_PAIRINGS_COLUMNS=' + JSON.stringify(columns));
+      }
       await page.screenshot({ path: join(visualDir, pageId + '-desktop.png'),
         animations: 'disabled' });
     }
