@@ -9,14 +9,19 @@ def without_beta_badges(html):
         raise ValueError('Homepage header is missing')
 
     updated = header[0]
-    for href, label in (
-        ('https://web.chess-publisher.org', 'WEB Companion'),
-        ('/tournaments', 'Tournaments'),
-    ):
+    if 'data-site-build="2026-11-23-web-portal"' in html:
+        targets = (('/tournaments', 'Tournaments'),)
+    else:
+        targets = (
+            ('https://web.chess-publisher.org', 'WEB Companion'),
+            ('/tournaments', 'Tournaments'),
+        )
+    for href, label in targets:
         link = rf'(<a\b[^>]*\shref="{re.escape(href)}"[^>]*>{label})(?:\s*<sup class="nav-beta-index">BETA</sup>)?(</a>)'
         updated, count = re.subn(link, r'\1\2', updated)
         if count != 1:
             raise ValueError(f'Expected one homepage link for {label}, found {count}')
+    updated = re.sub(r'\s*<sup class="nav-beta-index">BETA</sup>', '', updated)
 
     return html[:header.start()] + updated + html[header.end():]
 

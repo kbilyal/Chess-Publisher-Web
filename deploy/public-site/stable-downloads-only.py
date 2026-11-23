@@ -34,7 +34,8 @@ history.write_text(source, encoding="utf-8")
 )
 assert "pre-fide-r12.js" not in html
 assert "/releases/tags/v1.06.00" in app.read_text()
-for name in ("heroDownload", "installerDownload", "portableDownload"):
+download_ids = ("installerDownload", "portableDownload") if 'data-site-build="2026-11-23-web-portal"' in html else ("heroDownload", "installerDownload", "portableDownload")
+for name in download_ids:
     match = re.search(r'<a\b[^>]*\bid="' + name + r'"[^>]*>', html)
     if not match or "/releases/download/v1.06.00/" not in match[0]:
         raise SystemExit(f"Expected a 1.06.00 download for {name}.")

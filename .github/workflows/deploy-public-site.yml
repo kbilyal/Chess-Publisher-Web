@@ -238,6 +238,10 @@ jobs:
             grep -q 'data-home-web-entry="nav"' site/index.html
             grep -q 'data-home-web-entry="hero"' site/index.html
             grep -q 'data-home-web-entry="footer"' site/index.html
+            grep -q 'Chess-Publisher is coming to Linux' site/index.html
+            grep -q '<strong>Windows</strong>' site/index.html
+            grep -q '<strong>Linux</strong>' site/index.html
+            grep -q 'Install it on mobile' site/index.html
           fi
           python deploy/public-site/remove-home-nav-beta.py --check site/index.html
           grep -q 'data-home-web-entry="protected-v1"' site/index.html
@@ -245,10 +249,6 @@ jobs:
           grep -q '/site-auth.css' site/index.html
           test -s site/site-auth.js
           test -s site/site-auth.css
-          grep -q 'Chess-Publisher is coming to Linux' site/index.html
-          grep -q '<strong>Windows</strong>' site/index.html
-          grep -q '<strong>Linux</strong>' site/index.html
-          grep -q 'Install it on mobile' site/index.html
           grep -q 'Meet WEB Companion' site/news-web-companion-linux-2026.html
           grep -q 'Linux.*In development' site/news-web-companion-linux-2026.html
           test -s site/tournaments.js
@@ -317,7 +317,8 @@ jobs:
               && grep -q '/site-auth.js' <<<"$home" \
               && grep -q '/site-auth.css' <<<"$home" \
               && python deploy/public-site/remove-home-nav-beta.py --check /dev/stdin <<<"$home" \
-              && grep -q 'Chess-Publisher is coming to Linux' <<<"$home" \
+              && (grep -q 'Arbiter Companion' <<<"$home" || grep -q 'Chess-Publisher is coming to Linux' <<<"$home") \
+              && (! grep -q 'data-site-build="2026-11-23-web-portal"' <<<"$home" || grep -q 'homepage-web.css' <<<"$home") \
               && grep -q 'Meet WEB Companion' <<<"$news" \
               && grep -q '/hub-fide-event-id.js' <<<"$tournaments" \
               && grep -q '/hub-useful-links.js' <<<"$tournaments" \
