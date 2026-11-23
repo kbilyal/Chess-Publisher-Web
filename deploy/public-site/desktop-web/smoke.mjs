@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { mkdir } from 'node:fs/promises';
+import { join } from 'node:path';
 import { createRequire } from 'node:module';
 
 const [url, modules, executablePath] = process.argv.slice(2);
@@ -444,6 +446,34 @@ try {
     await page.locator(`#${tab}`).waitFor();
   }
   await verifyChessResults(page);
+
+
+  // Optional synthetic-only visual evidence for PR design review. The exact
+  // browser-generated UI is captured; no credentials, real user records or
+  // external service data are used by this test fixture.
+  const visualDir = process.env.CP_WEBSITE_UI_SCREENSHOTS_DIR;
+  if (visualDir) {
+    await mkdir(visualDir, { recursive: true });
+    for (const [tabId, pageId] of [
+      ['tabMain', 'main'],
+      ['tabPairings', 'pairings'],
+      ['tabStandings', 'standings'],
+      ['tabSchedule', 'schedule'],
+      ['tabExport', 'exportPage'],
+      ['tabChessResults', 'chessresults'],
+    ]) {
+      await page.locator('#' + tabId).click();
+      await page.locator('#' + pageId + '.active').waitFor();
+      await page.screenshot({ path: join(visualDir, pageId + '-desktop.png'),
+        animations: 'disabled' });
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.locator('#tabPairings').click();
+    await page.locator('#pairings.active').waitFor();
+    await page.screenshot({ path: join(visualDir, 'pairings-mobile-390.png'),
+      animations: 'disabled' });
+    await page.setViewportSize({ width: 1440, height: 920 });
+  }
 
   await page.locator('#cpDesktopWebSignOut').click();
   await page.getByRole('heading', { name: 'ChessPublisher Web' }).waitFor();
