@@ -341,7 +341,7 @@
       if (!modal || modal.querySelector('[data-cp-pairings-txt-print]')) return;
       const buttons = [...modal.querySelectorAll('button')];
       const exportButton = buttons.reverse().find(button =>
-        /(?:download|export|save).*txt|^(?:download|export|save)(?:\\s|$)/i.test(button.textContent.trim()));
+        /(?:download|export|save).*txt|^(?:download|export|save)(?:\s|$)/i.test(button.textContent.trim()));
       if (!exportButton) return;
       const printButton = document.createElement('button');
       printButton.type = 'button';
