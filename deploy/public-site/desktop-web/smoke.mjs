@@ -635,6 +635,12 @@ try {
       console.log('CP_RESPONSIVE_MATRIX=' + JSON.stringify(metrics));
       assert.ok(metrics.pageWidth >= 200 && metrics.pageHeight >= 80,
         'Workspace page collapsed: ' + JSON.stringify(metrics));
+      assert.ok(metrics.documentOverflow <= 2 && metrics.appOverflow <= 2,
+        'Outer document or application overflow: ' + JSON.stringify(metrics));
+      if (visualDir && ((width === 768 && section === 'standings') ||
+          (width === 1024 && ['pairings', 'chessresults'].includes(section)))) {
+        await page.screenshot({ path: join(visualDir, section + '-' + width + '.png'), animations: 'disabled' });
+      }
     }
   }
   await page.setViewportSize({ width: 1440, height: 920 });
