@@ -996,12 +996,10 @@
 }
 
 
-/* Phase 11: the real Standings state caption contains anonymous flex text
-   items around its two numeric <b> elements. A zero-gap flex row made
-   "Tournament state:0completed ... of3." appear as one cramped word. */
+/* Phase 11: the original caption contains inline text and two <b>
+   numbers. Restore normal text flow instead of a Flex row: the existing
+   spaces AND the final punctuation remain exactly where authored. */
 #appWindow #standings #standingsStateLine {
-  column-gap: 4px;
-  row-gap: 2px;
-  flex-wrap: wrap;
-  align-items: baseline;
+  display: block;
+  white-space: normal;
 }
