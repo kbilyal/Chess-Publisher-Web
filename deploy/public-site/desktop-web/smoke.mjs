@@ -469,7 +469,11 @@ try {
           const n = document.querySelector('#pairings > .live-pairing-layout');
           if (!n) return null;
           const panel = n.querySelector('.live-pairing-panel');
+          const boardGrid = panel?.querySelector('.swiss-workspace');
+          const boardTracks = boardGrid
+            ? getComputedStyle(boardGrid).gridTemplateColumns : '';
           return { display: getComputedStyle(n).display,
+            boardTracks, sidebarTrack: Number.parseFloat(boardTracks.split(' ').at(-1)) || 0,
             tracks: getComputedStyle(n).gridTemplateColumns,
             width: Math.round(n.getBoundingClientRect().width),
             children: Array.from(n.children, child => ({
@@ -486,6 +490,8 @@ try {
             } : null };
         });
         console.log('CP_PAIRINGS_COLUMNS=' + JSON.stringify(columns));
+        assert.ok(columns.sidebarTrack >= 255 && columns.sidebarTrack <= 285,
+          'Original board sidebar must have a readable 270px track: ' + JSON.stringify(columns));
       }
       await page.screenshot({ path: join(visualDir, pageId + '-desktop.png'),
         animations: 'disabled' });
