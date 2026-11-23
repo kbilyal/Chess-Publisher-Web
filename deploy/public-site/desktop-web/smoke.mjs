@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { mkdir } from 'node:fs/promises';
+import { join } from 'node:path';
 import { createRequire } from 'node:module';
 
 const [url, modules, executablePath] = process.argv.slice(2);
@@ -212,6 +214,39 @@ try {
   await tournamentDialog.waitFor({ state: 'hidden' });
   console.log('Tournament created in the desktop workspace.');
 
+  // Verify the *actual website copy* of the CSS, not the standalone source
+  // repository's generated HTML. Read-only layout checks, no DOM rewrites.
+  const themeState = await page.evaluate(() => {
+    const rect = selector => {
+      const node = document.querySelector(selector);
+      if (!node) return null;
+      const r = node.getBoundingClientRect();
+      return { left: Math.round(r.left), top: Math.round(r.top),
+        width: Math.round(r.width), height: Math.round(r.height) };
+    };
+    const main = document.querySelector('#main.page.active');
+    return {
+      stylesheet: [...document.querySelectorAll('link[rel="stylesheet"]')]
+        .some(node => (node.getAttribute('href') || '').endsWith('workspace-tabs.css')),
+      display: main ? getComputedStyle(main).display : '',
+      primary: main ? getComputedStyle(main).getPropertyValue('--cpw-primary').trim() : '',
+      general: rect('#main > .tournament-general-box'),
+      essentials: rect('#main > .pairing-essentials-box'),
+      rules: rect('#main > .setup-rules-box'),
+      tournamentSelectCount: document.querySelectorAll('#mainTournamentSelect').length
+    };
+  });
+  assert.equal(themeState.stylesheet, true);
+  assert.equal(themeState.display, 'grid');
+  assert.equal(themeState.primary, '#0f3d91');
+  assert.ok(themeState.general && themeState.essentials && themeState.rules, JSON.stringify(themeState));
+  assert.ok(themeState.general.width > themeState.essentials.width * 1.7, JSON.stringify(themeState));
+  assert.ok(themeState.essentials.left < themeState.rules.left, JSON.stringify(themeState));
+  assert.ok(Math.abs(themeState.essentials.top - themeState.rules.top) <= 2, JSON.stringify(themeState));
+  assert.equal(themeState.tournamentSelectCount, 1);
+  console.log('Actual /app/ Setup redesign geometry and original controls verified.');
+
+
   const timeControl = page.locator('#timeControl');
   assert.equal(await timeControl.locator('option[value="60+30"]').textContent(), '60+30 (Fast Classical)');
   assert.equal(await timeControl.locator('option[value="45+30"]').textContent(), '45+30 (Fast Classical)');
@@ -411,6 +446,223 @@ try {
     await page.locator(`#${tab}`).waitFor();
   }
   await verifyChessResults(page);
+
+
+  // Optional synthetic-only visual evidence for PR design review. The exact
+  // browser-generated UI is captured; no credentials, real user records or
+  // external service data are used by this test fixture.
+  const visualDir = process.env.CP_WEBSITE_UI_SCREENSHOTS_DIR;
+  if (visualDir) {
+    await mkdir(visualDir, { recursive: true });
+    for (const [tabId, pageId] of [
+      ['tabMain', 'main'],
+      ['tabPairings', 'pairings'],
+      ['tabStandings', 'standings'],
+      ['tabSchedule', 'schedule'],
+      ['tabExport', 'exportPage'],
+      ['tabChessResults', 'chessresults'],
+    ]) {
+      await page.locator('#' + tabId).click();
+      await page.locator('#' + pageId + '.active').waitFor();
+      if (pageId === 'standings') {
+        const kpi = await page.evaluate(() => {
+          const strip = document.querySelector('#standings > .final-standings-top');
+          if (!strip) return null;
+          const box = strip.getBoundingClientRect();
+          const cards = [...strip.children].map(child => child.getBoundingClientRect());
+          return { width:Math.round(box.width), height:Math.round(box.height),
+            cards:cards.map(c=>({width:Math.round(c.width),height:Math.round(c.height),
+              right:Math.round(c.right)})), right:Math.round(box.right),
+            display:getComputedStyle(strip).display };
+        });
+        assert.ok(kpi && kpi.cards.length >= 4, JSON.stringify(kpi));
+        assert.equal(kpi.display, 'flex');
+        assert.ok(kpi.cards.every(c => c.right <= kpi.right + 2), JSON.stringify(kpi));
+        console.log('CP_STANDINGS_COMPACT_KPIS=' + JSON.stringify(kpi));
+        const stateLabel = await page.evaluate(() => {
+          const els = [...document.querySelectorAll('#standings *')].filter(el =>
+            el.textContent?.includes('Tournament state:') &&
+            el.textContent.trim().length < 130 &&
+            el.children.length >= 2);
+          const node = els.at(-1);
+          if (!node) return {found:false};
+          const style = getComputedStyle(node);
+          return {found:true,tag:node.tagName,className:String(node.className||''),
+            id:node.id,display:style.display,gap:style.gap,columnGap:style.columnGap,
+            childElements:[...node.children].map(x=>({tag:x.tagName,
+              cls:String(x.className||''),text:x.textContent.trim().slice(0,70)})),
+            text:node.textContent.trim().slice(0,110)};
+        });
+        console.log('CP_STANDINGS_STATE_DOM=' + JSON.stringify(stateLabel));
+        assert.equal(stateLabel.id, 'standingsStateLine');
+        assert.equal(stateLabel.display, 'block',
+          'Round-state text must use natural inline flow, including punctuation');
+
+      }
+      if (pageId === 'chessresults') {
+        const cards = await page.evaluate(() => {
+          const rect = selector => {
+            const n=document.querySelector(selector);
+            if (!n) return null;
+            const r=n.getBoundingClientRect();
+            return {height:Math.round(r.height),width:Math.round(r.width),
+              left:Math.round(r.left),top:Math.round(r.top)};
+          };
+          return {publication:rect('#chessresults > .crpub-box'),
+            log:rect('#chessresults > .crlog-box'),
+            pin:rect('#chessresults > .crpin-box')};
+        });
+        assert.ok(cards.publication && cards.log && cards.pin, JSON.stringify(cards));
+        assert.ok(cards.publication.left < cards.log.left, JSON.stringify(cards));
+        assert.ok(cards.publication.height < cards.log.height + cards.pin.height + 40,
+          'Publication panel should not stretch across both right-hand cards: ' + JSON.stringify(cards));
+        console.log('CP_CHESSRESULTS_COMPACT_CARDS=' + JSON.stringify(cards));
+      }
+      if (pageId === 'schedule') {
+        const panels = await page.evaluate(() => {
+          const page = document.querySelector('#schedule.page.active');
+          const r = page.getBoundingClientRect();
+          return { display: getComputedStyle(page).display, width: Math.round(r.width),
+            sections: Array.from(page.querySelectorAll(':scope > .groupbox'), item => {
+              const b = item.getBoundingClientRect();
+              return {width:Math.round(b.width),top:Math.round(b.top)};
+            }) };
+        });
+        assert.equal(panels.display, 'flex');
+        assert.equal(panels.sections.length, 3);
+        assert.ok(panels.sections.every(p => p.width >= panels.width - 50),
+          'Round/Event Schedule must retain full width: ' + JSON.stringify(panels));
+        assert.ok(panels.sections.every((p,i) => i === 0 || p.top > panels.sections[i-1].top),
+          'Keyboard/visual order must remain natural: ' + JSON.stringify(panels));
+        console.log('CP_SCHEDULE_FULL_WIDTH=' + JSON.stringify(panels));
+      }
+      if (pageId === 'pairings') {
+        const columns = await page.evaluate(() => {
+          const n = document.querySelector('#pairings > .live-pairing-layout');
+          if (!n) return null;
+          const panel = n.querySelector('.live-pairing-panel');
+          const boardGrid = panel?.querySelector('.swiss-workspace');
+          const boardTracks = boardGrid
+            ? getComputedStyle(boardGrid).gridTemplateColumns : '';
+          return { display: getComputedStyle(n).display,
+            boardTracks, sidebarTrack: Number.parseFloat(boardTracks.split(' ').at(-1)) || 0,
+            tracks: getComputedStyle(n).gridTemplateColumns,
+            width: Math.round(n.getBoundingClientRect().width),
+            children: Array.from(n.children, child => ({
+              cls: String(child.className || '').slice(0, 100),
+              width: Math.round(child.getBoundingClientRect().width)
+            })),
+            panel: panel ? { display: getComputedStyle(panel).display,
+              tracks: getComputedStyle(panel).gridTemplateColumns,
+              children: Array.from(panel.children, child => ({
+                cls: String(child.className || '').slice(0, 100),
+                width: Math.round(child.getBoundingClientRect().width),
+                display: getComputedStyle(child).display
+              }))
+            } : null };
+        });
+        console.log('CP_PAIRINGS_COLUMNS=' + JSON.stringify(columns));
+        assert.ok(columns.sidebarTrack >= 255 && columns.sidebarTrack <= 285,
+          'Original board sidebar must have a readable 270px track: ' + JSON.stringify(columns));
+      }
+      await page.screenshot({ path: join(visualDir, pageId + '-desktop.png'),
+        animations: 'disabled' });
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.locator('#tabPairings').click();
+    await page.locator('#pairings.active').waitFor();
+    const mobileDom = await page.evaluate(() => {
+      function describe(node) {
+        if (!node) return null;
+        const style = getComputedStyle(node), rect = node.getBoundingClientRect();
+        return {
+          tag: node.tagName.toLowerCase(), id: node.id || '',
+          className: String(node.className || '').slice(0, 110),
+          width: Math.round(rect.width), height: Math.round(rect.height),
+          scrollWidth: node.scrollWidth,
+          display: style.display, flexDirection: style.flexDirection,
+          gridTemplateColumns: style.gridTemplateColumns,
+          children: [...node.children].slice(0, 7).map(n => ({
+            tag:n.tagName.toLowerCase(), id:n.id || '',cls:String(n.className||'').slice(0,80),
+            width:Math.round(n.getBoundingClientRect().width),
+            display:getComputedStyle(n).display
+          }))
+        };
+      }
+      const manager=document.getElementById('nextRoundManager');
+      const history=document.querySelector('#pairings > .program-historybar');
+      const save = [...document.querySelectorAll('button')]
+        .find(node => (node.textContent || '').trim() === 'Save'
+          && node.getBoundingClientRect().top < 75);
+      return { viewport: innerWidth,
+        save: describe(save),
+        saveRight: Math.round(save?.getBoundingClientRect().right || 0),
+        saveLeft: Math.round(save?.getBoundingClientRect().left || 0),
+        headerWidth: Math.round(document.querySelector('#appWindow > .desktop-header-strip')?.getBoundingClientRect().width || 0),
+        headerScrollWidth: document.querySelector('#appWindow > .desktop-header-strip')?.scrollWidth || 0,
+        saveParent: describe(save?.parentElement),
+        saveGrandparent: describe(save?.parentElement?.parentElement),
+        appRoot: describe(document.getElementById('appWindow')),
+        page: describe(document.getElementById('pairings')),
+        manager: describe(manager), managerFirst:describe(manager?.firstElementChild),
+        managerSecond:describe(manager?.children?.[1]), history:describe(history),
+        titlebar:describe(document.querySelector('#appWindow > .titlebar')) };
+    });
+    console.log('CP_MOBILE_PAIRINGS_DOM=' + JSON.stringify(mobileDom));
+    assert.ok(mobileDom.managerFirst?.children?.[0]?.width >= 280,
+      'Mobile next-round heading is squeezed: ' + JSON.stringify(mobileDom.managerFirst));
+    assert.ok(mobileDom.managerFirst?.height <= 145,
+      'Mobile next-round heading is taller than its content: ' + JSON.stringify(mobileDom.managerFirst));
+    assert.ok(mobileDom.history?.children?.[2]?.width >= 270,
+      'Round history help text must get its own readable line: ' + JSON.stringify(mobileDom.history));
+    assert.ok(mobileDom.history?.height <= 125,
+      'Round history must remain compact at 390px: ' + JSON.stringify(mobileDom.history));
+    assert.ok(mobileDom.save && mobileDom.save.width >= 38,
+      'Save action must not collapse at mobile width: ' + JSON.stringify(mobileDom));
+    assert.ok(mobileDom.saveRight <= mobileDom.viewport + 1 && mobileDom.saveLeft >= 0,
+      'Save action must be fully visible without horizontal scrolling: ' + JSON.stringify(mobileDom));
+    assert.ok(mobileDom.headerScrollWidth <= mobileDom.headerWidth + 2,
+      'Header controls must fit without horizontal scrolling: ' + JSON.stringify(mobileDom));
+    await page.screenshot({ path: join(visualDir, 'pairings-mobile-390.png'),
+      animations: 'disabled' });
+    await page.setViewportSize({ width: 1440, height: 920 });
+  }
+
+  // Check tablet and small-laptop breakpoints on the same real workspace
+  // after all original pairing, Cloud and Chess-Results actions have run.
+  for (const width of [768, 1024, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const [tab, section] of [
+      ['tabMain', 'main'], ['tabPairings', 'pairings'],
+      ['tabStandings', 'standings'], ['tabSchedule', 'schedule'],
+      ['tabExport', 'exportPage'], ['tabChessResults', 'chessresults'],
+    ]) {
+      await page.locator('#' + tab).click();
+      await page.locator('#' + section + '.active').waitFor();
+      const metrics = await page.evaluate(section => {
+        const node = document.getElementById(section);
+        const bounds = node.getBoundingClientRect();
+        return {
+          viewport: innerWidth, tab: section,
+          documentOverflow: Math.round(document.documentElement.scrollWidth - innerWidth),
+          appOverflow: Math.round(document.getElementById('appWindow').scrollWidth - innerWidth),
+          pageWidth: Math.round(bounds.width),
+          pageHeight: Math.round(bounds.height),
+          layout: getComputedStyle(node).display
+        };
+      }, section);
+      console.log('CP_RESPONSIVE_MATRIX=' + JSON.stringify(metrics));
+      assert.ok(metrics.pageWidth >= 200 && metrics.pageHeight >= 80,
+        'Workspace page collapsed: ' + JSON.stringify(metrics));
+      assert.ok(metrics.documentOverflow <= 2 && metrics.appOverflow <= 2,
+        'Outer document or application overflow: ' + JSON.stringify(metrics));
+      if (visualDir && ((width === 768 && section === 'standings') ||
+          (width === 1024 && ['pairings', 'chessresults'].includes(section)))) {
+        await page.screenshot({ path: join(visualDir, section + '-' + width + '.png'), animations: 'disabled' });
+      }
+    }
+  }
+  await page.setViewportSize({ width: 1440, height: 920 });
 
   await page.locator('#cpDesktopWebSignOut').click();
   await page.getByRole('heading', { name: 'ChessPublisher Web' }).waitFor();

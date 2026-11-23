@@ -1,0 +1,132 @@
+name: Desktop Web preview style gate (no deploy)
+
+on:
+  push:
+    branches:
+      - ui/workspace-tabs-preview-parity-safe-2026-11-23
+    paths:
+      - 'deploy/public-site/desktop-web/**'
+      - '.github/workflows/desktop-web-preview-style-gate.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'deploy/public-site/desktop-web/**'
+      - '.github/workflows/desktop-web-preview-style-gate.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: workspace-presentation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  live-dom:
+    name: Exact website-build UI and safety verification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify scoped presentation source and build wiring
+        shell: bash
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          root = Path('deploy/public-site/desktop-web')
+          style = (root / 'workspace-tabs.css').read_text(encoding='utf-8')
+          build = (root / 'build.sh').read_text(encoding='utf-8')
+          builder = (root / 'build-workspace.py').read_text(encoding='utf-8')
+          for tab in ('main','pairings','standings','schedule','chessresults','exportPage'):
+              assert '#' + tab in style, tab
+          assert '#registration' not in style
+          for forbidden in (r'display\s*:\s*none\b', r'pointer-events\s*:\s*none\b',
+                            r'visibility\s*:\s*hidden\b', r'@import\s', r'javascript\s*:'):
+              assert not re.search(forbidden, style, re.I), forbidden
+          assert 'registration-ui.js,workspace.css,workspace-tabs.css' in build
+          assert builder.count('href="./workspace-tabs.css"') == 1
+          assert builder.index('href="./workspace.css"') < builder.index('href="./workspace-tabs.css"')
+          assert 'chess-results-browser-adapter.js' in builder
+          print('PASS: production-build CSS-only presentation contract')
+          PY
+
+      - name: Assemble exact website preview engine
+        run: bash deploy/public-site/pairing-preview/build.sh "${RUNNER_TEMP}/cp-preview-engine"
+
+      - name: Assemble exact website Desktop-Web artifact
+        run: |
+          mkdir -p "${RUNNER_TEMP}/cp-preview-site/app"
+          bash deploy/public-site/desktop-web/build.sh "${RUNNER_TEMP}/cp-preview-site/app" "${RUNNER_TEMP}/cp-preview-engine"
+
+      - name: Check generated workspace stylesheet and preserved controls
+        shell: bash
+        run: |
+          python - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+          import os
+          root = Path(os.environ['RUNNER_TEMP']) / 'cp-preview-site/app'
+          html = (root / 'workspace.html').read_text(encoding='utf-8')
+          assert (root / 'workspace-tabs.css').stat().st_size > 1000
+          assert html.count('href="./workspace.css"') == 1
+          assert html.count('href="./workspace-tabs.css"') == 1
+          assert html.count('src="./chess-results-browser-adapter.js"') == 1
+          class IDs(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.counts = {}
+              def handle_starttag(self, tag, attrs):
+                  for k,v in attrs:
+                      if k == 'id':
+                          self.counts[v] = self.counts.get(v, 0) + 1
+          parsed = IDs(); parsed.feed(html)
+          for identifier in ('main','registration','pairings','standings',
+                             'schedule','chessresults','exportPage',
+                             'btnGenerateGacrux','mainTournamentSelect'):
+              assert parsed.counts.get(identifier) == 1, (identifier,parsed.counts.get(identifier))
+          print('PASS: exact website artifact, original controls, both browser adapters')
+          PY
+
+      - name: Install isolated Playwright core for real browser check
+        run: npm install --prefix "${RUNNER_TEMP}/cp-preview-playwright" --no-save playwright-core@1.65.1
+
+      - name: Serve isolated built workspace
+        shell: bash
+        run: |
+          python -m http.server 8793 --bind 127.0.0.1 --directory "${RUNNER_TEMP}/cp-preview-site" > /tmp/chesspublisher-presentation-test.log 2>&1 &
+          for i in {1..50}; do
+            if curl --fail --silent http://127.0.0.1:8793/app/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/chesspublisher-presentation-test.log
+          exit 1
+
+      - name: Real Chromium login, pairing, Cloud, exports and signout
+        shell: bash
+        env:
+          CP_WEBSITE_UI_SCREENSHOTS_DIR: ${{ github.event_name == 'pull_request' && format('{0}/site-visual-review', runner.temp) || '' }}
+        run: |
+          node deploy/public-site/desktop-web/smoke.mjs \
+            http://127.0.0.1:8793/app/ \
+            "${RUNNER_TEMP}/cp-preview-playwright" \
+            "$(command -v google-chrome)"
+
+      - name: Share temporary synthetic visual-audit screenshots
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: chesspublisher-real-tabs-visual-audit
+          path: ${{ runner.temp }}/site-visual-review/*.png
+          if-no-files-found: warn
+          retention-days: 1
+
+      # No production deployment actions in this workflow.
