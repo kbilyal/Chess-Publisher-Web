@@ -464,6 +464,41 @@ try {
     ]) {
       await page.locator('#' + tabId).click();
       await page.locator('#' + pageId + '.active').waitFor();
+      if (pageId === 'standings') {
+        const kpi = await page.evaluate(() => {
+          const strip = document.querySelector('#standings > .final-standings-top');
+          if (!strip) return null;
+          const box = strip.getBoundingClientRect();
+          const cards = [...strip.children].map(child => child.getBoundingClientRect());
+          return { width:Math.round(box.width), height:Math.round(box.height),
+            cards:cards.map(c=>({width:Math.round(c.width),height:Math.round(c.height),
+              right:Math.round(c.right)})), right:Math.round(box.right),
+            display:getComputedStyle(strip).display };
+        });
+        assert.ok(kpi && kpi.cards.length >= 4, JSON.stringify(kpi));
+        assert.equal(kpi.display, 'flex');
+        assert.ok(kpi.cards.every(c => c.right <= kpi.right + 2), JSON.stringify(kpi));
+        console.log('CP_STANDINGS_COMPACT_KPIS=' + JSON.stringify(kpi));
+      }
+      if (pageId === 'chessresults') {
+        const cards = await page.evaluate(() => {
+          const rect = selector => {
+            const n=document.querySelector(selector);
+            if (!n) return null;
+            const r=n.getBoundingClientRect();
+            return {height:Math.round(r.height),width:Math.round(r.width),
+              left:Math.round(r.left),top:Math.round(r.top)};
+          };
+          return {publication:rect('#chessresults > .crpub-box'),
+            log:rect('#chessresults > .crlog-box'),
+            pin:rect('#chessresults > .crpin-box')};
+        });
+        assert.ok(cards.publication && cards.log && cards.pin, JSON.stringify(cards));
+        assert.ok(cards.publication.left < cards.log.left, JSON.stringify(cards));
+        assert.ok(cards.publication.height < cards.log.height + cards.pin.height + 40,
+          'Publication panel should not stretch across both right-hand cards: ' + JSON.stringify(cards));
+        console.log('CP_CHESSRESULTS_COMPACT_CARDS=' + JSON.stringify(cards));
+      }
       if (pageId === 'schedule') {
         const panels = await page.evaluate(() => {
           const page = document.querySelector('#schedule.page.active');
