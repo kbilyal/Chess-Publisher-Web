@@ -495,8 +495,8 @@ try {
         });
         console.log('CP_STANDINGS_STATE_DOM=' + JSON.stringify(stateLabel));
         assert.equal(stateLabel.id, 'standingsStateLine');
-        assert.equal(stateLabel.columnGap, '4px',
-          'Standings round-state text must not visually merge with numeric counts');
+        assert.equal(stateLabel.display, 'block',
+          'Round-state text must use natural inline flow, including punctuation');
 
       }
       if (pageId === 'chessresults') {
