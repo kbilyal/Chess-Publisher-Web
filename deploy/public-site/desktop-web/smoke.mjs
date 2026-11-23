@@ -212,6 +212,39 @@ try {
   await tournamentDialog.waitFor({ state: 'hidden' });
   console.log('Tournament created in the desktop workspace.');
 
+  // Verify the *actual website copy* of the CSS, not the standalone source
+  // repository's generated HTML. Read-only layout checks, no DOM rewrites.
+  const themeState = await page.evaluate(() => {
+    const rect = selector => {
+      const node = document.querySelector(selector);
+      if (!node) return null;
+      const r = node.getBoundingClientRect();
+      return { left: Math.round(r.left), top: Math.round(r.top),
+        width: Math.round(r.width), height: Math.round(r.height) };
+    };
+    const main = document.querySelector('#main.page.active');
+    return {
+      stylesheet: [...document.querySelectorAll('link[rel="stylesheet"]')]
+        .some(node => (node.getAttribute('href') || '').endsWith('workspace-tabs.css')),
+      display: main ? getComputedStyle(main).display : '',
+      primary: main ? getComputedStyle(main).getPropertyValue('--cpw-primary').trim() : '',
+      general: rect('#main > .tournament-general-box'),
+      essentials: rect('#main > .pairing-essentials-box'),
+      rules: rect('#main > .setup-rules-box'),
+      tournamentSelectCount: document.querySelectorAll('#mainTournamentSelect').length
+    };
+  });
+  assert.equal(themeState.stylesheet, true);
+  assert.equal(themeState.display, 'grid');
+  assert.equal(themeState.primary, '#0f3d91');
+  assert.ok(themeState.general && themeState.essentials && themeState.rules, JSON.stringify(themeState));
+  assert.ok(themeState.general.width > themeState.essentials.width * 1.7, JSON.stringify(themeState));
+  assert.ok(themeState.essentials.left < themeState.rules.left, JSON.stringify(themeState));
+  assert.ok(Math.abs(themeState.essentials.top - themeState.rules.top) <= 2, JSON.stringify(themeState));
+  assert.equal(themeState.tournamentSelectCount, 1);
+  console.log('Actual /app/ Setup redesign geometry and original controls verified.');
+
+
   const timeControl = page.locator('#timeControl');
   assert.equal(await timeControl.locator('option[value="60+30"]').textContent(), '60+30 (Fast Classical)');
   assert.equal(await timeControl.locator('option[value="45+30"]').textContent(), '45+30 (Fast Classical)');
