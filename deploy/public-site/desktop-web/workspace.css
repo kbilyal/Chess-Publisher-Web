@@ -1860,3 +1860,136 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
     width: 100% !important;
   }
 }
+
+/* --------------------------------------------------------------------------
+   USER MENU (Google Sign-In & My Tournaments)
+   -------------------------------------------------------------------------- */
+#appWindow #classicMenuBar .cp-user-menu {
+  position: relative;
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+#appWindow #classicMenuBar .cp-user-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 7px;
+  height: 22px;
+  line-height: 18px;
+  white-space: nowrap;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#appWindow #classicMenuBar .cp-user-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  object-fit: cover;
+}
+
+#appWindow #classicMenuBar .cp-user-initials {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: #174563;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#appWindow #classicMenuBar .cp-user-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 9000;
+  width: 290px;
+  max-width: 92vw;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.14);
+  padding: 10px;
+  color: #0f172a;
+  font-size: 12px;
+}
+
+#appWindow #classicMenuBar .cp-user-panel-header {
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+#appWindow #classicMenuBar .cp-user-panel-email {
+  color: #64748b;
+  font-size: 11px;
+  word-break: break-all;
+}
+
+#appWindow #classicMenuBar .cp-user-panel-section {
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+#appWindow #classicMenuBar .cp-user-section-title {
+  font-weight: 700;
+  margin-bottom: 4px;
+  color: #334155;
+}
+
+#appWindow #classicMenuBar .cp-user-tournaments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+#appWindow #classicMenuBar .cp-user-tournament-item,
+#appWindow #classicMenuBar .cp-user-action-btn,
+#appWindow #classicMenuBar .cp-user-signout-btn {
+  width: 100%;
+  text-align: left;
+  padding: 5px 8px;
+  border-radius: 5px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+#appWindow #classicMenuBar .cp-user-signout-btn {
+  width: auto;
+  padding: 1px 7px;
+  height: 22px;
+  line-height: 18px;
+  white-space: nowrap;
+  text-align: center;
+  border-radius: 5px;
+  border: 1px solid #174563;
+  background: #174563;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#appWindow #classicMenuBar .cp-user-token-status {
+  margin-top: 4px;
+  font-size: 11px;
+  color: #334155;
+  word-break: break-all;
+}

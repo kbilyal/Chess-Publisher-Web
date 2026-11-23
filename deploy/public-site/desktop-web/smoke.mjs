@@ -14,18 +14,32 @@ let conflictResponses = 0;
 let rejectWith401 = false;
 let uploadsAfter401 = 0;
 
+async function openLegacyTokenForm(page) {
+  const details = page.locator('#legacy-token-details');
+  if (await details.count() && !(await details.evaluate(el => el.open))) {
+    await details.locator('summary').click();
+  }
+}
+
 async function installCloudFixture(page) {
-  await page.route('https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev/**', async route => {
+  await page.route('https://accounts.google.com/**', route =>
+    route.fulfill({ status: 200, contentType: 'application/javascript', body: '' })
+  );
+  const handleApiRoute = async route => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
     const method = request.method();
     const headers = {
       'access-control-allow-origin': origin,
+      'access-control-allow-credentials': 'true',
       'access-control-allow-methods': 'GET, OPTIONS, POST, PUT',
       'access-control-allow-headers': 'Authorization, Content-Type, X-Client-Version, X-Expected-Revision'
     };
     const reply = (json, status = 200) => route.fulfill({ status, headers, json });
     if (method === 'OPTIONS') return route.fulfill({ status: 204, headers });
+    if (path === '/api/auth/me') return reply({ ok: false, authenticated: false });
+    if (path === '/api/auth/config') return reply({ ok: true, googleClientId: null });
+    if (path === '/api/auth/logout') return reply({ ok: true });
     const auth = (await request.allHeaders()).authorization;
     if (auth !== `Bearer ${token}`) {
       if (origin.startsWith('https:') && path === '/api/v1/cloud/workspace') return route.continue();
@@ -69,7 +83,9 @@ async function installCloudFixture(page) {
       }
     }
     return reply({ ok: true, settings: null });
-  });
+  };
+  await page.route('https://api.chess-publisher.org/**', handleApiRoute);
+  await page.route('https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev/**', handleApiRoute);
 }
 
 const chessResultsTnr = '987654321';
@@ -172,10 +188,12 @@ try {
   await installCloudFixture(page);
   await page.goto(new URL('workspace.html', url).href);
   await page.getByRole('heading', { name: 'ChessPublisher Web' }).waitFor();
+  await page.locator('#google-signin-button').waitFor({ state: 'attached' });
   assert.deepEqual(
     await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('cp-desktop-web:signed-out:'))),
     []
   );
+  await openLegacyTokenForm(page);
   const input = page.getByLabel('Organizer Token');
   await input.fill('ci-invalid-public-pairing-token');
   await page.getByRole('button', { name: 'Отвори приложението' }).click();
@@ -587,6 +605,7 @@ try {
   fresh.on('pageerror', error => freshErrors.push(error.message));
   await installCloudFixture(fresh);
   await fresh.goto(url);
+  await openLegacyTokenForm(fresh);
   await fresh.getByLabel('Organizer Token').fill(token);
   await fresh.getByRole('button', { name: 'Отвори приложението' }).click();
   const draftName = fresh.getByRole('textbox', { name: 'Tournament name', exact: true });
@@ -689,6 +708,7 @@ try {
   const touchPage = await touchCtx.newPage();
   await installCloudFixture(touchPage);
   await touchPage.goto(new URL('workspace.html', url).href);
+  await openLegacyTokenForm(touchPage);
   await touchPage.getByLabel('Organizer Token').fill(token);
   await touchPage.getByRole('button', { name: 'Отвори приложението' }).click();
   const touchName = touchPage.getByRole('textbox', { name: 'Tournament name', exact: true });

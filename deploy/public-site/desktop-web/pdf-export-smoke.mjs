@@ -14,18 +14,28 @@ try {
   page.on('console', message => {
     if (message.type() === 'error') errors.push(message.text());
   });
-  await page.route('https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev/**', route => {
+  await page.route('https://accounts.google.com/**', route =>
+    route.fulfill({ status: 200, contentType: 'application/javascript', body: '' })
+  );
+  const handleApiRoute = route => {
     const request = route.request();
+    const path = new URL(request.url()).pathname;
     const headers = {
       'access-control-allow-origin': new URL(url).origin,
+      'access-control-allow-credentials': 'true',
       'access-control-allow-methods': 'GET, POST, PUT, OPTIONS',
       'access-control-allow-headers': 'Authorization, Content-Type, X-Client-Version, X-Expected-Revision',
     };
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
+    if (path === '/api/auth/me') return route.fulfill({ headers, json: { ok: false, authenticated: false } });
+    if (path === '/api/auth/config') return route.fulfill({ headers, json: { ok: true, googleClientId: null } });
     return route.fulfill({ headers, json: { ok: true, organizer: { id: 'pdf-test', displayName: 'PDF test' }, tournaments: [] } });
-  });
+  };
+  await page.route('https://api.chess-publisher.org/**', handleApiRoute);
+  await page.route('https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev/**', handleApiRoute);
   await page.goto(new URL('workspace.html', url).href);
   await page.getByRole('heading', { name: 'ChessPublisher Web' }).waitFor();
+  await page.locator('#legacy-token-details summary').click();
   await page.getByLabel('Organizer Token').fill('ci-pdf-export-organizer');
   await page.getByRole('button', { name: 'Отвори приложението' }).click();
   const name = page.getByRole('textbox', { name: 'Tournament name', exact: true });

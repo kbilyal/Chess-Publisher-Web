@@ -16,12 +16,21 @@ try {
       token: 'ci-fide-organizer',
     }));
   });
-  await page.route('https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev/**', route =>
-    route.fulfill({
+  const handleApiRoute = route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === '/api/auth/me') {
+      return route.fulfill({
+        json: { ok: false, authenticated: false },
+        headers: { 'access-control-allow-origin': origin, 'access-control-allow-credentials': 'true' }
+      });
+    }
+    return route.fulfill({
       json: { ok: true, organizer: { id: 'ci-fide-organizer' }, tournaments: [] },
-      headers: { 'access-control-allow-origin': origin },
-    })
-  );
+      headers: { 'access-control-allow-origin': origin, 'access-control-allow-credentials': 'true' }
+    });
+  };
+  await page.route('https://api.chess-publisher.org/**', handleApiRoute);
+  await page.route('https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev/**', handleApiRoute);
   await page.goto(new URL('workspace.html', url).href);
   await page.waitForFunction(() => Boolean(window.cpBeta98R7 && window.cpWebFideCache));
 

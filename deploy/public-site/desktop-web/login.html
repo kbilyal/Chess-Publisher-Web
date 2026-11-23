@@ -3,8 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="cp-api-base" content="https://api.chess-publisher.org">
+  <meta name="google-client-id" content="">
   <title>ChessPublisher Web | Вход</title>
   <link rel="stylesheet" href="./login.css">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="./login.mjs" type="module"></script>
 </head>
 <body>
@@ -12,12 +15,38 @@
     <p><a href="/">ChessPublisher</a></p>
     <h1>ChessPublisher Web</h1>
     <p>Управлявайте турнири, участници, кръгове, резултати и класиране в работния интерфейс на ChessPublisher.</p>
-    <form>
-      <label for="organizer-token">Organizer Token</label>
-      <input id="organizer-token" type="password" maxlength="2048" autocomplete="off" required>
-      <button type="submit">Отвори приложението</button>
+
+    <section id="google-auth-section" aria-label="Вход с Google">
+      <div id="google-signin-button"></div>
       <p role="status" id="login-status"></p>
-    </form>
+    </section>
+
+    <section id="signed-in-panel" hidden aria-label="Потребителски профил">
+      <div class="signed-in-header">
+        <img id="signed-in-avatar" alt="" hidden referrerpolicy="no-referrer">
+        <div>
+          <strong id="signed-in-name"></strong>
+          <div id="signed-in-email" class="muted"></div>
+        </div>
+      </div>
+      <div class="signed-in-actions">
+        <button type="button" id="open-workspace-btn">Отвори приложението</button>
+        <button type="button" id="account-logout-btn" class="secondary">Изход</button>
+      </div>
+      <div class="my-tournaments-box">
+        <h2>Моите турнири</h2>
+        <ul id="login-tournaments-list"></ul>
+      </div>
+    </section>
+
+    <details id="legacy-token-details">
+      <summary>Вход с Organizer Token (Десктоп / legacy)</summary>
+      <form>
+        <label for="organizer-token">Organizer Token</label>
+        <input id="organizer-token" type="password" maxlength="2048" autocomplete="off" required>
+        <button type="submit">Отвори приложението</button>
+      </form>
+    </details>
   </main>
 </body>
 </html>
