@@ -468,13 +468,22 @@ try {
         const columns = await page.evaluate(() => {
           const n = document.querySelector('#pairings > .live-pairing-layout');
           if (!n) return null;
+          const panel = n.querySelector('.live-pairing-panel');
           return { display: getComputedStyle(n).display,
             tracks: getComputedStyle(n).gridTemplateColumns,
             width: Math.round(n.getBoundingClientRect().width),
             children: Array.from(n.children, child => ({
               cls: String(child.className || '').slice(0, 100),
               width: Math.round(child.getBoundingClientRect().width)
-            })) };
+            })),
+            panel: panel ? { display: getComputedStyle(panel).display,
+              tracks: getComputedStyle(panel).gridTemplateColumns,
+              children: Array.from(panel.children, child => ({
+                cls: String(child.className || '').slice(0, 100),
+                width: Math.round(child.getBoundingClientRect().width),
+                display: getComputedStyle(child).display
+              }))
+            } : null };
         });
         console.log('CP_PAIRINGS_COLUMNS=' + JSON.stringify(columns));
       }
