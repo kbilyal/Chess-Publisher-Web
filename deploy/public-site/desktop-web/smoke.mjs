@@ -488,12 +488,15 @@ try {
           if (!node) return {found:false};
           const style = getComputedStyle(node);
           return {found:true,tag:node.tagName,className:String(node.className||''),
-            id:node.id,display:style.display,gap:style.gap,
+            id:node.id,display:style.display,gap:style.gap,columnGap:style.columnGap,
             childElements:[...node.children].map(x=>({tag:x.tagName,
               cls:String(x.className||''),text:x.textContent.trim().slice(0,70)})),
             text:node.textContent.trim().slice(0,110)};
         });
         console.log('CP_STANDINGS_STATE_DOM=' + JSON.stringify(stateLabel));
+        assert.equal(stateLabel.id, 'standingsStateLine');
+        assert.equal(stateLabel.columnGap, '4px',
+          'Standings round-state text must not visually merge with numeric counts');
 
       }
       if (pageId === 'chessresults') {
