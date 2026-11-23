@@ -162,7 +162,7 @@ jobs:
           grep -R -q 'chess-publisher-chess-results.kyamranbilyal.workers.dev/api/chess-results/' dist/assets --include='*.js'
           cp dist/index.html dist/404.html
           touch dist/.nojekyll
-          node -e "const { createHash } = require('node:crypto'); const { readFileSync, writeFileSync } = require('node:fs'); const indexSha256 = createHash('sha256').update(readFileSync('dist/index.html')).digest('hex'); const buildInfo = { product: 'Chess-Publisher Web Companion', source: 'vite-dist', repository: 'kbilyal/Chess-Publisher-Web', branch: 'main', commit: process.env.GITHUB_SHA, indexSha256, builtAt: new Date().toISOString() }; writeFileSync('dist/companion-build-info.json', JSON.stringify(buildInfo, null, 2) + '\n');"
+          node -e "const { createHash } = require('node:crypto'); const { readFileSync, writeFileSync } = require('node:fs'); const indexSha256 = createHash('sha256').update(readFileSync('dist/index.html')).digest('hex'); const buildInfo = { product: 'Chess-Publisher Arbiter Companion', source: 'vite-dist', repository: 'kbilyal/Chess-Publisher-Web', branch: 'main', commit: process.env.GITHUB_SHA, indexSha256, builtAt: new Date().toISOString() }; writeFileSync('dist/companion-build-info.json', JSON.stringify(buildInfo, null, 2) + '\n');"
           node -e "const { readFileSync } = require('node:fs'); const info = JSON.parse(readFileSync('dist/companion-build-info.json', 'utf8')); if (info.commit !== process.env.GITHUB_SHA) throw new Error('build-info commit mismatch'); if (info.source !== 'vite-dist') throw new Error('deployment source mismatch'); if (!/^[a-f0-9]{64}$/.test(info.indexSha256)) throw new Error('index identity missing');"
 
       - name: Preserve legacy production shell as rollback artifact

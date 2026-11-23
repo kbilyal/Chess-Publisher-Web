@@ -505,6 +505,11 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
     { id: 'publish' as const, label: 'Publish', icon: Send, detail: '2 publication targets' }
   ];
 
+  const cloudId = String(cloud.activeCloud?.id || (tournament as any)?.cloud?.cloudTournamentId || '').trim();
+  const webPortalHref = cloudId
+    ? `https://chess-publisher.org/app/workspace.html?cloudTournamentId=${encodeURIComponent(cloudId)}`
+    : 'https://chess-publisher.org/app/';
+
   const publishBlocked = busy !== null || cloud.busy || cloud.conflict;
 
   return (
@@ -512,7 +517,7 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
       <aside className="companion-sidebar">
         <div className="companion-brand">
           <div className="companion-brand-mark">CP</div>
-          <div><strong>Chess-Publisher</strong><span>Web Companion</span></div>
+          <div><strong>Chess-Publisher</strong><span>Arbiter Companion</span></div>
         </div>
 
         <button className="companion-tournament-switch" type="button" onClick={leaveTournament}>
@@ -531,6 +536,11 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
             );
           })}
         </nav>
+
+        <a className="companion-portal-switch" href={webPortalHref}>
+          <ExternalLink size={15} />
+          <span><strong>Web Portal</strong><small>Full pairings &amp; desktop tools</small></span>
+        </a>
 
         <div className="companion-sidebar-status">
           <div className={`companion-sync-dot ${cloud.conflict ? 'is-warn' : cloud.statusKind === 'offline' ? 'is-offline' : 'is-ok'}`} />
@@ -671,7 +681,7 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
                 >
                   <ExternalLink size={16} /> Open public Hub page
                 </button>
-                <span>{publicHubUrl ? 'View the tournament exactly as visitors see it on Chess-Publisher Hub.' : 'If this tournament already exists on the Hub, the Web Companion will find and open it automatically.'}</span>
+                <span>{publicHubUrl ? 'View the tournament exactly as visitors see it on Chess-Publisher Hub.' : 'If this tournament already exists on the Hub, Arbiter Companion will find and open it automatically.'}</span>
               </div>
             </section>
 

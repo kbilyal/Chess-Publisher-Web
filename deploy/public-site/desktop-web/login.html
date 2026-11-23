@@ -1,27 +1,27 @@
 <!doctype html>
-<html lang="bg">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="cp-api-base" content="https://api.chess-publisher.org">
   <meta name="google-client-id" content="">
-  <title>ChessPublisher Web | Вход</title>
+  <title>Chess-Publisher Web | Sign In</title>
   <link rel="stylesheet" href="./login.css">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="./login.mjs" type="module"></script>
 </head>
 <body>
   <main>
-    <p><a href="/">ChessPublisher</a></p>
-    <h1>ChessPublisher Web</h1>
-    <p>Управлявайте турнири, участници, кръгове, резултати и класиране в работния интерфейс на ChessPublisher.</p>
+    <p><a href="/">Chess-Publisher</a></p>
+    <h1>Chess-Publisher Web</h1>
+    <p>Manage tournaments, players, pairings, results, and standings in the Chess-Publisher organizer workspace.</p>
 
-    <section id="google-auth-section" aria-label="Вход с Google">
+    <section id="google-auth-section" aria-label="Sign in with Google">
       <div id="google-signin-button"></div>
       <p role="status" id="login-status"></p>
     </section>
 
-    <section id="signed-in-panel" hidden aria-label="Потребителски профил">
+    <section id="signed-in-panel" hidden aria-label="Your account">
       <div class="signed-in-header">
         <img id="signed-in-avatar" alt="" hidden referrerpolicy="no-referrer">
         <div>
@@ -30,21 +30,22 @@
         </div>
       </div>
       <div class="signed-in-actions">
-        <button type="button" id="open-workspace-btn">Отвори приложението</button>
-        <button type="button" id="account-logout-btn" class="secondary">Изход</button>
+        <button type="button" id="open-workspace-btn">Open Workspace</button>
+        <a id="open-arbiter-btn" class="secondary-link" href="https://web.chess-publisher.org/" target="_blank" rel="noopener noreferrer">Arbiter Companion</a>
+        <button type="button" id="account-logout-btn" class="secondary">Sign Out</button>
       </div>
       <div class="my-tournaments-box">
-        <h2>Моите турнири</h2>
+        <h2>My Tournaments</h2>
         <ul id="login-tournaments-list"></ul>
       </div>
     </section>
 
     <details id="legacy-token-details">
-      <summary>Вход с Organizer Token (Десктоп / legacy)</summary>
+      <summary>Sign in with an Organizer Token</summary>
       <form>
         <label for="organizer-token">Organizer Token</label>
         <input id="organizer-token" type="password" maxlength="2048" autocomplete="off" required>
-        <button type="submit">Отвори приложението</button>
+        <button type="submit">Open Workspace</button>
       </form>
     </details>
   </main>

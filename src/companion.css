@@ -118,6 +118,25 @@
 .companion-nav small { margin-top: 2px; color: #7189a4; font-size: 9px; font-weight: 650; }
 .companion-nav button.is-active small { color: #9fc2e7; }
 
+.companion-portal-switch {
+  margin: 0 12px 10px;
+  padding: 9px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(148,163,184,.16);
+  border-radius: 11px;
+  color: #9eb3ca;
+  background: rgba(255,255,255,.04);
+  text-decoration: none;
+}
+.companion-portal-switch:hover { background: rgba(255,255,255,.09); color: #fff; }
+.companion-portal-switch span { min-width: 0; }
+.companion-portal-switch strong,
+.companion-portal-switch small { display: block; }
+.companion-portal-switch strong { color: #eaf3ff; font-size: 10px; font-weight: 750; }
+.companion-portal-switch small { margin-top: 2px; color: #7890aa; font-size: 8px; }
+
 .companion-sidebar-status {
   margin: 0 12px 14px;
   padding: 11px 12px;

@@ -1,7 +1,7 @@
 {
-  "name": "Chess-Publisher Web Companion",
-  "short_name": "Chess-Publisher",
-  "description": "Mobile and desktop companion for synchronized Chess-Publisher tournaments.",
+  "name": "Chess-Publisher Arbiter Companion",
+  "short_name": "Arbiter Companion",
+  "description": "Mobile and desktop Arbiter Companion for synchronized Chess-Publisher tournaments.",
   "id": "/",
   "start_url": "/",
   "scope": "/",

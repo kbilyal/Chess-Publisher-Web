@@ -1,4 +1,4 @@
-import { REMOTE_CLOUD_API_BASE } from '../cloud/cloudWorkspaceApi';
+import { COOKIE_SESSION_TOKEN, REMOTE_CLOUD_API_BASE } from '../cloud/cloudWorkspaceApi';
 
 const clean = (value: unknown) => value == null ? '' : String(value).trim();
 const enc = (value: unknown) => encodeURIComponent(String(value));
@@ -73,7 +73,9 @@ async function request(path: string, options: {
   body?: unknown;
 } = {}) {
   const headers = new Headers({ Accept: 'application/json' });
-  if (options.token) headers.set('Authorization', `Bearer ${options.token}`);
+  if (options.token && options.token !== COOKIE_SESSION_TOKEN) {
+    headers.set('Authorization', `Bearer ${options.token}`);
+  }
   let body: BodyInit | undefined;
   if (options.body !== undefined) {
     headers.set('Content-Type', 'application/json');
@@ -86,6 +88,7 @@ async function request(path: string, options: {
       method: options.method || 'GET',
       headers,
       body,
+      credentials: 'include',
       cache: 'no-store'
     });
   } catch (error: any) {

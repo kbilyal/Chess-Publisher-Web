@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   ChevronRight,
   Cloud,
+  ExternalLink,
   FileUp,
   LogOut,
   Plus,
@@ -39,20 +40,73 @@ export function CompanionLoginScreen(props: {
   busy: boolean;
   status: string;
   statusKind: StatusKind;
+  googleClientId?: string;
+  onGoogleCredential?: (credential: string) => void;
   onTokenInput: (value: string) => void;
   onRememberToken: (value: boolean) => void;
   onConnect: () => void;
 }) {
-  const { tokenInput, rememberToken, busy, status, statusKind, onTokenInput, onRememberToken, onConnect } = props;
+  const {
+    tokenInput,
+    rememberToken,
+    busy,
+    status,
+    statusKind,
+    googleClientId,
+    onGoogleCredential,
+    onTokenInput,
+    onRememberToken,
+    onConnect
+  } = props;
+  const googleBtnRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!googleClientId || !onGoogleCredential) return;
+    let cancelled = false;
+    let attempts = 0;
+    const mount = () => {
+      if (cancelled || !googleBtnRef.current) return;
+      const gsi = (window as any).google?.accounts?.id;
+      if (!gsi) {
+        if (++attempts < 40) window.setTimeout(mount, 150);
+        return;
+      }
+      gsi.initialize({
+        client_id: googleClientId,
+        callback: (res: any) => {
+          const cred = String(res?.credential || '').trim();
+          if (cred) onGoogleCredential(cred);
+        },
+        auto_select: false
+      });
+      googleBtnRef.current.replaceChildren();
+      gsi.renderButton(googleBtnRef.current, {
+        theme: 'outline',
+        size: 'large',
+        text: 'signin_with',
+        shape: 'rectangular',
+        locale: 'en'
+      });
+    };
+    mount();
+    return () => { cancelled = true; };
+  }, [googleClientId, onGoogleCredential]);
+
   return (
     <main className="companion-entry-shell">
       <section className="companion-login-card">
-        <div className="companion-entry-brand"><div className="companion-entry-mark">CP</div><div><strong>Chess-Publisher</strong><span>Web Companion</span></div></div>
+        <div className="companion-entry-brand"><div className="companion-entry-mark">CP</div><div><strong>Chess-Publisher</strong><span>Arbiter Companion</span></div></div>
         <div className="companion-login-copy">
           <span className="companion-entry-eyebrow">ORGANIZER WORKSPACE</span>
           <h1>Continue your desktop tournaments anywhere.</h1>
-          <p>Use the same Organizer Token to open synchronized tournaments, register players and publish to Chess-Results or the Online Hub.</p>
+          <p>Sign in with your Google account or Organizer Token to open synchronized tournaments, register players and publish to Chess-Results or the Online Hub.</p>
         </div>
+        {googleClientId && (
+          <div className="companion-google-auth">
+            <div ref={googleBtnRef} id="companion-google-signin" />
+            <div className="companion-auth-divider"><span>or sign in with Organizer Token</span></div>
+          </div>
+        )}
         <label className="companion-entry-field">
           <span>Organizer Token</span>
           <input
@@ -73,7 +127,10 @@ export function CompanionLoginScreen(props: {
           {statusKind === 'ok' ? <CheckCircle2 size={15} /> : statusKind === 'offline' ? <WifiOff size={15} /> : <Cloud size={15} />}
           <span>{status}</span>
         </div>
-        <div className="companion-entry-security"><ShieldCheck size={14} /><span>The token is used only for your organizer workspace and secure server-side publication.</span></div>
+        <div className="companion-entry-security">
+          <ShieldCheck size={14} />
+          <span>Your Google session or token stays strictly scoped to your private Cloud workspace. <a href="https://chess-publisher.org/app/" rel="noopener noreferrer">Open Web Portal ↗</a></span>
+        </div>
       </section>
       <aside className="companion-entry-side">
         <div className="companion-entry-side-content">
@@ -97,6 +154,8 @@ const formatWhen = (value?: string) => {
 
 export function CompanionTournamentSelectScreen(props: {
   organizerName: string;
+  googleUser?: { name?: string | null; email?: string | null; avatarUrl?: string | null } | null;
+  authMode?: 'none' | 'google' | 'token';
   tournaments: CompanionCloudTournament[];
   archivedTournaments: CompanionCloudTournament[];
   busy: boolean;
@@ -113,6 +172,8 @@ export function CompanionTournamentSelectScreen(props: {
 }) {
   const {
     organizerName,
+    googleUser,
+    authMode,
     tournaments,
     archivedTournaments,
     busy,
@@ -182,9 +243,10 @@ export function CompanionTournamentSelectScreen(props: {
   return (
     <main className="companion-select-shell companion-native-surface">
       <header className="companion-select-topbar companion-native-topbar">
-        <div className="companion-entry-brand compact"><div className="companion-entry-mark">CP</div><div><strong>Chess-Publisher</strong><span>{showTrash ? 'Trash' : 'My tournaments'}</span></div></div>
+        <div className="companion-entry-brand compact"><div className="companion-entry-mark">CP</div><div><strong>Arbiter Companion</strong><span>{showTrash ? 'Trash' : 'My tournaments'}</span></div></div>
         <div className="companion-select-actions">
           {showTrash && <button type="button" className="companion-icon-action" aria-label="Back to tournaments" onClick={() => { setShowTrash(false); setQuery(''); }}><ArrowLeft size={19} /><span>Back</span></button>}
+          <a className="companion-icon-action" href="https://chess-publisher.org/app/" aria-label="Open Web Portal"><ExternalLink size={17} /><span>Web Portal</span></a>
           <button type="button" className="companion-icon-action" onClick={onRefresh} disabled={busy} aria-label="Refresh tournaments"><RefreshCw size={18} className={busy ? 'spin' : ''} /><span>Refresh</span></button>
           <button type="button" className="companion-icon-action" onClick={onSignOut} aria-label="Sign out"><LogOut size={18} /><span>Sign out</span></button>
         </div>
@@ -193,7 +255,14 @@ export function CompanionTournamentSelectScreen(props: {
       <div className="companion-select-content companion-native-content">
         <section className="companion-select-head companion-hub-hero">
           <div><span className="companion-entry-eyebrow">{showTrash ? 'RECOVERY' : 'SYNCHRONIZED WORKSPACE'}</span><h1>{showTrash ? 'Trash' : 'My tournaments'}</h1><p>{showTrash ? 'Restore tournaments that were archived before permanent Cloud deletion was enabled.' : 'Create, import or continue the same tournament from Web and Chess-Publisher Desktop.'}</p></div>
-          <div className="companion-organizer-pill"><ShieldCheck size={15} /><span><small>Organizer</small><strong>{organizerName}</strong></span></div>
+          <div className="companion-organizer-pill">
+            {googleUser?.avatarUrl && googleUser.avatarUrl.startsWith('https://') ? (
+              <img className="companion-organizer-avatar" src={googleUser.avatarUrl} alt="" referrerPolicy="no-referrer" />
+            ) : (
+              <ShieldCheck size={15} />
+            )}
+            <span><small>{authMode === 'google' ? (googleUser?.email || 'Google Cloud') : 'Organizer'}</small><strong>{organizerName}</strong></span>
+          </div>
         </section>
 
         {!showTrash && (

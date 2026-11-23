@@ -46,13 +46,24 @@ async function persistCookieSession(user) {
   }));
 }
 
+function workspaceTargetUrl() {
+  try {
+    const raw = new URLSearchParams(typeof location !== 'undefined' ? (location.search || '') : '').get('cloudTournamentId');
+    const safe = String(raw || '').trim();
+    if (/^[A-Za-z0-9:_-]{1,160}$/.test(safe)) {
+      return `./workspace.html?cloudTournamentId=${encodeURIComponent(safe)}`;
+    }
+  } catch {}
+  return './workspace.html';
+}
+
 async function handleGoogleCredential(response) {
   const credential = String(response?.credential || '').trim();
   if (!credential) {
-    if (status) status.textContent = 'Невалиден отговор от Google.';
+    if (status) status.textContent = 'Google returned an invalid sign-in response.';
     return;
   }
-  if (status) status.textContent = 'Проверка на Google профила…';
+  if (status) status.textContent = 'Signing in with Google…';
   try {
     const res = await fetch(`${apiBase}/api/auth/google`, {
       method: 'POST',
@@ -68,15 +79,15 @@ async function handleGoogleCredential(response) {
       throw new Error(data?.message || 'Google auth failed');
     }
     await persistCookieSession(data.user);
-    location.assign('./workspace.html');
+    location.assign(workspaceTargetUrl());
   } catch {
-    if (status) status.textContent = 'Входът с Google е временно недостъпен. Опитайте отново.';
+    if (status) status.textContent = 'Google Sign-In is temporarily unavailable. Please try again.';
   }
 }
 
 async function loadMyTournamentsOnLogin() {
   if (!loginTournamentsList) return;
-  loginTournamentsList.textContent = 'Зареждане…';
+  loginTournamentsList.textContent = 'Loading…';
   try {
     const res = await fetch(`${apiBase}/api/v1/cloud/tournaments`, {
       headers: { Accept: 'application/json' },
@@ -90,7 +101,7 @@ async function loadMyTournamentsOnLogin() {
     loginTournamentsList.replaceChildren();
     if (!rows.length) {
       const li = document.createElement('li');
-      li.textContent = 'Нямате запазени онлайн турнири.';
+      li.textContent = 'You have no saved online tournaments.';
       loginTournamentsList.append(li);
       return;
     }
@@ -98,12 +109,12 @@ async function loadMyTournamentsOnLogin() {
       const li = document.createElement('li');
       const link = document.createElement('a');
       link.href = item?.id ? `./workspace.html?cloudTournamentId=${encodeURIComponent(item.id)}` : './workspace.html';
-      link.textContent = item?.name || item?.id || 'Турнир';
+      link.textContent = item?.name || item?.id || 'Tournament';
       li.append(link);
       loginTournamentsList.append(li);
     }
   } catch {
-    loginTournamentsList.textContent = 'Списъкът не може да бъде зареден в момента.';
+    loginTournamentsList.textContent = 'Your tournaments could not be loaded. Please try again.';
   }
 }
 
@@ -111,7 +122,7 @@ function showSignedInPanel(user) {
   if (!signedInPanel) return;
   if (googleSection) googleSection.hidden = true;
   signedInPanel.hidden = false;
-  if (signedInName) signedInName.textContent = user.name || user.email || 'Организатор';
+  if (signedInName) signedInName.textContent = user.name || user.email || 'Organizer';
   if (signedInEmail) signedInEmail.textContent = user.email || '';
   if (signedInAvatar) {
     if (typeof user.avatarUrl === 'string' && user.avatarUrl.startsWith('https://')) {
@@ -165,7 +176,7 @@ async function initGoogleSignIn() {
 
   const isAccountView = typeof location !== 'undefined' && new URLSearchParams(location.search || '').get('account') === '1';
   try {
-    const meRes = await fetch(`${apiBase}/api/auth/me`, {
+    const meRes = await fetch(`${apiBase}/api/auth/me?optional=1`, {
       headers: { Accept: 'application/json' },
       credentials: 'include',
       redirect: 'error',
@@ -180,7 +191,7 @@ async function initGoogleSignIn() {
           showSignedInPanel(me.user);
           return;
         }
-        location.assign('./workspace.html');
+        location.assign(workspaceTargetUrl());
         return;
       }
     }
@@ -188,7 +199,7 @@ async function initGoogleSignIn() {
 
   const clientId = await resolveGoogleClientId();
   if (!clientId) {
-    if (status) status.textContent = 'Google входът все още не е конфигуриран. Използвайте Organizer Token по-долу.';
+    if (status) status.textContent = 'Google Sign-In is unavailable. You can sign in with an Organizer Token below.';
     return;
   }
 
@@ -209,7 +220,7 @@ async function initGoogleSignIn() {
       size: 'large',
       text: 'signin_with',
       shape: 'rectangular',
-      locale: 'bg'
+      locale: 'en'
     });
   };
   mount();
@@ -224,19 +235,19 @@ form?.addEventListener('submit', async event => {
   if (button.disabled) return;
   const token = input.value.trim();
   if (!/^[!-~]{1,2048}$/.test(token)) {
-    status.textContent = 'Въведете валиден Organizer Token.';
+    status.textContent = 'Enter a valid Organizer Token.';
     return;
   }
 
   button.disabled = true;
-  status.textContent = 'Проверка на достъпа…';
+  status.textContent = 'Checking your access…';
   try {
     const response = await fetch(api, {
       headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
       credentials: 'omit', redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(8000)
     });
     if ([401, 403].includes(response.status)) {
-      status.textContent = 'Organizer Token е невалиден или достъпът е отнет.';
+      status.textContent = 'The Organizer Token is invalid or access was revoked.';
       return;
     }
     const data = response.ok ? await response.json() : null;
@@ -251,7 +262,7 @@ form?.addEventListener('submit', async event => {
     input.value = '';
     location.assign('./workspace.html');
   } catch {
-    status.textContent = 'Входът е временно недостъпен. Опитайте отново.';
+    status.textContent = 'Sign-in is temporarily unavailable. Please try again.';
   } finally {
     button.disabled = false;
   }

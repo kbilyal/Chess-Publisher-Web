@@ -2,6 +2,8 @@
   const sessionKey = 'cp.desktop-web.session';
   const COOKIE_SENTINEL = '__cp_cookie_session__';
   const LEGACY_API_ORIGIN = 'https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev';
+  const CHESS_RESULTS_ORIGIN = 'https://chess-publisher-chess-results.kyamranbilyal.workers.dev';
+  const ARBITER_COMPANION_URL = 'https://web.chess-publisher.org/';
   const apiBase = String(window.CP_API_BASE || 'https://api.chess-publisher.org').trim().replace(/\/+$/, '');
 
   let session;
@@ -67,7 +69,10 @@
   window.cpWebOnAuthCleared = listener => {
     if (typeof listener === 'function') authClearListeners.add(listener);
   };
+  let bridgeTokenCache = { token: '', expMs: 0 };
+
   function clearAuthState() {
+    bridgeTokenCache = { token: '', expMs: 0 };
     secrets.clear();
     if (session) session.token = '';
     sessionStorage.removeItem(sessionKey);
@@ -79,7 +84,27 @@
 
   if (isCookieMode && typeof window.fetch === 'function') {
     const nativeFetch = window.fetch.bind(window);
-    window.fetch = (input, init) => {
+
+    async function getBridgeToken(forceRefresh = false) {
+      if (!forceRefresh && bridgeTokenCache.token && Date.now() < bridgeTokenCache.expMs - 60000) {
+        return bridgeTokenCache.token;
+      }
+      const res = await nativeFetch(`${apiBase}/api/auth/bridge-token`, {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+        credentials: 'include',
+        cache: 'no-store'
+      });
+      const data = res.ok ? await res.json().catch(() => null) : null;
+      if (!res.ok || !data?.token) {
+        throw new Error(data?.message || 'Google session bridge token unavailable.');
+      }
+      const expMs = Number(data.exp) ? Number(data.exp) * 1000 : Date.now() + 14 * 60000;
+      bridgeTokenCache = { token: String(data.token), expMs };
+      return bridgeTokenCache.token;
+    }
+
+    window.fetch = async (input, init) => {
       try {
         const rawUrl = input instanceof Request ? input.url : String(input);
         const parsed = new URL(rawUrl, window.location?.href || apiBase);
@@ -100,6 +125,32 @@
             return nativeFetch(new Request(rewrittenUrl, nextInit));
           }
           return nativeFetch(rewrittenUrl, nextInit);
+        }
+
+        const isChessResults = parsed.origin === CHESS_RESULTS_ORIGIN || parsed.pathname.startsWith('/api/chess-results/');
+        if (isChessResults) {
+          const headers = new Headers(input instanceof Request ? input.headers : undefined);
+          if (init?.headers) {
+            new Headers(init.headers).forEach((value, key) => headers.set(key, value));
+          }
+          const authHeader = headers.get('Authorization') || '';
+          if (!authHeader || authHeader.trim() === `Bearer ${COOKIE_SENTINEL}`) {
+            const bridgeToken = await getBridgeToken(false);
+            headers.set('Authorization', `Bearer ${bridgeToken}`);
+            const nextInit = { ...init, headers };
+            const res = input instanceof Request
+              ? await nativeFetch(new Request(rawUrl, nextInit))
+              : await nativeFetch(rawUrl, nextInit);
+            if (res.status === 401) {
+              const refreshed = await getBridgeToken(true);
+              headers.set('Authorization', `Bearer ${refreshed}`);
+              const retryInit = { ...init, headers };
+              return input instanceof Request
+                ? nativeFetch(new Request(rawUrl, retryInit))
+                : nativeFetch(rawUrl, retryInit);
+            }
+            return res;
+          }
         }
       } catch {}
       return nativeFetch(input, init);
@@ -147,6 +198,15 @@
     return el;
   }
 
+  function buildArbiterCompanionHref() {
+    try {
+      const current = typeof getCurrentTournament === 'function' ? getCurrentTournament() : null;
+      const cloudId = String(current?.cloud?.cloudTournamentId || current?.cloud?.internalId || '').trim();
+      if (cloudId) return `${ARBITER_COMPANION_URL}?cloudTournamentId=${encodeURIComponent(cloudId)}`;
+    } catch {}
+    return ARBITER_COMPANION_URL;
+  }
+
   function renderUserMenu(menu) {
     const user = isCookieMode ? session.user : null;
     const displayName = (user?.name || user?.email || 'Organizer').trim();
@@ -180,24 +240,50 @@
     if (user?.email) header.append(makeEl('div', 'cp-user-panel-email', user.email));
     panel.append(header);
 
+    const arbiterBtn = makeEl('a', 'cp-arbiter-link', 'Arbiter Companion');
+    arbiterBtn.id = 'cpArbiterCompanionBtn';
+    arbiterBtn.href = ARBITER_COMPANION_URL;
+    arbiterBtn.target = '_blank';
+    arbiterBtn.rel = 'noopener noreferrer';
+    arbiterBtn.title = 'Open Arbiter Companion (mobile/quick setup, registration & publishing)';
+    arbiterBtn.addEventListener('click', () => {
+      arbiterBtn.href = buildArbiterCompanionHref();
+      try { window.cpWebFlushAutosave?.(); } catch {}
+    });
+
+    const quickSection = makeEl('div', 'cp-user-panel-section');
+    quickSection.append(makeEl('div', 'cp-user-section-title', 'Quick Access'));
+    const panelArbiterLink = makeEl('a', 'cp-user-panel-link', 'Open Arbiter Companion ↗');
+    panelArbiterLink.href = ARBITER_COMPANION_URL;
+    panelArbiterLink.target = '_blank';
+    panelArbiterLink.rel = 'noopener noreferrer';
+    panelArbiterLink.addEventListener('click', () => {
+      panelArbiterLink.href = buildArbiterCompanionHref();
+      panel.hidden = true;
+      toggle.setAttribute('aria-expanded', 'false');
+      try { window.cpWebFlushAutosave?.(); } catch {}
+    });
+    quickSection.append(panelArbiterLink);
+    panel.append(quickSection);
+
     const tournamentsSection = makeEl('div', 'cp-user-panel-section');
-    tournamentsSection.append(makeEl('div', 'cp-user-section-title', 'Моите турнири'));
+    tournamentsSection.append(makeEl('div', 'cp-user-section-title', 'My Tournaments'));
     const list = makeEl('div', 'cp-user-tournaments-list');
     list.id = 'cpUserTournamentsList';
-    list.textContent = 'Натиснете за зареждане…';
+    list.textContent = 'Click to load…';
     tournamentsSection.append(list);
     panel.append(tournamentsSection);
 
     if (isCookieMode) {
       const desktopSection = makeEl('div', 'cp-user-panel-section');
-      desktopSection.append(makeEl('div', 'cp-user-section-title', 'Десктоп синхронизация'));
+      desktopSection.append(makeEl('div', 'cp-user-section-title', 'Desktop Sync'));
 
       const tokenStatus = makeEl('div', 'cp-user-token-status');
-      const genBtn = makeEl('button', 'cp-user-action-btn', 'Генерирай Desktop API ключ');
+      const genBtn = makeEl('button', 'cp-user-action-btn', 'Generate Desktop API Key');
       genBtn.type = 'button';
       genBtn.addEventListener('click', async () => {
         genBtn.disabled = true;
-        tokenStatus.textContent = 'Генериране…';
+        tokenStatus.textContent = 'Generating…';
         try {
           const res = await fetch(`${apiBase}/api/auth/desktop-tokens`, {
             method: 'POST',
@@ -206,10 +292,10 @@
             body: JSON.stringify({ label: 'Desktop App' })
           });
           const data = await res.json().catch(() => null);
-          if (!res.ok || !data?.token) throw new Error(data?.message || 'Грешка');
-          tokenStatus.textContent = `Нов ключ (копирайте сега): ${data.token}`;
+          if (!res.ok || !data?.token) throw new Error(data?.message || 'Error');
+          tokenStatus.textContent = `New key (copy now): ${data.token}`;
         } catch {
-          tokenStatus.textContent = 'Неуспешно генериране на ключ.';
+          tokenStatus.textContent = 'Could not generate API key.';
         } finally {
           genBtn.disabled = false;
         }
@@ -218,7 +304,7 @@
       panel.append(desktopSection);
     }
 
-    const signOutBtn = makeEl('button', 'cp-user-signout-btn', 'Изход');
+    const signOutBtn = makeEl('button', 'cp-user-signout-btn', 'Sign Out');
     signOutBtn.type = 'button';
     signOutBtn.id = 'cpDesktopWebSignOut';
     signOutBtn.addEventListener('click', async () => {
@@ -300,19 +386,20 @@
       }
     });
 
-    wrap.append(toggle, signOutBtn, panel);
+    wrap.append(arbiterBtn, toggle, signOutBtn, panel);
     menu.append(wrap);
   }
 
   document.addEventListener('DOMContentLoaded', () => {
     if (!allowed) return;
     if (isCookieMode && typeof window.fetch === 'function') {
-      window.fetch(`${apiBase}/api/auth/me`, {
+      window.fetch(`${apiBase}/api/auth/me?optional=1`, {
         headers: { Accept: 'application/json' },
         credentials: 'include',
         cache: 'no-store'
-      }).then(res => {
-        if (res.status === 401) {
+      }).then(async res => {
+        const data = res.ok ? await res.json().catch(() => null) : null;
+        if (res.status === 401 || data?.authenticated === false) {
           clearAuthState();
           location.replace('./');
         }

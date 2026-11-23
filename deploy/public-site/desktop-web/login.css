@@ -41,6 +41,20 @@ th, td { text-align: left; border-bottom: 1px solid var(--line); padding: .55rem
 }
 
 .secondary { background: white; color: var(--action); margin-left: .3rem; }
+.secondary-link {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  font: inherit;
+  font-weight: 650;
+  text-decoration: none;
+  border: 1px solid var(--line);
+  border-radius: .35rem;
+  padding: .55rem .75rem;
+  background: white;
+  color: var(--action);
+}
+.secondary-link:hover { background: #f8fafc; border-color: #93b4e8; }
 
 #login-form { max-width: 31rem; }
 #login-form h2, .workspace-header h2 { margin: 0; }

@@ -37,9 +37,10 @@ async function installCloudFixture(page) {
     };
     const reply = (json, status = 200) => route.fulfill({ status, headers, json });
     if (method === 'OPTIONS') return route.fulfill({ status: 204, headers });
-    if (path === '/api/auth/me') return reply({ ok: false, authenticated: false });
+    if (path === '/api/auth/me') return reply({ ok: true, authenticated: false, user: null });
     if (path === '/api/auth/config') return reply({ ok: true, googleClientId: null });
     if (path === '/api/auth/logout') return reply({ ok: true });
+    if (path === '/api/auth/bridge-token') return reply({ ok: true, token: 'cp_sess_fixture', expiresIn: 900 });
     const auth = (await request.allHeaders()).authorization;
     if (auth !== `Bearer ${token}`) {
       if (origin.startsWith('https:') && path === '/api/v1/cloud/workspace') return route.continue();
@@ -187,7 +188,7 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   await installCloudFixture(page);
   await page.goto(new URL('workspace.html', url).href);
-  await page.getByRole('heading', { name: 'ChessPublisher Web' }).waitFor();
+  await page.getByRole('heading', { name: 'Chess-Publisher Web' }).waitFor();
   await page.locator('#google-signin-button').waitFor({ state: 'attached' });
   assert.deepEqual(
     await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('cp-desktop-web:signed-out:'))),
@@ -196,10 +197,13 @@ try {
   await openLegacyTokenForm(page);
   const input = page.getByLabel('Organizer Token');
   await input.fill('ci-invalid-public-pairing-token');
-  await page.getByRole('button', { name: 'Отвори приложението' }).click();
-  await page.getByText('Organizer Token е невалиден или достъпът е отнет.').waitFor();
+  await page.getByRole('button', { name: 'Open Workspace' }).click();
+  await page.getByText('The Organizer Token is invalid or access was revoked.').waitFor();
   await input.fill(token);
-  await page.getByRole('button', { name: 'Отвори приложението' }).click();
+  await page.getByRole('button', { name: 'Open Workspace' }).click();
+  const arbiterBtn = page.locator('#cpArbiterCompanionBtn');
+  await arbiterBtn.waitFor({ state: 'visible' });
+  assert.ok((await arbiterBtn.getAttribute('href'))?.startsWith('https://web.chess-publisher.org/'));
   const tournamentName = page.getByRole('textbox', { name: 'Tournament name', exact: true });
   await tournamentName.waitFor();
   assert.equal(await tournamentName.getAttribute('placeholder'), 'eg. My tournament');
@@ -592,7 +596,7 @@ try {
   await verifyChessResults(page);
 
   await page.locator('#cpDesktopWebSignOut').click();
-  await page.getByRole('heading', { name: 'ChessPublisher Web' }).waitFor();
+  await page.getByRole('heading', { name: 'Chess-Publisher Web' }).waitFor();
   assert.deepEqual(
     await page.evaluate(() => Object.keys(sessionStorage).filter(key => key.startsWith('cp.desktop-web.'))),
     []
@@ -607,7 +611,7 @@ try {
   await fresh.goto(url);
   await openLegacyTokenForm(fresh);
   await fresh.getByLabel('Organizer Token').fill(token);
-  await fresh.getByRole('button', { name: 'Отвори приложението' }).click();
+  await fresh.getByRole('button', { name: 'Open Workspace' }).click();
   const draftName = fresh.getByRole('textbox', { name: 'Tournament name', exact: true });
   await draftName.fill('Unfinished draft');
   const baku = fresh.getByRole('radio', { name: 'Accelerated Baku' });
@@ -710,7 +714,7 @@ try {
   await touchPage.goto(new URL('workspace.html', url).href);
   await openLegacyTokenForm(touchPage);
   await touchPage.getByLabel('Organizer Token').fill(token);
-  await touchPage.getByRole('button', { name: 'Отвори приложението' }).click();
+  await touchPage.getByRole('button', { name: 'Open Workspace' }).click();
   const touchName = touchPage.getByRole('textbox', { name: 'Tournament name', exact: true });
   await touchName.waitFor();
   await touchName.fill('Touch Check');

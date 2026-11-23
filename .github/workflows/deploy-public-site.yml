@@ -51,6 +51,7 @@ jobs:
             index.html
             app.js
             styles.css
+            homepage-web.css
             release-live.css
             release-live.js
             contact.html
@@ -68,7 +69,9 @@ jobs:
             robots.txt
             sitemap.xml
             news-october-2026.html
+            news-release-1.06.00.html
             assets/chess-publisher-icon.png
+            assets/chess-publisher-web-share.png
             assets/screenshots/chess-results.png
             assets/screenshots/dgt-boards.png
             assets/screenshots/lists-players.png
@@ -90,8 +93,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if grep -q 'data-site-build="2026-09-08-v42-platform-icons"' site/index.html; then
-            echo 'Live homepage is already v42; patch application is not required.'
+          if grep -q 'data-site-build="2026-11-23-web-portal"' site/index.html || grep -q 'data-site-build="2026-09-08-v42-platform-icons"' site/index.html; then
+            echo 'Live homepage is already v42+ web-portal; patch application is not required.'
           else
             cd site
             patch --batch --forward -p1 < ../deploy/public-site/index-v40-to-v42.patch
@@ -209,17 +212,39 @@ jobs:
         shell: bash
         run: python deploy/public-site/remove-home-nav-beta.py site/index.html
 
+      - name: Integrate global Google Sign-In header
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp deploy/public-site/site-auth.js site/site-auth.js
+          cp deploy/public-site/site-auth.css site/site-auth.css
+          node --check site/site-auth.js
+          python deploy/public-site/inject-site-auth.py site
+
       - name: Public-site regression gate
         shell: bash
         run: |
           set -euo pipefail
-          grep -q 'data-site-build="2026-09-08-v42-platform-icons"' site/index.html
+          if grep -q 'data-site-build="2026-11-23-web-portal"' site/index.html; then
+            grep -q 'Arbiter Companion' site/index.html
+            grep -q 'https://web.chess-publisher.org/' site/index.html
+            grep -q 'href="/app/"' site/index.html
+            grep -q 'id="chesspublisher-web"' site/index.html
+            test -s site/homepage-web.css
+            test -s site/assets/chess-publisher-web-share.png
+          else
+            grep -q 'data-site-build="2026-09-08-v42-platform-icons"' site/index.html
+            grep -q 'Open WEB Companion' site/index.html
+            grep -q 'data-home-web-entry="nav"' site/index.html
+            grep -q 'data-home-web-entry="hero"' site/index.html
+            grep -q 'data-home-web-entry="footer"' site/index.html
+          fi
           python deploy/public-site/remove-home-nav-beta.py --check site/index.html
-          grep -q 'Open WEB Companion' site/index.html
           grep -q 'data-home-web-entry="protected-v1"' site/index.html
-          grep -q 'data-home-web-entry="nav"' site/index.html
-          grep -q 'data-home-web-entry="hero"' site/index.html
-          grep -q 'data-home-web-entry="footer"' site/index.html
+          grep -q '/site-auth.js' site/index.html
+          grep -q '/site-auth.css' site/index.html
+          test -s site/site-auth.js
+          test -s site/site-auth.css
           grep -q 'Chess-Publisher is coming to Linux' site/index.html
           grep -q '<strong>Windows</strong>' site/index.html
           grep -q '<strong>Linux</strong>' site/index.html
@@ -288,7 +313,9 @@ jobs:
             tournament_js="$(curl --fail --silent --show-error --location --retry 2 "${PUBLIC_ORIGIN}/tournaments.js?cb=${cb}" || true)"
             if ! grep -q 'pre-fide-r12.js' <<<"$home" \
               && grep -q '/releases/download/v1.06.00/' <<<"$home" \
-              && grep -q 'data-site-build="2026-09-08-v42-platform-icons"' <<<"$home" \
+              && (grep -q 'data-site-build="2026-11-23-web-portal"' <<<"$home" || grep -q 'data-site-build="2026-09-08-v42-platform-icons"' <<<"$home") \
+              && grep -q '/site-auth.js' <<<"$home" \
+              && grep -q '/site-auth.css' <<<"$home" \
               && python deploy/public-site/remove-home-nav-beta.py --check /dev/stdin <<<"$home" \
               && grep -q 'Chess-Publisher is coming to Linux' <<<"$home" \
               && grep -q 'Meet WEB Companion' <<<"$news" \
@@ -313,9 +340,8 @@ jobs:
         run: |
           set -euo pipefail
           home="$(curl --fail --silent --show-error --retry 3 "$PUBLIC_ORIGIN/?preview_build=$GITHUB_SHA")"
-          grep -q 'data-desktop-web="nav" href="/app/"' <<<"$home"
+          grep -q 'href="/app/"' <<<"$home"
           grep -q 'id="chesspublisher-web"' <<<"$home"
-          grep -q 'data-desktop-web="section" href="/app/"' <<<"$home"
           for attempt in 1 2 3; do
             if node deploy/public-site/desktop-web/smoke.mjs "$PUBLIC_ORIGIN/app/?build=$GITHUB_SHA-$attempt" "$RUNNER_TEMP/cp-preview-test" "$(command -v google-chrome)"; then
               exit 0

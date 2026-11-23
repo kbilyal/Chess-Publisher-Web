@@ -1,4 +1,5 @@
-export const REMOTE_CLOUD_API_BASE = 'https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev';
+export const REMOTE_CLOUD_API_BASE = 'https://api.chess-publisher.org';
+export const COOKIE_SESSION_TOKEN = '__cp_cookie_session__';
 const isProductionCloudOrigin = typeof window !== 'undefined'
   && /^(chess-publisher\.org|www\.chess-publisher\.org|web\.chess-publisher\.org)$/.test(window.location.hostname);
 export const CLOUD_API_BASE = typeof window !== 'undefined' && !isProductionCloudOrigin
@@ -33,7 +34,9 @@ async function request(path: string, options: {
 } = {}) {
   const headers = new Headers(options.headers || {});
   headers.set('Accept', 'application/json');
-  if (options.token) headers.set('Authorization', `Bearer ${options.token}`);
+  if (options.token && options.token !== COOKIE_SESSION_TOKEN) {
+    headers.set('Authorization', `Bearer ${options.token}`);
+  }
 
   let body: BodyInit | undefined;
   if (options.body !== undefined) {
@@ -47,6 +50,7 @@ async function request(path: string, options: {
       method: options.method || 'GET',
       headers,
       body,
+      credentials: 'include',
       cache: 'no-store'
     });
   } catch (error: any) {
@@ -169,4 +173,12 @@ export const cloudApi = {
   }),
   settingsRevisions: (token: string) => request('/api/v1/cloud/settings/revisions', { token }),
   restoreSettings: (token: string, revision: number) => request(`/api/v1/cloud/settings/restore/${Number(revision)}`, { method: 'POST', token })
+};
+
+export const authApi = {
+  config: () => request('/api/auth/config'),
+  me: () => request('/api/auth/me?optional=1'),
+  googleLogin: (credential: string) => request('/api/auth/google', { method: 'POST', body: { credential } }),
+  logout: () => request('/api/auth/logout', { method: 'POST' }),
+  bridgeToken: () => request('/api/auth/bridge-token', { method: 'POST' })
 };

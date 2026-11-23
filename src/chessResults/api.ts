@@ -1,3 +1,5 @@
+import { authApi } from '../cloud/cloudWorkspaceApi';
+
 export class ChessResultsApiError extends Error {
   constructor(public readonly code: string, message: string, public readonly status = 0) { super(message); this.name = 'ChessResultsApiError'; }
 }
@@ -6,6 +8,16 @@ export const REMOTE_CHESS_RESULTS_API_PREFIX = 'https://chess-publisher-chess-re
 const PRODUCTION_HOSTS = new Set(['chess-publisher.org', 'www.chess-publisher.org', 'web.chess-publisher.org']);
 const TOURNAMENT_STORAGE_KEY = 'fide_tournament_manager_v2';
 const transientContinuity = new Map<string, string>();
+let googleBridgeActive = false;
+let cachedBridge: { token: string; expMs: number } | null = null;
+
+export function setGoogleSessionBridgeActive(active: boolean) {
+  googleBridgeActive = active;
+  if (!active) {
+    cachedBridge = null;
+    transientContinuity.clear();
+  }
+}
 
 function apiPrefix() {
   if (typeof window !== 'undefined' && PRODUCTION_HOSTS.has(window.location.hostname)) return REMOTE_CHESS_RESULTS_API_PREFIX;
@@ -59,24 +71,45 @@ function continuityContext(body: Record<string, unknown> = {}) {
 }
 
 function continuityCacheKey(key: string) {
-  return `${organizerToken()}::${key}`;
+  return `${organizerToken() || (googleBridgeActive ? 'google-session' : '')}::${key}`;
+}
+
+async function resolveAuthToken(forceRefresh = false): Promise<string> {
+  const raw = organizerToken();
+  if (raw) return raw;
+  if (!googleBridgeActive) return '';
+  if (!forceRefresh && cachedBridge && Date.now() < cachedBridge.expMs - 60_000) {
+    return cachedBridge.token;
+  }
+  const res = await authApi.bridgeToken();
+  const token = String(res?.token || '').trim();
+  if (!token) throw new ChessResultsApiError('organizer_token_required', 'Google session bridge token is unavailable.', 401);
+  const expMs = Number(res?.exp) ? Number(res.exp) * 1000 : Date.now() + 14 * 60_000;
+  cachedBridge = { token, expMs };
+  return token;
 }
 
 async function request(operation: string, body: Record<string, unknown> = {}) {
-  const token = organizerToken();
+  let token = await resolveAuthToken(false);
   if (!token) throw new ChessResultsApiError('organizer_token_required', 'Organizer Token is required for Chess-Results publication.', 401);
+
+  const send = (authToken: string) => fetch(`${apiPrefix()}${operation}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    },
+    body: JSON.stringify(body),
+    cache: 'no-store'
+  });
 
   let response: Response;
   try {
-    response = await fetch(`${apiPrefix()}${operation}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify(body),
-      cache: 'no-store'
-    });
+    response = await send(token);
+    if (response.status === 401 && googleBridgeActive && !organizerToken()) {
+      token = await resolveAuthToken(true);
+      response = await send(token);
+    }
   } catch (error: any) {
     throw new ChessResultsApiError('network_error', error?.message || 'The Chess-Results bridge is unavailable.');
   }

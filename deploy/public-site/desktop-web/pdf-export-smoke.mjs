@@ -34,10 +34,10 @@ try {
   await page.route('https://api.chess-publisher.org/**', handleApiRoute);
   await page.route('https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev/**', handleApiRoute);
   await page.goto(new URL('workspace.html', url).href);
-  await page.getByRole('heading', { name: 'ChessPublisher Web' }).waitFor();
+  await page.getByRole('heading', { name: 'Chess-Publisher Web' }).waitFor();
   await page.locator('#legacy-token-details summary').click();
   await page.getByLabel('Organizer Token').fill('ci-pdf-export-organizer');
-  await page.getByRole('button', { name: 'Отвори приложението' }).click();
+  await page.getByRole('button', { name: 'Open Workspace' }).click();
   const name = page.getByRole('textbox', { name: 'Tournament name', exact: true });
   try {
     await name.fill('Sofia Open', { timeout: 10000 });

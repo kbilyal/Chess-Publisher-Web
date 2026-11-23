@@ -5,6 +5,9 @@ import sys
 
 page = Path(sys.argv[1])
 html = page.read_text(encoding="utf-8")
+if 'data-site-build="2026-11-23-web-portal"' in html and 'href="/app/"' in html and 'id="chesspublisher-web"' in html:
+    print("2026-11-23-web-portal homepage already includes /app/ portal links.")
+    raise SystemExit(0)
 html = re.sub(r'<a data-pairing-entry="nav"[^>]*>[^<]+</a>\n?', "", html, count=1)
 html = re.sub(r'<section class="section" id="online-pairings"[^>]*>.*?</section>\n?', "", html, count=1, flags=re.S)
 
