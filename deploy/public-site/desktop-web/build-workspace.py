@@ -458,6 +458,23 @@ html = replace_once(html, '      try{\n        if(runtime.state!=="ready"||runti
 html = replace_once(html, '    }finally{runtime.busy=false;renderStatus();}\n  }\n\n  function scheduleAutoCheck',
     '    }finally{runtime.busy=false;renderStatus();window.cpRefreshRoundControlLog?.();}\n  }\n\n  function scheduleAutoCheck')
 
+# Clean up export button labels without changing any onclick handlers or functionality.
+for before, after in (
+    ('<button class="report-export-button" onclick="exportGeneralTxt()">TXT Print</button>', '<button class="report-export-button" onclick="exportGeneralTxt()">TXT</button>'),
+    ('<button class="report-export-button" onclick="exportParticipantsTxt()">TXT Print</button>', '<button class="report-export-button" onclick="exportParticipantsTxt()">TXT</button>'),
+    ('<button class="report-export-button" onclick="printSpecialPrizesTxt()">TXT Print</button>', '<button class="report-export-button" onclick="printSpecialPrizesTxt()">TXT</button>'),
+    ('<button class="report-export-button" onclick="exportScheduleTxt()">TXT Print</button>', '<button class="report-export-button" onclick="exportScheduleTxt()">TXT</button>'),
+    ('<button onclick="exportGeneralTxt()">General TXT Print</button>', '<button onclick="exportGeneralTxt()">General TXT</button>'),
+    ('<button onclick="exportParticipantsTxt()">Participants TXT Print</button>', '<button onclick="exportParticipantsTxt()">Participants TXT</button>'),
+    ('<button onclick="exportScheduleTxt()">Tournament Schedule TXT Print</button>', '<button onclick="exportScheduleTxt()">Tournament Schedule TXT</button>'),
+    ('<button onclick="exportRegulationsTxt()">Regulations TXT Print</button>', '<button onclick="exportRegulationsTxt()">Regulations TXT</button>'),
+    ('<button onclick="printReport(\'general\')">General PDF Design</button>', '<button onclick="printReport(\'general\')">General PDF</button>'),
+    ('<button onclick="openStartingListExportDialog()">Starting List PDF Design</button>', '<button onclick="openStartingListExportDialog()">Starting List PDF</button>'),
+    ('<button onclick="printReport(\'program\')">Tournament Schedule PDF Design</button>', '<button onclick="printReport(\'program\')">Tournament Schedule PDF</button>'),
+    ('<button onclick="printReport(\'regulations\')">Regulations PDF Design</button>', '<button onclick="printReport(\'regulations\')">Regulations PDF</button>'),
+):
+    html = replace_once(html, before, after)
+
 scripts = "\n".join(f'<script src="./{relative}"></script>' for relative in adapters)
 reg_v = asset_version("registration-ui.js")
 ws_js_v = asset_version("workspace-ui.js")
