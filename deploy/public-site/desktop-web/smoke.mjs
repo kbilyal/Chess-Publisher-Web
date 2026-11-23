@@ -496,6 +496,14 @@ try {
         titlebar:describe(document.querySelector('#appWindow > .titlebar')) };
     });
     console.log('CP_MOBILE_PAIRINGS_DOM=' + JSON.stringify(mobileDom));
+    assert.ok(mobileDom.managerFirst?.children?.[0]?.width >= 280,
+      'Mobile next-round heading is squeezed: ' + JSON.stringify(mobileDom.managerFirst));
+    assert.ok(mobileDom.managerFirst?.height <= 145,
+      'Mobile next-round heading is taller than its content: ' + JSON.stringify(mobileDom.managerFirst));
+    assert.ok(mobileDom.history?.children?.[2]?.width >= 270,
+      'Round history help text must get its own readable line: ' + JSON.stringify(mobileDom.history));
+    assert.ok(mobileDom.history?.height <= 125,
+      'Round history must remain compact at 390px: ' + JSON.stringify(mobileDom.history));
     await page.screenshot({ path: join(visualDir, 'pairings-mobile-390.png'),
       animations: 'disabled' });
     await page.setViewportSize({ width: 1440, height: 920 });
