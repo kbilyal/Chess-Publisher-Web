@@ -606,3 +606,75 @@
   outline: 2px solid var(--cpw-primary);
   outline-offset: 2px;
 }
+
+
+/* ==========================================================================
+   Phase 5: mobile Pairings usability — original controls, no hidden actions.
+   At narrow widths the pinned desktop's fixed-size history/status elements
+   otherwise squeeze their labels into 50–60 px columns.
+   ========================================================================== */
+@media (max-width: 700px) {
+  #appWindow #pairings > .program-historybar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 8px;
+    min-width: 0;
+  }
+
+  #appWindow #pairings > .program-historybar > strong {
+    flex: 0 1 auto;
+    min-width: 0;
+    white-space: normal;
+  }
+
+  #appWindow #pairings > .program-historybar > select {
+    flex: 1 1 175px;
+    width: auto;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  #appWindow #pairings > .program-historybar > .muted {
+    flex: 1 1 100%;
+    min-width: 0;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: break-word;
+    line-height: 1.35;
+  }
+
+  #appWindow #pairings #nextRoundManager .next-round-manager-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 7px;
+    padding: 8px;
+    min-width: 0;
+  }
+
+  #appWindow #pairings #nextRoundManager .next-round-manager-header > div:first-child,
+  #appWindow #pairings #nextRoundManager #nextRoundConfirmState {
+    flex: 1 1 100%;
+    min-width: 0;
+    max-width: 100%;
+    width: auto;
+    box-sizing: border-box;
+    white-space: normal;
+    overflow-wrap: break-word;
+  }
+
+  #appWindow #pairings #nextRoundManager .next-round-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    align-items: center;
+    min-width: 0;
+  }
+
+  #appWindow #pairings #nextRoundManager .next-round-actions > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+}
