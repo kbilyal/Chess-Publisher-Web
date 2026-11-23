@@ -15,7 +15,7 @@ try {
     const request = route.request();
     const headers = {
       'access-control-allow-origin': new URL(url).origin,
-      'access-control-allow-methods': 'GET, OPTIONS',
+      'access-control-allow-methods': 'GET, POST, PUT, OPTIONS',
       'access-control-allow-headers': 'Authorization, Content-Type, X-Client-Version, X-Expected-Revision',
     };
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
@@ -32,7 +32,13 @@ try {
     throw new Error(`Workspace did not open at ${page.url()}: ${errors.join('; ')} · ${(await page.locator('body').innerText()).slice(0, 300)}`, { cause: error });
   }
   await name.press('Enter');
+  await page.locator('#createScreen').waitFor({ state: 'hidden', timeout: 10000 });
   await page.locator('#main').waitFor();
+  await page.waitForFunction(
+    () => typeof getCurrentTournament === 'function' && typeof data !== 'undefined' && data.currentTournament === 'Sofia Open',
+    null,
+    { timeout: 10000 },
+  );
   await page.evaluate(() => {
     const tournament = getCurrentTournament();
     Object.assign(tournament.settings, {
@@ -68,10 +74,31 @@ try {
   async function verifyPrint(filename, documentTitle, singlePage = false) {
     const originalTitle = await page.title();
     await dialog.getByRole('button', { name: 'Print / Save PDF' }).click();
+    await page.waitForFunction(
+      () => document.body.getAttribute('data-print-requested') === 'true',
+      null,
+      { timeout: 10000 },
+    );
+    try {
+      await page.waitForFunction(
+        ({ source, flags }) => new RegExp(source, flags).test(document.title),
+        { source: documentTitle.source, flags: documentTitle.flags },
+        { timeout: 10000 },
+      );
+    } catch (error) {
+      throw new Error(`PDF document title did not match ${documentTitle}; actual title: ${JSON.stringify(await page.title())}`, { cause: error });
+    }
     assert.equal(await page.locator('body').getAttribute('data-print-requested'), 'true');
     assert.equal(await printRoot.innerHTML(), await dialog.locator('.cp-pdf-paper').innerHTML());
     assert.match(await page.title(), documentTitle);
     await page.emulateMedia({ media: 'print' });
+    await printRoot.locator('.cp-pdf-report').waitFor({ state: 'visible', timeout: 10000 });
+    await dialog.waitFor({ state: 'hidden', timeout: 10000 });
+    await page.waitForFunction(
+      () => getComputedStyle(document.body).backgroundColor === 'rgb(255, 255, 255)',
+      null,
+      { timeout: 10000 },
+    );
     assert.equal(await printRoot.locator('.cp-pdf-report').isVisible(), true);
     assert.equal(await dialog.isVisible(), false);
     assert.equal(await page.locator('body').evaluate(body => getComputedStyle(body).backgroundColor), 'rgb(255, 255, 255)');
@@ -86,6 +113,11 @@ try {
       }
       delete document.body.dataset.printRequested;
     });
+    await page.waitForFunction(
+      expected => document.title === expected && !document.querySelector('#screenPrintReport .cp-pdf-report'),
+      originalTitle,
+      { timeout: 10000 },
+    );
     assert.equal(await page.title(), originalTitle);
     assert.equal(await printRoot.locator('.cp-pdf-report').count(), 0);
     assert.equal(await page.evaluate(() => document.documentElement.style.getPropertyValue('--cp-pdf-page-label')), '');
@@ -95,6 +127,7 @@ try {
   const startingButton = page.locator('#registration button[onclick="openStartingListExportDialog()"]');
   await startingButton.click();
   await dialog.waitFor();
+  await preview.locator('h1').waitFor({ state: 'visible', timeout: 10000 });
   assert.equal(await dialog.getAttribute('lang'), 'en');
   assert.equal(await preview.getAttribute('lang'), 'en');
   assert.equal(await preview.locator('h1').textContent(), 'Starting list');
@@ -113,6 +146,7 @@ try {
   await page.locator('#pairingsRound').selectOption('2');
   await page.locator('#pairings button[onclick="openPairingsExportDialog(\'pdf\')"]').click();
   await dialog.waitFor();
+  await preview.locator('h1').waitFor({ state: 'visible', timeout: 10000 });
   const results = preview.locator('tbody .cp-pdf-result');
   async function verifyMixedResults() {
     const headers = (await preview.getByRole('columnheader').allTextContents()).map(text => text.trim());
@@ -153,6 +187,7 @@ try {
   await verifyPrint('pairings.pdf', /Sofia Open - Pairings - Round 2/);
 
   await page.setViewportSize({ width: 390, height: 780 });
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   const box = await dialog.boundingBox();
   assert.ok(box.x >= 0 && box.x + box.width <= 390, 'Dialog must fit on a phone');
   if (artifacts) await dialog.screenshot({ path: join(artifacts, 'pairings-mobile.png') });
@@ -164,6 +199,7 @@ try {
   await page.locator('#pairingsRound').selectOption('1');
   await page.locator('#pairings button[onclick="openPairingsExportDialog(\'pdf\')"]').click();
   await dialog.waitFor();
+  await preview.locator('h1').waitFor({ state: 'visible', timeout: 10000 });
   assert.equal(await signOff.count(), 1, 'The selected sign-off option is saved');
   assert.equal(await preview.locator('.cp-pdf-round-details').getByText('Round start').count(), 0);
   assert.deepEqual(await preview.locator('.cp-pdf-round-summary span').allTextContents(),
