@@ -464,6 +464,24 @@ try {
     ]) {
       await page.locator('#' + tabId).click();
       await page.locator('#' + pageId + '.active').waitFor();
+      if (pageId === 'schedule') {
+        const panels = await page.evaluate(() => {
+          const page = document.querySelector('#schedule.page.active');
+          const r = page.getBoundingClientRect();
+          return { display: getComputedStyle(page).display, width: Math.round(r.width),
+            sections: Array.from(page.querySelectorAll(':scope > .groupbox'), item => {
+              const b = item.getBoundingClientRect();
+              return {width:Math.round(b.width),top:Math.round(b.top)};
+            }) };
+        });
+        assert.equal(panels.display, 'flex');
+        assert.equal(panels.sections.length, 3);
+        assert.ok(panels.sections.every(p => p.width >= panels.width - 50),
+          'Round/Event Schedule must retain full width: ' + JSON.stringify(panels));
+        assert.ok(panels.sections.every((p,i) => i === 0 || p.top > panels.sections[i-1].top),
+          'Keyboard/visual order must remain natural: ' + JSON.stringify(panels));
+        console.log('CP_SCHEDULE_FULL_WIDTH=' + JSON.stringify(panels));
+      }
       if (pageId === 'pairings') {
         const columns = await page.evaluate(() => {
           const n = document.querySelector('#pairings > .live-pairing-layout');
