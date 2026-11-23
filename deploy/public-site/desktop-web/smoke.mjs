@@ -338,7 +338,7 @@ try {
     if (previousViewport) await page.setViewportSize(previousViewport);
   }
 
-  await page.evaluate(async () => {
+  await page.evaluate(() => {
     const tournament = getCurrentTournament();
     Object.assign(tournament.settings, {
       fideRated: 'No', startDate: '2026-11-19T10:00', endDate: '2026-11-19T16:00',
@@ -347,12 +347,33 @@ try {
     tournament.regulations.rating = 'Unrated';
     refreshEverything();
     saveAll();
-    await resortStartingList();
   });
+  await page.locator('#tabPairings').click();
+  const resortButton = page.locator('#pairingsResortStartingListBtn');
+  const generateButton = page.locator('#btnGenerateGacrux');
+  const publishButton = page.locator('#pairingsChessResultsPublishBtn');
+  const actionBoxes = await Promise.all([resortButton, generateButton, publishButton].map(button => button.boundingBox()));
+  assert.ok(actionBoxes.every(Boolean), 'The three pairing actions must be visible');
+  assert.ok(actionBoxes.every(box => Math.abs(box.y + box.height / 2 - (actionBoxes[1].y + actionBoxes[1].height / 2)) <= 2),
+    'Resort Starting List, Generate Pairings and Publish must share a row at desktop width');
+
+  const roundLog = page.locator('#roundControlLog');
+  await page.getByRole('region', { name: 'Round Control Log', exact: true }).waitFor();
+  const logStyles = await roundLog.evaluate(log => {
+    const style = node => {
+      const css = getComputedStyle(node);
+      return [css.backgroundColor, css.color, css.fontFamily, css.fontSize, css.lineHeight, css.borderRadius, css.overflowY];
+    };
+    return [style(log), style(document.querySelector('#crLiveLog'))];
+  });
+  assert.deepEqual(logStyles[0], logStyles[1], 'Round and Publish logs must share the console styling');
+  await roundLog.locator('.cp-log-warn').filter({ hasText: /Resort Starting List required/ }).waitFor();
+  await resortButton.click();
   const resortMessage = page.locator('#appMessageText');
   assert.match(await resortMessage.textContent(), /resorted successfully/);
   await page.locator('#appMessageOk').click();
-  await page.locator('#tabPairings').click();
+  await roundLog.locator('.cp-log-ok').filter({ hasText: /ready for Round 1/ }).waitFor();
+  assert.match(await roundLog.innerText(), /Not paired \/ BYE/);
   const preflight = await page.evaluate(() => ({
     validation: validateOfficialPairingSetup(1, 'dutch'),
     pairing: getPairingGenerationState(),
@@ -361,10 +382,16 @@ try {
   assert.equal(preflight.validation.ok && preflight.pairing.canGenerate && !preflight.rated, true, JSON.stringify(preflight));
   console.log('Four players registered and resorted; testing the desktop pairing action.');
   try {
-    await page.locator('#btnGenerateGacrux').click();
-    await page.locator('#firstRoundColorModal button').filter({ hasText: 'White' }).click({ timeout: 10000 });
+    await generateButton.click();
+    const chooseWhite = page.locator('#firstRoundColorModal button').filter({ hasText: 'White' });
+    await chooseWhite.waitFor({ timeout: 10000 });
+    assert.equal(await resortButton.isDisabled(), true, 'Resort stays locked during generation');
+    await chooseWhite.click();
     await page.waitForFunction(() => getCurrentTournament().pairings.liveBoards['1']?.length === 2, undefined, { timeout: 35000 });
     await page.locator('#appMessageOk').click({ timeout: 10000 });
+    await page.waitForFunction(() => !document.getElementById('pairingsResortStartingListBtn').disabled);
+    await roundLog.locator('.cp-log-warn').filter({ hasText: /Results Round 1: 2 missing/ }).waitFor();
+    console.log('Round Control Log styling, readiness and the relocated resort action passed.');
   } catch (error) {
     throw new Error(`Round failed: ${await page.locator('#appMessageText').textContent()} · ${await page.locator('#status').textContent()} · ${errors.join('; ')}`, { cause: error });
   }
