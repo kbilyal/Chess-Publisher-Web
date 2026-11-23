@@ -609,6 +609,36 @@ try {
     await page.setViewportSize({ width: 1440, height: 920 });
   }
 
+  // Check tablet and small-laptop breakpoints on the same real workspace
+  // after all original pairing, Cloud and Chess-Results actions have run.
+  for (const width of [768, 1024, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const [tab, section] of [
+      ['tabMain', 'main'], ['tabPairings', 'pairings'],
+      ['tabStandings', 'standings'], ['tabSchedule', 'schedule'],
+      ['tabExport', 'exportPage'], ['tabChessResults', 'chessresults'],
+    ]) {
+      await page.locator('#' + tab).click();
+      await page.locator('#' + section + '.active').waitFor();
+      const metrics = await page.evaluate(section => {
+        const node = document.getElementById(section);
+        const bounds = node.getBoundingClientRect();
+        return {
+          viewport: innerWidth, tab: section,
+          documentOverflow: Math.round(document.documentElement.scrollWidth - innerWidth),
+          appOverflow: Math.round(document.getElementById('appWindow').scrollWidth - innerWidth),
+          pageWidth: Math.round(bounds.width),
+          pageHeight: Math.round(bounds.height),
+          layout: getComputedStyle(node).display
+        };
+      }, section);
+      console.log('CP_RESPONSIVE_MATRIX=' + JSON.stringify(metrics));
+      assert.ok(metrics.pageWidth >= 200 && metrics.pageHeight >= 80,
+        'Workspace page collapsed: ' + JSON.stringify(metrics));
+    }
+  }
+  await page.setViewportSize({ width: 1440, height: 920 });
+
   await page.locator('#cpDesktopWebSignOut').click();
   await page.getByRole('heading', { name: 'ChessPublisher Web' }).waitFor();
   assert.deepEqual(
