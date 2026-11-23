@@ -914,3 +914,83 @@
     min-height: 125px;
   }
 }
+
+
+/* ==========================================================================
+   Phase 9: visually compact the *real* Standings KPI strip and prevent
+   Chess-Results publication from stretching to the combined log/pin height.
+   Neither change removes, duplicates or reorders any controls or data.
+   ========================================================================== */
+@media (min-width: 1100px) {
+  /* In the pinned DOM .final-standings-top owns four KPI cards. Their
+     original one-card-per-quarter-width layout takes needless vertical
+     space; the preview uses short, readable inline metric chips. */
+  #appWindow #standings > .final-standings-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    align-content: center;
+    justify-content: flex-start;
+    gap: 6px;
+    padding: 5px 8px;
+    min-height: 0;
+  }
+
+  #appWindow #standings > .final-standings-top > * {
+    box-sizing: border-box;
+    flex: 0 1 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    column-gap: 9px;
+    row-gap: 2px;
+    width: auto;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 30px;
+    padding: 4px 9px;
+    margin: 0;
+  }
+
+  #appWindow #standings > .final-standings-top > * :is(b, strong) {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  #appWindow #standings > .standings-export-strip {
+    gap: 5px;
+    padding: 5px 9px;
+    flex-wrap: wrap;
+    min-height: 0;
+  }
+
+  #appWindow #chessresults > .crpub-box {
+    align-self: start;
+    min-height: 0;
+    height: auto;
+  }
+
+  /* Keep real publication, log and PIN controls where they are. The
+     original content finishes sooner than the combined right-hand column. */
+  #appWindow #chessresults > .crxml-summary-grid {
+    gap: 6px;
+  }
+
+  #appWindow #chessresults > .crxml-summary-grid > * {
+    box-sizing: border-box;
+    min-width: 0;
+    padding: 6px 9px;
+  }
+
+  #appWindow #chessresults > .crlog-box,
+  #appWindow #chessresults > .crpin-box {
+    align-self: start;
+    min-width: 0;
+  }
+}
+
+/* Preserve long tournament names and cloud responses without clipping. */
+#appWindow #chessresults > .crxml-summary-grid > * {
+  overflow-wrap: anywhere;
+}
