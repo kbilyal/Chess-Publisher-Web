@@ -84,15 +84,17 @@
   background: #fff;
   box-shadow: 0 2px 8px #23364b22;
 }
+.cp-pdf-paper.cp-txt-paper { width: max-content; min-width: 794px; }
+.cp-txt-paper pre { margin: 0; font: 13px/1.45 'Courier New', Consolas, monospace; white-space: pre; }
 .cp-pdf-dialog-foot {
   border-top: 1px solid #e0e8f0;
   position: sticky;
   bottom: 0;
 }
 .cp-pdf-dialog-foot p { margin: 0; color: #475f77; font-size: 12px; }
-.cp-pdf-dialog-foot div { display: flex; gap: 8px; flex-shrink: 0; }
-.cp-pdf-dialog [data-print] { background: #175d9e !important; border-color: #175d9e !important; color: #fff !important; }
-.cp-pdf-dialog [data-print]:hover { background: #10477d !important; }
+.cp-pdf-dialog-foot div { display: flex; gap: 8px; flex-shrink: 0; margin-inline-start: auto; }
+.cp-pdf-dialog [data-primary] { background: #175d9e !important; border-color: #175d9e !important; color: #fff !important; }
+.cp-pdf-dialog [data-primary]:hover { background: #10477d !important; }
 
 .cp-pdf-report {
   color: #14283e;
@@ -231,11 +233,11 @@
   .cp-pdf-layout { display: block; height: auto; }
   .cp-pdf-settings { padding: 10px 12px; border-right: 0; }
   .cp-pdf-presets { display: flex; flex-wrap: wrap; }
-  .cp-pdf-presets button { width: auto; flex: 1; justify-content: center; }
+  .cp-pdf-presets button { width: auto; flex: 1 1 auto; justify-content: center; }
   .cp-pdf-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cp-pdf-preview-scroll { max-height: 42dvh; }
   .cp-pdf-dialog-foot { align-items: flex-start; flex-direction: column; gap: 7px; }
-  .cp-pdf-dialog-foot div { align-self: flex-end; }
+  .cp-pdf-dialog-foot div { align-self: flex-end; max-width: 100%; flex-wrap: wrap; justify-content: flex-end; }
 }
 
 @media print {
