@@ -174,8 +174,23 @@ try {
   await page.evaluate(() => openPairingsExportDialog('txt'));
   assert.equal(await page.locator('#pairingsExportModal').isVisible(), true);
   assert.equal(await page.locator('#pairingsExportModal input[name="peResultMode"]:checked').inputValue(), 'none');
+  const printTxtButton = page.locator('#pairingsExportModal [data-cp-pairings-txt-print]');
+  await printTxtButton.waitFor({ state: 'visible' });
+  await page.evaluate(() => {
+    window.__cpPairingsTxtPrintCalls = 0;
+    window.print = () => { window.__cpPairingsTxtPrintCalls++; };
+  });
+  await printTxtButton.click();
+  await page.waitForFunction(() => window.__cpPairingsTxtPrintCalls === 1);
+  const printedTxt = await page.locator('#screenPrintReport .final-txt-pre').textContent();
+  assert.match(printedTxt, /Sofia Open/);
+  assert.match(printedTxt, /Round 1/);
+  assert.match(printedTxt, /Bo\\.\\s+SNo\\./);
+  assert.equal(await page.locator('#pairingsExportModal').isVisible(), false);
+  await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
+  assert.equal(await page.locator('#pairingsExportModal').isVisible(), true);
   assert.deepEqual(errors, []);
-  console.log('English PDF previews, mixed scores, round summary, arbiter sign-off, A4 pagination, mobile and TXT routing passed.');
+  console.log('English PDF previews, mixed scores, round summary, arbiter sign-off, A4 pagination, mobile and TXT printing passed.');
 } finally {
   await browser.close();
 }
