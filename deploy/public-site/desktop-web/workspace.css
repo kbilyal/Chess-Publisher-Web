@@ -1681,6 +1681,8 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
   }
   #appWindow #classicMenuBar,
   #appWindow .statusbar {
+    height: auto !important;
+    min-height: 26px;
     flex-wrap: wrap !important;
     min-width: 0 !important;
     max-width: 100% !important;
