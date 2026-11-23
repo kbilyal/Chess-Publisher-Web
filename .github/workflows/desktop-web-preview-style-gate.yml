@@ -111,10 +111,22 @@ jobs:
 
       - name: Real Chromium login, pairing, Cloud, exports and signout
         shell: bash
+        env:
+          CP_WEBSITE_UI_SCREENSHOTS_DIR: ${{ github.event_name == 'pull_request' && format('{0}/site-visual-review', runner.temp) || '' }}
         run: |
           node deploy/public-site/desktop-web/smoke.mjs \
             http://127.0.0.1:8793/app/ \
             "${RUNNER_TEMP}/cp-preview-playwright" \
             "$(command -v google-chrome)"
 
-      # No artifact uploads and no deployment actions in this workflow.
+      - name: Share temporary synthetic visual-audit screenshots
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: chesspublisher-real-tabs-visual-audit
+          path: ${{ runner.temp }}/site-visual-review/*.png
+          if-no-files-found: warn
+          retention-days: 1
+
+      # No production deployment actions in this workflow.
