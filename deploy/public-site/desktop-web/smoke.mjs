@@ -479,6 +479,22 @@ try {
         assert.equal(kpi.display, 'flex');
         assert.ok(kpi.cards.every(c => c.right <= kpi.right + 2), JSON.stringify(kpi));
         console.log('CP_STANDINGS_COMPACT_KPIS=' + JSON.stringify(kpi));
+        const stateLabel = await page.evaluate(() => {
+          const els = [...document.querySelectorAll('#standings *')].filter(el =>
+            el.textContent?.includes('Tournament state:') &&
+            el.textContent.trim().length < 130 &&
+            el.children.length >= 2);
+          const node = els.at(-1);
+          if (!node) return {found:false};
+          const style = getComputedStyle(node);
+          return {found:true,tag:node.tagName,className:String(node.className||''),
+            id:node.id,display:style.display,gap:style.gap,
+            childElements:[...node.children].map(x=>({tag:x.tagName,
+              cls:String(x.className||''),text:x.textContent.trim().slice(0,70)})),
+            text:node.textContent.trim().slice(0,110)};
+        });
+        console.log('CP_STANDINGS_STATE_DOM=' + JSON.stringify(stateLabel));
+
       }
       if (pageId === 'chessresults') {
         const cards = await page.evaluate(() => {
