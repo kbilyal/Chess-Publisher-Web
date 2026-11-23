@@ -185,7 +185,7 @@ try {
   const printedTxt = await page.locator('#screenPrintReport .final-txt-pre').textContent();
   assert.match(printedTxt, /Sofia Open/);
   assert.match(printedTxt, /Round 1/);
-  assert.match(printedTxt, /Bo\\.\\s+SNo\\./);
+  assert.match(printedTxt, /Bo\.\s+SNo\./);
   assert.equal(await page.locator('#pairingsExportModal').isVisible(), false);
   await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
   assert.equal(await page.locator('#pairingsExportModal').isVisible(), true);
