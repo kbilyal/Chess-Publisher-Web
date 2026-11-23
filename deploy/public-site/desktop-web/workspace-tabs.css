@@ -678,3 +678,49 @@
     max-width: 100%;
   }
 }
+
+
+/* ==========================================================================
+   Phase 6: keep Save and Manual reachable in the small-screen app header.
+   No titlebar actions are hidden; compact their spacing at phone widths and
+   allow horizontal scrolling as a fallback for longer Cloud status messages.
+   ========================================================================== */
+@media (max-width: 700px) {
+  #appWindow > .desktop-header-strip {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+  }
+
+  #appWindow > .desktop-header-strip .desktop-status-controls {
+    gap: 3px;
+    min-width: 0;
+    flex: 0 0 auto;
+    margin-left: auto;
+    align-items: center;
+  }
+
+  #appWindow > .desktop-header-strip #fideGlobalModeBadge {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    font-size: 10px;
+    padding: 2px 5px;
+  }
+
+  #appWindow > .desktop-header-strip #cpWebCloudSaveStatus {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    font-size: 10px;
+    line-height: 1.2;
+  }
+
+  #appWindow > .desktop-header-strip .desktop-status-controls > button.titlebar-save {
+    flex: 0 0 auto;
+    min-width: 0;
+    font-size: 11px;
+    padding: 4px 6px;
+    white-space: nowrap;
+  }
+}
