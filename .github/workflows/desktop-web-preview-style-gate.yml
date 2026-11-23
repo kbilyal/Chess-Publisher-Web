@@ -108,7 +108,7 @@ jobs:
         run: |
           node deploy/public-site/desktop-web/smoke.mjs \
             http://127.0.0.1:8793/ \
-            "${RUNNER_TEMP}/cp-preview-playwright/node_modules" \
+            "${RUNNER_TEMP}/cp-preview-playwright" \
             "$(command -v google-chrome)"
 
       # No artifact uploads and no deployment actions in this workflow.
