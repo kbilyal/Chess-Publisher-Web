@@ -290,8 +290,75 @@
     d.showModal();
   }
 
+  // Keep the authoritative TXT builder and its existing download workflow.
+  // The extra print action intentionally mirrors Standings' monospaced TXT sheet.
+  function printPairingsTxt(modal) {
+    const rows = buildLivePairingsRows();
+    if (!rows.length) {
+      appAlert('There are no pairings for the selected round.', 'Pairings', 'warning');
+      return;
+    }
+    const run = () => {
+      const text = buildPairingsReadableText(getPairingsExportOptions());
+      const root = document.getElementById('screenPrintReport');
+      if (!root || !text || !text.trim()) {
+        appAlert('The selected pairings could not be prepared for printing.', 'Pairings', 'warning');
+        return;
+      }
+      const originalNodes = [...root.childNodes];
+      const originalTitle = document.title;
+      const previousDisplay = modal.style.display;
+      const restore = () => {
+        root.replaceChildren(...originalNodes);
+        document.title = originalTitle;
+        modal.style.display = previousDisplay;
+        window.removeEventListener('afterprint', restore);
+      };
+      const sheet = document.createElement('div');
+      sheet.className = 'print-doc final-txt-print';
+      const pre = document.createElement('pre');
+      pre.className = 'final-txt-pre';
+      pre.textContent = text; // Never interpret player names as HTML.
+      sheet.appendChild(pre);
+      root.replaceChildren(sheet);
+      const round = getSelectedPairingRoundNumber();
+      document.title = `${data.currentTournament} - Pairings - Round ${round}`;
+      modal.style.display = 'none';
+      window.addEventListener('afterprint', restore, { once: true });
+      setTimeout(() => {
+        try { window.print(); }
+        catch (error) { restore(); throw error; }
+      }, 30);
+    };
+    if (typeof withExportLanguage === 'function') withExportLanguage(run);
+    else run();
+  }
+
+  function openPairingsTxtWithPrint() {
+    const result = legacyPairings('txt');
+    const installPrintButton = () => {
+      const modal = document.getElementById('pairingsExportModal');
+      if (!modal || modal.querySelector('[data-cp-pairings-txt-print]')) return;
+      const buttons = [...modal.querySelectorAll('button')];
+      const exportButton = buttons.reverse().find(button =>
+        /(?:download|export|save).*txt|^(?:download|export|save)(?:\\s|$)/i.test(button.textContent.trim()));
+      if (!exportButton) return;
+      const printButton = document.createElement('button');
+      printButton.type = 'button';
+      printButton.dataset.cpPairingsTxtPrint = 'true';
+      printButton.className = exportButton.className;
+      printButton.textContent = 'Print TXT';
+      printButton.title = 'Print this fixed-width TXT report like Final Standings';
+      printButton.addEventListener('click', () => printPairingsTxt(modal));
+      exportButton.insertAdjacentElement('beforebegin', printButton);
+    };
+    installPrintButton();
+    setTimeout(installPrintButton, 0);
+    return result;
+  }
+
   window.openStartingListExportDialog = () => openPdf('players');
   window.openPairingsExportDialog = (target = 'pdf') =>
-    String(target).toLowerCase() === 'txt' ? legacyPairings('txt') : openPdf('pairings');
+    String(target).toLowerCase() === 'txt' ? openPairingsTxtWithPrint() : openPdf('pairings');
   window.printReport = kind => kind === 'players' || kind === 'pairings' ? openPdf(kind) : legacyPrint(kind);
 })();
