@@ -207,6 +207,7 @@
       const liveInfo = byId('livePairingInfo');
 
       const genBtn = byId('btnGenerateGacrux');
+      const resortBtn = byId('pairingsResortStartingListBtn');
       const toolbarGenBtn = byId('pairingsToolbarGenerateBtn');
       const crPubBtn = byId('pairingsChessResultsPublishBtn');
       hide(toolbarGenBtn);
@@ -219,6 +220,7 @@
       if (liveInfo) { liveInfo.classList.add('cp-ws-card-subtitle'); hLeft.appendChild(liveInfo); }
 
       const hRight = make('div', 'cp-ws-card-header-right');
+      if (resortBtn) hRight.appendChild(resortBtn);
       if (genBtn) { genBtn.classList.add('cp-ws-cta-primary'); hRight.appendChild(genBtn); }
       if (crPubBtn) { crPubBtn.classList.add('cp-ws-btn-secondary'); hRight.appendChild(crPubBtn); }
       cardHeader.append(hLeft, hRight);
