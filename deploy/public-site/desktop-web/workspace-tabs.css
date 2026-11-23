@@ -522,67 +522,10 @@
 }
 
 
-/* ==========================================================================
-   Phase 4: Setup composition based on the actual pinned desktop DOM.
-   All section elements remain in place, with their existing event listeners.
-   ========================================================================== */
-@media (min-width: 1100px) {
-  #appWindow #main.page.active {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-auto-flow: row dense;
-    align-content: start;
-    gap: 9px;
-  }
-
-  /* Tournament identity, long-event requirements and FIDE review keep
-     their complete horizontal space rather than being squeezed. */
-  #appWindow #main.page.active > :is(
-    .current-row, .tournament-general-box, #cpBeta70LongEventBox,
-    #cpFideEligibility) {
-    grid-column: 1 / -1;
-    min-width: 0;
-  }
-
-  /* Pairing-related controls stay in the first column; original rules,
-     tie-break settings and prizes occupy the second column. */
-  #appWindow #main.page.active > :is(
-    .pairing-essentials-box, #ratingListSequenceControl) {
-    grid-column: 1;
-    min-width: 0;
-  }
-
-  #appWindow #main.page.active > :is(.setup-rules-box, .setup-prize-box) {
-    grid-column: 2;
-    min-width: 0;
-  }
-
-  /* Remaining, non-preview panels still get their natural full width;
-     never hide extra controls added by newer pinned desktop versions. */
-  #appWindow #main.page.active > .groupbox:not(
-    .tournament-general-box,
-    .pairing-essentials-box,
-    .setup-rules-box,
-    .setup-prize-box,
-    .cp-long-event-rating-box,
-    #ratingListSequenceControl) {
-    grid-column: 1 / -1;
-    min-width: 0;
-  }
-}
-
-@media (max-width: 1099px) {
-  #appWindow #main.page.active {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  #appWindow #main.page.active > :is(.groupbox, details, .current-row) {
-    min-width: 0;
-    max-width: 100%;
-  }
-}
+/* The current website's workspace.css owns the Setup layout and its new
+   FIDE/compliance controls. Never override its active-page grid or flex
+   geometry: the older two-column mockup rules caused click-target occlusion
+   at 1280px when layered on the newer workspace-ui.js baseline. */
 
 /* Reference palette: compact, clearly separated sections. No forced
    visibility, no altered disabled states and no control duplication. */
