@@ -392,6 +392,7 @@ try {
   await roundLog.locator('.cp-log-warn').filter({ hasText: /Resort Starting List required/ }).waitFor();
   await resortButton.click();
   const resortMessage = page.locator('#appMessageText');
+  await resortMessage.filter({ hasText: /resorted successfully/ }).waitFor({ timeout: 5000 });
   assert.match(await resortMessage.textContent(), /resorted successfully/);
   await page.locator('#appMessageOk').click();
   await roundLog.locator('.cp-log-ok').filter({ hasText: /ready for Round 1/ }).waitFor();
