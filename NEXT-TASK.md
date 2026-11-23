@@ -1,5 +1,7 @@
 # Next Task — TRF Full Parity (Integration Gate G)
 
+Keep the public `/app/` checks for mobile menu clearance and Pairings and Standings TXT output when updating the pinned workspace.
+
 Keep the Pairings browser smoke when updating the pinned workspace. It verifies the shared log styling, live readiness and result updates, and the resort action on the Pairings toolbar.
 
 Keep the public `/app/` PDF export smoke when updating the pinned workspace. It exercises the registration and pairings toolbar actions, preview controls, the Arbiter sheet sign-off, and single-page and multipage A4 printing on the generated workspace.

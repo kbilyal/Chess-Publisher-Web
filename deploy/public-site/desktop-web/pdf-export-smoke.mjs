@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 
@@ -11,6 +11,9 @@ try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
+  page.on('console', message => {
+    if (message.type() === 'error') errors.push(message.text());
+  });
   await page.route('https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev/**', route => {
     const request = route.request();
     const headers = {
@@ -48,7 +51,7 @@ try {
     tournament.telegram.language = 'bg';
     tournament.schedule.rows = [{ event: 'Round 2', dateTime: '2026-11-24T10:00' }];
     tournament.players = Array.from({ length: 121 }, (_, index) => ({
-      name: index === 0 ? 'Александър Александров <Юноши>' : `Player ${String(index + 1).padStart(3, '0')}`,
+      name: index === 0 ? 'Александър Иванов <Юноши>' : `Player ${String(index + 1).padStart(3, '0')}`,
       pairingNumber: index + 1, rating: 2450 - index, title: index === 0 ? 'GM' : '',
       fed: 'BUL', fideId: String(2900000 + index), gender: 'M', birth: '2000',
     }));
@@ -133,7 +136,7 @@ try {
   assert.equal(await preview.locator('h1').textContent(), 'Starting list');
   assert.equal(await preview.getByRole('columnheader', { name: 'Player', exact: true }).count(), 1);
   assert.equal(await preview.locator('tbody tr').count(), 121);
-  assert.match(await preview.locator('tbody tr').first().textContent(), /Александров <Юноши>/);
+  assert.match(await preview.locator('tbody tr').first().textContent(), /Иванов <Юноши>/);
   await dialog.getByRole('button', { name: 'FIDE details' }).click();
   assert.equal(await preview.getByRole('columnheader', { name: 'FIDE ID' }).count(), 1);
   if (artifacts) await dialog.screenshot({ path: join(artifacts, 'starting-list-preview.png') });
@@ -155,7 +158,7 @@ try {
       cell.previousElementSibling.querySelector('.cp-pdf-player-name').textContent.trim(),
       cell.nextElementSibling.querySelector('.cp-pdf-player-name').textContent.trim(),
     ]);
-    assert.match(whiteName, /Александров <Юноши>/);
+    assert.match(whiteName, /Иванов <Юноши>/);
     assert.equal(blackName, 'Player 002');
     assert.deepEqual((await results.allTextContents()).slice(0, 4), ['1 - 0', '½ - ½', '0F - 1F', '']);
     assert.equal(await results.nth(3).getByRole('img', { name: 'Blank space for handwritten result' }).count(), 1);
@@ -207,26 +210,74 @@ try {
   await verifyPrint('pairings-one-board.pdf', /Sofia Open - Pairings - Round 1/, true);
   await page.keyboard.press('Escape');
   await dialog.waitFor({ state: 'detached' });
-  await page.evaluate(() => openPairingsExportDialog('txt'));
-  assert.equal(await page.locator('#pairingsExportModal').isVisible(), true);
-  assert.equal(await page.locator('#pairingsExportModal input[name="peResultMode"]:checked').inputValue(), 'none');
-  const printTxtButton = page.locator('#pairingsExportModal [data-cp-pairings-txt-print]');
-  await printTxtButton.waitFor({ state: 'visible' });
+  await page.locator('#pairings button[onclick="openPairingsExportDialog(\'txt\')"]').click();
+  const txtDialog = page.locator('#pairingsExportModal');
+  await txtDialog.waitFor();
+  const resultMode = txtDialog.locator('input[name="peResultMode"]:checked');
+  assert.equal(await resultMode.inputValue(), 'none');
+  await txtDialog.getByRole('radio', { name: 'Current result' }).check();
+  await txtDialog.locator('#peShowPoints').uncheck();
+  await txtDialog.locator('#peShowTitle').uncheck();
+  const titleBeforeTxt = await page.title();
+  const printRootBeforeTxt = await printRoot.innerHTML();
   await page.evaluate(() => {
-    window.__cpPairingsTxtPrintCalls = 0;
-    window.print = () => { window.__cpPairingsTxtPrintCalls++; };
+    window.__cpTxtPrintCalls = 0;
+    window.print = () => { window.__cpTxtPrintCalls++; };
   });
-  await printTxtButton.click();
-  await page.waitForFunction(() => window.__cpPairingsTxtPrintCalls === 1);
-  const printedTxt = await page.locator('#screenPrintReport .final-txt-pre').textContent();
-  assert.match(printedTxt, /Sofia Open/);
-  assert.match(printedTxt, /Round 1/);
-  assert.match(printedTxt, /Bo\.\s+SNo\./);
-  assert.equal(await page.locator('#pairingsExportModal').isVisible(), false);
-  await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
-  assert.equal(await page.locator('#pairingsExportModal').isVisible(), true);
+  const txtPrint = printRoot.locator('.final-txt-print > pre.final-txt-pre');
+  const printTextStyle = element => {
+    const style = getComputedStyle(element);
+    return { fontFamily: style.fontFamily, whiteSpace: style.whiteSpace };
+  };
+  await txtDialog.getByRole('button', { name: 'Print TXT', exact: true }).click();
+  await page.waitForFunction(() => window.__cpTxtPrintCalls === 1);
+  const printedTxt = await txtPrint.textContent();
+  const [tournament, , round, , columns, board, end] = printedTxt.split(/\r?\n/);
+  assert.equal(tournament, 'Sofia Open');
+  assert.equal(round, 'Round 1');
+  assert.match(columns, /Bo\.\s+SNo\.\s+White\s+Res\.\s+Black\s+SNo\./);
+  assert.match(board, /^\s*1\s+2\s+Player 002\s+½ - ½\s+Александър Иванов <Юноши>\s+1$/);
+  assert.equal(board.length, columns.length);
+  assert.equal(end, '');
+  assert.match(await page.title(), /Sofia Open - Pairings - Round 1/);
+  await txtDialog.waitFor({ state: 'hidden' });
+  await page.emulateMedia({ media: 'print' });
+  await txtPrint.waitFor();
+  const pairingsStyle = await txtPrint.evaluate(printTextStyle);
+  assert.match(pairingsStyle.fontFamily, /monospace/i);
+  assert.equal(pairingsStyle.whiteSpace, 'pre');
+  await page.pdf({ path: artifacts && join(artifacts, 'pairings-txt.pdf'), preferCSSPageSize: true });
+  await page.emulateMedia({ media: 'screen' });
+  await page.evaluate(() => {
+    if (document.querySelector('#screenPrintReport .final-txt-pre')) {
+      window.dispatchEvent(new Event('afterprint'));
+    }
+  });
+  await txtDialog.waitFor();
+  assert.equal(await page.title(), titleBeforeTxt);
+  assert.equal(await printRoot.innerHTML(), printRootBeforeTxt);
+  assert.equal(await resultMode.inputValue(), 'current');
+
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    txtDialog.locator('#pairingsExportRunBtn').click(),
+  ]);
+  assert.equal(download.suggestedFilename(), 'Sofia Open_Pairings_R1.txt');
+  assert.equal((await readFile(await download.path(), 'utf8')).replace(/^\uFEFF/, ''), printedTxt);
+  await txtDialog.waitFor({ state: 'hidden' });
+
+  await page.locator('#tabStandings').click();
+  await page.locator('#standings button[onclick="printFinalStandingsTxt()"]').click();
+  await page.waitForFunction(() => window.__cpTxtPrintCalls === 2);
+  assert.match(await txtPrint.textContent(), /FINAL STANDINGS|КРАЙНО КЛАСИРАНЕ/);
+  assert.match(await txtPrint.textContent(), /Александър Иванов <Юноши>/);
+  assert.match(await page.title(), /Sofia Open - Final Standings/);
+  await page.emulateMedia({ media: 'print' });
+  await txtPrint.waitFor();
+  assert.deepEqual(await txtPrint.evaluate(printTextStyle), pairingsStyle);
+  await page.pdf({ path: artifacts && join(artifacts, 'standings-txt.pdf'), preferCSSPageSize: true });
   assert.deepEqual(errors, []);
-  console.log('English PDF previews, mixed scores, round summary, arbiter sign-off, A4 pagination, mobile and TXT printing passed.');
+  console.log('English PDF previews and mobile controls passed. Pairings TXT download and print matched the selected round. Standings TXT print passed.');
 } finally {
   await browser.close();
 }

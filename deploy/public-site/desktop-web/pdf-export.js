@@ -299,7 +299,7 @@
       return;
     }
     const run = () => {
-      const text = buildPairingsReadableText(getPairingsExportOptions());
+      const text = buildPairingsReadableText(readPairingsExportControls());
       const root = document.getElementById('screenPrintReport');
       if (!root || !text || !text.trim()) {
         appAlert('The selected pairings could not be prepared for printing.', 'Pairings', 'warning');
@@ -339,9 +339,7 @@
     const installPrintButton = () => {
       const modal = document.getElementById('pairingsExportModal');
       if (!modal || modal.querySelector('[data-cp-pairings-txt-print]')) return;
-      const buttons = [...modal.querySelectorAll('button')];
-      const exportButton = buttons.reverse().find(button =>
-        /(?:download|export|save).*txt|^(?:download|export|save)(?:\s|$)/i.test(button.textContent.trim()));
+      const exportButton = modal.querySelector('#pairingsExportRunBtn');
       if (!exportButton) return;
       const printButton = document.createElement('button');
       printButton.type = 'button';
