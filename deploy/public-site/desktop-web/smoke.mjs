@@ -494,7 +494,12 @@ try {
         .find(node => (node.textContent || '').trim() === 'Save'
           && node.getBoundingClientRect().top < 75);
       return { viewport: innerWidth,
-        save: describe(save), saveParent: describe(save?.parentElement),
+        save: describe(save),
+        saveRight: Math.round(save?.getBoundingClientRect().right || 0),
+        saveLeft: Math.round(save?.getBoundingClientRect().left || 0),
+        headerWidth: Math.round(document.querySelector('#appWindow > .desktop-header-strip')?.getBoundingClientRect().width || 0),
+        headerScrollWidth: document.querySelector('#appWindow > .desktop-header-strip')?.scrollWidth || 0,
+        saveParent: describe(save?.parentElement),
         saveGrandparent: describe(save?.parentElement?.parentElement),
         appRoot: describe(document.getElementById('appWindow')),
         page: describe(document.getElementById('pairings')),
@@ -511,6 +516,12 @@ try {
       'Round history help text must get its own readable line: ' + JSON.stringify(mobileDom.history));
     assert.ok(mobileDom.history?.height <= 125,
       'Round history must remain compact at 390px: ' + JSON.stringify(mobileDom.history));
+    assert.ok(mobileDom.save && mobileDom.save.width >= 38,
+      'Save action must not collapse at mobile width: ' + JSON.stringify(mobileDom));
+    assert.ok(mobileDom.saveRight <= mobileDom.viewport + 1 && mobileDom.saveLeft >= 0,
+      'Save action must be fully visible without horizontal scrolling: ' + JSON.stringify(mobileDom));
+    assert.ok(mobileDom.headerScrollWidth <= mobileDom.headerWidth + 2,
+      'Header controls must fit without horizontal scrolling: ' + JSON.stringify(mobileDom));
     await page.screenshot({ path: join(visualDir, 'pairings-mobile-390.png'),
       animations: 'disabled' });
     await page.setViewportSize({ width: 1440, height: 920 });
