@@ -490,7 +490,14 @@ try {
       }
       const manager=document.getElementById('nextRoundManager');
       const history=document.querySelector('#pairings > .program-historybar');
-      return { viewport: innerWidth, page: describe(document.getElementById('pairings')),
+      const save = [...document.querySelectorAll('button')]
+        .find(node => (node.textContent || '').trim() === 'Save'
+          && node.getBoundingClientRect().top < 75);
+      return { viewport: innerWidth,
+        save: describe(save), saveParent: describe(save?.parentElement),
+        saveGrandparent: describe(save?.parentElement?.parentElement),
+        appRoot: describe(document.getElementById('appWindow')),
+        page: describe(document.getElementById('pairings')),
         manager: describe(manager), managerFirst:describe(manager?.firstElementChild),
         managerSecond:describe(manager?.children?.[1]), history:describe(history),
         titlebar:describe(document.querySelector('#appWindow > .titlebar')) };
