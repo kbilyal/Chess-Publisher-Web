@@ -1,13 +1,16 @@
 (() => {
-  const legacyPairings = window.openPairingsExportDialog;
   const legacyPrint = window.printReport;
   const html = value => escapeHtml(String(value ?? ''));
-  const titleFor = kind => kind === 'players' ? 'Starting list' : 'Pairings';
+  const reportTitles = { players: 'Starting list', pairings: 'Pairings', standings: 'Standings' };
   const fieldLabels = {
     board: 'Board number', sno: 'Start number', title: 'Chess title', rating: 'Rating',
     federation: 'Federation', fideId: 'FIDE ID', gender: 'Gender', birth: 'Birth date / year',
     points: 'Points before round', bold: 'Bold text', signOff: 'Arbiter sign-off',
   };
+  const txtResultModes = [
+    ['current', 'Current result'], ['boxes', 'Arbiter boxes (1-0 / ½-½ / 0-1)'],
+    ['blank', 'Blank result field'], ['none', 'Hide result area'],
+  ];
   const reportDateFormat = new Intl.DateTimeFormat('en-GB', {
     day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
   });
@@ -166,21 +169,32 @@
     }
   }
 
-  function openPdf(kind) {
+  function openExport(kind, format = 'pdf') {
     if (document.getElementById('cpPdfDialog')) return;
     const isPlayers = kind === 'players';
-    const round = isPlayers ? null : getSelectedPairingRoundNumber();
-    const rows = isPlayers ? startingListExportPlayers() : buildLivePairingsRows();
-    const heading = titleFor(kind);
+    const isPairings = kind === 'pairings';
+    const isStandings = kind === 'standings';
+    const isTxt = format === 'txt';
+    const round = isPairings ? getSelectedPairingRoundNumber() : null;
+    const rows = isStandings ? getCurrentTournament().players
+      : isPlayers ? startingListExportPlayers() : buildLivePairingsRows();
+    const heading = reportTitles[kind];
     if (!rows.length) {
-      appAlert(isPlayers ? 'There are no players to export.'
-        : 'There are no pairings for the selected round.', heading, 'warning');
+      appAlert(isPairings ? 'There are no pairings for the selected round.'
+        : 'There are no players to export.', heading, 'warning');
       return;
     }
 
-    const saved = isPlayers ? getStartingListExportOptions() : getPairingsExportOptions();
-    const defaults = isPlayers ? startingListExportDefaults() : { ...pairingsExportDefaults(), signOff: false };
-    const presets = [
+    const saved = isStandings ? {} : isPlayers ? getStartingListExportOptions() : getPairingsExportOptions();
+    const defaults = isStandings ? {} : isPlayers ? startingListExportDefaults() : { ...pairingsExportDefaults(), signOff: false };
+    const presets = isStandings ? [] : isTxt ? [
+      ['public', 'Public', defaults],
+      ['arbiter', 'Arbiter result sheet', { ...defaults, resultMode: 'boxes' }],
+      ['detailed', 'Detailed', {
+        ...defaults, federation: true, rating: true, fideId: true, resultMode: 'current',
+      }],
+      ['minimal', 'Minimal', { ...defaults, sno: false, title: false, points: false }],
+    ] : [
       ['standard', 'Standard', defaults],
       ['compact', 'Compact', {
         ...defaults, title: false, ...(isPlayers ? { federation: false } : { sno: false, points: false }),
@@ -189,9 +203,10 @@
         ...defaults, fideId: true, ...(isPlayers ? { gender: true, birth: true } : { federation: true, rating: true }),
       }],
     ];
-    if (!isPlayers) presets.splice(1, 0, ['arbiter', 'Arbiter sheet', { ...defaults, signOff: true }]);
+    if (isPairings && !isTxt) presets.splice(1, 0, ['arbiter', 'Arbiter sheet', { ...defaults, signOff: true }]);
     const keys = isPlayers ? ['sno', 'title', 'rating', 'federation', 'fideId', 'gender', 'birth']
-      : ['board', 'sno', 'title', 'points', 'rating', 'federation', 'fideId', 'bold', 'signOff'];
+      : ['board', 'sno', 'title', 'points', 'rating', 'federation', 'fideId'];
+    if (isPairings && !isTxt) keys.push('bold', 'signOff');
     const fonts = ['Calibri', 'Arial', 'Segoe UI', 'Tahoma', 'Verdana', 'Times New Roman'];
     const trigger = document.activeElement;
     const d = document.createElement('dialog');
@@ -201,11 +216,11 @@
     d.setAttribute('aria-labelledby', 'cpPdfTitle');
     d.innerHTML = `
       <header class="cp-pdf-dialog-head">
-        <div><p>Export PDF</p><h2 id="cpPdfTitle" tabindex="-1" autofocus>${heading}</h2></div>
+        <div><p>${isTxt ? 'Export TXT' : 'Export PDF'}</p><h2 id="cpPdfTitle" tabindex="-1" autofocus>${heading}</h2></div>
         <button type="button" class="cp-pdf-close" data-close aria-label="Close">×</button>
       </header>
       <div class="cp-pdf-layout">
-        <aside class="cp-pdf-settings">
+        ${isStandings ? '' : `<aside class="cp-pdf-settings">
           <fieldset><legend>Preset</legend>
             <div class="cp-pdf-presets">${presets.map(([key, label]) =>
               `<button type="button" data-preset="${key}" aria-pressed="false">${label}</button>`).join('')}</div>
@@ -213,33 +228,50 @@
           <details class="cp-pdf-details"><summary>Customize fields</summary>
             <div class="cp-pdf-fields">${keys.map(key =>
               `<label><input type="checkbox" name="${key}">${fieldLabels[key]}</label>`).join('')}</div>
-            ${isPlayers ? '' : `<label class="cp-pdf-select">Font
+            ${isTxt ? `<label class="cp-pdf-select">Result area
+              <select name="resultMode">${txtResultModes.map(([value, label]) =>
+                `<option value="${value}">${label}</option>`).join('')}</select></label>` : ''}
+            ${isPlayers || isTxt ? '' : `<label class="cp-pdf-select">Font
               <select name="fontFamily">${fonts.map(font =>
                 `<option value="${font}">${font === 'Calibri' ? 'Default for PDF' : font}</option>`).join('')}</select></label>`}
           </details>
-        </aside>
+        </aside>`}
         <section class="cp-pdf-preview" aria-label="Document preview">
           <div class="cp-pdf-preview-label"><strong>Preview</strong>
-            <div><span>A4 · Portrait</span>
+            <div><span>${isTxt ? 'Fixed-width TXT' : 'A4 · Portrait'}</span>
             <button type="button" data-zoom aria-pressed="false" aria-label="Actual size">100%</button></div></div>
-          <div class="cp-pdf-preview-scroll" tabindex="0" aria-label="Report content"><div class="cp-pdf-paper"></div></div>
+          <div class="cp-pdf-preview-scroll" tabindex="0" aria-label="Report content"><div class="cp-pdf-paper${isTxt ? ' cp-txt-paper' : ''}"></div></div>
         </section>
       </div>
       <footer class="cp-pdf-dialog-foot">
-        <p>Choose “Save as PDF” in the print dialog.</p>
+        ${isTxt ? '' : '<p>Choose “Save as PDF” in the print dialog.</p>'}
         <div><button type="button" data-close>Cancel</button>
-        <button type="button" data-print>Print / Save PDF</button></div>
+        ${isTxt ? '<button type="button" data-print>Print TXT</button><button type="button" data-export data-primary>Export TXT</button>'
+          : '<button type="button" data-print data-primary>Print / Save PDF</button>'}</div>
       </footer>`;
     const controls = [...d.querySelectorAll('[name]')];
     const paper = d.querySelector('.cp-pdf-paper');
     const preview = d.querySelector('.cp-pdf-preview-scroll');
+    const zoomButton = d.querySelector('[data-zoom]');
+    const fitPaper = () => {
+      const zoom = Math.min(1, Math.max(1, preview.clientWidth - 24) / paper.offsetWidth);
+      paper.style.zoom = zoomButton.getAttribute('aria-pressed') === 'true' ? 1 : zoom;
+    };
+    const txtPreview = isTxt ? document.createElement('pre') : null;
+    if (txtPreview) paper.append(txtPreview);
+    const buildText = isStandings
+      ? () => cpBeta69.buildFixedText(refreshFinalStandings(), getLanguage() === 'bg')
+      : buildPairingsReadableText;
     const read = () => ({
       ...saved,
       ...Object.fromEntries(controls.map(input => [input.name, input.type === 'checkbox' ? input.checked : input.value])),
     });
     const write = options => controls.forEach(input => {
       if (input.type === 'checkbox') input.checked = Boolean(options[input.name]);
-      else input.value = options[input.name];
+      else {
+        input.value = options[input.name];
+        if (input.name === 'resultMode' && input.selectedIndex < 0) input.value = defaults.resultMode;
+      }
     });
     const draw = () => {
       const options = read();
@@ -247,12 +279,15 @@
         const matches = controls.every(input => options[input.name] === preset[input.name]);
         d.querySelector(`[data-preset="${key}"]`).setAttribute('aria-pressed', String(matches));
       }
-      paper.innerHTML = reportMarkup(kind, rows, options, round);
-    };
-    const zoomButton = d.querySelector('[data-zoom]');
-    const fitPaper = () => {
-      const zoom = Math.min(1, Math.max(1, preview.clientWidth - 24) / 794);
-      paper.style.zoom = zoomButton.getAttribute('aria-pressed') === 'true' ? 1 : zoom;
+      if (txtPreview) {
+        txtPreview.textContent = withExportLanguage(() => buildText(options));
+        fitPaper();
+      } else if (isStandings) {
+        paper.innerHTML = withExportLanguage(() => buildPrintReport('standings'));
+        paper.firstElementChild.classList.add('cp-standings-pdf-report');
+      } else {
+        paper.innerHTML = reportMarkup(kind, rows, options, round);
+      }
     };
     const resize = new ResizeObserver(fitPaper);
     d.addEventListener('change', draw);
@@ -269,12 +304,23 @@
         write(preset[2]);
         draw();
       }
+      if (button.hasAttribute('data-export')) {
+        if (isPairings) savePairingsExportOptions(read());
+        exportTextFile(txtPreview.textContent, isStandings ? 'Standings' : `Pairings_R${round || ''}`);
+        d.close();
+      }
       if (button.hasAttribute('data-print')) {
+        const reportName = isStandings ? 'Final Standings' : heading;
+        const filename = `${data.currentTournament} - ${reportName}${isPairings ? ` - Round ${round}` : ''}`;
+        if (txtPreview) {
+          printReport(`<div class="print-doc final-txt-print"><pre class="final-txt-pre">${html(txtPreview.textContent)}</pre></div>`, filename);
+          return;
+        }
         const options = read();
-        if (isPlayers) saveStartingListExportOptions(options);
+        if (isStandings) saveAll();
+        else if (isPlayers) saveStartingListExportOptions(options);
         else savePairingsExportOptions(options);
-        const filename = `${data.currentTournament} - ${heading}${isPlayers ? '' : ` - Round ${round}`}`;
-        const pageLabel = isPlayers ? '' : `${data.currentTournament} · Round ${round}`;
+        const pageLabel = isPairings ? `${data.currentTournament} · Round ${round}` : '';
         printReport(paper.innerHTML, filename, pageLabel);
       }
     });
@@ -284,79 +330,15 @@
       trigger?.focus();
     }, { once: true });
     write(saved);
-    draw();
     document.body.append(d);
-    resize.observe(preview);
     d.showModal();
+    draw();
+    resize.observe(preview);
   }
 
-  // Keep the authoritative TXT builder and its existing download workflow.
-  // The extra print action intentionally mirrors Standings' monospaced TXT sheet.
-  function printPairingsTxt(modal) {
-    const rows = buildLivePairingsRows();
-    if (!rows.length) {
-      appAlert('There are no pairings for the selected round.', 'Pairings', 'warning');
-      return;
-    }
-    const run = () => {
-      const text = buildPairingsReadableText(readPairingsExportControls());
-      const root = document.getElementById('screenPrintReport');
-      if (!root || !text || !text.trim()) {
-        appAlert('The selected pairings could not be prepared for printing.', 'Pairings', 'warning');
-        return;
-      }
-      const originalNodes = [...root.childNodes];
-      const originalTitle = document.title;
-      const previousDisplay = modal.style.display;
-      const restore = () => {
-        root.replaceChildren(...originalNodes);
-        document.title = originalTitle;
-        modal.style.display = previousDisplay;
-        window.removeEventListener('afterprint', restore);
-      };
-      const sheet = document.createElement('div');
-      sheet.className = 'print-doc final-txt-print';
-      const pre = document.createElement('pre');
-      pre.className = 'final-txt-pre';
-      pre.textContent = text; // Never interpret player names as HTML.
-      sheet.appendChild(pre);
-      root.replaceChildren(sheet);
-      const round = getSelectedPairingRoundNumber();
-      document.title = `${data.currentTournament} - Pairings - Round ${round}`;
-      modal.style.display = 'none';
-      window.addEventListener('afterprint', restore, { once: true });
-      setTimeout(() => {
-        try { window.print(); }
-        catch (error) { restore(); throw error; }
-      }, 30);
-    };
-    if (typeof withExportLanguage === 'function') withExportLanguage(run);
-    else run();
-  }
-
-  function openPairingsTxtWithPrint() {
-    const result = legacyPairings('txt');
-    const installPrintButton = () => {
-      const modal = document.getElementById('pairingsExportModal');
-      if (!modal || modal.querySelector('[data-cp-pairings-txt-print]')) return;
-      const exportButton = modal.querySelector('#pairingsExportRunBtn');
-      if (!exportButton) return;
-      const printButton = document.createElement('button');
-      printButton.type = 'button';
-      printButton.dataset.cpPairingsTxtPrint = 'true';
-      printButton.className = exportButton.className;
-      printButton.textContent = 'Print TXT';
-      printButton.title = 'Print this fixed-width TXT report like Final Standings';
-      printButton.addEventListener('click', () => printPairingsTxt(modal));
-      exportButton.insertAdjacentElement('beforebegin', printButton);
-    };
-    installPrintButton();
-    setTimeout(installPrintButton, 0);
-    return result;
-  }
-
-  window.openStartingListExportDialog = () => openPdf('players');
+  window.openStartingListExportDialog = () => openExport('players');
   window.openPairingsExportDialog = (target = 'pdf') =>
-    String(target).toLowerCase() === 'txt' ? openPairingsTxtWithPrint() : openPdf('pairings');
-  window.printReport = kind => kind === 'players' || kind === 'pairings' ? openPdf(kind) : legacyPrint(kind);
+    openExport('pairings', String(target).toLowerCase() === 'txt' ? 'txt' : 'pdf');
+  window.openStandingsTxtExportDialog = () => openExport('standings', 'txt');
+  window.printReport = kind => Object.hasOwn(reportTitles, kind) ? openExport(kind) : legacyPrint(kind);
 })();

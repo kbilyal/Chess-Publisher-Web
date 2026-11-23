@@ -1,3 +1,4 @@
+import hashlib
 import re
 import sys
 from pathlib import Path
@@ -10,6 +11,13 @@ def replace_once(text, before, after):
     if text.count(before) != 1:
         raise SystemExit(f"Expected exactly one desktop hook: {before[:100]}")
     return text.replace(before, after, 1)
+
+
+def asset_version(filename):
+    asset = output / filename
+    if not asset.is_file():
+        return ""
+    return "?v=" + hashlib.sha256(asset.read_bytes()).hexdigest()[:10]
 
 
 # Windows behavior stays in the pinned source. Only the browser artifact gets
@@ -62,6 +70,10 @@ html = replace_once(
   document.getElementById("cpNewOnlineChoice")?.setAttribute("aria-pressed","true");''',
 )
 html = replace_once(html, 'document.getElementById("cpNewSwissChoice")?.focus()', 'document.getElementById("cpNewLocalChoice")?.focus()')
+html = replace_once(
+    html, '''onclick="printFinalStandingsTxt()">TXT Print</button>''',
+    '''onclick="openStandingsTxtExportDialog()">Export TXT</button>''',
+)
 
 html = re.sub(r"\b(?:window\.)?localStorage\.", "window.cpWebStorage.", html)
 html = html.replace('return location.protocol==="http:" && location.hostname==="127.0.0.1";', "return false;")
@@ -446,10 +458,39 @@ html = replace_once(html, '      try{\n        if(runtime.state!=="ready"||runti
 html = replace_once(html, '    }finally{runtime.busy=false;renderStatus();}\n  }\n\n  function scheduleAutoCheck',
     '    }finally{runtime.busy=false;renderStatus();window.cpRefreshRoundControlLog?.();}\n  }\n\n  function scheduleAutoCheck')
 
+# Clean up export button labels without changing any onclick handlers or functionality.
+for before, after in (
+    ('<button class="report-export-button" onclick="exportGeneralTxt()">TXT Print</button>', '<button class="report-export-button" onclick="exportGeneralTxt()">TXT</button>'),
+    ('<button class="report-export-button" onclick="exportParticipantsTxt()">TXT Print</button>', '<button class="report-export-button" onclick="exportParticipantsTxt()">TXT</button>'),
+    ('<button class="report-export-button" onclick="printSpecialPrizesTxt()">TXT Print</button>', '<button class="report-export-button" onclick="printSpecialPrizesTxt()">TXT</button>'),
+    ('<button class="report-export-button" onclick="exportScheduleTxt()">TXT Print</button>', '<button class="report-export-button" onclick="exportScheduleTxt()">TXT</button>'),
+    ('<button onclick="exportGeneralTxt()">General TXT Print</button>', '<button onclick="exportGeneralTxt()">General TXT</button>'),
+    ('<button onclick="exportParticipantsTxt()">Participants TXT Print</button>', '<button onclick="exportParticipantsTxt()">Participants TXT</button>'),
+    ('<button onclick="exportScheduleTxt()">Tournament Schedule TXT Print</button>', '<button onclick="exportScheduleTxt()">Tournament Schedule TXT</button>'),
+    ('<button onclick="exportRegulationsTxt()">Regulations TXT Print</button>', '<button onclick="exportRegulationsTxt()">Regulations TXT</button>'),
+    ('<button onclick="printReport(\'general\')">General PDF Design</button>', '<button onclick="printReport(\'general\')">General PDF</button>'),
+    ('<button onclick="openStartingListExportDialog()">Starting List PDF Design</button>', '<button onclick="openStartingListExportDialog()">Starting List PDF</button>'),
+    ('<button onclick="printReport(\'program\')">Tournament Schedule PDF Design</button>', '<button onclick="printReport(\'program\')">Tournament Schedule PDF</button>'),
+    ('<button onclick="printReport(\'regulations\')">Regulations PDF Design</button>', '<button onclick="printReport(\'regulations\')">Regulations PDF</button>'),
+):
+    html = replace_once(html, before, after)
+
 scripts = "\n".join(f'<script src="./{relative}"></script>' for relative in adapters)
+reg_v = asset_version("registration-ui.js")
+ws_js_v = asset_version("workspace-ui.js")
+ws_css_v = asset_version("workspace.css")
 html = replace_once(
     html, "\n</body>\n</html>",
-    "\n" + scripts + '\n<script src="./chess-results-browser-adapter.js"></script>\n<script src="./engine-adapter.js"></script>\n<script src="./autosave.js"></script>\n<script src="./registration-ui.js"></script>\n<script src="./workspace-ui.js"></script>\n<link rel="stylesheet" href="./workspace.css">\n<link rel="stylesheet" href="./pdf-export.css">\n<script src="./pdf-export.js"></script>\n</body>\n</html>',
+    "\n" + scripts
+    + '\n<script src="./chess-results-browser-adapter.js"></script>'
+    + '\n<script src="./engine-adapter.js"></script>'
+    + '\n<script src="./autosave.js"></script>'
+    + f'\n<script src="./registration-ui.js{reg_v}"></script>'
+    + f'\n<script src="./workspace-ui.js{ws_js_v}"></script>'
+    + f'\n<link rel="stylesheet" href="./workspace.css{ws_css_v}">'
+    + '\n<link rel="stylesheet" href="./pdf-export.css">'
+    + '\n<script src="./pdf-export.js"></script>'
+    + '\n</body>\n</html>',
 )
 (output / "workspace.html").write_text(html, encoding="utf-8")
 (output / "USER-MANUAL-EN.html").write_bytes((desktop / "USER-MANUAL-EN.html").read_bytes())

@@ -1,6 +1,6 @@
 # Chess-Publisher Web — Project State
 
-The public `/app/` Pairings TXT dialog offers the existing download and a fixed-width Print TXT action that uses the selected round and the dialog's current options. The mobile menu grows when its controls wrap so Sign out stays above the workspace tabs (Issue #93).
+The `/app/` source uses the same export dialog for Pairings TXT and PDF, Standings TXT and PDF, and Starting List PDF. The fixed-width TXT previews feed the file download and print actions. Standings uses its existing ranking report and fixed-width text builders. The mobile menu grows when its controls wrap so Sign out stays above the workspace tabs (Issue #93).
 
 The public web workspace uses the Chess-Results console styling for the Round Control Log. Resort Starting List shares the Pairings toolbar with Generate Pairings and Publish to Chess-Results. Browser smoke checks the presentation, the resort action, and its disabled state while generation runs.
 

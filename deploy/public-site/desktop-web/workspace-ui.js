@@ -322,7 +322,7 @@
     if (trfCheckBtn) stripRight.appendChild(trfCheckBtn);
     if (trfBadge) stripRight.appendChild(trfBadge);
 
-    const txtBtn = exportStrip ? qs('button[onclick*="printFinalStandingsTxt"]', exportStrip) : null;
+    const txtBtn = exportStrip ? qs('button[onclick="openStandingsTxtExportDialog()"]', exportStrip) : null;
     const pdfBtn = exportStrip ? qs('button[onclick*="printReport(\'standings\')"]', exportStrip) : null;
     const trf16Btn = exportStrip ? qs('button[onclick*="exportTRF16"]', exportStrip) : null;
     const trf26Btn = exportStrip ? qs('button[onclick*="exportTRF26"]', exportStrip) : null;
@@ -468,15 +468,13 @@
     const fideDetails = byId('cpFideEligibility');
     if (fideDetails) fideDetails.classList.add('cp-ws-details-card');
 
-    // Side-by-side Pairing Essentials + Tournament Rules & Ranking
+    // Full-width Pairing Essentials followed by Tournament Rules & Ranking
     const essentials = qs('.pairing-essentials-box', main);
     const rules = qs('.setup-rules-box', main);
+    if (essentials) essentials.classList.add('cp-ws-card', 'cp-ws-setup-card');
+    if (rules) rules.classList.add('cp-ws-card', 'cp-ws-setup-card');
     if (essentials && rules) {
-      const twoCol = make('div', 'cp-ws-setup-two-col');
-      essentials.parentElement.insertBefore(twoCol, essentials);
-      essentials.classList.add('cp-ws-card');
-      rules.classList.add('cp-ws-card');
-      twoCol.append(essentials, rules);
+      essentials.insertAdjacentElement('afterend', rules);
     }
 
     // Collapsible Secondary Setup Cards

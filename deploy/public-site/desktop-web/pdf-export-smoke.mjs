@@ -84,7 +84,8 @@ try {
   const preview = dialog.locator('.cp-pdf-report');
   const printRoot = page.locator('#screenPrintReport');
   if (artifacts) await mkdir(artifacts, { recursive: true });
-  async function verifyPrint(filename, documentTitle, singlePage = false) {
+  async function verifyPrint(filename, documentTitle, { singlePage = false, report = '.cp-pdf-report' } = {}) {
+    const printedReport = printRoot.locator(report);
     const originalTitle = await page.title();
     await dialog.getByRole('button', { name: 'Print / Save PDF' }).click();
     await page.waitForFunction(
@@ -105,14 +106,14 @@ try {
     assert.equal(await printRoot.innerHTML(), await dialog.locator('.cp-pdf-paper').innerHTML());
     assert.match(await page.title(), documentTitle);
     await page.emulateMedia({ media: 'print' });
-    await printRoot.locator('.cp-pdf-report').waitFor({ state: 'visible', timeout: 10000 });
+    await printedReport.waitFor({ state: 'visible', timeout: 10000 });
     await dialog.waitFor({ state: 'hidden', timeout: 10000 });
     await page.waitForFunction(
       () => getComputedStyle(document.body).backgroundColor === 'rgb(255, 255, 255)',
       null,
       { timeout: 10000 },
     );
-    assert.equal(await printRoot.locator('.cp-pdf-report').isVisible(), true);
+    assert.equal(await printedReport.isVisible(), true);
     assert.equal(await dialog.isVisible(), false);
     assert.equal(await page.locator('body').evaluate(body => getComputedStyle(body).backgroundColor), 'rgb(255, 255, 255)');
     const pdf = await page.pdf({ path: artifacts && join(artifacts, filename), preferCSSPageSize: true, printBackground: true });
@@ -120,19 +121,19 @@ try {
     if (singlePage) assert.equal(pages, 1, 'One board and sign-off must fit on one page');
     else assert.ok(pages >= 2, 'Long tables must span multiple pages');
     await page.emulateMedia({ media: 'screen' });
-    await page.evaluate(() => {
-      if (document.querySelector('#screenPrintReport .cp-pdf-report')) {
+    await page.evaluate(report => {
+      if (document.querySelector('#screenPrintReport ' + report)) {
         window.dispatchEvent(new Event('afterprint'));
       }
       delete document.body.dataset.printRequested;
-    });
+    }, report);
     await page.waitForFunction(
-      expected => document.title === expected && !document.querySelector('#screenPrintReport .cp-pdf-report'),
-      originalTitle,
+      ({ originalTitle, report }) => document.title === originalTitle && !document.querySelector('#screenPrintReport ' + report),
+      { originalTitle, report },
       { timeout: 10000 },
     );
     assert.equal(await page.title(), originalTitle);
-    assert.equal(await printRoot.locator('.cp-pdf-report').count(), 0);
+    assert.equal(await printedReport.count(), 0);
     assert.equal(await page.evaluate(() => document.documentElement.style.getPropertyValue('--cp-pdf-page-label')), '');
   }
 
@@ -217,17 +218,46 @@ try {
   assert.equal(await preview.locator('.cp-pdf-round-details').getByText('Round start').count(), 0);
   assert.deepEqual(await preview.locator('.cp-pdf-round-summary span').allTextContents(),
     ['1 game', '1 recorded', '0 pending']);
-  await verifyPrint('pairings-one-board.pdf', /Sofia Open - Pairings - Round 1/, true);
+  await verifyPrint('pairings-one-board.pdf', /Sofia Open - Pairings - Round 1/, { singlePage: true });
   await page.keyboard.press('Escape');
   await dialog.waitFor({ state: 'detached' });
-  await page.locator('#pairings button[onclick="openPairingsExportDialog(\'txt\')"]').click();
-  const txtDialog = page.locator('#pairingsExportModal');
-  await txtDialog.waitFor();
-  const resultMode = txtDialog.locator('input[name="peResultMode"]:checked');
+  const txtButton = page.locator('#pairings button[onclick="openPairingsExportDialog(\'txt\')"]');
+  await txtButton.click();
+  await dialog.waitFor();
+  assert.equal(await dialog.locator('.cp-pdf-dialog-head p').textContent(), 'Export TXT');
+  assert.equal(await dialog.getByRole('heading', { name: 'Pairings', exact: true }).count(), 1);
+  assert.equal(await page.locator('#pairingsExportModal').isVisible(), false);
+  const txtPreview = dialog.locator('.cp-pdf-paper pre');
+  const resultMode = dialog.getByRole('combobox', { name: 'Result area' });
+  await dialog.getByText('Customize fields', { exact: true }).click();
   assert.equal(await resultMode.inputValue(), 'none');
-  await txtDialog.getByRole('radio', { name: 'Current result' }).check();
-  await txtDialog.locator('#peShowPoints').uncheck();
-  await txtDialog.locator('#peShowTitle').uncheck();
+  assert.doesNotMatch(await txtPreview.textContent(), /Res\./);
+  await dialog.getByRole('button', { name: 'Arbiter result sheet' }).click();
+  assert.equal(await resultMode.inputValue(), 'boxes');
+  assert.equal(await dialog.getByRole('combobox', { name: 'Font' }).count(), 0);
+  await dialog.getByRole('button', { name: 'Detailed', exact: true }).click();
+  assert.match(await txtPreview.textContent(), /FIDE ID/);
+  await dialog.getByRole('button', { name: 'Minimal', exact: true }).click();
+  assert.doesNotMatch(await txtPreview.textContent(), /SNo\.|FIDE ID/);
+  await dialog.getByRole('button', { name: 'Public', exact: true }).click();
+  assert.equal(await resultMode.inputValue(), 'blank');
+  await resultMode.selectOption('current');
+  await dialog.getByRole('checkbox', { name: 'Points before round' }).uncheck();
+  await dialog.getByRole('checkbox', { name: 'Chess title' }).uncheck();
+  const expectedTxt = await txtPreview.textContent();
+  assert.equal(await txtPreview.locator('*').count(), 0);
+  if (artifacts) await dialog.screenshot({ path: join(artifacts, 'pairings-txt-preview.png') });
+
+  await page.setViewportSize({ width: 320, height: 730 });
+  assert.equal(await dialog.evaluate(element => element.scrollWidth === element.clientWidth), true);
+  assert.equal(await dialog.locator('.cp-pdf-presets button').evaluateAll(buttons =>
+    buttons.every(button => button.scrollWidth <= button.clientWidth)), true);
+  await dialog.getByRole('button', { name: 'Actual size' }).click();
+  const previewScroll = dialog.getByLabel('Report content');
+  assert.equal(await previewScroll.evaluate(element => element.scrollWidth > element.clientWidth), true);
+  await dialog.getByRole('button', { name: 'Actual size' }).click();
+  if (artifacts) await dialog.screenshot({ path: join(artifacts, 'pairings-txt-mobile.png') });
+  await page.setViewportSize({ width: 1440, height: 900 });
   const titleBeforeTxt = await page.title();
   const printRootBeforeTxt = await printRoot.innerHTML();
   await page.evaluate(() => {
@@ -239,9 +269,10 @@ try {
     const style = getComputedStyle(element);
     return { fontFamily: style.fontFamily, whiteSpace: style.whiteSpace };
   };
-  await txtDialog.getByRole('button', { name: 'Print TXT', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Print TXT', exact: true }).click();
   await page.waitForFunction(() => window.__cpTxtPrintCalls === 1);
   const printedTxt = await txtPrint.textContent();
+  assert.equal(printedTxt, expectedTxt.replace(/\r\n/g, '\n'));
   const [tournament, , round, , columns, board, end] = printedTxt.split(/\r?\n/);
   assert.equal(tournament, 'Sofia Open');
   assert.equal(round, 'Round 1');
@@ -250,8 +281,8 @@ try {
   assert.equal(board.length, columns.length);
   assert.equal(end, '');
   assert.match(await page.title(), /Sofia Open - Pairings - Round 1/);
-  await txtDialog.waitFor({ state: 'hidden' });
   await page.emulateMedia({ media: 'print' });
+  await dialog.waitFor({ state: 'hidden' });
   await txtPrint.waitFor();
   const pairingsStyle = await txtPrint.evaluate(printTextStyle);
   assert.match(pairingsStyle.fontFamily, /monospace/i);
@@ -263,31 +294,93 @@ try {
       window.dispatchEvent(new Event('afterprint'));
     }
   });
-  await txtDialog.waitFor();
+  await dialog.waitFor();
   assert.equal(await page.title(), titleBeforeTxt);
   assert.equal(await printRoot.innerHTML(), printRootBeforeTxt);
   assert.equal(await resultMode.inputValue(), 'current');
 
   const [download] = await Promise.all([
     page.waitForEvent('download'),
-    txtDialog.locator('#pairingsExportRunBtn').click(),
+    dialog.getByRole('button', { name: 'Export TXT', exact: true }).click(),
   ]);
   assert.equal(download.suggestedFilename(), 'Sofia Open_Pairings_R1.txt');
-  assert.equal((await readFile(await download.path(), 'utf8')).replace(/^\uFEFF/, ''), printedTxt);
-  await txtDialog.waitFor({ state: 'hidden' });
+  assert.equal(await readFile(await download.path(), 'utf8'), '\uFEFF' + expectedTxt);
+  await dialog.waitFor({ state: 'detached' });
+  assert.equal(await txtButton.evaluate(element => element === document.activeElement), true);
+
+  await page.locator('#pairingsRound').selectOption('2');
+  await page.locator('#pairingsMenuRoot > button').click();
+  await page.locator('#menuPairingsTxt').click();
+  await dialog.waitFor();
+  assert.match(await txtPreview.textContent(), /Round 2/);
+  assert.doesNotMatch(await txtPreview.textContent(), /\bPts\b/);
+  await dialog.getByText('Customize fields', { exact: true }).click();
+  assert.equal(await resultMode.inputValue(), 'current');
+  await page.keyboard.press('Escape');
+  await dialog.waitFor({ state: 'detached' });
 
   await page.locator('#tabStandings').click();
-  await page.locator('#standings button[onclick="printFinalStandingsTxt()"]').click();
+  const standingsExports = page.locator('#standings .cp-ws-command-strip .cp-ws-export-segmented');
+  const standingsTxtButton = standingsExports.getByRole('button', { name: 'Export TXT', exact: true });
+  await standingsTxtButton.click();
+  await dialog.waitFor();
+  assert.equal(await dialog.getByRole('heading', { name: 'Standings', exact: true }).count(), 1);
+  assert.equal(await dialog.locator('.cp-pdf-dialog-head p').textContent(), 'Export TXT');
+  const standingsText = await txtPreview.textContent();
+  assert.equal(standingsText, await page.evaluate(() => withExportLanguage(() =>
+    cpBeta69.buildFixedText(refreshFinalStandings(), getLanguage() === 'bg'))));
+  assert.match(standingsText, /КРАЙНО КЛАСИРАНЕ/);
+  assert.match(standingsText, /Александър Иванов <Юноши>/);
+  assert.equal(await txtPreview.locator('*').count(), 0);
+  assert.equal(await page.evaluate(() => window.__cpTxtPrintCalls), 1, 'Opening the preview does not start printing');
+  if (artifacts) await dialog.screenshot({ path: join(artifacts, 'standings-txt-preview.png') });
+  await dialog.getByRole('button', { name: 'Print TXT', exact: true }).click();
   await page.waitForFunction(() => window.__cpTxtPrintCalls === 2);
-  assert.match(await txtPrint.textContent(), /FINAL STANDINGS|КРАЙНО КЛАСИРАНЕ/);
-  assert.match(await txtPrint.textContent(), /Александър Иванов <Юноши>/);
+  assert.equal(await txtPrint.textContent(), standingsText);
   assert.match(await page.title(), /Sofia Open - Final Standings/);
   await page.emulateMedia({ media: 'print' });
+  await dialog.waitFor({ state: 'hidden' });
   await txtPrint.waitFor();
   assert.deepEqual(await txtPrint.evaluate(printTextStyle), pairingsStyle);
   await page.pdf({ path: artifacts && join(artifacts, 'standings-txt.pdf'), preferCSSPageSize: true });
+  await page.emulateMedia({ media: 'screen' });
+  await page.evaluate(() => {
+    if (document.querySelector('#screenPrintReport .final-txt-pre')) window.dispatchEvent(new Event('afterprint'));
+  });
+  await dialog.waitFor();
+  assert.equal(await txtPreview.textContent(), standingsText);
+  const [standingsDownload] = await Promise.all([
+    page.waitForEvent('download'),
+    dialog.getByRole('button', { name: 'Export TXT', exact: true }).click(),
+  ]);
+  assert.equal(standingsDownload.suggestedFilename(), 'Sofia Open_Standings.txt');
+  assert.equal(await readFile(await standingsDownload.path(), 'utf8'), '\uFEFF' + standingsText);
+  await dialog.waitFor({ state: 'detached' });
+  assert.equal(await standingsTxtButton.evaluate(button => button === document.activeElement), true);
+
+  const standingsPdfButton = standingsExports.getByRole('button', { name: 'Export PDF', exact: true });
+  await standingsPdfButton.click();
+  await dialog.waitFor();
+  const standingsReport = dialog.locator('.cp-exact-report');
+  assert.equal(await dialog.getByRole('heading', { name: 'Standings', exact: true }).count(), 1);
+  assert.equal(await dialog.locator('.cp-pdf-dialog-head p').textContent(), 'Export PDF');
+  assert.equal(await standingsReport.locator('tbody tr').count(), 121);
+  assert.match(await standingsReport.locator('.cp-exact-report-title').textContent(), /Ranking after Round/);
+  assert.match(await standingsReport.locator('tbody').textContent(), /Александър Иванов <Юноши>/);
+  assert.equal(await page.evaluate(() => window.__cpTxtPrintCalls), 2, 'Opening the PDF preview does not start printing');
+  if (artifacts) await dialog.screenshot({ path: join(artifacts, 'standings-pdf-preview.png') });
+  await page.setViewportSize({ width: 320, height: 730 });
+  assert.equal(await dialog.evaluate(element => element.scrollWidth === element.clientWidth), true);
+  await dialog.getByRole('button', { name: 'Actual size' }).click();
+  assert.equal(await dialog.getByLabel('Report content').evaluate(element => element.scrollWidth > element.clientWidth), true);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.evaluate(() => { window.print = () => { document.body.dataset.printRequested = 'true'; }; });
+  await verifyPrint('standings.pdf', /Sofia Open - Final Standings/, { report: '.cp-exact-report' });
+  await page.keyboard.press('Escape');
+  await dialog.waitFor({ state: 'detached' });
+  assert.equal(await standingsPdfButton.evaluate(button => button === document.activeElement), true);
   assert.deepEqual(errors, []);
-  console.log('English PDF previews and mobile controls passed. Pairings TXT download and print matched the selected round. Standings TXT print passed.');
+  console.log('Shared Starting List, Pairings and Standings export dialogs passed. Pairings and Standings TXT preview, download and print matched. PDF printing and mobile controls passed.');
 } finally {
   await browser.close();
 }
