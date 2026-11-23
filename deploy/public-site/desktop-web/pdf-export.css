@@ -50,9 +50,10 @@
 .cp-pdf-dialog .cp-pdf-close { font-size: 24px !important; width: 42px; }
 .cp-pdf-layout {
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   height: min(66dvh, 690px);
 }
+.cp-pdf-layout:has(> .cp-pdf-settings) { grid-template-columns: 240px minmax(0, 1fr); }
 .cp-pdf-settings {
   overflow: auto;
   padding: 18px;
@@ -257,15 +258,15 @@
   }
   #cpPdfDialog { display: none !important; }
   #cpPdfDialog::backdrop { display: none !important; }
-  html:has(#screenPrintReport > .cp-pdf-report),
-  body:has(> #screenPrintReport > .cp-pdf-report),
-  #screenPrintReport:has(> .cp-pdf-report) { background: #fff !important; }
-  html:has(#screenPrintReport > .cp-pdf-report),
-  body:has(> #screenPrintReport > .cp-pdf-report) { overflow: visible !important; }
+  html:has(#screenPrintReport > :is(.cp-pdf-report, .cp-standings-pdf-report)),
+  body:has(> #screenPrintReport > :is(.cp-pdf-report, .cp-standings-pdf-report)),
+  #screenPrintReport:has(> :is(.cp-pdf-report, .cp-standings-pdf-report)) { background: #fff !important; }
+  html:has(#screenPrintReport > :is(.cp-pdf-report, .cp-standings-pdf-report)),
+  body:has(> #screenPrintReport > :is(.cp-pdf-report, .cp-standings-pdf-report)) { overflow: visible !important; }
   #screenPrintReport .cp-pdf-report {
     page: cp-tournament-report;
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
   }
-  #screenPrintReport .cp-pdf-report th { position: static; }
+  #screenPrintReport :is(.cp-pdf-report, .cp-standings-pdf-report) th { position: static; }
 }

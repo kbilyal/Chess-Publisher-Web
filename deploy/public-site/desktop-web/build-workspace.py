@@ -62,6 +62,10 @@ html = replace_once(
   document.getElementById("cpNewOnlineChoice")?.setAttribute("aria-pressed","true");''',
 )
 html = replace_once(html, 'document.getElementById("cpNewSwissChoice")?.focus()', 'document.getElementById("cpNewLocalChoice")?.focus()')
+html = replace_once(
+    html, '''onclick="printFinalStandingsTxt()">TXT Print</button>''',
+    '''onclick="openStandingsTxtExportDialog()">Export TXT</button>''',
+)
 
 html = re.sub(r"\b(?:window\.)?localStorage\.", "window.cpWebStorage.", html)
 html = html.replace('return location.protocol==="http:" && location.hostname==="127.0.0.1";', "return false;")

@@ -322,7 +322,7 @@
     if (trfCheckBtn) stripRight.appendChild(trfCheckBtn);
     if (trfBadge) stripRight.appendChild(trfBadge);
 
-    const txtBtn = exportStrip ? qs('button[onclick*="printFinalStandingsTxt"]', exportStrip) : null;
+    const txtBtn = exportStrip ? qs('button[onclick="openStandingsTxtExportDialog()"]', exportStrip) : null;
     const pdfBtn = exportStrip ? qs('button[onclick*="printReport(\'standings\')"]', exportStrip) : null;
     const trf16Btn = exportStrip ? qs('button[onclick*="exportTRF16"]', exportStrip) : null;
     const trf26Btn = exportStrip ? qs('button[onclick*="exportTRF26"]', exportStrip) : null;

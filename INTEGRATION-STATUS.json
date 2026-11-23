@@ -14,9 +14,9 @@
   },
   "regressionStatus": {
     "publicAppResponsiveNavigation": "Chromium checks that the classic menu clears the workspace tabs and that all eight tabs and Sign out receive pointer input at five viewport widths (Issue #93).",
-    "publicAppTxtExport": "Chromium checks the shared Pairings TXT dialog, presets and phone layout, compares the preview, download and print output for the selected round, and verifies the fixed-width print styles against Standings.",
+    "publicAppTxtExport": "Chromium checks the shared Pairings and Standings TXT dialogs, matches each preview against the download and print output, and verifies the fixed-width print styles.",
     "publicAppPairingsLog": "Browser smoke compares the Round Control Log and Chess-Results console styles, verifies round readiness and result updates, and exercises the relocated resort action and its pairing-time guard.",
-    "publicAppPdfExport": "Dedicated Chromium smoke on the generated workspace covers English reports, the round summary, mixed recorded and handwritten results between White and Black, optional arbiter sign-off, single-page and multipage A4 layout, bye rows, mobile controls and TXT routing.",
+    "publicAppPdfExport": "Dedicated Chromium smoke covers Starting List, Pairings and Standings previews, single-page and multipage A4 layout, mobile controls, round summaries, bye rows, recorded and handwritten results, and arbiter sign-off.",
     "publicAppFideCache": "PASS in Chromium: full update from the available browser mirror imported 778,954 players and found Carlsen by name and FIDE ID. Browser smoke also covers atomic rollback, legacy-cache reads and reload.",
     "publicAppTournamentDialog": "Browser smoke covers the tournament-name placeholder, Files → New Tournament, pairing-system selection and focus styling, local file selection and online tournament opening.",
     "publicAppFastClassical": "Desktop eligibility regression runs on the generated workspace. Browser smoke covers Standard classification, schedule limits and rating export warnings.",

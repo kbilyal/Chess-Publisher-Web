@@ -1,6 +1,6 @@
 # Next Task — TRF Full Parity (Integration Gate G)
 
-Keep the `/app/` browser checks for mobile menu clearance and Pairings and Standings TXT output when updating the pinned workspace. Pairings TXT uses the shared export dialog and its preview must match the download and print output.
+Keep the `/app/` browser checks for mobile menu clearance and exports when updating the pinned workspace. Pairings and Standings TXT previews must match the download and print output. Standings PDF must print the ranking shown in the shared preview.
 
 Keep the Pairings browser smoke when updating the pinned workspace. It verifies the shared log styling, live readiness and result updates, and the resort action on the Pairings toolbar.
 
