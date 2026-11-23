@@ -806,3 +806,19 @@
     min-width: 0;
   }
 }
+
+
+/* Phones: reserve the full device width for the header action strip.
+   Some longer Cloud status strings previously produced 9px overflow. */
+@media (max-width: 700px) {
+  #appWindow > .desktop-header-strip {
+    box-sizing: border-box;
+    padding-left: 4px !important;
+    padding-right: 4px !important;
+    column-gap: 0 !important;
+  }
+
+  #appWindow > .desktop-header-strip .desktop-status-controls {
+    column-gap: 2px;
+  }
+}
