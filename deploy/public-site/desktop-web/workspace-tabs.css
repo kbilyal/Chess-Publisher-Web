@@ -865,3 +865,52 @@
     padding-bottom: 5px;
   }
 }
+
+
+/* ==========================================================================
+   Phase 8: Schedule table has full working width. The original source
+   puts milestone fields before round rows; preserving DOM/keyboard order is
+   safer than visually reordering focusable fields to match a static mockup.
+   ========================================================================== */
+@media (min-width: 1100px) {
+  #appWindow #schedule.page.active {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 9px;
+  }
+
+  #appWindow #schedule.page.active > :is(.current-row, .groupbox, .toolbar) {
+    box-sizing: border-box;
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  /* Remove the artificial 240px whitespace under the milestone form. */
+  #appWindow #schedule.page.active > .groupbox:nth-child(2) {
+    min-height: 0 !important;
+    height: auto !important;
+  }
+
+  /* Actual second group is the editable Round/Event Schedule, not the
+     milestone panel assumed by the static demo. Give its controls and rows
+     the complete width instead of squeezing them into half a page. */
+  #appWindow #schedule.page.active > .groupbox:nth-child(3) {
+    flex: 1 0 auto;
+    min-height: 300px;
+    min-width: 0;
+  }
+
+  #appWindow #schedule.page.active > .groupbox:nth-child(3)
+    :is(table, .table-frame) {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  #appWindow #schedule.page.active > .groupbox:nth-child(4) {
+    min-height: 125px;
+  }
+}
