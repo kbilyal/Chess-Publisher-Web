@@ -976,18 +976,21 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
   flex-shrink: 0;
 }
 
-.cp-ws-card {
+.cp-ws-card,
+#appWindow .content .groupbox.cp-ws-card {
   background: #ffffff !important;
   border: 1px solid #d8dee6 !important;
   border-radius: 7px !important;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05) !important;
   padding: 0 !important;
+  margin: 0 !important;
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
-.cp-ws-card > .group-title {
+.cp-ws-card > .group-title,
+#appWindow .content .cp-ws-card > .group-title {
   position: static !important;
   top: auto !important;
   left: auto !important;
@@ -1439,44 +1442,151 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
   flex-shrink: 0;
 }
 
+#appWindow .content .groupbox.cp-ws-details-card {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
 .cp-ws-details-card > summary {
-  padding: 7px 11px !important;
+  padding: 8px 12px !important;
   background: #f8fafc;
-  border-radius: 7px;
+  border-radius: 6px;
   font-size: 12.5px;
   font-weight: 700;
   color: #0f3d91;
   cursor: pointer;
+  user-select: none;
+  outline-offset: -2px;
 }
 
 .cp-ws-details-card[open] > summary {
   border-bottom: 1px solid #d8dee6;
-  border-radius: 7px 7px 0 0;
+  border-radius: 6px 6px 0 0;
 }
 
 .cp-ws-details-card > form {
   padding: 10px 12px;
 }
 
+.cp-ws-details-card > form + form {
+  border-top: 1px solid #eef2f6;
+}
+
+.cp-ws-details-card > form > button[type="submit"] {
+  margin-top: 8px;
+}
+
+#appWindow .content .cp-ws-details-card .group-title {
+  position: static !important;
+  top: auto !important;
+  left: auto !important;
+  margin: 2px 0 8px !important;
+  padding: 8px 0 4px !important;
+  border-top: 1px solid #e2e8f0;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: #0f3d91 !important;
+}
+
 .cp-ws-setup-two-col {
   display: grid;
-  grid-template-columns: 1fr 1.25fr;
-  gap: 9px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+  gap: 10px;
   align-items: start;
 }
 
-.cp-ws-setup-two-col > .cp-ws-card > .form-grid-4,
-.cp-ws-setup-two-col > .cp-ws-card > .pairing-validation-summary {
-  margin: 10px 12px;
+.cp-ws-setup-two-col > .cp-ws-card {
+  min-width: 0;
 }
 
-.cp-ws-setup-two-col > .cp-ws-card > .form-grid-4 {
-  grid-template-columns: 165px minmax(0, 1fr) !important;
+#appWindow .content .cp-ws-setup-two-col > .cp-ws-card > .form-grid-4 {
+  grid-template-columns: 155px minmax(0, 1fr) !important;
+  margin: 10px 12px !important;
+}
+
+.cp-ws-setup-two-col > .cp-ws-card > .pairing-validation-summary {
+  margin: 0 12px 10px;
 }
 
 .cp-ws-setup-two-col > .cp-ws-card > .form-grid-4 > [style*="grid-column"],
 .cp-ws-details-card .form-grid-4 > [style*="grid-column"] {
   grid-column: 1 / -1 !important;
+}
+
+#appWindow .content .cp-ws-setup-two-col .setup-pab-compact {
+  display: grid !important;
+  grid-template-columns: 80px 88px !important;
+  gap: 6px !important;
+  width: auto !important;
+  justify-content: start !important;
+  align-items: center !important;
+}
+
+#appWindow .content .tie-break-add-row.setup-tiebreak-add-compact {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  gap: 6px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  align-items: center !important;
+}
+
+#appWindow .content .tie-break-add-row.setup-tiebreak-add-compact > select {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+#appWindow .content .tie-break-add-row.setup-tiebreak-add-compact > .tie-break-add-btn {
+  width: auto !important;
+  min-width: 68px !important;
+  padding: 0 10px !important;
+}
+
+#appWindow .content .tie-break-add-row.setup-tiebreak-add-compact > .tie-break-add-btn::before {
+  content: none !important;
+}
+
+#appWindow .content .cp-ws-setup-two-col .tie-break-manager {
+  margin: 4px 0 !important;
+  min-width: 0 !important;
+}
+
+#appWindow .content .cp-ws-setup-two-col .tie-break-priority-row {
+  grid-template-columns: 28px minmax(0, 1fr) auto 28px 28px auto !important;
+  gap: 5px !important;
+  padding: 4px 6px !important;
+  min-width: 0 !important;
+}
+
+#appWindow .content .cp-ws-setup-two-col .tie-break-name {
+  min-width: 0 !important;
+  overflow: hidden;
+}
+
+#appWindow .content .cp-ws-setup-two-col .tie-break-name span {
+  min-width: 0 !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#appWindow .content .cp-ws-setup-two-col .tie-break-priority-row button.tie-settings-btn,
+#appWindow .content .cp-ws-setup-two-col .tie-break-priority-row button.danger {
+  width: auto !important;
+  min-width: 62px !important;
+  padding: 0 8px !important;
+}
+
+#appWindow .content .cp-ws-setup-two-col .tie-break-priority-row .tie-settings-placeholder {
+  width: 62px !important;
+}
+
+#appWindow .content .cp-ws-setup-two-col .tie-break-priority-row button[title="Higher priority"],
+#appWindow .content .cp-ws-setup-two-col .tie-break-priority-row button[title="Lower priority"] {
+  width: 28px !important;
+  min-width: 28px !important;
+  padding: 0 !important;
 }
 
 /* --------------------------------------------------------------------------
@@ -1614,6 +1724,16 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
   }
 }
 
+@media (max-width: 900px) {
+  #appWindow .content .cp-ws-setup-two-col > .cp-ws-card > .form-grid-4 {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  #appWindow .content .cp-ws-setup-two-col > .cp-ws-card > .form-grid-4 > label {
+    justify-self: start !important;
+    text-align: left !important;
+  }
+}
+
 @media (max-width: 860px) {
   #appWindow #pairings .swiss-workspace {
     grid-template-columns: minmax(0, 1fr) !important;
@@ -1722,7 +1842,8 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
     max-width: 100% !important;
     box-sizing: border-box;
   }
-  #appWindow #main .tie-break-add-row {
+  #appWindow #main .tie-break-add-row,
+  #appWindow .content .tie-break-add-row.setup-tiebreak-add-compact {
     display: grid !important;
     grid-template-columns: minmax(0, 1fr) !important;
     max-width: 100% !important;
