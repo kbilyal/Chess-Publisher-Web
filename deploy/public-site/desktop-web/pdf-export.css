@@ -1,0 +1,269 @@
+.cp-pdf-dialog {
+  box-sizing: border-box;
+  width: min(1130px, calc(100% - 32px));
+  max-width: none;
+  max-height: calc(100% - 32px);
+  padding: 0;
+  border: 1px solid #d3dfeb;
+  border-radius: 20px;
+  background: #fff;
+  color: #16283d;
+  box-shadow: 0 24px 100px #101e3b55;
+  font: 14px/1.45 system-ui, sans-serif;
+  overflow: auto;
+}
+.cp-pdf-dialog::backdrop { background: #0b1729a8; }
+.cp-pdf-dialog-head, .cp-pdf-dialog-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 15px 22px;
+  background: #fff;
+}
+.cp-pdf-dialog-head { border-bottom: 1px solid #e0e8f0; }
+.cp-pdf-dialog-head p { margin: 0 0 3px; font-weight: 650; color: #355b83; }
+.cp-pdf-dialog-head h2 { margin: 0; font: 750 23px/1.15 system-ui, sans-serif; color: inherit; }
+.cp-pdf-dialog-head h2:focus { outline: none; }
+.cp-pdf-dialog select {
+  min-height: 39px;
+  padding: 7px 12px;
+  background: #fff;
+  color: #16283d;
+  border: 1px solid #cddae7;
+  border-radius: 8px;
+  box-shadow: none;
+  font: 650 13px/1.35 system-ui, sans-serif;
+}
+.cp-pdf-dialog button {
+  /* The desktop shell applies its button geometry and colors globally. */
+  min-height: 39px !important;
+  min-width: 0;
+  border-radius: 8px !important;
+  background: #fff !important;
+  color: #16283d !important;
+  border-color: #cddae7 !important;
+  box-shadow: none !important;
+}
+.cp-pdf-dialog button:hover { background: #eef5fb !important; }
+.cp-pdf-dialog :is(button, select, input, summary, [tabindex="0"]):focus-visible { outline: 2px solid #1265b7; outline-offset: 2px; }
+.cp-pdf-dialog .cp-pdf-close { font-size: 24px !important; width: 42px; }
+.cp-pdf-layout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  height: min(66dvh, 690px);
+}
+.cp-pdf-settings {
+  overflow: auto;
+  padding: 18px;
+  border-right: 1px solid #e0e8f0;
+}
+.cp-pdf-settings fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+.cp-pdf-settings legend, .cp-pdf-select { font-weight: 700; }
+.cp-pdf-presets { display: grid; gap: 7px; margin-top: 7px; }
+.cp-pdf-presets button { justify-content: flex-start; width: 100%; }
+.cp-pdf-dialog button[aria-pressed="true"] { background: #e5f1fc !important; border-color: #5087bc !important; color: #144e87 !important; }
+.cp-pdf-select { display: grid; gap: 5px; margin-top: 14px; }
+.cp-pdf-select select { width: 100%; }
+.cp-pdf-details { margin-top: 16px; border-top: 1px solid #e0e8f0; padding-top: 13px; }
+.cp-pdf-details summary { font-weight: 700; cursor: pointer; }
+.cp-pdf-fields { display: grid; gap: 3px; padding-top: 8px; }
+.cp-pdf-fields label { display: flex; align-items: center; gap: 8px; min-height: 29px; }
+.cp-pdf-fields input { margin: 0; min-width: 16px; min-height: 16px; accent-color: #175d9e; }
+.cp-pdf-preview { display: flex; min-height: 0; flex-direction: column; background: #eaf0f6; }
+.cp-pdf-preview-label { display: flex; align-items: center; justify-content: space-between; padding: 5px 14px; gap: 8px; color: #35516b; border-bottom: 1px solid #d6e1ec; }
+.cp-pdf-preview-label div { display: flex; align-items: center; gap: 9px; }
+.cp-pdf-dialog [data-zoom] { min-height: 29px !important; }
+.cp-pdf-preview-scroll { overflow: auto; padding: 12px; flex: 1; min-height: 0; }
+.cp-pdf-paper {
+  box-sizing: border-box;
+  width: 794px;
+  min-height: 1123px;
+  margin-inline: auto;
+  padding: 42px 45px;
+  background: #fff;
+  box-shadow: 0 2px 8px #23364b22;
+}
+.cp-pdf-dialog-foot {
+  border-top: 1px solid #e0e8f0;
+  position: sticky;
+  bottom: 0;
+}
+.cp-pdf-dialog-foot p { margin: 0; color: #475f77; font-size: 12px; }
+.cp-pdf-dialog-foot div { display: flex; gap: 8px; flex-shrink: 0; }
+.cp-pdf-dialog [data-print] { background: #175d9e !important; border-color: #175d9e !important; color: #fff !important; }
+.cp-pdf-dialog [data-print]:hover { background: #10477d !important; }
+
+.cp-pdf-report {
+  color: #14283e;
+  background: #fff;
+  font: 14px/1.35 system-ui, 'Segoe UI', sans-serif;
+  text-align: start;
+}
+.cp-pdf-report-header {
+  border-top: 5px solid #14656c;
+  border-bottom: 1px solid #b9ccd6;
+  padding: 17px 0 14px;
+  margin-bottom: 17px;
+  break-after: avoid-page;
+}
+.cp-pdf-report .cp-pdf-tournament { margin: 0 0 5px; color: #225d66; font-size: 18px; font-weight: 700; overflow-wrap: anywhere; }
+.cp-pdf-report h1 { margin: 0 0 12px; color: #14283e; font: 800 38px/1.08 system-ui, sans-serif; }
+.cp-pdf-report-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 13px; color: #354d64; font-size: 12px; }
+.cp-pdf-report-facts span { overflow-wrap: anywhere; }
+.cp-pdf-count { font-weight: 750; }
+.cp-pdf-pairings-header {
+  border-top: 4px solid #14656c;
+  margin-bottom: 12px;
+  padding-top: 15px;
+  break-inside: avoid-page;
+  break-after: avoid-page;
+}
+.cp-pdf-pairings-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+.cp-pdf-pairings-heading > div:first-child { min-width: 0; }
+.cp-pdf-report .cp-pdf-pairings-heading h1 { margin: 0; }
+.cp-pdf-round-card {
+  display: grid;
+  place-items: center;
+  flex: none;
+  min-width: 70px;
+  padding: 5px 12px;
+  border: 1px solid #8aa8ac;
+  border-radius: 5px;
+  background: #f2f7f7;
+  color: #194f56;
+}
+.cp-pdf-round-card span { font-size: 11px; font-weight: 700; }
+.cp-pdf-round-card strong { font-size: 28px; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.cp-pdf-round-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px 22px;
+  margin: 13px 0 0;
+}
+.cp-pdf-round-details div { min-width: 0; }
+.cp-pdf-round-details dt { color: #435d71; font-size: 10px; font-weight: 650; }
+.cp-pdf-round-details dd { margin: 2px 0 0; font-size: 12px; font-weight: 650; overflow-wrap: anywhere; }
+.cp-pdf-round-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin-top: 12px;
+  padding: 6px 0 0;
+  border-top: 1px solid #c4d3dc;
+  font-size: 11px;
+  color: #435d71;
+  font-variant-numeric: tabular-nums;
+}
+.cp-pdf-round-summary strong { color: #14283e; }
+.cp-pdf-report .cp-pdf-table { border-collapse: collapse; table-layout: fixed; width: 100%; margin: 0; font: inherit; background: #fff; }
+.cp-pdf-report .cp-pdf-table :is(th, td) {
+  box-sizing: border-box;
+  height: auto;
+  padding: 5px 8px;
+  border: 0;
+  border-bottom: 1px solid #d5e0e8;
+  color: inherit;
+  text-align: start;
+  vertical-align: top;
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+}
+.cp-pdf-report .cp-pdf-table th { background: #e7eff3; color: #23465d; font-size: 11px; font-weight: 750; border-bottom-color: #adbfcc; }
+.cp-pdf-report .cp-pdf-table tbody tr:nth-child(even) td { background: #f3f7fa; }
+.cp-pdf-report .cp-pdf-table :is(.cp-pdf-sno, .cp-pdf-board, .cp-pdf-result) { text-align: center; font-variant-numeric: tabular-nums; }
+.cp-pdf-report .cp-pdf-table :is(.cp-pdf-sno, .cp-pdf-board) { width: 8%; font-weight: 700; }
+.cp-pdf-report .cp-pdf-table :is(.cp-pdf-title, .cp-pdf-fed, .cp-pdf-gender) { width: 8%; }
+.cp-pdf-report .cp-pdf-table :is(.cp-pdf-rating, .cp-pdf-fideId, .cp-pdf-birth) { text-align: end; font-variant-numeric: tabular-nums; }
+.cp-pdf-report .cp-pdf-table .cp-pdf-rating { width: 11%; }
+.cp-pdf-report .cp-pdf-table .cp-pdf-fideId { width: 15%; }
+.cp-pdf-report .cp-pdf-table .cp-pdf-birth { width: 14%; }
+.cp-pdf-report .cp-pdf-table .cp-pdf-result { width: 16%; vertical-align: middle; font-weight: 700; }
+.cp-pdf-report .cp-pdf-pairings td { padding-block: 4px; line-height: 1.25; }
+.cp-pdf-report .cp-pdf-pairings :is(.cp-pdf-board, .cp-pdf-white, .cp-pdf-black) { vertical-align: middle; }
+.cp-pdf-report .cp-pdf-table .cp-pdf-white { text-align: end; }
+.cp-pdf-white .cp-pdf-player-meta { justify-content: flex-end; }
+.cp-pdf-report .cp-pdf-name, .cp-pdf-player-name { font-weight: 650; }
+.cp-pdf-report .cp-pdf-title-tag { color: #185961; font-weight: 750; font-size: .87em; }
+.cp-pdf-player-meta { display: flex; flex-wrap: wrap; gap: 2px 9px; margin-top: 2px; color: #435d71; font-size: 11px; font-variant-numeric: tabular-nums; }
+.cp-pdf-player-meta span { overflow-wrap: anywhere; }
+.cp-pdf-no-opponent { color: #435d71; font-style: italic; }
+.cp-pdf-piece { display: inline-block; width: .8em; height: .8em; border: 1px solid #29455f; border-radius: 50%; margin-right: 6px; vertical-align: -1px; background: #fff; }
+.cp-pdf-piece-black { background: #29455f; }
+.cp-pdf-score-box {
+  display: inline-block;
+  box-sizing: border-box;
+  width: min(100%, 23mm);
+  height: 6mm;
+  border: 1px solid #637c91;
+  border-radius: 3px;
+  background: #fff;
+  vertical-align: middle;
+}
+.cp-pdf-sign-off {
+  margin-top: 15px;
+  border: 1px solid #aebfc9;
+  border-radius: 4px;
+  padding: 9px 13px 10px;
+  break-inside: avoid-page;
+  break-before: avoid-page;
+}
+.cp-pdf-sign-off h2 { margin: 0; font: 750 12px/1.3 system-ui, sans-serif; color: #14283e; }
+.cp-pdf-sign-off-fields { display: grid; grid-template-columns: 2fr 2fr 1fr; gap: 15px; }
+.cp-pdf-sign-off-fields span {
+  border-top: 1px solid #7e929e;
+  margin-top: 21px;
+  padding-top: 3px;
+  font-size: 10px;
+  color: #435d71;
+}
+.cp-pdf-report.cp-pdf-bold { font-weight: 700; }
+
+@media screen and (max-width: 620px) {
+  .cp-pdf-dialog { width: calc(100% - 16px); max-height: calc(100% - 16px); border-radius: 12px; }
+  .cp-pdf-dialog-head, .cp-pdf-dialog-foot { padding: 11px 12px; }
+  .cp-pdf-layout { display: block; height: auto; }
+  .cp-pdf-settings { padding: 10px 12px; border-right: 0; }
+  .cp-pdf-presets { display: flex; flex-wrap: wrap; }
+  .cp-pdf-presets button { width: auto; flex: 1; justify-content: center; }
+  .cp-pdf-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cp-pdf-preview-scroll { max-height: 42dvh; }
+  .cp-pdf-dialog-foot { align-items: flex-start; flex-direction: column; gap: 7px; }
+  .cp-pdf-dialog-foot div { align-self: flex-end; }
+}
+
+@media print {
+  @page cp-tournament-report {
+    size: A4 portrait;
+    margin: 11mm 12mm 15mm;
+    @bottom-left {
+      content: var(--cp-pdf-page-label, "ChessPublisher");
+      max-width: 155mm;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      color: #435d71;
+      font: 9pt system-ui, sans-serif;
+    }
+    @bottom-right { content: counter(page) " / " counter(pages); color: #435d71; font: 9pt system-ui, sans-serif; }
+  }
+  #cpPdfDialog { display: none !important; }
+  #cpPdfDialog::backdrop { display: none !important; }
+  html:has(#screenPrintReport > .cp-pdf-report),
+  body:has(> #screenPrintReport > .cp-pdf-report),
+  #screenPrintReport:has(> .cp-pdf-report) { background: #fff !important; }
+  html:has(#screenPrintReport > .cp-pdf-report),
+  body:has(> #screenPrintReport > .cp-pdf-report) { overflow: visible !important; }
+  #screenPrintReport .cp-pdf-report {
+    page: cp-tournament-report;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  #screenPrintReport .cp-pdf-report th { position: static; }
+}

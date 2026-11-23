@@ -1,5 +1,7 @@
 # Next Task — TRF Full Parity (Integration Gate G)
 
+Keep the public `/app/` PDF export smoke when updating the pinned workspace. It exercises the registration and pairings toolbar actions, preview controls, the Arbiter sheet sign-off, and single-page and multipage A4 printing on the generated workspace.
+
 Keep the public /app/ FIDE cache smoke in the site build when updating the pinned workspace. It covers complete activation, rollback, search and browser reload.
 
 Keep startup and Files → New Tournament on the same public /app/ chooser, with native pairing-system radios and visible keyboard focus on the format row, when updating the pinned workspace source.
