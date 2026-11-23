@@ -1,0 +1,948 @@
+/*
+ * ChessPublisher web workspace — safe six-tab visual refresh.
+ *
+ * Presentation only: scoped to existing page IDs, with zero DOM cloning,
+ * event-handler changes, hidden controls, state mutations or API calls.
+ * Lists & Players has its own established design in workspace.css.
+ *
+ * Source palette: workspace-tabs-redesign-preview.html
+ */
+#appWindow {
+  --cpw-canvas: #f3f5f8;
+  --cpw-surface: #ffffff;
+  --cpw-surface-subtle: #f8fafc;
+  --cpw-surface-muted: #f1f5f9;
+  --cpw-border: #d8dee6;
+  --cpw-border-strong: #c2cbd6;
+  --cpw-ink: #16202e;
+  --cpw-muted: #5a6778;
+  --cpw-primary: #0f3d91;
+  --cpw-primary-hover: #0a2d6e;
+  --cpw-primary-soft: #eaf1fc;
+  --cpw-danger: #b91c1c;
+  --cpw-danger-border: #fecaca;
+  --cpw-radius: 7px;
+  --cpw-radius-sm: 5px;
+}
+
+/* Existing IDs are retained. No page, button or modal is re-created. */
+#appWindow :is(#main, #pairings, #standings, #schedule, #chessresults, #exportPage).page {
+  background: var(--cpw-canvas);
+  color: var(--cpw-ink);
+  min-width: 0;
+  gap: 9px;
+}
+
+/* Top-level sections read as distinct cards without changing document order. */
+#appWindow :is(#main, #pairings, #standings, #schedule, #chessresults, #exportPage).page
+  > :is(.group, .box, .panel, .card, .cp-card, .toolbar, .pairing-quickbar, .live-pairing-toolbar) {
+  background-color: var(--cpw-surface);
+  border: 1px solid var(--cpw-border);
+  border-radius: var(--cpw-radius);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  min-width: 0;
+}
+
+/* Improve visible card and toolbar density without hiding any original action. */
+#appWindow :is(#main, #pairings, #standings, #schedule, #chessresults, #exportPage).page
+  :is(.cp-card-header, .group-title, .panel-header, .section-title) {
+  color: var(--cpw-ink);
+  font-weight: 650;
+}
+
+#appWindow :is(#main, #pairings, #standings, #schedule, #chessresults, #exportPage).page
+  > :is(.toolbar, .pairing-quickbar, .live-pairing-toolbar) {
+  padding: 7px 10px;
+  gap: 7px;
+}
+
+/* Form fields: keep their values, focus behavior, widths and event listeners. */
+#appWindow :is(#main, #pairings, #standings, #schedule, #chessresults, #exportPage).page
+  :is(input[type="text"], input[type="search"], input[type="number"], input[type="date"],
+      input[type="datetime-local"], input[type="email"], input[type="tel"], select, textarea) {
+  border-color: var(--cpw-border-strong);
+  border-radius: var(--cpw-radius-sm);
+  font-family: inherit;
+  color: var(--cpw-ink);
+  max-width: 100%;
+}
+
+#appWindow :is(#main, #pairings, #standings, #schedule, #chessresults, #exportPage).page
+  :is(input, select, textarea):focus-visible {
+  outline: 2px solid rgba(29, 100, 216, 0.28);
+  outline-offset: 1px;
+  border-color: #1d64d8;
+}
+
+#appWindow :is(#main, #pairings, #standings, #schedule, #chessresults, #exportPage).page
+  input[readonly] {
+  background: var(--cpw-surface-subtle);
+}
+
+#appWindow :is(#main, #pairings, #standings, #schedule, #chessresults, #exportPage).page
+  :is(label, .help, .hint, .muted) {
+  line-height: 1.4;
+}
+
+/* Four-tier action hierarchy. Existing disabled and danger semantics remain. */
+#appWindow :is(#main, #pairings, #standings, #schedule, #chessresults, #exportPage).page button {
+  border-radius: var(--cpw-radius-sm);
+  font-family: inherit;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+#appWindow :is(#main, #pairings, #standings, #schedule, #chessresults, #exportPage).page
+  button:focus-visible {
+  outline: 2px solid #1d64d8;
+  outline-offset: 2px;
+}
+
+#appWindow :is(#main, #pairings, #standings, #schedule, #chessresults, #exportPage).page
+  button.primary:not(:disabled) {
+  border-color: #93b4e8;
+  color: var(--cpw-primary);
+  background: var(--cpw-surface);
+  font-weight: 600;
+}
+
+#appWindow :is(#main, #pairings, #standings, #schedule, #chessresults, #exportPage).page
+  button.primary:hover:not(:disabled) {
+  border-color: #1d64d8;
+  background: var(--cpw-primary-soft);
+}
+
+#appWindow :is(#main, #pairings, #standings, #schedule, #chessresults, #exportPage).page
+  button.danger:not(:disabled) {
+  border-color: var(--cpw-danger-border);
+  color: var(--cpw-danger);
+}
+
+#appWindow :is(#main, #pairings, #standings, #schedule, #chessresults, #exportPage).page
+  button.danger:hover:not(:disabled) {
+  background: var(--cpw-danger);
+  border-color: var(--cpw-danger);
+  color: #ffffff;
+}
+
+/* The established pairing-generation control becomes the sole prominent CTA.
+ * Do not introduce a new demo generate button or replace the existing handler.
+ */
+#appWindow #pairings #btnGenerateGacrux:not(:disabled) {
+  background: var(--cpw-primary);
+  border-color: var(--cpw-primary);
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(15, 61, 145, 0.14);
+}
+
+#appWindow #pairings #btnGenerateGacrux:hover:not(:disabled) {
+  background: var(--cpw-primary-hover);
+  border-color: var(--cpw-primary-hover);
+}
+
+/* The original pairings controls and the result palette stay connected to
+ * their current application state and keyboard shortcuts.
+ */
+#appWindow #pairings :is(.pairing-quickbar, .live-pairing-toolbar) {
+  border-radius: var(--cpw-radius);
+  border-color: var(--cpw-border);
+}
+
+#appWindow #pairings :is(.result-palette-wide, .pairing-generate-actions) {
+  min-width: 0;
+}
+
+#appWindow #pairings :is(.result-palette-wide, .pairing-generate-actions)
+  button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Tables retain the app's existing row click, sorting, filtering and renderers. */
+#appWindow :is(#main, #pairings, #standings, #schedule, #chessresults, #exportPage).page
+  .table-frame {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  border-radius: var(--cpw-radius-sm);
+}
+
+#appWindow :is(#main, #pairings, #standings, #schedule, #chessresults, #exportPage).page
+  .table-frame table {
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+#appWindow :is(#main, #pairings, #standings, #schedule, #chessresults, #exportPage).page
+  .table-frame thead th {
+  position: sticky;
+  top: 0;
+  background: var(--cpw-surface-subtle);
+  color: var(--cpw-muted);
+  border-bottom: 1px solid var(--cpw-border);
+  z-index: 2;
+}
+
+#appWindow :is(#main, #pairings, #standings, #schedule, #chessresults, #exportPage).page
+  .table-frame tbody tr:hover {
+  background: var(--cpw-surface-subtle);
+}
+
+#appWindow :is(#main, #pairings, #standings, #schedule, #chessresults, #exportPage).page
+  .table-frame tbody tr.selected {
+  background: var(--cpw-primary-soft);
+}
+
+/* Compact status and tie-break tokens, only when their existing classes exist. */
+#appWindow :is(#main, #pairings, #standings, #schedule, #chessresults, #exportPage).page
+  :is(.badge, .kpi-chip, .tb-pill) {
+  border-radius: 999px;
+  line-height: 1.25;
+}
+
+/* Log output must remain readable and scrollable, never be replaced or clipped. */
+#appWindow :is(#chessresults, #exportPage) :is(pre, .log-output, .cr-log-output) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+  overflow: auto;
+}
+
+/* Keep controls available on narrow browser windows. */
+@media (max-width: 1100px) {
+  #appWindow :is(#main, #pairings, #standings, #schedule, #chessresults, #exportPage).page
+    > :is(.toolbar, .pairing-quickbar, .live-pairing-toolbar) {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 760px) {
+  #appWindow :is(#main, #pairings, #standings, #schedule, #chessresults, #exportPage).page {
+    gap: 7px;
+  }
+
+  #appWindow :is(#main, #pairings, #standings, #schedule, #chessresults, #exportPage).page
+    > :is(.toolbar, .pairing-quickbar, .live-pairing-toolbar) {
+    padding: 7px;
+  }
+
+  #appWindow :is(#main, #pairings, #standings, #schedule, #chessresults, #exportPage).page
+    .table-frame {
+    overflow-x: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #appWindow :is(#main, #pairings, #standings, #schedule, #chessresults, #exportPage).page
+    button {
+    transition: none;
+  }
+}
+
+/* ==========================================================================
+   Phase 2: preview-informed styling for the REAL pinned desktop DOM.
+   The production DOM uses .groupbox, .current-row, .live-pairing-layout,
+   .crpub-box and .standings-main-box instead of the mockup's .cp-card.
+   These rules intentionally style existing nodes; they never create,
+   re-parent, suppress or rename elements.
+   ========================================================================== */
+
+/* Match the preview's slim command bars and card perimeter. */
+#appWindow :is(#main, #pairings, #standings, #schedule, #chessresults, #exportPage).page
+  > .current-row {
+  background: var(--cpw-surface);
+  border: 1px solid var(--cpw-border);
+  border-radius: var(--cpw-radius);
+  padding: 7px 10px;
+  min-width: 0;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .05);
+}
+
+#appWindow :is(#main, #standings, #schedule, #chessresults, #exportPage).page
+  > .groupbox {
+  min-width: 0;
+  background: var(--cpw-surface);
+  border: 1px solid var(--cpw-border);
+  border-radius: var(--cpw-radius);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .05);
+}
+
+#appWindow :is(#main, #standings, #schedule, #chessresults, #exportPage).page
+  :is(.group-title, .legend-title, .section-title) {
+  color: var(--cpw-ink);
+  font-weight: 650;
+}
+
+#appWindow #main :is(.tournament-general-box, .pairing-essentials-box,
+  .setup-rules-box, .setup-prize-box, .cp-long-event-rating-box),
+#appWindow #main #cpFideEligibility {
+  border-color: var(--cpw-border);
+  border-radius: var(--cpw-radius);
+}
+
+/* Recreate the preview's paired action-row and engine strips on existing
+   controls, without making a duplicate Generate Pairings command. */
+#appWindow #pairings > :is(.pairing-quickbar, .program-historybar,
+  .swiss-pairing-caption, #nextRoundManager) {
+  min-width: 0;
+  background: var(--cpw-surface);
+  border: 1px solid var(--cpw-border);
+  border-radius: var(--cpw-radius);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .05);
+}
+
+#appWindow #pairings > .pairing-quickbar,
+#appWindow #pairings > .program-historybar {
+  padding: 7px 10px;
+  gap: 7px;
+}
+
+#appWindow #pairings > .live-pairing-layout {
+  min-width: 0;
+  min-height: 260px;
+  gap: 10px;
+}
+
+#appWindow #pairings .result-palette-wide {
+  min-width: 0;
+}
+
+#appWindow #pairings .result-main-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
+#appWindow #pairings .result-main-grid button {
+  min-width: 0;
+  border-color: #93b4e8;
+  color: var(--cpw-primary);
+  font-weight: 650;
+}
+
+#appWindow #pairings .result-main-grid button:hover:not(:disabled) {
+  color: #fff;
+  border-color: var(--cpw-primary);
+  background: var(--cpw-primary);
+}
+
+/* Standings: the real table remains flexible and scrollable, while the
+   existing header and action row adopt the preview's compact grouping. */
+#appWindow #standings > :is(.final-standings-top, .standings-export-strip) {
+  min-width: 0;
+  gap: 7px;
+  border-radius: var(--cpw-radius);
+}
+
+#appWindow #standings > .standings-main-box {
+  min-height: 290px;
+  flex: 1 1 auto;
+}
+
+#appWindow #standings > .standings-main-box .table-frame {
+  min-height: 0;
+  overflow: auto;
+}
+
+#appWindow #standings :is(.tb-pill, .kpi-chip, .badge) {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Chess-Results uses real publication, log and PIN panels, not the preview's
+   demo cards. At wide widths arrange them in the same left/right rhythm. */
+#appWindow #chessresults > :is(.crxml-header, .crxml-summary-grid,
+  .crpub-box, .crlog-box, .crpin-box) {
+  min-width: 0;
+}
+
+#appWindow #chessresults > .crxml-summary-grid {
+  gap: 8px;
+}
+
+#appWindow #chessresults > :is(.crpub-box, .crlog-box, .crpin-box) {
+  border-color: var(--cpw-border);
+  border-radius: var(--cpw-radius);
+}
+
+#appWindow #chessresults :is(pre, .cr-log-output, .log-output) {
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+/* The exported report controls keep their original click/keyboard behavior. */
+#appWindow #exportPage > .groupbox {
+  min-width: 0;
+  border-color: var(--cpw-border);
+  border-radius: var(--cpw-radius);
+}
+
+@media (min-width: 1160px) {
+  #appWindow #chessresults.page.active {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    align-content: start;
+    gap: 10px;
+  }
+
+  #appWindow #chessresults > :is(.current-row, .crxml-header, .crxml-summary-grid) {
+    grid-column: 1 / -1;
+  }
+
+  #appWindow #chessresults > .crpub-box {
+    grid-column: 1;
+    grid-row: span 2;
+  }
+
+  #appWindow #chessresults > :is(.crlog-box, .crpin-box) {
+    grid-column: 2;
+  }
+}
+
+/* Narrow screens keep the original app's established flow; content scrolls
+   inside tables rather than vanishing behind clipped cards. */
+@media (max-width: 759px) {
+  #appWindow #pairings > .live-pairing-layout {
+    min-width: 0;
+  }
+
+  #appWindow #chessresults.page.active {
+    display: flex;
+    flex-direction: column;
+  }
+
+  #appWindow #pairings .result-main-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* ==========================================================================
+   Phase 3: compact Schedule / Export grids based on actual pinned DOM.
+   Top-level original children remain in their original document/tab order.
+   The grid never moves, clones, disables, or rebinds any command.
+   ========================================================================== */
+@media (min-width: 1100px) {
+  /* The desktop Schedule source contains:
+     .current-row, three .groupbox sections, final .toolbar.
+     Keep the editable round schedule first, followed by the two secondary
+     panels in the same order as the preview. */
+  #appWindow #schedule.page.active {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    gap: 9px;
+    align-content: start;
+  }
+
+  #appWindow #schedule.page.active > :is(.current-row, .toolbar) {
+    grid-column: 1 / -1;
+  }
+
+  #appWindow #schedule.page.active > .groupbox:nth-child(2) {
+    grid-column: 1 / -1;
+    min-height: 240px;
+  }
+
+  #appWindow #schedule.page.active > .groupbox:nth-child(3) {
+    grid-column: 1;
+    min-width: 0;
+  }
+
+  #appWindow #schedule.page.active > .groupbox:nth-child(4) {
+    grid-column: 2;
+    min-width: 0;
+  }
+
+  /* Four real Export groups: three adjacent export / backup groups followed
+     by the live diagnostics group spanning the available desktop width. */
+  #appWindow #exportPage.page.active {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 9px;
+    align-content: start;
+  }
+
+  #appWindow #exportPage.page.active > .current-row {
+    grid-column: 1 / -1;
+  }
+
+  #appWindow #exportPage.page.active > .groupbox:nth-child(5) {
+    grid-column: 1 / -1;
+    min-height: 210px;
+  }
+}
+
+/* Never force multi-column form controls on tablets and phones. Keep buttons
+   accessible by keyboard and preserve native horizontal table scrolling. */
+@media (max-width: 1099px) {
+  #appWindow #schedule.page.active,
+  #appWindow #exportPage.page.active {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  #appWindow #schedule.page.active > .groupbox,
+  #appWindow #exportPage.page.active > .groupbox {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+/* Pairing/result panel and standings controls: compact consistent headers
+   without changing their internal flex/grid behavior or event handlers. */
+#appWindow #pairings > .swiss-pairing-caption,
+#appWindow #standings > .final-standings-top,
+#appWindow #standings > .standings-export-strip {
+  border: 1px solid var(--cpw-border);
+  background: var(--cpw-surface);
+  padding: 7px 10px;
+  border-radius: var(--cpw-radius);
+}
+
+#appWindow #pairings > .live-pairing-layout .table-frame,
+#appWindow #standings > .standings-main-box .table-frame {
+  background: var(--cpw-surface);
+  border: 1px solid var(--cpw-border);
+}
+
+/* Long tournament descriptions, log entries and player names should wrap
+   inside their own panes, never force the whole workspace wider. */
+#appWindow :is(#schedule, #exportPage, #standings, #chessresults, #pairings)
+  :is(.groupbox, .crpub-box, .crlog-box, .crpin-box, .live-pairing-layout) {
+  min-width: 0;
+}
+
+#appWindow #exportPage :is(textarea, pre, .log-output),
+#appWindow #schedule :is(textarea, input) {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+#appWindow #exportPage pre,
+#appWindow #chessresults pre {
+  overflow-wrap: anywhere;
+}
+
+
+/* The current website's workspace.css owns the Setup layout and its new
+   FIDE/compliance controls. Never override its active-page grid or flex
+   geometry: the older two-column mockup rules caused click-target occlusion
+   at 1280px when layered on the newer workspace-ui.js baseline. */
+
+/* Reference palette: compact, clearly separated sections. No forced
+   visibility, no altered disabled states and no control duplication. */
+#appWindow #main > :is(
+  .tournament-general-box, .pairing-essentials-box,
+  .setup-rules-box, .setup-prize-box, #ratingListSequenceControl) {
+  border-color: var(--cpw-border);
+  border-radius: var(--cpw-radius);
+  background: var(--cpw-surface);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .05);
+}
+
+#appWindow #main :is(.pairing-essentials-box, .setup-rules-box)
+  :is(input, select, textarea) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+#appWindow #main :is(.pairing-essentials-box, .setup-rules-box, .setup-prize-box)
+  button:focus-visible {
+  outline: 2px solid var(--cpw-primary);
+  outline-offset: 2px;
+}
+
+
+/* ==========================================================================
+   Phase 5: mobile Pairings usability — original controls, no hidden actions.
+   At narrow widths the pinned desktop's fixed-size history/status elements
+   otherwise squeeze their labels into 50–60 px columns.
+   ========================================================================== */
+@media (max-width: 700px) {
+  #appWindow #pairings > .program-historybar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 8px;
+    min-width: 0;
+  }
+
+  #appWindow #pairings > .program-historybar > strong {
+    flex: 0 1 auto;
+    min-width: 0;
+    white-space: normal;
+  }
+
+  #appWindow #pairings > .program-historybar > select {
+    flex: 1 1 175px;
+    width: auto;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  #appWindow #pairings > .program-historybar > .muted {
+    flex: 1 1 100%;
+    min-width: 0;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: break-word;
+    line-height: 1.35;
+  }
+
+  #appWindow #pairings #nextRoundManager .next-round-manager-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 7px;
+    padding: 8px;
+    min-width: 0;
+  }
+
+  #appWindow #pairings #nextRoundManager .next-round-manager-header > div:first-child,
+  #appWindow #pairings #nextRoundManager #nextRoundConfirmState {
+    flex: 1 1 100%;
+    min-width: 0;
+    max-width: 100%;
+    width: auto;
+    box-sizing: border-box;
+    white-space: normal;
+    overflow-wrap: break-word;
+  }
+
+  #appWindow #pairings #nextRoundManager .next-round-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    align-items: center;
+    min-width: 0;
+  }
+
+  #appWindow #pairings #nextRoundManager .next-round-actions > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+}
+
+
+/* ==========================================================================
+   Phase 6: keep Save and Manual reachable in the small-screen app header.
+   No titlebar actions are hidden; compact their spacing at phone widths and
+   allow horizontal scrolling as a fallback for longer Cloud status messages.
+   ========================================================================== */
+@media (max-width: 700px) {
+  #appWindow > .desktop-header-strip {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+  }
+
+  #appWindow > .desktop-header-strip .desktop-status-controls {
+    gap: 3px;
+    min-width: 0;
+    flex: 0 0 auto;
+    margin-left: auto;
+    align-items: center;
+  }
+
+  #appWindow > .desktop-header-strip #fideGlobalModeBadge {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    font-size: 10px;
+    padding: 2px 5px;
+  }
+
+  #appWindow > .desktop-header-strip #cpWebCloudSaveStatus {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    font-size: 10px;
+    line-height: 1.2;
+  }
+
+  #appWindow > .desktop-header-strip .desktop-status-controls > button.titlebar-save {
+    flex: 0 0 auto;
+    min-width: 0;
+    font-size: 11px;
+    padding: 4px 6px;
+    white-space: nowrap;
+  }
+}
+
+
+/* ==========================================================================
+   Phase 7: make the real desktop Pairings workspace denser and widen its
+   existing action/result sidebar, as in the reference. Original handlers,
+   board cells, toolbar actions and DOM order are deliberately untouched.
+   ========================================================================== */
+@media (min-width: 1260px) {
+  #appWindow #pairings > .pairing-quickbar {
+    padding: 5px 8px;
+    column-gap: 5px;
+    row-gap: 4px;
+  }
+
+  /* The existing header and active-player actions share a row; all status
+     counters remain visible beneath them instead of making a third band. */
+  #appWindow #pairings > #nextRoundManager {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.65fr);
+    gap: 4px 7px;
+    align-items: center;
+    align-content: start;
+  }
+
+  #appWindow #pairings > #nextRoundManager > .next-round-manager-header {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+    padding: 5px 7px;
+    flex-wrap: wrap;
+  }
+
+  #appWindow #pairings > #nextRoundManager > .next-round-actions {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+    padding: 5px 7px;
+    gap: 5px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  #appWindow #pairings > #nextRoundManager > #nextRoundSummary {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    min-width: 0;
+    padding: 4px 7px;
+    gap: 5px;
+  }
+
+  #appWindow #pairings > #nextRoundManager > #nextRoundTableContainer {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    min-width: 0;
+  }
+
+  /* Keep the ORIGINAL working sidebar, rather than recreating the mockup's
+     non-functional Quick Result Entry controls. A practical 270px width
+     prevents pairing actions and round diagnostics from squeezing. */
+  #appWindow #pairings > .live-pairing-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(250px, 270px);
+    gap: 10px;
+    min-width: 0;
+  }
+}
+
+#appWindow #pairings > .swiss-pairing-caption {
+  min-width: 0;
+  min-height: 0;
+  padding: 5px 9px;
+  font-size: 12px;
+}
+
+#appWindow #pairings > .live-pairing-layout :is(.table-frame, table) {
+  min-width: 0;
+}
+
+@media (max-width: 1259px) {
+  #appWindow #pairings > .live-pairing-layout {
+    min-width: 0;
+  }
+}
+
+
+/* Phones: reserve the full device width for the header action strip.
+   Some longer Cloud status strings previously produced 9px overflow. */
+@media (max-width: 700px) {
+  #appWindow > .desktop-header-strip {
+    box-sizing: border-box;
+    padding-left: 4px !important;
+    padding-right: 4px !important;
+    column-gap: 0 !important;
+  }
+
+  #appWindow > .desktop-header-strip .desktop-status-controls {
+    column-gap: 2px;
+  }
+}
+
+
+/* Phase 7b: measurements of the real website DOM show that the board-and-
+   sidebar grid is .swiss-workspace INSIDE the live-pairing-panel, not its
+   outer .live-pairing-layout. Target exactly that working layout. */
+@media (min-width: 1260px) {
+  #appWindow #pairings .live-pairing-panel > .swiss-workspace {
+    grid-template-columns: minmax(0, 1fr) 270px !important;
+    column-gap: 10px;
+    min-width: 0;
+  }
+
+  #appWindow #pairings .live-pairing-panel > .swiss-workspace > * {
+    min-width: 0;
+  }
+
+  #appWindow #pairings > #nextRoundManager > .next-round-manager-header {
+    background: var(--cpw-surface);
+  }
+}
+
+/* Preserve every separate title while reducing the desktop-only vertical
+   overhead above the pairing board, rather than hiding duplicate labels. */
+@media (min-width: 1100px) {
+  #appWindow #pairings > .swiss-pairing-caption {
+    padding: 4px 8px !important;
+    min-height: 0 !important;
+    line-height: 1.25;
+  }
+
+  #appWindow #pairings .live-pairing-panel > .live-pairing-title,
+  #appWindow #pairings .live-pairing-panel > .live-pairing-subtitle {
+    padding-top: 4px;
+    padding-bottom: 4px;
+    line-height: 1.25;
+  }
+
+  #appWindow #pairings .live-pairing-panel > .live-pairing-toolbar {
+    gap: 5px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+  }
+}
+
+
+/* ==========================================================================
+   Phase 8: Schedule table has full working width. The original source
+   puts milestone fields before round rows; preserving DOM/keyboard order is
+   safer than visually reordering focusable fields to match a static mockup.
+   ========================================================================== */
+@media (min-width: 1100px) {
+  #appWindow #schedule.page.active {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 9px;
+  }
+
+  #appWindow #schedule.page.active > :is(.current-row, .groupbox, .toolbar) {
+    box-sizing: border-box;
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  /* Remove the artificial 240px whitespace under the milestone form. */
+  #appWindow #schedule.page.active > .groupbox:nth-child(2) {
+    min-height: 0 !important;
+    height: auto !important;
+  }
+
+  /* Actual second group is the editable Round/Event Schedule, not the
+     milestone panel assumed by the static demo. Give its controls and rows
+     the complete width instead of squeezing them into half a page. */
+  #appWindow #schedule.page.active > .groupbox:nth-child(3) {
+    flex: 1 0 auto;
+    min-height: 300px;
+    min-width: 0;
+  }
+
+  #appWindow #schedule.page.active > .groupbox:nth-child(3)
+    :is(table, .table-frame) {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  #appWindow #schedule.page.active > .groupbox:nth-child(4) {
+    min-height: 125px;
+  }
+}
+
+
+/* ==========================================================================
+   Phase 9: visually compact the *real* Standings KPI strip and prevent
+   Chess-Results publication from stretching to the combined log/pin height.
+   Neither change removes, duplicates or reorders any controls or data.
+   ========================================================================== */
+@media (min-width: 1100px) {
+  /* In the pinned DOM .final-standings-top owns four KPI cards. Their
+     original one-card-per-quarter-width layout takes needless vertical
+     space; the preview uses short, readable inline metric chips. */
+  #appWindow #standings > .final-standings-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    align-content: center;
+    justify-content: flex-start;
+    gap: 6px;
+    padding: 5px 8px;
+    min-height: 0;
+  }
+
+  #appWindow #standings > .final-standings-top > * {
+    box-sizing: border-box;
+    flex: 0 1 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    column-gap: 9px;
+    row-gap: 2px;
+    width: auto;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 30px;
+    padding: 4px 9px;
+    margin: 0;
+  }
+
+  #appWindow #standings > .final-standings-top > * :is(b, strong) {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  #appWindow #standings > .standings-export-strip {
+    gap: 5px;
+    padding: 5px 9px;
+    flex-wrap: wrap;
+    min-height: 0;
+  }
+
+  #appWindow #chessresults > .crpub-box {
+    align-self: start;
+    min-height: 0;
+    height: auto;
+  }
+
+  /* Keep real publication, log and PIN controls where they are. The
+     original content finishes sooner than the combined right-hand column. */
+  #appWindow #chessresults > .crxml-summary-grid {
+    gap: 6px;
+  }
+
+  #appWindow #chessresults > .crxml-summary-grid > * {
+    box-sizing: border-box;
+    min-width: 0;
+    padding: 6px 9px;
+  }
+
+  #appWindow #chessresults > .crlog-box,
+  #appWindow #chessresults > .crpin-box {
+    align-self: start;
+    min-width: 0;
+  }
+}
+
+/* Preserve long tournament names and cloud responses without clipping. */
+#appWindow #chessresults > .crxml-summary-grid > * {
+  overflow-wrap: anywhere;
+}
+
+
+/* Phase 11: the original caption contains inline text and two <b>
+   numbers. Restore normal text flow instead of a Flex row: the existing
+   spaces AND the final punctuation remain exactly where authored. */
+#appWindow #standings #standingsStateLine {
+  display: block;
+  white-space: normal;
+}
