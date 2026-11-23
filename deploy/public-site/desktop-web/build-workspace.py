@@ -397,6 +397,28 @@ html = replace_once(
     if(btn.textContent!==label)btn.textContent=label;""",
 )
 
+# The log stays in the result palette when Web moves the pairing actions to the toolbar.
+html = replace_once(
+    html, '            <div class="result-palette-title">',
+    '''            <section class="cp-ws-card cp-ws-round-log result-palette-wide">
+              <div class="cp-ws-card-header">
+                <h2 id="cpWebRoundLogTitle" class="cp-ws-card-title">Round Control Log</h2>
+              </div>
+              <div id="roundControlLog" class="crlog-output" aria-live="polite" role="region" aria-labelledby="cpWebRoundLogTitle" tabindex="0"></div>
+            </section>
+            <div class="result-palette-title">''',
+)
+html = replace_once(
+    html, '<div class="cp-log-title">ROUND CONTROL LOG</div><span class="cp-log-muted">',
+    '<span class="cp-log-muted">',
+)
+html = replace_once(html, '      \'<div class="cp-log-title">ROUND CONTROL LOG</div>\'+\n', '')
+# Keep the original pairing-time disable/restore guard after moving the button.
+html = replace_once(
+    html, "document.querySelectorAll('#pairings .result-palette button')",
+    "document.querySelectorAll('#pairings .result-palette button, #pairings #pairingsResortStartingListBtn')",
+)
+
 # Compact checker feedback while retaining the desktop failure diagnostics.
 start = html.index("      checkerHtml+'<br>'+")
 end = html.index("      (colorCorrectionHtml", start)
