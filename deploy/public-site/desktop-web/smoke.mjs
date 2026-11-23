@@ -470,6 +470,32 @@ try {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.locator('#tabPairings').click();
     await page.locator('#pairings.active').waitFor();
+    const mobileDom = await page.evaluate(() => {
+      function describe(node) {
+        if (!node) return null;
+        const style = getComputedStyle(node), rect = node.getBoundingClientRect();
+        return {
+          tag: node.tagName.toLowerCase(), id: node.id || '',
+          className: String(node.className || '').slice(0, 110),
+          width: Math.round(rect.width), height: Math.round(rect.height),
+          scrollWidth: node.scrollWidth,
+          display: style.display, flexDirection: style.flexDirection,
+          gridTemplateColumns: style.gridTemplateColumns,
+          children: [...node.children].slice(0, 7).map(n => ({
+            tag:n.tagName.toLowerCase(), id:n.id || '',cls:String(n.className||'').slice(0,80),
+            width:Math.round(n.getBoundingClientRect().width),
+            display:getComputedStyle(n).display
+          }))
+        };
+      }
+      const manager=document.getElementById('nextRoundManager');
+      const history=document.querySelector('#pairings > .program-historybar');
+      return { viewport: innerWidth, page: describe(document.getElementById('pairings')),
+        manager: describe(manager), managerFirst:describe(manager?.firstElementChild),
+        managerSecond:describe(manager?.children?.[1]), history:describe(history),
+        titlebar:describe(document.querySelector('#appWindow > .titlebar')) };
+    });
+    console.log('CP_MOBILE_PAIRINGS_DOM=' + JSON.stringify(mobileDom));
     await page.screenshot({ path: join(visualDir, 'pairings-mobile-390.png'),
       animations: 'disabled' });
     await page.setViewportSize({ width: 1440, height: 920 });
