@@ -17,6 +17,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: workspace-presentation-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   live-dom:
     name: Exact website-build UI and safety verification
@@ -58,7 +62,9 @@ jobs:
         run: bash deploy/public-site/pairing-preview/build.sh "${RUNNER_TEMP}/cp-preview-engine"
 
       - name: Assemble exact website Desktop-Web artifact
-        run: bash deploy/public-site/desktop-web/build.sh "${RUNNER_TEMP}/cp-preview-app" "${RUNNER_TEMP}/cp-preview-engine"
+        run: |
+          mkdir -p "${RUNNER_TEMP}/cp-preview-site/app"
+          bash deploy/public-site/desktop-web/build.sh "${RUNNER_TEMP}/cp-preview-site/app" "${RUNNER_TEMP}/cp-preview-engine"
 
       - name: Check generated workspace stylesheet and preserved controls
         shell: bash
@@ -67,7 +73,7 @@ jobs:
           from html.parser import HTMLParser
           from pathlib import Path
           import os
-          root = Path(os.environ['RUNNER_TEMP']) / 'cp-preview-app'
+          root = Path(os.environ['RUNNER_TEMP']) / 'cp-preview-site/app'
           html = (root / 'workspace.html').read_text(encoding='utf-8')
           assert (root / 'workspace-tabs.css').stat().st_size > 1000
           assert html.count('href="./workspace.css"') == 1
@@ -95,9 +101,9 @@ jobs:
       - name: Serve isolated built workspace
         shell: bash
         run: |
-          python -m http.server 8793 --bind 127.0.0.1 --directory "${RUNNER_TEMP}/cp-preview-app" > /tmp/chesspublisher-presentation-test.log 2>&1 &
+          python -m http.server 8793 --bind 127.0.0.1 --directory "${RUNNER_TEMP}/cp-preview-site" > /tmp/chesspublisher-presentation-test.log 2>&1 &
           for i in {1..50}; do
-            if curl --fail --silent http://127.0.0.1:8793/ >/dev/null; then exit 0; fi
+            if curl --fail --silent http://127.0.0.1:8793/app/ >/dev/null; then exit 0; fi
             sleep 1
           done
           cat /tmp/chesspublisher-presentation-test.log
@@ -107,7 +113,7 @@ jobs:
         shell: bash
         run: |
           node deploy/public-site/desktop-web/smoke.mjs \
-            http://127.0.0.1:8793/ \
+            http://127.0.0.1:8793/app/ \
             "${RUNNER_TEMP}/cp-preview-playwright" \
             "$(command -v google-chrome)"
 
