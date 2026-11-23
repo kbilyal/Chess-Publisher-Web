@@ -1634,6 +1634,12 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
     flex-wrap: wrap;
     max-width: 100%;
   }
+  #registration .cp-reg-command-strip .cp-reg-strip-right {
+    flex: 1 1 100% !important;
+    max-width: 100% !important;
+    flex-wrap: wrap !important;
+    margin-left: 0 !important;
+  }
   #registration #startingRankSearch {
     width: 100% !important;
     min-width: 0 !important;
