@@ -25,8 +25,12 @@ form.addEventListener('submit', async event => {
       return;
     }
     const data = response.ok ? await response.json() : null;
-    if (!data?.organizer) throw new Error('Workspace unavailable');
-    const identity = data.organizer.id || data.organizer.organizerId || token;
+    const organizer = data?.organizer;
+    if (data?.ok === false || !organizer || typeof organizer !== 'object' ||
+        Array.isArray(organizer) || Object.keys(organizer).length === 0) {
+      throw new Error('Workspace unavailable');
+    }
+    const identity = organizer.id || organizer.organizerId || token;
     const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(identity)));
     const scope = Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, '0')).join('');
     sessionStorage.setItem('cp.desktop-web.session', JSON.stringify({ token, scope }));

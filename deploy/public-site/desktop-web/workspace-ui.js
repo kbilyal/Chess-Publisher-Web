@@ -99,6 +99,15 @@
       resetBtn.classList.remove('cp-top-reset-tournament');
       dangerGroup.appendChild(resetBtn);
     }
+    if (!document.body.classList.contains('cp-pairing-generating') &&
+        typeof window.setPairingsPlayerSearch === 'function') {
+      const firstAction = qs('.result-main-action', pairings);
+      const hasVisibleRow = qsa('#livePairingsBody tr[data-board-index]', pairings)
+        .some(row => !row.hidden && !row.classList.contains('cp-search-hidden'));
+      if (firstAction && firstAction.disabled && hasVisibleRow) {
+        window.setPairingsPlayerSearch(byId('pairingsPlayerSearch')?.value || '');
+      }
+    }
   }
 
   function enhancePairings() {

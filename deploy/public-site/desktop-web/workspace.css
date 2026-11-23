@@ -346,6 +346,7 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 6px 10px;
   background: #f0f5ff;
@@ -363,6 +364,8 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
 .cp-reg-rating-segmented {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
+  max-width: 100%;
   gap: 2px;
   padding: 2px;
   background: #e2eaf8;
@@ -896,18 +899,29 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
   flex-direction: column;
   gap: 9px;
   min-height: 0;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 #main.cp-ws-page.page.active,
-#chessresults.cp-ws-page.page.active {
-  height: auto !important;
-  flex: 1 0 auto;
+#chessresults.cp-ws-page.page.active,
+#pairings.cp-ws-page.page.active,
+#standings.cp-ws-page.page.active,
+#schedule.cp-ws-page.page.active,
+#exportPage.cp-ws-page.page.active {
+  padding-bottom: 14px;
+  box-sizing: border-box;
 }
 
 #main.cp-ws-page > *,
 #chessresults.cp-ws-page > *,
 .cp-ws-details-card,
-#standings.cp-ws-page > .cp-ws-card:not(.cp-ws-standings-main) {
+#standings.cp-ws-page > .cp-ws-card:not(.cp-ws-standings-main),
+#schedule.cp-ws-page > .cp-ws-card:not(.cp-ws-schedule-main),
+#exportPage.cp-ws-page > :not(.cp-ws-syslog-card),
+#registration.page.active > :not(#registrationListsContainer) {
   flex-shrink: 0;
 }
 
@@ -932,6 +946,8 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
   gap: 10px;
   flex-wrap: wrap;
   flex-shrink: 0;
+  box-sizing: border-box;
+  max-width: 100%;
 }
 
 .cp-ws-strip-left,
@@ -940,6 +956,8 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
   align-items: center;
   gap: 7px;
   flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .cp-ws-strip-right {
@@ -1072,6 +1090,9 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
 .cp-ws-export-segmented {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
+  max-width: 100%;
+  box-sizing: border-box;
   gap: 3px;
   padding: 2px 4px;
   background: #f8fafc;
@@ -1188,7 +1209,7 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
   display: flex;
   flex-direction: column;
   gap: 9px;
-  flex: 1;
+  flex: 1 0 auto;
   min-height: 0;
 }
 
@@ -1196,22 +1217,24 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
   display: flex;
   flex-direction: column;
   gap: 9px;
-  flex: 1;
+  flex: 1 0 auto;
   min-height: 0;
 }
 
-#pairings .swiss-workspace {
-  flex: 1;
-  min-height: 260px;
+#appWindow #pairings .swiss-workspace {
+  flex: 1 0 auto;
+  height: auto !important;
+  min-height: 390px !important;
+  overflow: visible !important;
   display: grid !important;
-  grid-template-columns: 1fr 272px;
-  gap: 10px;
-  align-items: stretch;
+  grid-template-columns: minmax(0, 1fr) 272px !important;
+  gap: 10px !important;
+  align-items: start !important;
 }
 
 .cp-ws-pairings-card {
   min-width: 0;
-  min-height: 0;
+  min-height: 390px;
 }
 
 .cp-ws-round-pill {
@@ -1246,7 +1269,9 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
 
 .cp-ws-pairings-card .live-pairing-table-wrap {
   flex: 1;
-  min-height: 0;
+  min-height: 220px;
+  height: auto !important;
+  max-height: clamp(340px, 56vh, 620px) !important;
   overflow: auto;
 }
 
@@ -1256,25 +1281,26 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
   z-index: 2;
 }
 
-.cp-ws-palette-card {
-  padding: 0 !important;
+#pairings aside.result-palette.cp-ws-palette-card {
+  padding: 0 0 10px !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  align-self: start !important;
+  align-content: start !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
 }
 
 .cp-ws-palette-card .cp-ws-palette-header {
-  margin-bottom: 0;
+  grid-column: 1 / -1;
+  margin: 0 0 6px !important;
 }
 
 .cp-ws-palette-card > :not(.cp-ws-palette-header) {
-  margin-left: 10px;
-  margin-right: 10px;
-}
-
-.cp-ws-palette-card > :nth-child(2) {
-  margin-top: 10px;
-}
-
-.cp-ws-palette-card > :last-child {
-  margin-bottom: 10px;
+  margin-left: 8px;
+  margin-right: 8px;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .cp-ws-engine-bar {
@@ -1416,7 +1442,12 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
 }
 
 .cp-ws-setup-two-col > .cp-ws-card > .form-grid-4 {
-  grid-template-columns: 165px 1fr !important;
+  grid-template-columns: 165px minmax(0, 1fr) !important;
+}
+
+.cp-ws-setup-two-col > .cp-ws-card > .form-grid-4 > [style*="grid-column"],
+.cp-ws-details-card .form-grid-4 > [style*="grid-column"] {
+  grid-column: 1 / -1 !important;
 }
 
 /* --------------------------------------------------------------------------
@@ -1434,6 +1465,14 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
   flex-direction: column;
   gap: 10px;
   min-width: 0;
+}
+
+.cp-ws-cr-two-col .crpub-box {
+  overflow: visible;
+}
+
+.cp-ws-cr-two-col .crpub-box > .group-title {
+  border-radius: 7px 7px 0 0;
 }
 
 .cp-ws-cr-two-col .crpub-box > :not(.group-title),
@@ -1542,10 +1581,119 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
 }
 
 @media (max-width: 860px) {
-  #pairings .swiss-workspace {
-    grid-template-columns: 1fr !important;
+  #appWindow #pairings .swiss-workspace {
+    grid-template-columns: minmax(0, 1fr) !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+  #pairings .cp-ws-pairings-card {
+    min-height: 0;
+  }
+  #pairings .cp-ws-pairings-card .live-pairing-table-wrap {
+    max-height: 340px !important;
   }
   .cp-ws-export-cards-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .cp-ws-card-title {
+    white-space: normal;
+  }
+  .cp-ws-hotkey-pill {
+    white-space: normal;
+    max-width: 100%;
+  }
+  #standings .cp-player-search-wrap {
+    min-width: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  #registration #registrationListsContainer {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    height: auto !important;
+    flex: 0 0 auto !important;
+  }
+  #registration #fideResultsBox,
+  #registration #startingRankBox {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    flex: 0 0 auto !important;
+  }
+  #registration #fideResultsBox > .fide-results-title,
+  #registration #startingRankBox > .group-title,
+  #registration .cp-reg-pane-head-left,
+  #registration .cp-reg-pane-head-right,
+  #registration .cp-reg-export-segmented,
+  #registration #startingRankBox .cp-reg-subbar-muted .cp-reg-subbar-group {
+    flex-wrap: wrap;
+    max-width: 100%;
+  }
+  #registration #startingRankSearch {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  #registration .cp-reg-fide-mini {
+    white-space: normal !important;
+  }
+  #main .tournament-general-grid,
+  .cp-ws-setup-two-col > .cp-ws-card > .form-grid-4,
+  .cp-ws-details-card .form-grid-4 {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .cp-ws-setup-two-col > .cp-ws-card {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+  #main .tournament-general-grid > label,
+  .cp-ws-setup-two-col > .cp-ws-card > .form-grid-4 > label,
+  .cp-ws-details-card .form-grid-4 > label {
+    justify-self: start !important;
+    text-align: left !important;
+  }
+  #appWindow .desktop-header-strip {
+    height: auto !important;
+    min-height: 34px;
+    flex-wrap: wrap;
+    row-gap: 4px;
+    column-gap: 6px;
+    padding: 4px 8px;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  #appWindow .desktop-status-controls {
+    flex-wrap: wrap;
+    min-width: 0;
+    max-width: 100%;
+    gap: 5px;
+    white-space: normal;
+  }
+  #appWindow #classicMenuBar,
+  #appWindow .statusbar {
+    flex-wrap: wrap !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+  }
+  #appWindow #main .tie-break-add-row {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+  #main .pab-points-control {
+    flex-wrap: wrap !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+  #main #tieBreakAddSelect {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
   }
 }

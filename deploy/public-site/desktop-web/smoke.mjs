@@ -228,7 +228,29 @@ try {
     }));
     refreshEverything();
   });
-  await page.locator('#cpFideEligibility summary').click();
+  const fideDetails = page.locator('#cpFideEligibility');
+  const fideSummary = page.locator('#cpFideEligibility summary');
+  const mainScroll = await page.evaluate(() => {
+    const content = document.querySelector('.content');
+    const main = document.getElementById('main');
+    const cStyle = getComputedStyle(content);
+    const prevTop = main.scrollTop;
+    main.scrollTop = main.scrollHeight;
+    const scrolled = main.scrollTop;
+    const notes = document.getElementById('generalNotes')?.closest('.groupbox');
+    const notesVisible = notes ? notes.getBoundingClientRect().bottom <= content.getBoundingClientRect().bottom + 4 : false;
+    main.scrollTop = prevTop;
+    return {
+      contentTrapped: content.scrollHeight > content.clientHeight + 4 && cStyle.overflowY === 'hidden',
+      mainScrollable: main.scrollHeight > main.clientHeight && scrolled > 0,
+      notesVisible
+    };
+  });
+  assert.equal(mainScroll.contentTrapped, false, JSON.stringify(mainScroll));
+  assert.equal(mainScroll.mainScrollable, true, JSON.stringify(mainScroll));
+  assert.equal(mainScroll.notesVisible, true, JSON.stringify(mainScroll));
+
+  await fideSummary.click();
   const eligibilityResult = page.locator('#cpEligibilityResult');
   await eligibilityResult.filter({ hasText: 'Select the event purpose.' }).waitFor();
   await page.locator('#cpEligibilityPurpose').selectOption('norm');
@@ -243,7 +265,13 @@ try {
   assert.ok(await page.evaluate(() => cpSmartScheduleProfile().maxRoundsPerDay > 2));
   assert.equal(await page.evaluate(() => window.__cpTrfCompliance.validate(26, 1, {syncUi: false})
     .warnings.some(warning => /FIDE Fast Classical|FIDE Rating Regulations 1.1/.test(warning))), false);
-  await page.locator('#cpFideEligibility summary').click();
+  await fideSummary.click();
+  assert.equal(await fideDetails.evaluate(el => el.open), false);
+  await fideSummary.focus();
+  await fideSummary.press('Enter');
+  assert.equal(await fideDetails.evaluate(el => el.open), true, 'Enter must open #cpFideEligibility');
+  await fideSummary.press('Space');
+  assert.equal(await fideDetails.evaluate(el => el.open), false, 'Space must close #cpFideEligibility');
   console.log('Fast Classical review, Smart Schedule and rating export preflight passed.');
 
   await page.locator('#tabRegistration').click();
@@ -362,6 +390,101 @@ try {
   assert.equal(checks[1].state,'fail',JSON.stringify(checks[1]));
   assert.equal(checks[2].state,'pass',JSON.stringify(checks[2]));
   assert.equal(checks[3].state,'pass',JSON.stringify(checks[3]));
+
+  // Verify Quick Result Entry UI buttons are enabled & clickable, Chess-Results options unclipped, and 5-width x 8-tab responsive matrix
+  await page.locator('#pairings aside.result-palette .result-main-action:not([disabled])').first().waitFor({ timeout: 10000 });
+  await page.locator('#livePairingsBody tr[data-board-index]').first().click();
+  await page.locator('#pairings aside.result-palette .result-main-action').nth(2).click();
+  assert.equal(await page.evaluate(() => getCurrentTournament().pairings.liveBoards['1'][0].result), '0 - 1');
+  await page.locator('#tabChessResults').click();
+  await page.locator('#chessresults .crpub-options summary').click();
+  const crDeleteOther = page.locator('#crXmlDeleteOtherButton');
+  await crDeleteOther.waitFor({ state: 'visible' });
+  const crBox = await crDeleteOther.boundingBox();
+  assert.ok(crBox && crBox.width > 20 && crBox.height > 15);
+  await page.locator('#chessresults .crpub-options summary').click();
+
+  const viewports = [
+    { width: 390, height: 844 },
+    { width: 768, height: 1024 },
+    { width: 1024, height: 768 },
+    { width: 1280, height: 800 },
+    { width: 1440, height: 920 }
+  ];
+  const allTabs = [
+    ['tabMain', 'main'],
+    ['tabRegistration', 'registration'],
+    ['tabPairings', 'pairings'],
+    ['tabStandings', 'standings'],
+    ['tabSchedule', 'schedule'],
+    ['tabChessResults', 'chessresults'],
+    ['tabExport', 'exportPage'],
+    ['tabHub', 'hub']
+  ];
+  for (const vp of viewports) {
+    await page.setViewportSize(vp);
+    for (const [tabId, pageId] of allTabs) {
+      await page.locator(`#${tabId}`).click();
+      await page.waitForTimeout(50);
+      const audit = await page.evaluate((pid) => {
+        const docOverflowX = document.documentElement.scrollWidth - document.documentElement.clientWidth;
+        const appWin = document.getElementById('appWindow');
+        const appOverflowX = appWin.scrollWidth - appWin.clientWidth;
+        const appOverflowKids = appOverflowX > 2
+          ? Array.from(appWin.children).map(c => `${c.id || c.className}:${c.scrollWidth}/${c.clientWidth}`)
+          : [];
+        const pg = document.getElementById(pid);
+        const pageOverflowX = pg.scrollWidth - pg.clientWidth;
+        const content = document.querySelector('.content');
+        const ccs = getComputedStyle(content);
+        const trappedVertical = content.scrollHeight > content.clientHeight + 4 && ccs.overflowY === 'hidden';
+        let overlapsEngineBar = false;
+        if (pid === 'pairings') {
+          const pal = pg.querySelector('aside.result-palette');
+          const eng = pg.querySelector('.cp-ws-engine-bar');
+          if (pal && eng) overlapsEngineBar = pal.getBoundingClientRect().bottom > eng.getBoundingClientRect().top + 1;
+        }
+        const blocked = [];
+        for (const el of pg.querySelectorAll('button, summary')) {
+          const s = getComputedStyle(el);
+          if (s.display === 'none' || s.visibility === 'hidden' || el.disabled) continue;
+          const closedDet = el.closest('details:not([open])');
+          if (closedDet && el.tagName !== 'SUMMARY') continue;
+          if (el.closest('[style*="display: none"], .hidden, .cp-reg-hidden-shell, .cp-ws-collapsed .cp-ws-collapsible-body, .cp-reg-drawer-collapsed .cp-reg-drawer-body, .cp-reg-manual-collapsed > .toolbar, .cp-ws-nr-collapsed .cp-ws-nr-body')) continue;
+          const r = el.getBoundingClientRect();
+          if (r.width < 4 || r.height < 4) continue;
+          if (r.right > window.innerWidth + 2 && !el.closest('.table-frame, .live-pairing-table-wrap, #nextRoundTableContainer')) {
+            blocked.push({ reason: 'clipped-right', id: el.id, text: el.textContent.trim().slice(0, 25), right: Math.round(r.right) });
+            continue;
+          }
+          const contentRect = content.getBoundingClientRect();
+          const scrollWrap = el.closest('.table-frame, .live-pairing-table-wrap, #nextRoundTableContainer');
+          const box = scrollWrap ? scrollWrap.getBoundingClientRect() : contentRect;
+          const topBound = Math.max(contentRect.top, box.top);
+          const bottomBound = Math.min(contentRect.bottom, box.bottom);
+          const leftBound = Math.max(0, box.left);
+          const rightBound = Math.min(window.innerWidth, box.right);
+          if (r.top >= topBound && r.bottom <= bottomBound && r.left >= leftBound && r.right <= rightBound) {
+            const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+            if (hit && hit !== el && !el.contains(hit)) {
+              blocked.push({ reason: 'hit-blocked', id: el.id, text: el.textContent.trim().slice(0, 25), hitBy: hit.tagName + '#' + hit.id });
+            }
+          }
+        }
+        return { docOverflowX, appOverflowX, appOverflowKids, pageOverflowX, trappedVertical, overlapsEngineBar, blocked };
+      }, pageId);
+      assert.ok(audit.docOverflowX <= 2, `${vp.width}px ${pageId} docOverflowX=${audit.docOverflowX}`);
+      assert.ok(audit.appOverflowX <= 2, `${vp.width}px ${pageId} appOverflowX=${audit.appOverflowX} (${audit.appOverflowKids.join(', ')})`);
+      assert.ok(audit.pageOverflowX <= 4, `${vp.width}px ${pageId} pageOverflowX=${audit.pageOverflowX}`);
+      assert.equal(audit.trappedVertical, false, `${vp.width}px ${pageId} trappedVertical`);
+      assert.equal(audit.overlapsEngineBar, false, `${vp.width}px ${pageId} overlapsEngineBar`);
+      assert.deepEqual(audit.blocked, [], `${vp.width}px ${pageId} blocked controls: ${JSON.stringify(audit.blocked)}`);
+    }
+  }
+  await page.setViewportSize({ width: 1440, height: 920 });
+  await page.locator('#tabPairings').click();
+  await page.locator('#cpWebCloudSaveStatus').filter({ hasText: 'Saved to private Cloud' }).waitFor({ timeout: 10000 });
+
   failNextUpload = true;
   await page.evaluate(() => {
     const board = getCurrentTournament().pairings.liveBoards['1'][0];
@@ -522,6 +645,26 @@ try {
   assert.equal(uploadsAfter401, uploadsBeforeWait);
   assert.deepEqual(freshErrors, []);
   console.log('Automatic private Cloud save, retry after 503, 401 stop, and restore in a fresh browser passed.');
+
+  // Touch-context verification for #cpFideEligibility summary
+  const touchCtx = await browser.newContext({ hasTouch: true, viewport: { width: 390, height: 844 } });
+  const touchPage = await touchCtx.newPage();
+  await installCloudFixture(touchPage);
+  await touchPage.goto(new URL('workspace.html', url).href);
+  await touchPage.getByLabel('Organizer Token').fill(token);
+  await touchPage.getByRole('button', { name: 'Отвори приложението' }).click();
+  const touchName = touchPage.getByRole('textbox', { name: 'Tournament name', exact: true });
+  await touchName.waitFor();
+  await touchName.fill('Touch Check');
+  await touchName.press('Enter');
+  await touchPage.locator('#main.active').waitFor();
+  const touchSummary = touchPage.locator('#cpFideEligibility summary');
+  await touchSummary.tap();
+  assert.equal(await touchPage.locator('#cpFideEligibility').evaluate(el => el.open), true, 'Touch tap must open #cpFideEligibility');
+  await touchSummary.tap();
+  assert.equal(await touchPage.locator('#cpFideEligibility').evaluate(el => el.open), false, 'Touch tap must close #cpFideEligibility');
+  await touchCtx.close();
+  console.log('Touch FIDE Eligibility toggle passed.');
 } finally {
   await browser.close();
 }
