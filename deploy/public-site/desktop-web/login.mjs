@@ -290,3 +290,5 @@ form?.addEventListener('submit', async event => {
     button.disabled = false;
   }
 });
+
+if (button) button.disabled = false;
