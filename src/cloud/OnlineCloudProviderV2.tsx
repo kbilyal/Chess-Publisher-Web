@@ -22,12 +22,12 @@ import {
   parseContinuationHint,
   stripContinuationHint
 } from './browserSyncPolicy';
-import { CompanionEntryScreen, CompanionTournamentSelectScreen } from '../companion/CompanionCloudScreens';
-import { receiveWebOrganizerToken } from '../companion/webOrganizerHandoff';
+import { CompanionLoginScreen, CompanionTournamentSelectScreen } from '../companion/CompanionCloudScreens';
 import { createCleanTournament, importTournamentFile } from '../importers/tournamentFileImport';
 
 const TOURNAMENT_STORAGE_KEY = 'fide_tournament_manager_v2';
 const TOKEN_SESSION_KEY = 'cpstudio.organizerToken.session';
+const TOKEN_LOCAL_KEY = 'cpstudio.organizerToken.remembered';
 const LAST_ORGANIZER_KEY = 'cpstudio.lastOrganizerId';
 const DEVICE_KEY = 'cpstudio.cloud.device.v1';
 const FINGERPRINT_SCHEMA = PORTABLE_FINGERPRINT_SCHEMA;
@@ -89,6 +89,11 @@ type OnlineCloudContextValue = {
 const OnlineCloudContext = createContext<OnlineCloudContextValue | null>(null);
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
 const text = (value: unknown) => value == null ? '' : String(value).trim();
+const normalizeOrganizerToken = (value: unknown) => text(value)
+  .replace(/^Bearer\s+/i, '')
+  .replace(/^['"]|['"]$/g, '')
+  .trim();
+
 function browserDevice() {
   try {
     const current = JSON.parse(localStorage.getItem(DEVICE_KEY) || 'null');
@@ -144,13 +149,16 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState('');
   const [authMode, setAuthMode] = useState<AuthMode>('none');
   const [googleUser, setGoogleUser] = useState<GoogleUserProfile | null>(null);
+  const [googleClientId, setGoogleClientId] = useState('');
+  const [tokenInput, setTokenInput] = useState('');
+  const [rememberToken, setRememberToken] = useState(false);
   const [workspace, setWorkspace] = useState<any>(null);
   const [cloudTournaments, setCloudTournaments] = useState<CloudTournamentMeta[]>([]);
   const [archivedCloudTournaments, setArchivedCloudTournaments] = useState<CloudTournamentMeta[]>([]);
   const [activeCloud, setActiveCloud] = useState<CloudTournamentMeta | null>(null);
-  const [status, setStatus] = useState('Checking your ChessPublisher Web session…');
-  const [statusKind, setStatusKind] = useState<StatusKind>('busy');
-  const [busy, setBusy] = useState(true);
+  const [status, setStatus] = useState('Sign in with Google or enter Organizer Token');
+  const [statusKind, setStatusKind] = useState<StatusKind>('warn');
+  const [busy, setBusy] = useState(false);
   const [conflict, setConflict] = useState(false);
   const [remoteChangesAvailable, setRemoteChangesAvailable] = useState(false);
   const [cloudDirty, setCloudDirty] = useState(false);
@@ -830,7 +838,34 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
     phaseRef.current = 'select';
   }
 
-  async function resumeOrganizerSession(candidate: string) {
+  async function loginWithGoogle(credential: string) {
+    const raw = text(credential);
+    if (!raw) return;
+    setBusy(true);
+    setStatus('Signing in with Google…');
+    setStatusKind('busy');
+    try {
+      const res = await authApi.googleLogin(raw);
+      if (!res?.ok || !res?.user?.organizerId) {
+        throw new Error(res?.message || 'Google Sign-In failed.');
+      }
+      await completeGoogleSession(res.user as GoogleUserProfile);
+    } catch (error: any) {
+      setGoogleSessionBridgeActive(false);
+      tokenRef.current = '';
+      setToken('');
+      setAuthMode('none');
+      setGoogleUser(null);
+      setStatus(error?.message || 'Google Sign-In failed.');
+      setStatusKind(error?.code === 'network_error' ? 'offline' : 'warn');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function loginWithToken(candidateRaw: string, remember: boolean) {
+    const candidate = normalizeOrganizerToken(candidateRaw);
+    if (!candidate) return;
     setBusy(true);
     setStatus('Checking Organizer Token…');
     setStatusKind('busy');
@@ -842,6 +877,9 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
       const list = await refreshWorkspace(candidate);
       setToken(candidate);
       sessionStorage.setItem(TOKEN_SESSION_KEY, candidate);
+      if (remember) localStorage.setItem(TOKEN_LOCAL_KEY, candidate);
+      else localStorage.removeItem(TOKEN_LOCAL_KEY);
+      setRememberToken(remember);
       setStatus('Connected');
       setStatusKind('ok');
       log('Organizer Cloud Workspace connected.');
@@ -865,7 +903,6 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
       phaseRef.current = 'select';
     } catch (error: any) {
       tokenRef.current = '';
-      sessionStorage.removeItem(TOKEN_SESSION_KEY);
       setAuthMode('none');
       setStatus(error?.message || 'Organizer Token could not be verified.');
       setStatusKind(error?.code === 'network_error' ? 'offline' : 'warn');
@@ -878,34 +915,29 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     (async () => {
       try {
-        const portalToken = await receiveWebOrganizerToken();
-        if (cancelled) return;
-        localStorage.removeItem('cpstudio.organizerToken.remembered');
-        const existingToken = portalToken || sessionStorage.getItem(TOKEN_SESSION_KEY);
-        if (existingToken) {
-          await resumeOrganizerSession(existingToken);
-          return;
+        const cfg = await authApi.config().catch(() => null);
+        if (!cancelled && cfg?.googleClientId) {
+          setGoogleClientId(String(cfg.googleClientId));
         }
-        const me = await authApi.me();
-        if (cancelled) return;
-        if (me?.authenticated === true && me?.user?.organizerId) {
-          await completeGoogleSession(me.user as GoogleUserProfile);
-          return;
+        const me = await authApi.me().catch(() => null);
+        if (!cancelled && me?.authenticated === true && me?.user?.organizerId) {
+          setBusy(true);
+          try {
+            await completeGoogleSession(me.user as GoogleUserProfile);
+            return;
+          } finally {
+            if (!cancelled) setBusy(false);
+          }
         }
-        setStatus('');
-      } catch (error) {
-        if (cancelled) return;
-        setGoogleSessionBridgeActive(false);
-        tokenRef.current = '';
-        setToken('');
-        setAuthMode('none');
-        setGoogleUser(null);
-        const offline = error instanceof CloudApiError && error.code === 'network_error';
-        setStatus(offline ? 'Cloud Workspace is unavailable.' : 'Your ChessPublisher Web session could not be opened.');
-        setStatusKind(offline ? 'offline' : 'warn');
-      } finally {
-        if (!cancelled) setBusy(false);
-      }
+      } catch { /* fallback to token */ }
+
+      if (cancelled) return;
+      const remembered = sessionStorage.getItem(TOKEN_SESSION_KEY) || localStorage.getItem(TOKEN_LOCAL_KEY) || '';
+      if (!remembered) return;
+      setTokenInput(remembered);
+      const remember = Boolean(localStorage.getItem(TOKEN_LOCAL_KEY));
+      setRememberToken(remember);
+      void loginWithToken(remembered, remember);
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1109,11 +1141,13 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
     const wasGoogle = authMode === 'google';
     setGoogleSessionBridgeActive(false);
     sessionStorage.removeItem(TOKEN_SESSION_KEY);
+    localStorage.removeItem(TOKEN_LOCAL_KEY);
     localStorage.removeItem(TOURNAMENT_STORAGE_KEY);
     localStorage.removeItem(LAST_ORGANIZER_KEY);
     lastObservedRawRef.current = '';
     if (wasGoogle) {
       void authApi.logout().catch(() => {});
+      try { (window as any).google?.accounts?.id?.disableAutoSelect?.(); } catch { /* ignore */ }
     }
     setToken('');
     tokenRef.current = '';
@@ -1126,7 +1160,7 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
     activeRef.current = null;
     setPhase('login');
     phaseRef.current = 'login';
-    setStatus('');
+    setStatus('Sign in with Google or enter Organizer Token');
     setStatusKind('warn');
     setConflict(false);
     conflictRef.current = false;
@@ -1168,11 +1202,17 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
 
   if (phase === 'login') {
     return (
-      <CompanionEntryScreen
+      <CompanionLoginScreen
+        tokenInput={tokenInput}
+        rememberToken={rememberToken}
         busy={busy}
         status={status}
         statusKind={statusKind}
-        tournamentHint={parseContinuationHint(window.location.search)}
+        googleClientId={googleClientId}
+        onGoogleCredential={cred => void loginWithGoogle(cred)}
+        onTokenInput={setTokenInput}
+        onRememberToken={setRememberToken}
+        onConnect={() => void loginWithToken(tokenInput, rememberToken)}
       />
     );
   }

@@ -14,7 +14,7 @@ permissions:
   contents: read
 jobs:
   entry-preview:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -45,6 +45,8 @@ jobs:
           import './src/index.css';
           import './src/companion-cloud.css';
           import './src/mobile-native.css';
+          import './src/companion-desktop.css';
+          import './src/companion-ui-polish.css';
 
           const params = new URLSearchParams(location.search);
           const screen = params.get('screen') || 'login';

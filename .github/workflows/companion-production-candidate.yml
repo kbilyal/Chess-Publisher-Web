@@ -65,7 +65,7 @@ jobs:
       - name: Browser smoke for ChessPublisher Web sign-in and Companion
         run: |
           npm install --prefix "$RUNNER_TEMP/cp-companion-test" --no-save playwright-core@1.65.1
-          node tests/ui/companion-web-entry-smoke.mjs "$RUNNER_TEMP/cp-companion-test" "$(command -v google-chrome)"
+          node --import tsx tests/ui/companion-web-entry-smoke.mjs "$RUNNER_TEMP/cp-companion-test" "$(command -v google-chrome)"
       - name: Verify exact Companion production artifact
         shell: bash
         run: |

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
+import { createInitialEmptyTournament } from '../../src/data/initialData.ts';
 
 const [modules, executablePath] = process.argv.slice(2);
 const { chromium } = createRequire(`${modules}/package.json`)('playwright-core');
@@ -13,7 +14,7 @@ const user = { id: 'user-1', organizerId: 'organizer-1', name: 'Test organizer' 
 const tournament = { id: 'cloud.example', name: 'Spring Open', localKey: 'test-local', revision: 1 };
 const portalSource = 'deploy/public-site/desktop-web';
 const snapshot = { data: { currentTournament: tournament.name, tournaments: {
-  [tournament.name]: { name: tournament.name, players: [], settings: { eventName: tournament.name } }
+  [tournament.name]: createInitialEmptyTournament(tournament.name)
 } } };
 
 async function configure(context) {
@@ -85,6 +86,17 @@ async function configure(context) {
   return calls;
 }
 
+async function checkTournament(page, calls) {
+  try {
+    await page.locator('.companion-topbar').getByText(tournament.name).waitFor({ timeout: 10000 });
+  } catch (error) {
+    const body = await page.locator('body').innerText().catch(() => '');
+    throw new Error(`Companion tournament did not open at ${page.url()}
+${body}
+${calls.map(call => [call.path, call.origin]).join('\n')}`, { cause: error });
+  }
+}
+
 async function checkWidth(page) {
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth));
 }
@@ -109,7 +121,7 @@ try {
     page.waitForEvent('popup'),
     page.getByRole('link', { name: 'Arbiter Companion' }).click()
   ]);
-  await googleCompanion.locator('.companion-topbar').getByText(tournament.name).waitFor();
+  await checkTournament(googleCompanion, googleCalls);
   await checkWidth(googleCompanion);
   assert.equal(googleCalls.filter(call => call.path === '/api/auth/google').length, 1);
   assert.ok(googleCalls.some(call => call.path.endsWith('/snapshot') && call.origin === companion && !call.bearer));
@@ -127,7 +139,7 @@ try {
     portal.waitForEvent('popup'),
     portal.getByRole('link', { name: 'Arbiter Companion' }).click()
   ]);
-  await tokenCompanion.locator('.companion-topbar').getByText(tournament.name).waitFor();
+  await checkTournament(tokenCompanion, tokenCalls);
   assert.equal(tokenCompanion.url(), companion + '/');
   assert.equal(await tokenCompanion.evaluate(() => window.opener), null);
   assert.ok(tokenCalls.some(call => call.path.endsWith('/snapshot') && call.origin === companion && call.bearer === `Bearer ${token}`));

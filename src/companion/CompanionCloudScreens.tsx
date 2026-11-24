@@ -1,3 +1,4 @@
+import { parseContinuationHint } from '../cloud/browserSyncPolicy';
 import React, { useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
@@ -29,6 +30,22 @@ export type CompanionCloudTournament = {
 };
 
 type StatusKind = 'ok' | 'busy' | 'warn' | 'offline';
+
+// The Cloud provider owns session validation and still supplies the connection
+// state. Organizer credentials are collected by ChessPublisher Web.
+export function CompanionLoginScreen({ busy, status, statusKind }: {
+  busy: boolean;
+  status: string;
+  statusKind: StatusKind;
+  [key: string]: unknown;
+}) {
+  return <CompanionEntryScreen
+    busy={busy}
+    status={statusKind === 'busy' ? 'Checking your ChessPublisher Web session…' : statusKind === 'offline' ? status : ''}
+    statusKind={statusKind}
+    tournamentHint={parseContinuationHint(window.location.search)}
+  />;
+}
 
 export function CompanionEntryScreen({ busy, status, statusKind, tournamentHint }: {
   busy: boolean;
@@ -184,7 +201,7 @@ export function CompanionTournamentSelectScreen(props: {
               <Plus size={20} /><span><strong>New tournament</strong><small>Create a private Cloud tournament.</small></span>
             </button>
             <button type="button" className="companion-start-action" disabled={busy} onClick={() => importInputRef.current?.click()}>
-              <FileUp size={20} /><span><strong>Import tournament</strong><small>TRF16, TRF26, TUNX or Players XML.</small></span>
+              <FileUp size={20} /><span><strong>Import tournament</strong><small>TRF16 · TRF26 · TUNX · Players XML</small></span>
             </button>
             <input
               ref={importInputRef}

@@ -10,7 +10,7 @@ const has = (source, marker, message) => assert.ok(source.includes(marker), mess
 const lacks = (source, marker, message) => assert.ok(!source.includes(marker), message || `Forbidden ${marker}`);
 
 has(provider, "from '../companion/CompanionCloudScreens'", 'Cloud provider must use the focused Companion entry screens.');
-has(provider, '<CompanionEntryScreen', 'Signed-out users must be directed to ChessPublisher Web.');
+has(provider, '<CompanionLoginScreen', 'Signed-out users must be directed to ChessPublisher Web.');
 has(provider, '<CompanionTournamentSelectScreen', 'My Tournaments is not wired to the Companion tournament screen.');
 has(provider, 'function readLocalTournament()', 'Browser-local tournament persistence must remain available for continuation/sync.');
 has(provider, 'async function continueWithLocal()', 'Underlying local-to-Cloud continuation logic must remain available.');
@@ -19,9 +19,9 @@ has(provider, 'onOpen={meta => void openCloud(meta)}', 'Cloud tournament cards m
 lacks(screens, 'onContinueLocal', 'The obsolete visible local-continuation action must stay removed.');
 lacks(screens, 'THIS BROWSER', 'The obsolete This Browser section must stay removed.');
 lacks(screens, 'companion-local-continuation', 'The obsolete local continuation card must stay removed.');
-has(provider, 'receiveWebOrganizerToken()', 'Legacy token access must start from the Web workspace.');
+has(main, 'prepareWebOrganizerSession().finally', 'Legacy token access must start from ChessPublisher Web before the provider mounts.');
 has(provider, 'await authApi.me()', 'Companion must resume the Web cookie session.');
-lacks(provider, 'authApi.googleLogin', 'Companion must not initiate Google sign-in.');
+lacks(screens, 'onGoogleCredential', 'Companion must not initiate Google sign-in.');
 lacks(screens, 'type="password"', 'Companion must not provide an Organizer Token form.');
 has(screens, 'My tournaments', 'My Tournaments heading is missing.');
 has(screens, 'Cloud tournaments', 'Cloud tournament list is missing.');
