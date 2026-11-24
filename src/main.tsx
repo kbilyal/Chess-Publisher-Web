@@ -9,6 +9,7 @@ import './companion/installTabScrollReset';
 import App from './App.tsx';
 import {OnlineCloudProvider} from './cloud/OnlineCloudProvider';
 import {ArbiterPortal} from './arbiter/ArbiterPortal';
+import { prepareWebOrganizerSession } from './companion/webOrganizerHandoff';
 import './index.css';
 import './companion.css';
 import './companion-cloud.css';
@@ -30,14 +31,18 @@ import './arbiter/arbiter-desktop-dense.css';
 
 const isArbiterAccess = new URLSearchParams(window.location.search).has('arbiter');
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    {isArbiterAccess ? (
-      <ArbiterPortal />
-    ) : (
-      <OnlineCloudProvider>
-        <App />
-      </OnlineCloudProvider>
-    )}
-  </StrictMode>,
-);
+const root = createRoot(document.getElementById('root')!);
+
+if (isArbiterAccess) {
+  root.render(<StrictMode><ArbiterPortal /></StrictMode>);
+} else {
+  void prepareWebOrganizerSession().finally(() => {
+    root.render(
+      <StrictMode>
+        <OnlineCloudProvider>
+          <App />
+        </OnlineCloudProvider>
+      </StrictMode>,
+    );
+  });
+}

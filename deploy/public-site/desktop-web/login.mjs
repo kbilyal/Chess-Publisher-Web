@@ -18,6 +18,7 @@ const signedInPanel = document.querySelector('#signed-in-panel');
 const signedInAvatar = document.querySelector('#signed-in-avatar');
 const signedInName = document.querySelector('#signed-in-name');
 const signedInEmail = document.querySelector('#signed-in-email');
+const openArbiterLink = document.querySelector('#open-arbiter-btn');
 const openWorkspaceBtn = document.querySelector('#open-workspace-btn');
 const accountLogoutBtn = document.querySelector('#account-logout-btn');
 const loginTournamentsList = document.querySelector('#login-tournaments-list');
@@ -46,15 +47,14 @@ async function persistCookieSession(user) {
   }));
 }
 
-function workspaceTargetUrl() {
-  try {
-    const raw = new URLSearchParams(typeof location !== 'undefined' ? (location.search || '') : '').get('cloudTournamentId');
-    const safe = String(raw || '').trim();
-    if (/^[A-Za-z0-9:_-]{1,160}$/.test(safe)) {
-      return `./workspace.html?cloudTournamentId=${encodeURIComponent(safe)}`;
-    }
-  } catch {}
-  return './workspace.html';
+const params = new URLSearchParams(location.search);
+const isAccountView = params.get('account') === '1';
+const tournamentHint = (params.get('cloudTournamentId') || '').trim();
+
+function workspaceTargetUrl(path = './workspace.html') {
+  return /^[A-Za-z0-9._:-]{1,200}$/.test(tournamentHint)
+    ? `${path}?cloudTournamentId=${encodeURIComponent(tournamentHint)}`
+    : path;
 }
 
 async function handleGoogleCredential(response) {
@@ -79,7 +79,8 @@ async function handleGoogleCredential(response) {
       throw new Error(data?.message || 'Google auth failed');
     }
     await persistCookieSession(data.user);
-    location.assign(workspaceTargetUrl());
+    if (isAccountView) showSignedInPanel(data.user);
+    else location.assign(workspaceTargetUrl());
   } catch {
     if (status) status.textContent = 'Google Sign-In is temporarily unavailable. Please try again.';
   }
@@ -132,7 +133,8 @@ function showSignedInPanel(user) {
       signedInAvatar.hidden = true;
     }
   }
-  openWorkspaceBtn?.addEventListener('click', () => location.assign('./workspace.html'), { once: true });
+  if (openArbiterLink) openArbiterLink.href = workspaceTargetUrl(openArbiterLink.href);
+  openWorkspaceBtn?.addEventListener('click', () => location.assign(workspaceTargetUrl()), { once: true });
   accountLogoutBtn?.addEventListener('click', async () => {
     accountLogoutBtn.disabled = true;
     try {
@@ -174,7 +176,6 @@ async function resolveGoogleClientId() {
 async function initGoogleSignIn() {
   if (!googleBtnContainer) return;
 
-  const isAccountView = typeof location !== 'undefined' && new URLSearchParams(location.search || '').get('account') === '1';
   try {
     const meRes = await fetch(`${apiBase}/api/auth/me?optional=1`, {
       headers: { Accept: 'application/json' },
@@ -260,7 +261,7 @@ form?.addEventListener('submit', async event => {
     const scope = await sha256Hex(identity);
     sessionStorage.setItem('cp.desktop-web.session', JSON.stringify({ token, scope }));
     input.value = '';
-    location.assign('./workspace.html');
+    location.assign(workspaceTargetUrl());
   } catch {
     status.textContent = 'Sign-in is temporarily unavailable. Please try again.';
   } finally {

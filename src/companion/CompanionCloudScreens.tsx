@@ -1,9 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { parseContinuationHint } from '../cloud/browserSyncPolicy';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
-  ArrowRight,
   Archive,
-  CheckCircle2,
   ChevronRight,
   Cloud,
   ExternalLink,
@@ -14,10 +13,8 @@ import {
   RotateCcw,
   Search,
   ShieldCheck,
-  Smartphone,
   Trash2,
   Trophy,
-  WifiOff,
   X
 } from 'lucide-react';
 
@@ -34,113 +31,46 @@ export type CompanionCloudTournament = {
 
 type StatusKind = 'ok' | 'busy' | 'warn' | 'offline';
 
-export function CompanionLoginScreen(props: {
-  tokenInput: string;
-  rememberToken: boolean;
+// The Cloud provider owns session validation and still supplies the connection
+// state. Organizer credentials are collected by ChessPublisher Web.
+export function CompanionLoginScreen({ busy, status, statusKind }: {
   busy: boolean;
   status: string;
   statusKind: StatusKind;
-  googleClientId?: string;
-  onGoogleCredential?: (credential: string) => void;
-  onTokenInput: (value: string) => void;
-  onRememberToken: (value: boolean) => void;
-  onConnect: () => void;
+  [key: string]: unknown;
 }) {
-  const {
-    tokenInput,
-    rememberToken,
-    busy,
-    status,
-    statusKind,
-    googleClientId,
-    onGoogleCredential,
-    onTokenInput,
-    onRememberToken,
-    onConnect
-  } = props;
-  const googleBtnRef = useRef<HTMLDivElement>(null);
+  return <CompanionEntryScreen
+    busy={busy}
+    status={statusKind === 'busy' ? 'Checking your ChessPublisher Web session…' : statusKind === 'offline' ? status : ''}
+    statusKind={statusKind}
+    tournamentHint={parseContinuationHint(window.location.search)}
+  />;
+}
 
-  useEffect(() => {
-    if (!googleClientId || !onGoogleCredential) return;
-    let cancelled = false;
-    let attempts = 0;
-    const mount = () => {
-      if (cancelled || !googleBtnRef.current) return;
-      const gsi = (window as any).google?.accounts?.id;
-      if (!gsi) {
-        if (++attempts < 40) window.setTimeout(mount, 150);
-        return;
-      }
-      gsi.initialize({
-        client_id: googleClientId,
-        callback: (res: any) => {
-          const cred = String(res?.credential || '').trim();
-          if (cred) onGoogleCredential(cred);
-        },
-        auto_select: false
-      });
-      googleBtnRef.current.replaceChildren();
-      gsi.renderButton(googleBtnRef.current, {
-        theme: 'outline',
-        size: 'large',
-        text: 'signin_with',
-        shape: 'rectangular',
-        locale: 'en'
-      });
-    };
-    mount();
-    return () => { cancelled = true; };
-  }, [googleClientId, onGoogleCredential]);
+export function CompanionEntryScreen({ busy, status, statusKind, tournamentHint }: {
+  busy: boolean;
+  status: string;
+  statusKind: StatusKind;
+  tournamentHint: string;
+}) {
+  const webUrl = new URL('https://chess-publisher.org/app/');
+  webUrl.searchParams.set('account', '1');
+  if (tournamentHint) webUrl.searchParams.set('cloudTournamentId', tournamentHint);
 
   return (
     <main className="companion-entry-shell">
-      <section className="companion-login-card">
-        <div className="companion-entry-brand"><div className="companion-entry-mark">CP</div><div><strong>Chess-Publisher</strong><span>Arbiter Companion</span></div></div>
+      <section className="companion-login-card" aria-labelledby="companion-entry-title">
+        <div className="companion-entry-brand">
+          <img className="companion-entry-mark" src="/icons/chess-publisher-icon-192.png" alt="" />
+          <div><strong>ChessPublisher</strong><span>Arbiter Companion</span></div>
+        </div>
         <div className="companion-login-copy">
-          <span className="companion-entry-eyebrow">ORGANIZER WORKSPACE</span>
-          <h1>Continue your desktop tournaments anywhere.</h1>
-          <p>Sign in with your Google account or Organizer Token to open synchronized tournaments, register players and publish to Chess-Results or the Online Hub.</p>
+          <h1 id="companion-entry-title">Arbiter Companion</h1>
+          <p>Sign in through ChessPublisher Web, then open Arbiter Companion from your workspace.</p>
         </div>
-        {googleClientId && (
-          <div className="companion-google-auth">
-            <div ref={googleBtnRef} id="companion-google-signin" />
-            <div className="companion-auth-divider"><span>or sign in with Organizer Token</span></div>
-          </div>
-        )}
-        <label className="companion-entry-field">
-          <span>Organizer Token</span>
-          <input
-            type="password"
-            value={tokenInput}
-            onChange={event => onTokenInput(event.target.value)}
-            onKeyDown={event => { if (event.key === 'Enter' && tokenInput.trim() && !busy) onConnect(); }}
-            autoComplete="off"
-            placeholder="Paste Organizer Token"
-          />
-        </label>
-        <label className="companion-entry-remember"><input type="checkbox" checked={rememberToken} onChange={event => onRememberToken(event.target.checked)} /><span>Remember on this device</span></label>
-        <button type="button" className="companion-entry-primary" disabled={busy || !tokenInput.trim()} onClick={onConnect}>
-          {busy ? <RefreshCw size={17} className="spin" /> : <ShieldCheck size={17} />}
-          <span>{busy ? 'Connecting…' : 'Connect to my tournaments'}</span><ArrowRight size={17} />
-        </button>
-        <div className={`companion-entry-status ${statusKind}`}>
-          {statusKind === 'ok' ? <CheckCircle2 size={15} /> : statusKind === 'offline' ? <WifiOff size={15} /> : <Cloud size={15} />}
-          <span>{status}</span>
-        </div>
-        <div className="companion-entry-security">
-          <ShieldCheck size={14} />
-          <span>Your Google session or token stays strictly scoped to your private Cloud workspace. <a href="https://chess-publisher.org/app/" rel="noopener noreferrer">Open Web Portal ↗</a></span>
-        </div>
+        {!busy && <a className="companion-entry-primary" href={webUrl.href}>Open ChessPublisher Web</a>}
+        {status && <div className={`companion-entry-status ${statusKind}`} role="status">{status}</div>}
       </section>
-      <aside className="companion-entry-side">
-        <div className="companion-entry-side-content">
-          <span className="companion-entry-eyebrow light">ONE TOURNAMENT · EVERY DEVICE</span>
-          <h2>Desktop creates it. Web continues it.</h2>
-          <div className="companion-entry-feature"><Cloud size={20} /><div><strong>Private Cloud synchronization</strong><span>Full tournament object, revision history and conflict protection.</span></div></div>
-          <div className="companion-entry-feature"><Smartphone size={20} /><div><strong>Fast on mobile</strong><span>Setup, registration and publishing without the desktop-only workspaces.</span></div></div>
-          <div className="companion-entry-feature"><Trophy size={20} /><div><strong>Two publication targets</strong><span>Chess-Results and Chess-Publisher Online Hub stay independent.</span></div></div>
-        </div>
-      </aside>
     </main>
   );
 }
@@ -243,10 +173,10 @@ export function CompanionTournamentSelectScreen(props: {
   return (
     <main className="companion-select-shell companion-native-surface">
       <header className="companion-select-topbar companion-native-topbar">
-        <div className="companion-entry-brand compact"><div className="companion-entry-mark">CP</div><div><strong>Arbiter Companion</strong><span>{showTrash ? 'Trash' : 'My tournaments'}</span></div></div>
+        <div className="companion-entry-brand compact"><img className="companion-entry-mark" src="/icons/chess-publisher-icon-192.png" alt="" /><div><strong>Arbiter Companion</strong><span>{showTrash ? 'Trash' : 'My tournaments'}</span></div></div>
         <div className="companion-select-actions">
           {showTrash && <button type="button" className="companion-icon-action" aria-label="Back to tournaments" onClick={() => { setShowTrash(false); setQuery(''); }}><ArrowLeft size={19} /><span>Back</span></button>}
-          <a className="companion-icon-action" href="https://chess-publisher.org/app/" aria-label="Open Web Portal"><ExternalLink size={17} /><span>Web Portal</span></a>
+          <a className="companion-icon-action" href="https://chess-publisher.org/app/" aria-label="Open ChessPublisher Web"><ExternalLink size={17} /><span>ChessPublisher Web</span></a>
           <button type="button" className="companion-icon-action" onClick={onRefresh} disabled={busy} aria-label="Refresh tournaments"><RefreshCw size={18} className={busy ? 'spin' : ''} /><span>Refresh</span></button>
           <button type="button" className="companion-icon-action" onClick={onSignOut} aria-label="Sign out"><LogOut size={18} /><span>Sign out</span></button>
         </div>
@@ -254,7 +184,7 @@ export function CompanionTournamentSelectScreen(props: {
 
       <div className="companion-select-content companion-native-content">
         <section className="companion-select-head companion-hub-hero">
-          <div><span className="companion-entry-eyebrow">{showTrash ? 'RECOVERY' : 'SYNCHRONIZED WORKSPACE'}</span><h1>{showTrash ? 'Trash' : 'My tournaments'}</h1><p>{showTrash ? 'Restore tournaments that were archived before permanent Cloud deletion was enabled.' : 'Create, import or continue the same tournament from Web and Chess-Publisher Desktop.'}</p></div>
+          <div><h1>{showTrash ? 'Trash' : 'My tournaments'}</h1><p>{showTrash ? 'Restore tournaments that were archived before permanent Cloud deletion was enabled.' : 'Create, import, or open a synchronized tournament.'}</p></div>
           <div className="companion-organizer-pill">
             {googleUser?.avatarUrl && googleUser.avatarUrl.startsWith('https://') ? (
               <img className="companion-organizer-avatar" src={googleUser.avatarUrl} alt="" referrerPolicy="no-referrer" />
@@ -268,10 +198,10 @@ export function CompanionTournamentSelectScreen(props: {
         {!showTrash && (
           <section className="companion-start-actions" aria-label="Tournament start actions">
             <button type="button" className="companion-start-action primary" disabled={busy} onClick={() => setNewDialog(true)}>
-              <Plus size={20} /><span><strong>New tournament</strong><small>Create a private Cloud tournament that Desktop can open.</small></span><ArrowRight size={18} />
+              <Plus size={20} /><span><strong>New tournament</strong><small>Create a private Cloud tournament.</small></span>
             </button>
             <button type="button" className="companion-start-action" disabled={busy} onClick={() => importInputRef.current?.click()}>
-              <FileUp size={20} /><span><strong>Import tournament</strong><small>TRF16 · TRF26 · TUNX · Players XML — tournament/roster import and Cloud sync.</small></span><ArrowRight size={18} />
+              <FileUp size={20} /><span><strong>Import tournament</strong><small>TRF16 · TRF26 · TUNX · Players XML</small></span>
             </button>
             <input
               ref={importInputRef}
@@ -320,10 +250,10 @@ export function CompanionTournamentSelectScreen(props: {
           </div>
         )}
 
-        <div className={`companion-select-status ${statusKind}`}><span className="companion-select-status-dot" /><span>{status}</span></div>
+        <div className={`companion-select-status ${statusKind}`} role="status"><span className="companion-select-status-dot" /><span>{status}</span></div>
 
         <section className="companion-tournament-list companion-native-list">
-          <div className="companion-tournament-list-head"><div><h2>{showTrash ? 'Recently removed' : 'Cloud tournaments'}</h2><p>{filtered.length === source.length ? `${source.length} tournament${source.length === 1 ? '' : 's'}` : `${filtered.length} of ${source.length}`} {showTrash ? 'in Trash.' : 'available for this Organizer Token.'}</p></div>{showTrash ? <Archive size={21} /> : <Cloud size={21} />}</div>
+          <div className="companion-tournament-list-head"><div><h2>{showTrash ? 'Recently removed' : 'Cloud tournaments'}</h2><p>{filtered.length === source.length ? `${source.length} tournament${source.length === 1 ? '' : 's'}` : `${filtered.length} of ${source.length}`} {showTrash ? 'in Trash.' : 'in your Cloud workspace.'}</p></div>{showTrash ? <Archive size={21} /> : <Cloud size={21} />}</div>
           <div className="companion-tournament-grid">
             {filtered.map(meta => (
               <article key={meta.id} className="companion-tournament-tile companion-native-tile">

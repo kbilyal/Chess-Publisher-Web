@@ -62,6 +62,10 @@ jobs:
         run: npm run test:chess-results-companion
       - name: Build clean Vite Companion production artifact
         run: npm run build
+      - name: Browser smoke for ChessPublisher Web sign-in and Companion
+        run: |
+          npm install --prefix "$RUNNER_TEMP/cp-companion-test" --no-save playwright-core@1.65.1
+          node --import tsx tests/ui/companion-web-entry-smoke.mjs "$RUNNER_TEMP/cp-companion-test" "$(command -v google-chrome)"
       - name: Verify exact Companion production artifact
         shell: bash
         run: |

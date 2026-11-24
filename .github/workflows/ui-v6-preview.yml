@@ -102,6 +102,9 @@ jobs:
             page.on('pageerror', error => errors.push(`pageerror: ${error.message}`));
             page.on('console', message => { if (message.type() === 'error') errors.push(`console: ${message.text()}`); });
             await page.addInitScript(() => sessionStorage.setItem('cpstudio.organizerToken.session', 'fixture-organizer'));
+            await page.route('**/api/auth/**', route => route.fulfill({
+              json: { ok: true, googleClientId: null, authenticated: false, user: null }
+            }));
             await page.route('**/api/v1/cloud/**', async route => {
               const request = route.request();
               const path = new URL(request.url()).pathname;
@@ -122,7 +125,7 @@ jobs:
               return route.fulfill({ headers, json });
             });
             await page.goto(base, { waitUntil: 'networkidle' });
-            await page.waitForTimeout(350);
+            await page.locator('.companion-shell').waitFor({ state: 'visible' });
             if (errors.length) throw new Error(errors.join('\n'));
             return page;
           }

@@ -1,4 +1,4 @@
-const CACHE = 'chess-publisher-pwa-v2';
+const CACHE = 'chess-publisher-pwa-v3';
 const SHELL = ['/', '/manifest.webmanifest', '/icons/chess-publisher-icon-192.png', '/icons/chess-publisher-icon-512.png', '/icons/chess-publisher-maskable-512.png'];
 
 self.addEventListener('install', event => {

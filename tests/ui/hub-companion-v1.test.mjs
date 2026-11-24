@@ -84,7 +84,7 @@ has(browserFide, "const SQL_WASM_URL = '/vendor/sql-wasm.wasm'", 'Browser FIDE f
 has(vite, 'data/fide/fide_ratings.sqlite', 'Production Vite build must package the official FIDE SQLite database.');
 has(vite, 'node_modules/sql.js/dist/sql-wasm.wasm', 'Production Vite build must package the sql.js WASM runtime.');
 
-has(cloudScreens, 'CompanionLoginScreen', 'Focused Organizer login surface is missing.');
+has(cloudScreens, 'CompanionEntryScreen', 'ChessPublisher Web entry link is missing.');
 has(cloudScreens, 'CompanionTournamentSelectScreen', 'Focused My Tournaments surface is missing.');
 has(cloudScreens, 'My tournaments', 'My Tournaments navigation wording is missing.');
 has(cloudScreens, 'New tournament', 'Web start page must create a new private tournament.');

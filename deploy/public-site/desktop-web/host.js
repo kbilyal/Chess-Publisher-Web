@@ -199,12 +199,39 @@
   }
 
   function buildArbiterCompanionHref() {
-    try {
-      const current = typeof getCurrentTournament === 'function' ? getCurrentTournament() : null;
-      const cloudId = String(current?.cloud?.cloudTournamentId || current?.cloud?.internalId || '').trim();
-      if (cloudId) return `${ARBITER_COMPANION_URL}?cloudTournamentId=${encodeURIComponent(cloudId)}`;
-    } catch {}
-    return ARBITER_COMPANION_URL;
+    const current = typeof getCurrentTournament === 'function' ? getCurrentTournament() : null;
+    const incoming = new URLSearchParams(location.search).get('cloudTournamentId');
+    const cloudId = String(current?.cloud?.cloudTournamentId || current?.cloud?.internalId || incoming || '').trim();
+    const url = new URL(ARBITER_COMPANION_URL);
+    if (/^[A-Za-z0-9._:-]{1,200}$/.test(cloudId)) url.searchParams.set('cloudTournamentId', cloudId);
+    return url;
+  }
+
+  function openArbiterCompanion(event) {
+    const url = buildArbiterCompanionHref();
+    event.currentTarget.href = url.href;
+    try { window.cpWebFlushAutosave?.(); } catch {}
+    if (!isLegacyTokenMode) return;
+
+    event.preventDefault();
+    url.searchParams.set('webHandoff', '1');
+    const companion = window.open(url.href, '_blank');
+    if (!companion) {
+      window.alert('Allow pop-ups for ChessPublisher Web to open Arbiter Companion.');
+      return;
+    }
+
+    const stop = () => {
+      window.clearTimeout(timeout);
+      window.removeEventListener('message', ready);
+    };
+    const ready = message => {
+      if (message.origin !== url.origin || message.source !== companion || message.data?.type !== 'cp:companion-ready') return;
+      stop();
+      if (session.token) companion.postMessage({ type: 'cp:web-organizer-token', token: session.token }, url.origin);
+    };
+    const timeout = window.setTimeout(stop, 15000);
+    window.addEventListener('message', ready);
   }
 
   function renderUserMenu(menu) {
@@ -246,10 +273,7 @@
     arbiterBtn.target = '_blank';
     arbiterBtn.rel = 'noopener noreferrer';
     arbiterBtn.title = 'Open Arbiter Companion (mobile/quick setup, registration & publishing)';
-    arbiterBtn.addEventListener('click', () => {
-      arbiterBtn.href = buildArbiterCompanionHref();
-      try { window.cpWebFlushAutosave?.(); } catch {}
-    });
+    arbiterBtn.addEventListener('click', openArbiterCompanion);
 
     const quickSection = makeEl('div', 'cp-user-panel-section');
     quickSection.append(makeEl('div', 'cp-user-section-title', 'Quick Access'));
@@ -257,11 +281,10 @@
     panelArbiterLink.href = ARBITER_COMPANION_URL;
     panelArbiterLink.target = '_blank';
     panelArbiterLink.rel = 'noopener noreferrer';
-    panelArbiterLink.addEventListener('click', () => {
-      panelArbiterLink.href = buildArbiterCompanionHref();
+    panelArbiterLink.addEventListener('click', event => {
+      openArbiterCompanion(event);
       panel.hidden = true;
       toggle.setAttribute('aria-expanded', 'false');
-      try { window.cpWebFlushAutosave?.(); } catch {}
     });
     quickSection.append(panelArbiterLink);
     panel.append(quickSection);
