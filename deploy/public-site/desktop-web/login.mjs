@@ -12,6 +12,7 @@ const form = document.querySelector('form');
 const input = document.querySelector('#organizer-token');
 const button = form?.querySelector?.('button');
 const status = document.querySelector('#login-status');
+const googleStatus = document.querySelector('#google-status');
 const googleSection = document.querySelector('#google-auth-section');
 const googleBtnContainer = document.querySelector('#google-signin-button');
 const signedInPanel = document.querySelector('#signed-in-panel');
@@ -63,10 +64,10 @@ function workspaceTargetUrl(path = './workspace.html') {
 async function handleGoogleCredential(response) {
   const credential = String(response?.credential || '').trim();
   if (!credential) {
-    if (status) status.textContent = 'Google returned an invalid sign-in response.';
+    if (googleStatus) googleStatus.textContent = 'Google returned an invalid sign-in response.';
     return;
   }
-  if (status) status.textContent = 'Signing in with Google…';
+  if (googleStatus) googleStatus.textContent = 'Signing in with Google…';
   try {
     const res = await fetch(`${apiBase}/api/auth/google`, {
       method: 'POST',
@@ -86,7 +87,7 @@ async function handleGoogleCredential(response) {
     if (isAccountView) showSignedInPanel(data.user);
     else location.assign(workspaceTargetUrl());
   } catch {
-    if (status) status.textContent = 'Google Sign-In is temporarily unavailable. Please try again.';
+    if (googleStatus) googleStatus.textContent = 'Google Sign-In is temporarily unavailable. Please try again.';
   }
 }
 
@@ -221,7 +222,7 @@ async function initGoogleSignIn() {
 
   const clientId = await resolveGoogleClientId();
   if (!clientId) {
-    if (status) status.textContent = 'Google Sign-In is unavailable. You can sign in with an Organizer Token below.';
+    if (googleStatus) googleStatus.textContent = 'Google Sign-In is unavailable. You can sign in with an Organizer Token below.';
     return;
   }
 

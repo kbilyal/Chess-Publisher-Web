@@ -19,7 +19,7 @@ const snapshot = { data: { currentTournament: tournament.name, tournaments: {
   [tournament.name]: createInitialEmptyTournament(tournament.name)
 } } };
 
-async function configure(context) {
+async function configure(context, googleClientId = Promise.resolve('fixture')) {
   let googleSession;
   let logoutFailure;
   const calls = [];
@@ -75,7 +75,7 @@ async function configure(context) {
     if (request.method() === 'OPTIONS') return route.fulfill({ headers, status: 204 });
     calls.push({ path, origin, bearer, method: request.method(), body: request.postData() });
     if (path === '/api/auth/me') return reply({ ok: true, authenticated: Boolean(googleSession), user: googleSession || null });
-    if (path === '/api/auth/config') return reply({ googleClientId: 'fixture' });
+    if (path === '/api/auth/config') return reply({ googleClientId: await googleClientId });
     if (path === '/api/auth/google' && origin === web) {
       googleSession = request.postDataJSON().credential === 'fixture-second-credential' ? secondUser : user;
       return reply({ ok: true, user: googleSession });
@@ -228,10 +228,18 @@ try {
   await mobile.close();
 
   const desktop = await browser.newContext({ viewport: { width: 1440, height: 960 }, serviceWorkers: 'block' });
-  const { calls: tokenCalls } = await configure(desktop);
+  const { promise: delayedGoogleConfig, resolve: finishGoogleConfig } = Promise.withResolvers();
+  const { calls: tokenCalls } = await configure(desktop, delayedGoogleConfig);
   const portal = await desktop.newPage();
   await portal.goto(`${web}/app/?cloudTournamentId=${tournament.id}`);
   await portal.locator('#legacy-token-details summary').click();
+  await portal.getByLabel('Organizer Token').fill('fixture-invalid-token');
+  await portal.getByRole('button', { name: 'Open Workspace' }).click();
+  const tokenError = portal.getByText('The Organizer Token is invalid or access was revoked.');
+  await tokenError.waitFor();
+  finishGoogleConfig(null);
+  await portal.getByText('Google Sign-In is unavailable.', { exact: false }).waitFor();
+  assert.equal(await tokenError.isVisible(), true);
   await portal.getByLabel('Organizer Token').fill(token);
   await portal.getByRole('button', { name: 'Open Workspace' }).click();
   await portal.waitForURL(`${web}/app/workspace.html?cloudTournamentId=${tournament.id}`);
