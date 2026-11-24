@@ -1,0 +1,67 @@
+name: Audit legacy token to Google migration readiness
+
+on:
+  push:
+    branches: [audit/legacy-token-google-migration]
+    paths: ['.github/workflows/audit-legacy-token-google-migration.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Inspect active Hub Worker without writes or source disclosure
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          export AUDIT_DIR="$work"
+          api="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/chess-publisher-hub-api-beta"
+          curl --fail --silent --show-error --max-time 60 -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" "$api" -o "$work/live.multipart"
+          python3 - <<'PY'
+          import hashlib, os, re
+          from pathlib import Path
+          from email.parser import BytesParser
+          from email.policy import default
+          work = Path(os.environ["AUDIT_DIR"])
+          raw = (work / "live.multipart").read_bytes()
+          first = raw.splitlines()[0].decode("ascii", "strict")
+          if not first.startswith("--"):
+              raise SystemExit("Unexpected Worker download format")
+          envelope = ("Content-Type: multipart/form-data; boundary=" + first[2:] + "\r\nMIME-Version: 1.0\r\n\r\n").encode()
+          parts = list(BytesParser(policy=default).parsebytes(envelope + raw).iter_parts())
+          if len(parts) != 1:
+              raise SystemExit("Unexpected Worker module count")
+          payload = parts[0].get_payload(decode=True)
+          if not payload:
+              raise SystemExit("Empty Worker source")
+          src = payload.decode("utf-8", "strict")
+          print("LIVE_SHA256=" + hashlib.sha256(payload).hexdigest())
+          checks = {
+              "GOOGLE_AUTH_ROUTE": "/api/auth/google" in src,
+              "SESSION_ME_ROUTE": "/api/auth/me" in src,
+              "BRIDGE_TOKEN_ROUTE": "/api/auth/bridge-token" in src,
+              "CLOUD_WORKSPACE_ROUTE": "/api/v1/cloud/workspace" in src,
+              "CLOUD_TOURNAMENT_ROUTE": "/api/v1/cloud/tournaments" in src,
+              "GOOGLE_SUB_REFERENCE": bool(re.search(r"\b(?:google_sub|googleSub)\b", src)),
+              "ORGANIZER_ID_REFERENCE": bool(re.search(r"\b(?:organizer_id|organizerId)\b", src)),
+              "D1_BATCH_REFERENCE": bool(re.search(r"\.batch\s*\(", src)),
+              "B2_SNAPSHOT_REFERENCE": "arbiter_snapshot_b2_v1" in src,
+              "SYNC_LINEAGE_REFERENCE": "private_cloud_sync_lineage_v1" in src,
+              "MIGRATION_ROUTE_CANDIDATE": bool(re.search(r"/api/(?:v1/)?(?:auth|cloud)/[^\s\"']*(?:migrat|legacy-token|link-token|import-token)", src, re.I)),
+          }
+          for key, value in checks.items():
+              print(key + "=" + ("YES" if value else "NO"))
+          print("READ_ONLY_INSPECTION=PASS")
+          PY
