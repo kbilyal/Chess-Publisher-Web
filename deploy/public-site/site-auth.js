@@ -3,6 +3,8 @@
 
   const API_BASE = 'https://api.chess-publisher.org';
   const WEB_PORTAL_URL = '/app/';
+  const accountChanges = typeof BroadcastChannel === 'function'
+    ? new BroadcastChannel('cp.desktop-web.google-session') : null;
 
   let currentUser = null;
   let tournamentsLoaded = false;
@@ -96,22 +98,33 @@
 
     const signOutBtn = makeEl('button', 'cp-site-auth-signout', 'Sign Out');
     signOutBtn.type = 'button';
+    const signOutStatus = makeEl('div', 'cp-site-auth-status');
+    signOutStatus.setAttribute('role', 'status');
     signOutBtn.addEventListener('click', async () => {
       signOutBtn.disabled = true;
+      signOutStatus.textContent = '';
       try {
-        await fetch(`${API_BASE}/api/auth/logout`, {
+        const res = await fetch(`${API_BASE}/api/auth/logout`, {
           method: 'POST',
           credentials: 'include',
-          cache: 'no-store'
+          redirect: 'error',
+          cache: 'no-store',
+          signal: AbortSignal.timeout(8000)
         });
-      } catch {}
+        if (!res.ok || (await res.json())?.ok !== true) throw new Error('Sign-out was not confirmed.');
+      } catch {
+        signOutStatus.textContent = 'Could not sign out. Please try again.';
+        signOutBtn.disabled = false;
+        return;
+      }
       try { sessionStorage.removeItem('cp.desktop-web.session'); } catch {}
+      accountChanges?.postMessage(null);
       currentUser = null;
       tournamentsLoaded = false;
       updatePortalSignInBanner(null);
       renderWidget(slot);
     });
-    popover.append(signOutBtn);
+    popover.append(signOutBtn, signOutStatus);
 
     btn.addEventListener('click', async () => {
       const nextOpen = popover.hidden;

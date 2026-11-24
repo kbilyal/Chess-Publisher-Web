@@ -13,7 +13,9 @@
   const isCookieMode = hasValidScope && session.authMode === 'cookie' &&
     !!session.user && typeof session.user.id === 'string' && session.user.id.length > 0;
   const isLegacyTokenMode = hasValidScope && /^[!-~]{1,2048}$/.test(session.token || '');
-  const allowed = isCookieMode || isLegacyTokenMode;
+  let allowed = isCookieMode || isLegacyTokenMode;
+  const accountChanges = isCookieMode && typeof BroadcastChannel === 'function'
+    ? new BroadcastChannel('cp.desktop-web.google-session') : null;
 
   if (!allowed) {
     sessionStorage.removeItem(sessionKey);
@@ -72,6 +74,8 @@
   let bridgeTokenCache = { token: '', expMs: 0 };
 
   function clearAuthState() {
+    allowed = false;
+    window.cpDesktopWebAllowed = false;
     bridgeTokenCache = { token: '', expMs: 0 };
     secrets.clear();
     if (session) session.token = '';
@@ -81,6 +85,19 @@
       try { listener(); } catch {}
     }
   }
+
+  function leaveStaleWorkspace() {
+    if (!allowed) return;
+    clearAuthState();
+    document.documentElement.style.visibility = 'hidden';
+    location.replace('./');
+  }
+
+  accountChanges?.addEventListener('message', ({ data }) => {
+    if (data?.id !== session.user.id || data?.organizerId !== session.user.organizerId) {
+      leaveStaleWorkspace();
+    }
+  });
 
   if (isCookieMode && typeof window.fetch === 'function') {
     const nativeFetch = window.fetch.bind(window);
@@ -127,7 +144,7 @@
           return nativeFetch(rewrittenUrl, nextInit);
         }
 
-        const isChessResults = parsed.origin === CHESS_RESULTS_ORIGIN || parsed.pathname.startsWith('/api/chess-results/');
+        const isChessResults = parsed.origin === CHESS_RESULTS_ORIGIN && parsed.pathname.startsWith('/api/chess-results/');
         if (isChessResults) {
           const headers = new Headers(input instanceof Request ? input.headers : undefined);
           if (init?.headers) {
@@ -339,11 +356,19 @@
         }
         await window.cpWebFlushAutosave?.();
         if (isCookieMode) {
-          await fetch(`${apiBase}/api/auth/logout`, {
-            method: 'POST',
-            credentials: 'include',
-            cache: 'no-store'
-          }).catch(() => {});
+          try {
+            const res = await fetch(`${apiBase}/api/auth/logout`, {
+              method: 'POST',
+              credentials: 'include',
+              redirect: 'error',
+              cache: 'no-store',
+              signal: AbortSignal.timeout(8000)
+            });
+            if (!res.ok || (await res.json())?.ok !== true) throw new Error('Sign-out was not confirmed.');
+          } catch {
+            throw new Error('Could not sign out. Please try again.');
+          }
+          accountChanges?.postMessage(null);
           try { window.google?.accounts?.id?.disableAutoSelect?.(); } catch {}
         }
         clearAuthState();
@@ -416,17 +441,24 @@
   document.addEventListener('DOMContentLoaded', () => {
     if (!allowed) return;
     if (isCookieMode && typeof window.fetch === 'function') {
-      window.fetch(`${apiBase}/api/auth/me?optional=1`, {
+      const verifyAccount = () => window.fetch(`${apiBase}/api/auth/me?optional=1`, {
         headers: { Accept: 'application/json' },
         credentials: 'include',
-        cache: 'no-store'
+        cache: 'no-store',
+        signal: AbortSignal.timeout(5000)
       }).then(async res => {
         const data = res.ok ? await res.json().catch(() => null) : null;
-        if (res.status === 401 || data?.authenticated === false) {
-          clearAuthState();
-          location.replace('./');
+        const user = data?.user;
+        if (res.status === 401 || (data?.ok === true && (
+          data.authenticated !== true || user?.id !== session.user.id || user?.organizerId !== session.user.organizerId
+        ))) {
+          leaveStaleWorkspace();
         }
       }).catch(() => {});
+      void verifyAccount();
+      document.addEventListener('visibilitychange', () => {
+        if (allowed && document.visibilityState === 'visible') void verifyAccount();
+      });
     }
     const menu = document.querySelector('#classicMenuBar');
     if (!menu) return;

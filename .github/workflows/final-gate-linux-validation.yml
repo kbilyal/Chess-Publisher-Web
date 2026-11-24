@@ -1,0 +1,55 @@
+name: FINAL GATE Linux validation
+
+on:
+  push:
+    branches: [codex/final-gate-linux-2026-11-24]
+
+permissions:
+  contents: read
+
+jobs:
+  native-and-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: npm ci
+      - run: npm audit --audit-level=high
+      - run: python -m pip install --disable-pip-version-check -r engine/gacrux/requirements.txt
+      - run: chmod +x bin/bbpPairings
+      - name: Architecture regression
+        env:
+          GACRUX_PATH: ${{ github.workspace }}/engine/gacrux/pairingchecker.py
+          BBP_PATH: ${{ github.workspace }}/bin/bbpPairings
+        run: |
+          set -euo pipefail
+          npm run dev > "$RUNNER_TEMP/chess-publisher-test-server.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          if ! curl --fail --silent --retry 30 --retry-all-errors --retry-delay 1 http://localhost:3000/api/health >/dev/null; then
+            cat "$RUNNER_TEMP/chess-publisher-test-server.log"
+            exit 1
+          fi
+          npm run test:arch
+      - name: Desktop-Web pairing parity regression
+        env:
+          GACRUX_PATH: ${{ github.workspace }}/engine/gacrux/pairingchecker.py
+          BBP_PATH: ${{ github.workspace }}/bin/bbpPairings
+        run: npm run test:parity
+      - run: npm run lint
+      - run: npm run test:fide
+      - run: npm run test:cloud-roundtrip
+      - run: npm run build
+      - name: Google account switching fixture
+        run: |
+          npm install --prefix "$RUNNER_TEMP/cp-companion-test" --no-save playwright-core@1.65.1
+          node --import tsx tests/ui/companion-web-entry-smoke.mjs "$RUNNER_TEMP/cp-companion-test" "$(command -v google-chrome)"
