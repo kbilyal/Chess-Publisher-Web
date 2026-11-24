@@ -155,7 +155,7 @@ jobs:
           node --check dist/hub-useful-links-organizer.js
           ! grep -q 'src/main.tsx' dist/index.html
           ! grep -R -E 'AES_KEY|AES_IV' dist/assets --include='*.js'
-          grep -R -q 'Continue your desktop tournaments anywhere' dist/assets --include='*.js'
+          grep -R -q 'Sign in through ChessPublisher Web' dist/assets --include='*.js'
           grep -R -q 'Publish to Chess-Results' dist/assets --include='*.js'
           grep -R -q 'Publish to Online Hub' dist/assets --include='*.js'
           grep -R -q '/api/chess-results/' dist/assets --include='*.js'

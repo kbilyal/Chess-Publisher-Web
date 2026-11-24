@@ -176,9 +176,7 @@ export const cloudApi = {
 };
 
 export const authApi = {
-  config: () => request('/api/auth/config'),
   me: () => request('/api/auth/me?optional=1'),
-  googleLogin: (credential: string) => request('/api/auth/google', { method: 'POST', body: { credential } }),
   logout: () => request('/api/auth/logout', { method: 'POST' }),
   bridgeToken: () => request('/api/auth/bridge-token', { method: 'POST' })
 };

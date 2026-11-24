@@ -208,11 +208,16 @@ jobs:
         shell: bash
         run: python deploy/public-site/stable-downloads-only.py site
 
-      - name: Remove BETA badges from the homepage navigation
+      - name: Verify badge-free homepage links and route public Companion entry through Web
         shell: bash
-        run: python deploy/public-site/remove-home-nav-beta.py site/index.html
+        run: |
+          set -euo pipefail
+          if grep -q 'https://web.chess-publisher.org' site/index.html; then
+            python deploy/public-site/remove-home-nav-beta.py site/index.html
+          fi
+          python deploy/public-site/route-companion-entry.py site
 
-      - name: Integrate global Google Sign-In header
+      - name: Integrate the ChessPublisher Web account header
         shell: bash
         run: |
           set -euo pipefail
@@ -227,14 +232,13 @@ jobs:
           set -euo pipefail
           if grep -q 'data-site-build="2026-11-23-web-portal"' site/index.html; then
             grep -q 'Arbiter Companion' site/index.html
-            grep -q 'https://web.chess-publisher.org/' site/index.html
             grep -q 'href="/app/"' site/index.html
             grep -q 'id="chesspublisher-web"' site/index.html
             test -s site/homepage-web.css
             test -s site/assets/chess-publisher-web-share.png
           else
             grep -q 'data-site-build="2026-09-08-v42-platform-icons"' site/index.html
-            grep -q 'Open WEB Companion' site/index.html
+            grep -q 'Open ChessPublisher Web' site/index.html
             grep -q 'data-home-web-entry="nav"' site/index.html
             grep -q 'data-home-web-entry="hero"' site/index.html
             grep -q 'data-home-web-entry="footer"' site/index.html
@@ -243,7 +247,10 @@ jobs:
             grep -q '<strong>Linux</strong>' site/index.html
             grep -q 'Install it on mobile' site/index.html
           fi
-          python deploy/public-site/remove-home-nav-beta.py --check site/index.html
+          if grep -Eq 'href="https://web[.]chess-publisher[.]org/?["?]' site/*.html || grep -q 'nav-beta-index">BETA' site/index.html; then
+            echo 'Unexpected direct Companion link or BETA navigation badge' >&2
+            exit 1
+          fi
           grep -q 'data-home-web-entry="protected-v1"' site/index.html
           grep -q '/site-auth.js' site/index.html
           grep -q '/site-auth.css' site/index.html
@@ -316,7 +323,8 @@ jobs:
               && (grep -q 'data-site-build="2026-11-23-web-portal"' <<<"$home" || grep -q 'data-site-build="2026-09-08-v42-platform-icons"' <<<"$home") \
               && grep -q '/site-auth.js' <<<"$home" \
               && grep -q '/site-auth.css' <<<"$home" \
-              && python deploy/public-site/remove-home-nav-beta.py --check /dev/stdin <<<"$home" \
+              && ! grep -q 'href="https://web.chess-publisher.org' <<<"$home" \
+              && ! grep -q 'nav-beta-index">BETA' <<<"$home" \
               && (grep -q 'Arbiter Companion' <<<"$home" || grep -q 'Chess-Publisher is coming to Linux' <<<"$home") \
               && (! grep -q 'data-site-build="2026-11-23-web-portal"' <<<"$home" || grep -q 'homepage-web.css' <<<"$home") \
               && grep -q 'Meet WEB Companion' <<<"$news" \

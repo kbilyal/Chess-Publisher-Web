@@ -41,7 +41,7 @@ jobs:
           cat > preview-entry.tsx <<'EOF'
           import React from 'react';
           import { createRoot } from 'react-dom/client';
-          import { CompanionLoginScreen, CompanionTournamentSelectScreen } from './src/companion/CompanionCloudScreens.tsx';
+          import { CompanionEntryScreen, CompanionTournamentSelectScreen } from './src/companion/CompanionCloudScreens.tsx';
           import './src/index.css';
           import './src/companion-cloud.css';
           import './src/mobile-native.css';
@@ -71,7 +71,7 @@ jobs:
                 onArchive={async () => {}}
                 onRestore={async () => {}}
               />
-            : <CompanionLoginScreen tokenInput="" rememberToken={false} busy={false} status="Organizer Token required" statusKind="warn" onTokenInput={() => {}} onRememberToken={() => {}} onConnect={() => {}} />
+            : <CompanionEntryScreen busy={false} status="" statusKind="warn" tournamentHint="" />
           );
           EOF
       - name: Start Vite preview target
@@ -96,8 +96,9 @@ jobs:
               page.on('pageerror', error => errors.push(error.message));
               await page.goto(`http://127.0.0.1:4177/preview-entry.html?screen=${screen}`, { waitUntil: 'networkidle' });
               if (screen === 'login') {
-                if (!await page.getByText('Continue your desktop tournaments anywhere.').isVisible()) throw new Error(`${label}: login heading missing.`);
-                if (!await page.getByText('Organizer Token', { exact: true }).isVisible()) throw new Error(`${label}: Organizer Token field missing.`);
+                if (!await page.getByRole('heading', { name: 'Arbiter Companion' }).isVisible()) throw new Error(`${label}: login heading missing.`);
+                if (!await page.getByRole('link', { name: 'Open ChessPublisher Web' }).isVisible()) throw new Error(`${label}: Web entry link missing.`);
+                if (await page.locator('input[type="password"]').count()) throw new Error(`${label}: standalone token form returned.`);
               } else {
                 if (!await page.getByRole('heading', { name: 'My tournaments' }).isVisible()) throw new Error(`${label}: My tournaments heading missing.`);
                 if (await page.locator('.companion-tournament-tile').count() !== 3) throw new Error(`${label}: cloud tournament cards missing.`);

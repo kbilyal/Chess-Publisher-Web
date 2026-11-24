@@ -178,3 +178,63 @@
     height: 22px;
   }
 }
+
+/* Match the Web organizer workspace's light panels, navy actions and focus. */
+:is(.companion-shell, .companion-select-shell, .companion-entry-shell) :is(a, button, input, select, textarea):focus-visible {
+  outline: 2px solid #0f3d91;
+  outline-offset: 2px;
+}
+
+.companion-select-shell {
+  color: #16202e;
+  background: #f1f4f7;
+}
+.companion-select-shell .companion-select-topbar {
+  background: #fff;
+  border-bottom-color: #d8dee6;
+}
+.companion-select-shell .companion-entry-brand strong { font-size: .9375rem; }
+.companion-select-shell .companion-entry-brand span { color: #5a6778; font-size: .75rem; letter-spacing: 0; text-transform: none; }
+.companion-select-shell .companion-hub-hero {
+  padding: clamp(16px, 3vw, 28px);
+  background: #fff;
+  border: 1px solid #d8dee6;
+  border-radius: 12px;
+  box-shadow: none;
+}
+.companion-select-shell .companion-hub-hero h1 { margin-top: 0; }
+.companion-select-shell .companion-hub-hero p,
+.companion-select-shell .companion-start-action strong,
+.companion-select-shell .companion-tournament-tile-main strong { font-size: .9375rem; }
+.companion-select-shell .companion-start-action small,
+.companion-select-shell .companion-tournament-tile-main small { color: #5a6778; font-size: .8125rem; }
+.companion-select-shell .companion-start-action.primary { background: #edf3ff; border-color: #a9bfe5; }
+.companion-select-shell .companion-select-status { font-size: .8125rem; }
+.companion-select-shell .companion-select-actions .companion-icon-action { border-radius: 8px; font-size: .8125rem; }
+.companion-entry-shell .companion-entry-brand strong { font-size: .9375rem; }
+.companion-entry-shell .companion-entry-brand span { color: #5a6778; font-size: .75rem; letter-spacing: 0; text-transform: none; }
+
+.companion-shell .companion-main { background: #f1f4f7 !important; }
+.companion-shell .companion-content-frame,
+.companion-shell .companion-publish-card,
+.companion-shell .companion-registration-card,
+.companion-shell .companion-setup-card { border-color: #d8dee6 !important; }
+.companion-shell .companion-button.primary {
+  border-color: #0f3d91 !important;
+  background: #0f3d91 !important;
+}
+.companion-shell .companion-button.primary:hover:not(:disabled) {
+  border-color: #0b3074 !important;
+  background: #0b3074 !important;
+}
+
+@media (max-width: 560px) {
+  .companion-select-shell .companion-select-actions .companion-icon-action {
+    width: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    justify-content: center;
+  }
+  .companion-select-shell .companion-select-actions .companion-icon-action span { display: none; }
+}

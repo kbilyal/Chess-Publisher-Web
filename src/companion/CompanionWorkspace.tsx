@@ -507,7 +507,7 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
 
   const cloudId = String(cloud.activeCloud?.id || (tournament as any)?.cloud?.cloudTournamentId || '').trim();
   const webPortalHref = cloudId
-    ? `https://chess-publisher.org/app/workspace.html?cloudTournamentId=${encodeURIComponent(cloudId)}`
+    ? `https://chess-publisher.org/app/?cloudTournamentId=${encodeURIComponent(cloudId)}`
     : 'https://chess-publisher.org/app/';
 
   const publishBlocked = busy !== null || cloud.busy || cloud.conflict;
@@ -516,7 +516,7 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
     <div className="companion-shell" data-companion-version="1">
       <aside className="companion-sidebar">
         <div className="companion-brand">
-          <div className="companion-brand-mark">CP</div>
+          <img className="companion-brand-mark" src="/icons/chess-publisher-icon-192.png" alt="" />
           <div><strong>Chess-Publisher</strong><span>Arbiter Companion</span></div>
         </div>
 
@@ -529,7 +529,7 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
           {nav.map(item => {
             const Icon = item.icon;
             return (
-              <button key={item.id} className={activeTab === item.id ? 'is-active' : ''} onClick={() => setActiveTab(item.id)} type="button">
+              <button key={item.id} className={activeTab === item.id ? 'is-active' : ''} onClick={() => setActiveTab(item.id)} aria-current={activeTab === item.id ? 'page' : undefined} type="button">
                 <Icon size={19} />
                 <span><strong>{item.label}</strong><small>{item.detail}</small></span>
               </button>
@@ -539,7 +539,7 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
 
         <a className="companion-portal-switch" href={webPortalHref}>
           <ExternalLink size={15} />
-          <span><strong>Web Portal</strong><small>Full pairings &amp; desktop tools</small></span>
+          <span><strong>ChessPublisher Web</strong><small>Pairings, results and reports</small></span>
         </a>
 
         <div className="companion-sidebar-status">

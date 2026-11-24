@@ -1,6 +1,6 @@
 {
   "project": "Chess-Publisher-Web",
-  "updated": "2026-11-23",
+  "updated": "2026-11-24",
   "mainCommitVerified": "20862b7eea8281c43062db825d792751c007e6cb",
   "handoffReady": false,
   "baselineFeatureAudit": {
@@ -13,6 +13,7 @@
     "requiresFinalReaudit": true
   },
   "regressionStatus": {
+    "companionWebEntry": "ChessPublisher Web is the organizer sign-in entry. Browser smoke covers the Google session, Organizer Token handoff, Cloud tournament continuation and Companion navigation.",
     "publicAppResponsiveNavigation": "Chromium checks that the classic menu clears the workspace tabs and that all eight tabs and Sign out receive pointer input at five viewport widths (Issue #93).",
     "publicAppTxtExport": "Chromium checks the shared Pairings and Standings TXT dialogs, matches each preview against the download and print output, and verifies the fixed-width print styles.",
     "publicAppPairingsLog": "Browser smoke compares the Round Control Log and Chess-Results console styles, verifies round readiness and result updates, and exercises the relocated resort action and its pairing-time guard.",
@@ -21,7 +22,7 @@
     "publicAppTournamentDialog": "Browser smoke covers the tournament-name placeholder, Files → New Tournament, pairing-system selection and focus styling, local file selection and online tournament opening.",
     "publicAppFastClassical": "Desktop eligibility regression runs on the generated workspace. Browser smoke covers Standard classification, schedule limits and rating export warnings.",
     "publicAppRatingExport": "TRF26 rating regression runs against the generated /app/ workspace during the site build.",
-    "publicHomepageNavigation": "Deployment checks require the WEB Companion and Tournaments header links without BETA badges.",
+    "publicHomepageNavigation": "Deployment checks require Web to handle public sign-in links and keep homepage navigation free of BETA badges.",
     "architecture": "34/34 PASS reported",
     "desktopParity": "11/11 PASS reported",
     "transactions": "14/14 PASS reported",
