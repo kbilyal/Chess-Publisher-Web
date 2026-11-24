@@ -138,10 +138,10 @@
             headers.delete('Authorization');
           }
           const nextInit = { ...init, headers, credentials: 'include' };
-          if (input instanceof Request) {
-            return nativeFetch(new Request(rewrittenUrl, nextInit));
+          if (input instanceof Request && rewrittenUrl !== input.url) {
+            return nativeFetch(new Request(rewrittenUrl, input), nextInit);
           }
-          return nativeFetch(rewrittenUrl, nextInit);
+          return nativeFetch(input instanceof Request ? input : rewrittenUrl, nextInit);
         }
 
         const isChessResults = parsed.origin === CHESS_RESULTS_ORIGIN && parsed.pathname.startsWith('/api/chess-results/');
@@ -155,16 +155,12 @@
             const bridgeToken = await getBridgeToken(false);
             headers.set('Authorization', `Bearer ${bridgeToken}`);
             const nextInit = { ...init, headers };
-            const res = input instanceof Request
-              ? await nativeFetch(new Request(rawUrl, nextInit))
-              : await nativeFetch(rawUrl, nextInit);
+            const retry = input instanceof Request ? input.clone() : input;
+            const res = await nativeFetch(input, nextInit);
             if (res.status === 401) {
               const refreshed = await getBridgeToken(true);
               headers.set('Authorization', `Bearer ${refreshed}`);
-              const retryInit = { ...init, headers };
-              return input instanceof Request
-                ? nativeFetch(new Request(rawUrl, retryInit))
-                : nativeFetch(rawUrl, retryInit);
+              return nativeFetch(retry, { ...nextInit, headers });
             }
             return res;
           }

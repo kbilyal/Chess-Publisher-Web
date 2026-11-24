@@ -73,7 +73,7 @@ async function configure(context) {
     };
     const reply = (json, status = 200) => route.fulfill({ headers, json, status });
     if (request.method() === 'OPTIONS') return route.fulfill({ headers, status: 204 });
-    calls.push({ path, origin, bearer });
+    calls.push({ path, origin, bearer, method: request.method(), body: request.postData() });
     if (path === '/api/auth/me') return reply({ ok: true, authenticated: Boolean(googleSession), user: googleSession || null });
     if (path === '/api/auth/config') return reply({ googleClientId: 'fixture' });
     if (path === '/api/auth/google' && origin === web) {
@@ -192,6 +192,7 @@ try {
   await page.goto(accountUrl);
   await page.getByRole('button', { name: 'Second Google fixture account' }).click();
   await page.getByText(secondUser.name, { exact: true }).waitFor();
+  assert.equal(await page.locator('#google-auth-section').isVisible(), false);
   await page.getByRole('link', { name: secondTournament.name }).waitFor();
   assert.equal(await page.getByRole('link', { name: tournament.name }).count(), 0);
   await page.locator('#open-workspace-btn').click();
@@ -200,6 +201,30 @@ try {
   assert.equal(await page.evaluate(() => window.cpWebStorage.getItem('test-private-tournament')), null);
   const statusOfFirstTournament = await page.evaluate(async url => (await fetch(url)).status, `${api}/api/v1/cloud/tournaments/${tournament.id}`);
   assert.equal(statusOfFirstTournament, 404);
+  await page.evaluate(async url => {
+    const request = new Request(url, { method: 'POST', body: 'request-body-fixture' });
+    const response = await fetch(request);
+    if (!response.ok) throw new Error('Cloud request fixture failed');
+  }, `${api}/api/v1/cloud/tournaments`);
+  assert.ok(googleCalls.some(call => call.path === '/api/v1/cloud/tournaments' &&
+    call.method === 'POST' && call.body === 'request-body-fixture'));
+  const rewrittenStatus = await page.evaluate(async () => {
+    const request = new Request('https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev/api/v1/cloud/tournaments', {
+      method: 'POST',
+      body: 'request-body-fixture'
+    });
+    return (await fetch(request)).status;
+  });
+  assert.equal(rewrittenStatus, 200);
+  assert.equal(googleCalls.filter(call => call.path === '/api/v1/cloud/tournaments' && call.method === 'POST').length, 2);
+
+  await page.goto(web);
+  await page.getByRole('button', { name: secondUser.name }).click();
+  failNextLogout({ ok: false }, 200);
+  await signOut.click();
+  await page.getByRole('status').filter({ hasText: logoutMessage }).waitFor();
+  await signOut.click();
+  await page.getByRole('link', { name: 'Sign in', exact: true }).waitFor();
   await mobile.close();
 
   const desktop = await browser.newContext({ viewport: { width: 1440, height: 960 }, serviceWorkers: 'block' });
