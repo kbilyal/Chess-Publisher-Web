@@ -41,13 +41,19 @@ jobs:
               raise SystemExit("Unexpected Worker download format")
           envelope = ("Content-Type: multipart/form-data; boundary=" + first[2:] + "\r\nMIME-Version: 1.0\r\n\r\n").encode()
           parts = list(BytesParser(policy=default).parsebytes(envelope + raw).iter_parts())
-          if len(parts) != 1:
-              raise SystemExit("Unexpected Worker module count")
-          payload = parts[0].get_payload(decode=True)
-          if not payload:
-              raise SystemExit("Empty Worker source")
-          src = payload.decode("utf-8", "strict")
-          print("LIVE_SHA256=" + hashlib.sha256(payload).hexdigest())
+          print("MULTIPART_PART_COUNT=" + str(len(parts)))
+          modules = []
+          for part in parts:
+              kind = part.get_content_type().lower()
+              name = part.get_filename() or part.get_param("name", header="content-disposition") or ""
+              payload = part.get_payload(decode=True) or b""
+              if kind in {"application/javascript+module", "application/javascript", "text/javascript", "application/ecmascript", "text/ecmascript"} or name.lower().endswith((".js", ".mjs", ".cjs")):
+                  modules.append(payload.decode("utf-8", "strict"))
+          if not modules or not any(m.strip() for m in modules):
+              raise SystemExit("No readable JavaScript modules in Worker response")
+          src = "\n".join(modules)
+          print("JAVASCRIPT_MODULE_COUNT=" + str(len(modules)))
+          print("LIVE_RESPONSE_SHA256=" + hashlib.sha256(raw).hexdigest())
           checks = {
               "GOOGLE_AUTH_ROUTE": "/api/auth/google" in src,
               "SESSION_ME_ROUTE": "/api/auth/me" in src,
