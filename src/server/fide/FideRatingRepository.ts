@@ -348,12 +348,16 @@ export class FideRatingRepository {
     insertPlayer.free();
     tempDb.run("COMMIT;");
 
-    // 4. Build Indexes for performance
-    tempDb.run(`
-      CREATE INDEX idx_fide_players_name ON fide_players(name COLLATE NOCASE);
-      CREATE INDEX idx_fide_players_fed ON fide_players(federation);
-      CREATE INDEX idx_fide_players_std ON fide_players(rating_standard);
-    `);
+    // 4. Build Indexes for smaller DBs; skip redundant secondary B-tree indexes
+    // on global lists (>100k players) so browser SQLite stays compact (<50 MB)
+    // because LIKE '%...%' queries scan rows anyway and fide_id PRIMARY KEY suffices.
+    if (players.length <= 100000) {
+      tempDb.run(`
+        CREATE INDEX idx_fide_players_name ON fide_players(name COLLATE NOCASE);
+        CREATE INDEX idx_fide_players_fed ON fide_players(federation);
+        CREATE INDEX idx_fide_players_std ON fide_players(rating_standard);
+      `);
+    }
 
     // 5. Sanity Check
     const countCheck = tempDb.exec("SELECT count(*) as c FROM fide_players;");

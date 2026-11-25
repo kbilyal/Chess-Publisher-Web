@@ -1,0 +1,18 @@
+Chess-Publisher — FIDE Rating List Update Report
+================================================
+Status: UPDATED
+Provider: FIDE
+List version: 2026-11
+List date: 2026-11-01
+Version source: official-download-page
+Downloaded at: 2026-11-25T21:59:25.674Z
+Source: https://ratings.fide.com/download/standard_rating_list.zip (+rapid,+blitz)
+Archive SHA-256: 3f9e65846410ae889232a6cda753ecd8c8247d03e5f27016eb93f47093e8fbaa
+Players: 800241
+Standard rated: 573475
+Rapid rated: 486148
+Blitz rated: 321078
+Unrated: 0
+
+Tournament data was not modified. Rating-list refresh is an independent data operation.
+Existing tournament players are updated only through the explicit FIDE player-sync workflow.

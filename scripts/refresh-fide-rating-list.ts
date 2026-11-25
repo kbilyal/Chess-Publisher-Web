@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 import { FideRatingRepository } from '../src/server/fide/FideRatingRepository';
 import { FideRatingService } from '../src/server/fide/FideRatingService';
 
@@ -10,20 +11,27 @@ const DATA_DIR = path.join(ROOT, 'data', 'fide');
 const MANIFEST_PATH = path.join(DATA_DIR, 'fide_latest_manifest.json');
 const REPORT_PATH = path.join(DATA_DIR, 'fide_update_report.txt');
 const OFFICIAL_DOWNLOAD_PAGE = 'https://ratings.fide.com/download_lists.phtml';
-const OFFICIAL_COMBINED_LEGACY = 'https://ratings.fide.com/download/players_list_foa.zip';
+const OFFICIAL_DOWNLOAD_BASE = 'https://ratings.fide.com/download';
+const OFFICIAL_RELAY_BASE = (process.env.FIDE_RELAY_BASE || 'https://api.chess-publisher.org/api/v1/fide').replace(/\/+$/, '');
+const OFFICIAL_LIST_FILES = {
+  standard: 'standard_rating_list.zip',
+  rapid: 'rapid_rating_list.zip',
+  blitz: 'blitz_rating_list.zip'
+} as const;
 const MIN_EXPECTED_RECORDS = Number(process.env.FIDE_MIN_RECORDS || 100000);
 const MAX_ARCHIVE_BYTES = 150 * 1024 * 1024;
+const USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) ChessPublisher-FIDE-Updater/2.0';
 
 export interface FideLatestManifest {
   schemaVersion: 1;
   provider: 'FIDE';
   listVersion: string;
   listDate: string;
-  versionSource: 'official-download-page' | 'utc-month-fallback';
+  versionSource: 'official-download-page' | 'official-archive-header' | 'utc-month-fallback';
   downloadedAt: string;
   sourcePage: string;
   sourceArchive: string;
-  sourceFormat: 'LEGACY_COMBINED_STD_RPD_BLZ_WITH_UNRATED';
+  sourceFormat: 'OFFICIAL_COMBINED_STD_RPD_BLZ';
   archiveSha256: string;
   databaseRevision: string;
   recordCount: number;
@@ -41,7 +49,7 @@ const MONTHS: Record<string, number> = {
 export function extractOfficialListVersion(html: string, now = new Date()): {
   listVersion: string;
   listDate: string;
-  versionSource: FideLatestManifest['versionSource'];
+  versionSource: 'official-download-page' | 'utc-month-fallback';
 } {
   const text = String(html || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ');
   const matches = [...text.matchAll(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(20\d{2})\b/gi)];
@@ -70,10 +78,10 @@ function readManifest(): FideLatestManifest | null {
 function curlBuffer(url: string, maxBytes = MAX_ARCHIVE_BYTES): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const child = spawn('curl', [
-      '--location', '--fail', '--silent', '--show-error',
-      '--connect-timeout', '35', '--max-time', '240',
-      '--retry', '2', '--retry-delay', '3', '--retry-all-errors',
-      '--user-agent', 'Chess-Publisher-FIDE-List-Updater/1.0',
+      '--ipv4', '--location', '--fail', '--silent', '--show-error',
+      '--connect-timeout', '20', '--max-time', '180',
+      '--retry', '2', '--retry-delay', '2', '--retry-all-errors',
+      '--user-agent', USER_AGENT,
       url
     ], { stdio: ['ignore', 'pipe', 'pipe'] });
     const chunks: Buffer[] = [];
@@ -102,14 +110,14 @@ function curlBuffer(url: string, maxBytes = MAX_ARCHIVE_BYTES): Promise<Buffer> 
   });
 }
 
-async function fetchBuffer(url: string, timeoutMs = 45000): Promise<Buffer> {
+async function fetchUrlBuffer(url: string, timeoutMs = 45000): Promise<Buffer> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     try {
       const response = await fetch(url, {
         signal: controller.signal,
-        headers: { 'User-Agent': 'Chess-Publisher-FIDE-List-Updater/1.0' },
+        headers: { 'User-Agent': USER_AGENT },
         cache: 'no-store'
       });
       if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText}`);
@@ -127,6 +135,19 @@ async function fetchBuffer(url: string, timeoutMs = 45000): Promise<Buffer> {
   }
 }
 
+async function fetchOfficialArchive(fileName: string): Promise<{ buffer: Buffer; sourceUrl: string }> {
+  const directUrl = `${OFFICIAL_DOWNLOAD_BASE}/${fileName}`;
+  const relayUrl = `${OFFICIAL_RELAY_BASE}/${fileName}`;
+  try {
+    const buffer = await fetchUrlBuffer(directUrl);
+    return { buffer, sourceUrl: directUrl };
+  } catch (directError: any) {
+    console.warn(`[FIDE] Direct download failed for ${fileName}: ${directError?.message || directError}. Falling back to Hub relay ${relayUrl}.`);
+    const buffer = await fetchUrlBuffer(relayUrl, 60000);
+    return { buffer, sourceUrl: relayUrl };
+  }
+}
+
 async function fetchTextWithCurl(url: string): Promise<string> {
   const buffer = await curlBuffer(url, 4 * 1024 * 1024);
   return buffer.toString('utf8');
@@ -140,7 +161,7 @@ async function fetchVersionInfo(): Promise<ReturnType<typeof extractOfficialList
       try {
         const response = await fetch(OFFICIAL_DOWNLOAD_PAGE, {
           signal: controller.signal,
-          headers: { 'User-Agent': 'Chess-Publisher-FIDE-List-Updater/1.0' },
+          headers: { 'User-Agent': USER_AGENT },
           cache: 'no-store'
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -153,7 +174,7 @@ async function fetchVersionInfo(): Promise<ReturnType<typeof extractOfficialList
       clearTimeout(timeout);
     }
   } catch (error: any) {
-    console.warn(`[FIDE] Could not read official list heading: ${error?.message || error}. Using UTC month as metadata fallback.`);
+    console.warn(`[FIDE] Could not read official list heading: ${error?.message || error}. Using archive/UTC fallback.`);
     return extractOfficialListVersion('');
   }
 }
@@ -186,40 +207,49 @@ function writeReport(manifest: FideLatestManifest, changed: boolean) {
 export async function refreshFideRatingList(): Promise<{ changed: boolean; manifest: FideLatestManifest }> {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 
-  console.log(`[FIDE] Downloading current official combined rating list: ${OFFICIAL_COMBINED_LEGACY}`);
-  const [archive, versionInfo] = await Promise.all([
-    fetchBuffer(OFFICIAL_COMBINED_LEGACY),
-    fetchVersionInfo()
-  ]);
-  const archiveSha256 = crypto.createHash('sha256').update(archive).digest('hex');
+  console.log(`[FIDE] Downloading official Standard, Rapid, and Blitz rating lists from ${OFFICIAL_DOWNLOAD_BASE}...`);
+  const standard = await fetchOfficialArchive(OFFICIAL_LIST_FILES.standard);
+  const rapid = await fetchOfficialArchive(OFFICIAL_LIST_FILES.rapid);
+  const blitz = await fetchOfficialArchive(OFFICIAL_LIST_FILES.blitz);
+  const versionInfo = await fetchVersionInfo();
+
+  const archiveSha256 = crypto.createHash('sha256')
+    .update(standard.buffer)
+    .update(rapid.buffer)
+    .update(blitz.buffer)
+    .digest('hex');
+
   const previous = readManifest();
+  const sourceArchiveSummary = `${OFFICIAL_DOWNLOAD_BASE}/${OFFICIAL_LIST_FILES.standard} (+rapid,+blitz)`;
 
   if (previous?.archiveSha256 === archiveSha256 && fs.existsSync(path.join(DATA_DIR, 'fide_ratings.sqlite'))) {
     const unchanged: FideLatestManifest = {
       ...previous,
-      listVersion: versionInfo.listVersion,
-      listDate: versionInfo.listDate,
-      versionSource: versionInfo.versionSource,
+      listVersion: versionInfo.versionSource === 'official-download-page' ? versionInfo.listVersion : previous.listVersion,
+      listDate: versionInfo.versionSource === 'official-download-page' ? versionInfo.listDate : previous.listDate,
+      versionSource: versionInfo.versionSource === 'official-download-page' ? 'official-download-page' : previous.versionSource,
       sourcePage: OFFICIAL_DOWNLOAD_PAGE,
-      sourceArchive: OFFICIAL_COMBINED_LEGACY
+      sourceArchive: sourceArchiveSummary
     };
     if (JSON.stringify(unchanged, null, 2) !== JSON.stringify(previous, null, 2)) {
       fs.writeFileSync(MANIFEST_PATH, `${JSON.stringify(unchanged, null, 2)}\n`, 'utf8');
     }
     writeReport(unchanged, false);
-    console.log(`[FIDE] Official archive unchanged (${archiveSha256.slice(0, 12)}…). Keeping validated SQLite database.`);
+    console.log(`[FIDE] Official archives unchanged (${archiveSha256.slice(0, 12)}…). Keeping validated SQLite database.`);
     return { changed: false, manifest: unchanged };
   }
 
   const repository = new FideRatingRepository(DATA_DIR);
   await repository.initialize();
   const service = new FideRatingService(repository);
-  const result = await service.updateRatingList({
-    customSourceBuffer: archive,
-    customSourceName: `${OFFICIAL_COMBINED_LEGACY} (official FIDE combined LEGACY list)`,
-    simulatedVersion: versionInfo.listVersion,
-    sourceFormat: 'legacy_txt'
-  });
+  const result = await service.updateRatingListFromOfficialLists(
+    { standard: standard.buffer, rapid: rapid.buffer, blitz: blitz.buffer },
+    {
+      listVersion: versionInfo.versionSource === 'official-download-page' ? versionInfo.listVersion : undefined,
+      customSourceName: `ratings.fide.com (Official Standard, Rapid, Blitz combined lists via ${standard.sourceUrl.includes('api.chess-publisher.org') ? 'Hub relay' : 'direct FIDE'})`,
+      combinedSha256: archiveSha256
+    }
+  );
 
   const status = service.getStatus();
   if (!result.success || status.recordCount < MIN_EXPECTED_RECORDS) {
@@ -231,16 +261,21 @@ export async function refreshFideRatingList(): Promise<{ changed: boolean; manif
     throw new Error('FIDE integrity gate failed: installed database metadata does not match downloaded archive SHA-256.');
   }
 
+  const resolvedVersionSource: FideLatestManifest['versionSource'] =
+    versionInfo.versionSource === 'official-download-page'
+      ? 'official-download-page'
+      : 'official-archive-header';
+
   const manifest: FideLatestManifest = {
     schemaVersion: 1,
     provider: 'FIDE',
-    listVersion: versionInfo.listVersion,
-    listDate: versionInfo.listDate,
-    versionSource: versionInfo.versionSource,
+    listVersion: result.listVersion,
+    listDate: `${result.listVersion}-01`,
+    versionSource: resolvedVersionSource,
     downloadedAt: status.downloadedAt || new Date().toISOString(),
     sourcePage: OFFICIAL_DOWNLOAD_PAGE,
-    sourceArchive: OFFICIAL_COMBINED_LEGACY,
-    sourceFormat: 'LEGACY_COMBINED_STD_RPD_BLZ_WITH_UNRATED',
+    sourceArchive: sourceArchiveSummary,
+    sourceFormat: 'OFFICIAL_COMBINED_STD_RPD_BLZ',
     archiveSha256,
     databaseRevision: archiveSha256.slice(0, 20),
     recordCount: status.recordCount,
@@ -258,7 +293,7 @@ export async function refreshFideRatingList(): Promise<{ changed: boolean; manif
   return { changed: true, manifest };
 }
 
-if (import.meta.url === new URL(process.argv[1] || '', 'file:').href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   refreshFideRatingList().catch(error => {
     console.error('[FIDE] Latest-list refresh failed:', error);
     process.exitCode = 1;

@@ -178,6 +178,20 @@ html = replace_once(
 html = replace_once(
     html, "<head>", '<head>\n<script src="./host.js"></script>\n<script src="./fide-cache.js"></script>',
 )
+html = replace_once(
+    html,
+    """  const sources=[
+    {name:"FIDE official",url:FIDE_OFFICIAL_URLS[type]},
+    {name:"GitHub mirror",url:FIDE_MIRROR_URLS[type]}
+  ];""",
+    """  const fideRelayBase=String(window.CP_API_BASE||"https://api.chess-publisher.org").replace(/\\/+$/,"");
+  const fideRelayFiles={std:"standard_rating_list.zip",rapid:"rapid_rating_list.zip",blitz:"blitz_rating_list.zip"};
+  const sources=[
+    {name:"FIDE official (Hub relay)",url:`${fideRelayBase}/api/v1/fide/${fideRelayFiles[type]}`},
+    {name:"FIDE official",url:FIDE_OFFICIAL_URLS[type]},
+    {name:"GitHub mirror",url:FIDE_MIRROR_URLS[type]}
+  ];""",
+)
 
 # Store bounded records inside one IndexedDB transaction so Chromium can
 # persist a complete FIDE download without losing the active-generation swap.

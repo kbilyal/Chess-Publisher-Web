@@ -10,6 +10,21 @@ import { FideRatingRepository } from './FideRatingRepository';
 import { FideDatabaseMetadata, FidePlayerRecord, FideSearchParams, FideStatusResponse } from './types';
 import { OFFICIAL_FIDE_SEED_RECORDS } from './seedFideData';
 
+const FIDE_MONTH_CODES: Record<string, string> = {
+  JAN: '01', FEB: '02', MAR: '03', APR: '04', MAY: '05', JUN: '06',
+  JUL: '07', AUG: '08', SEP: '09', OCT: '10', NOV: '11', DEC: '12'
+};
+
+export function extractRatingPeriodFromHeader(headerLine: string): { listVersion: string; listDate: string } | null {
+  const match = /\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)(\d{2})\b/i.exec(String(headerLine || ''));
+  if (!match) return null;
+  const month = FIDE_MONTH_CODES[match[1].toUpperCase()];
+  if (!month) return null;
+  const year = 2000 + Number(match[2]);
+  const listVersion = `${year}-${month}`;
+  return { listVersion, listDate: `${listVersion}-01` };
+}
+
 export class FideRatingService {
   private repository: FideRatingRepository;
   private isUpdating = false;
@@ -20,7 +35,7 @@ export class FideRatingService {
   // Authoritative server-side configured FIDE rating list endpoints
   private readonly AUTHORITATIVE_FIDE_URL = 'https://ratings.fide.com/download/players_list_xml.zip';
   private readonly AUTHORITATIVE_MIRROR_URL = 'https://web.archive.org/web/20260805163028if_/https://ratings.fide.com/download/players_list_xml.zip';
-  private readonly AUTHORITATIVE_FIDE_LEGACY_TXT_URL = 'https://ratings.fide.com/download/players_list_foa.zip';
+  private readonly AUTHORITATIVE_FIDE_LEGACY_TXT_URL = 'https://ratings.fide.com/download/players_list_legacy.zip';
   private readonly MAX_ARCHIVE_SIZE_BYTES = 150 * 1024 * 1024; // 150 MB safety ceiling
   private readonly DOWNLOAD_TIMEOUT_MS = 5000; // 5s timeout
 
@@ -257,6 +272,112 @@ export class FideRatingService {
     }
   }
 
+  private extractTextPayloadFromBuffer(archiveBuffer: Buffer): string {
+    try {
+      const zip = new AdmZip(archiveBuffer);
+      const entries = zip.getEntries();
+      for (const entry of entries) {
+        if (entry.entryName.includes('..') || path.isAbsolute(entry.entryName)) {
+          throw new Error(`Illegal entry name in ZIP archive: ${entry.entryName}`);
+        }
+        const lower = entry.entryName.toLowerCase();
+        if (lower.endsWith('.txt') || lower.endsWith('.foa') || lower.includes('rating_list') || lower.includes('players_list')) {
+          return entry.getData().toString('latin1');
+        }
+      }
+      throw new Error('No valid TXT player list file found inside FIDE zip archive.');
+    } catch (err: any) {
+      const text = archiveBuffer.toString('latin1');
+      if (text.includes('ID Number') || text.includes('FED') || text.includes('Fed')) {
+        return text;
+      }
+      throw new Error(`Corrupted or invalid ZIP archive: ${err?.message || err}`);
+    }
+  }
+
+  public async updateRatingListFromOfficialLists(
+    sources: { standard: Buffer; rapid: Buffer; blitz: Buffer },
+    options?: {
+      listVersion?: string;
+      customSourceName?: string;
+      combinedSha256?: string;
+    }
+  ): Promise<{
+    success: boolean;
+    recordCount: number;
+    listVersion: string;
+    sha256: string;
+    offlineFallback: boolean;
+  }> {
+    if (this.isUpdating) {
+      throw new Error('UPDATE_ALREADY_IN_PROGRESS: Another FIDE rating database update is currently running.');
+    }
+
+    this.isUpdating = true;
+    this.currentProgressStatus = 'PARSING';
+    this.lastError = null;
+
+    try {
+      const merged = new Map<number, FidePlayerRecord>();
+      let detectedPeriod: { listVersion: string; listDate: string } | null = null;
+
+      for (const [kind, buffer] of [
+        ['standard', sources.standard],
+        ['rapid', sources.rapid],
+        ['blitz', sources.blitz]
+      ] as const) {
+        const text = this.extractTextPayloadFromBuffer(buffer);
+        const parsed = this.parseOfficialSingleListTxt(text, kind, merged);
+        if (!detectedPeriod && parsed.period) detectedPeriod = parsed.period;
+      }
+
+      const parsedPlayers = Array.from(merged.values());
+      if (parsedPlayers.length === 0) {
+        throw new Error('Parsed FIDE rating lists contained 0 records. Sanity validation failed.');
+      }
+
+      this.currentProgressStatus = 'INDEXING';
+      const now = new Date();
+      const yearMonth = options?.listVersion || detectedPeriod?.listVersion || `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+      const listDate = `${yearMonth}-01`;
+      const sha256 = options?.combinedSha256 || crypto.createHash('sha256')
+        .update(sources.standard)
+        .update(sources.rapid)
+        .update(sources.blitz)
+        .digest('hex');
+
+      const metadata: FideDatabaseMetadata = {
+        listVersion: yearMonth,
+        listDate,
+        downloadedAt: now.toISOString(),
+        source: options?.customSourceName || 'ratings.fide.com (Official Standard, Rapid, Blitz combined lists)',
+        recordCount: parsedPlayers.length,
+        sha256,
+        importStatus: 'VALIDATING',
+        lastError: null
+      };
+
+      this.currentProgressStatus = 'VALIDATING';
+      await this.repository.commitNewDatabase(metadata, parsedPlayers);
+      this.currentProgressStatus = 'READY';
+      this.offlineFallback = false;
+
+      return {
+        success: true,
+        recordCount: parsedPlayers.length,
+        listVersion: yearMonth,
+        sha256,
+        offlineFallback: false
+      };
+    } catch (err: any) {
+      this.lastError = err?.message || String(err);
+      this.currentProgressStatus = 'FAILED';
+      throw new Error(`FIDE rating update failed: ${this.lastError}. (Existing database preserved)`);
+    } finally {
+      this.isUpdating = false;
+    }
+  }
+
   private async fetchSingleUrl(url: string, timeoutMs: number): Promise<Buffer> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -463,7 +584,105 @@ export class FideRatingService {
   }
 
   /**
-   * Parses FIDE LEGACY fixed-width format (e.g. players_list_foa.txt).
+   * Parses an official FIDE single-category rating list (standard, rapid, or blitz TXT)
+   * and merges records by fideId into the supplied map.
+   */
+  public parseOfficialSingleListTxt(
+    txtContent: string,
+    kind: 'standard' | 'rapid' | 'blitz',
+    merged = new Map<number, FidePlayerRecord>()
+  ): { period: { listVersion: string; listDate: string } | null; parsed: number } {
+    const lines = txtContent.split(/\r?\n/);
+    let headerIndex = -1;
+    for (let i = 0; i < Math.min(lines.length, 30); i++) {
+      const l = lines[i];
+      if (l.includes('ID Number') || (l.includes('Name') && /\bFed\b/i.test(l))) {
+        headerIndex = i;
+        break;
+      }
+    }
+    if (headerIndex === -1) {
+      return { period: null, parsed: 0 };
+    }
+
+    const headerLine = lines[headerIndex];
+    const headerLower = headerLine.toLowerCase();
+    const colCI = (name: string) => headerLower.indexOf(name.toLowerCase());
+    const period = extractRatingPeriodFromHeader(headerLine);
+
+    const idEnd = colCI('Name') !== -1 ? colCI('Name') : 15;
+    const nameEnd = colCI('Fed') !== -1 ? colCI('Fed') : 76;
+    const fedEnd = colCI('Sex') !== -1 ? colCI('Sex') : 80;
+    const sexEnd = colCI('Tit') !== -1 ? colCI('Tit') : 84;
+    const titEnd = colCI('WTit') !== -1 ? colCI('WTit') : colCI('FOA') !== -1 ? colCI('FOA') : 89;
+
+    const periodMatch = /\b(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\d{2}\b/i.exec(headerLine);
+    const ratingFallbackCol = kind === 'standard' ? colCI('SRtng') : kind === 'rapid' ? colCI('RRtng') : colCI('BRtng');
+    const ratingStart = periodMatch ? periodMatch.index : ratingFallbackCol;
+    const gmsCol = colCI('Gms') !== -1 ? colCI('Gms') : colCI('SGms') !== -1 ? colCI('SGms') : colCI('SGm');
+    const ratingEnd = gmsCol !== -1 && gmsCol > ratingStart ? gmsCol : ratingStart !== -1 ? ratingStart + 6 : -1;
+
+    const bdayStart = colCI('B-day') !== -1 ? colCI('B-day') : colCI('Birthday');
+    const flagStart = colCI('Flag');
+    const bdayEnd = flagStart !== -1 ? flagStart : bdayStart !== -1 ? bdayStart + 6 : -1;
+
+    let parsed = 0;
+    for (let i = headerIndex + 1; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line || line.trim().length < 20) continue;
+
+      const fideId = parseInt(line.substring(0, idEnd).trim(), 10);
+      if (isNaN(fideId) || fideId <= 0) continue;
+
+      const name = line.substring(idEnd, Math.min(line.length, nameEnd)).trim();
+      if (!name) continue;
+
+      const fed = line.length > nameEnd ? line.substring(nameEnd, Math.min(line.length, fedEnd)).trim().toUpperCase() : '';
+      const sexRaw = line.length > fedEnd ? line.substring(fedEnd, Math.min(line.length, sexEnd)).trim().toLowerCase() : '';
+      const gender: 'm' | 'f' | 'w' | undefined = sexRaw === 'm' ? 'm' : sexRaw === 'f' || sexRaw === 'w' ? 'f' : undefined;
+      const title = line.length > sexEnd ? line.substring(sexEnd, Math.min(line.length, titEnd)).trim() || undefined : undefined;
+      const rating = ratingStart !== -1 && ratingEnd > ratingStart && line.length > ratingStart
+        ? parseInt(line.substring(ratingStart, Math.min(line.length, ratingEnd)).trim(), 10) || 0
+        : 0;
+      const birth = bdayStart !== -1 && bdayEnd > bdayStart && line.length > bdayStart
+        ? line.substring(bdayStart, Math.min(line.length, bdayEnd)).trim() || undefined
+        : undefined;
+      const flag = flagStart !== -1 && line.length > flagStart
+        ? line.substring(flagStart).trim() || undefined
+        : undefined;
+
+      const existing = merged.get(fideId);
+      if (existing) {
+        if (!existing.federation && fed) existing.federation = fed;
+        if (!existing.title && title) existing.title = title;
+        if (!existing.gender && gender) existing.gender = gender;
+        if (!existing.birth && birth) existing.birth = birth;
+        if (!existing.flag && flag) existing.flag = flag;
+        if (kind === 'standard' && rating > 0) existing.ratingStandard = rating;
+        else if (kind === 'rapid' && rating > 0) existing.ratingRapid = rating;
+        else if (kind === 'blitz' && rating > 0) existing.ratingBlitz = rating;
+      } else {
+        merged.set(fideId, {
+          fideId,
+          name,
+          federation: fed,
+          title,
+          gender,
+          birth,
+          ratingStandard: kind === 'standard' ? rating : 0,
+          ratingRapid: kind === 'rapid' ? rating : 0,
+          ratingBlitz: kind === 'blitz' ? rating : 0,
+          flag
+        });
+      }
+      parsed += 1;
+    }
+
+    return { period, parsed };
+  }
+
+  /**
+   * Parses FIDE LEGACY fixed-width format (e.g. players_list.txt / players_list_foa.txt).
    * Supports players with ratings as well as unrated players (players without rating / 0 rating).
    */
   public parseFideLegacyTxt(txtContent: string): FidePlayerRecord[] {
@@ -473,32 +692,51 @@ export class FideRatingService {
     let headerIndex = -1;
     for (let i = 0; i < Math.min(lines.length, 30); i++) {
       const l = lines[i];
-      if (l.includes('ID Number') || (l.includes('Name') && (l.includes('SRtng') || l.includes('FED')))) {
+      if (l.includes('ID Number') || (l.includes('Name') && (l.includes('SRtng') || /\bFed\b/i.test(l)))) {
         headerIndex = i;
         break;
       }
     }
 
-    const records: FidePlayerRecord[] = [];
+    const deduped = new Map<number, FidePlayerRecord>();
+    const upsertRecord = (record: FidePlayerRecord) => {
+      const existing = deduped.get(record.fideId);
+      if (!existing) {
+        deduped.set(record.fideId, record);
+        return;
+      }
+      if (!existing.federation && record.federation) existing.federation = record.federation;
+      if (!existing.title && record.title) existing.title = record.title;
+      if (!existing.gender && record.gender) existing.gender = record.gender;
+      if (!existing.birth && record.birth) existing.birth = record.birth;
+      if (!existing.flag && record.flag) existing.flag = record.flag;
+      if (record.ratingStandard > 0) existing.ratingStandard = record.ratingStandard;
+      if (record.ratingRapid > 0) existing.ratingRapid = record.ratingRapid;
+      if (record.ratingBlitz > 0) existing.ratingBlitz = record.ratingBlitz;
+    };
 
     if (headerIndex !== -1) {
       const headerLine = lines[headerIndex];
-      const col = (name: string) => headerLine.indexOf(name);
+      const headerLower = headerLine.toLowerCase();
+      const col = (name: string) => headerLower.indexOf(name.toLowerCase());
 
       const idEnd = col('Name') !== -1 ? col('Name') : 13;
-      const nameEnd = col('FED') !== -1 ? col('FED') : 57;
+      const nameEnd = col('Fed') !== -1 ? col('Fed') : 57;
       const fedEnd = col('Sex') !== -1 ? col('Sex') : 62;
       const sexEnd = col('Tit') !== -1 ? col('Tit') : 67;
       const titEnd = col('WTit') !== -1 ? col('WTit') : col('FOA') !== -1 ? col('FOA') : 72;
 
       const srtngStart = col('SRtng');
-      const srtngEnd = col('SGms') !== -1 ? col('SGms') : srtngStart !== -1 ? srtngStart + 6 : 95;
+      const sgmStart = col('SGms') !== -1 ? col('SGms') : col('SGm');
+      const srtngEnd = sgmStart !== -1 ? sgmStart : srtngStart !== -1 ? srtngStart + 6 : 95;
 
       const rrtngStart = col('RRtng');
-      const rrtngEnd = col('RGms') !== -1 ? col('RGms') : rrtngStart !== -1 ? rrtngStart + 6 : 113;
+      const rgmStart = col('RGms') !== -1 ? col('RGms') : col('RGm');
+      const rrtngEnd = rgmStart !== -1 ? rgmStart : rrtngStart !== -1 ? rrtngStart + 6 : 113;
 
       const brtngStart = col('BRtng');
-      const brtngEnd = col('BGms') !== -1 ? col('BGms') : brtngStart !== -1 ? brtngStart + 6 : 131;
+      const bgmStart = col('BGms') !== -1 ? col('BGms') : col('BGm');
+      const brtngEnd = bgmStart !== -1 ? bgmStart : brtngStart !== -1 ? brtngStart + 6 : 131;
 
       const bdayStart = col('B-day') !== -1 ? col('B-day') : col('Birthday');
       const bdayEnd = col('Flag') !== -1 ? col('Flag') : bdayStart !== -1 ? bdayStart + 10 : 151;
@@ -535,7 +773,7 @@ export class FideRatingService {
           ? line.substring(bdayStart, Math.min(line.length, bdayEnd)).trim() || undefined
           : undefined;
 
-        records.push({
+        upsertRecord({
           fideId,
           name,
           federation: fed,
@@ -564,7 +802,7 @@ export class FideRatingService {
         const brtng = parseInt(line.substring(124, 131).trim(), 10) || 0;
         const birth = line.substring(141, 151).trim() || undefined;
 
-        records.push({
+        upsertRecord({
           fideId,
           name,
           federation: fed,
@@ -578,7 +816,7 @@ export class FideRatingService {
       }
     }
 
-    return records;
+    return Array.from(deduped.values());
   }
 
   public parseFideXml(xmlString: string): FidePlayerRecord[] {
@@ -596,7 +834,7 @@ export class FideRatingService {
       playersRaw = [playersRaw];
     }
 
-    const records: FidePlayerRecord[] = [];
+    const deduped = new Map<number, FidePlayerRecord>();
 
     for (const raw of playersRaw) {
       if (!raw || (!raw.fideid && !raw.id && !raw['@_fideid'])) continue;
@@ -625,7 +863,7 @@ export class FideRatingService {
       const ratingBlitz = parseInt(String(raw.blitz_rating || raw.blitz || '0'), 10) || 0;
       const flag = raw.flag ? String(raw.flag).trim() : undefined;
 
-      records.push({
+      deduped.set(fideIdNum, {
         fideId: fideIdNum,
         name,
         federation: fed,
@@ -639,6 +877,6 @@ export class FideRatingService {
       });
     }
 
-    return records;
+    return Array.from(deduped.values());
   }
 }
