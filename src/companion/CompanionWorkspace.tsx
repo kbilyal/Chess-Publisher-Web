@@ -1,3 +1,4 @@
+import { organizerTournamentStorageKey } from '../cloud/organizerTournamentStorage';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
@@ -49,7 +50,7 @@ const isSourceIdMismatch = (error: unknown) => /source[\s-]*id[\s\S]*not valid/i
 
 function readTournament(): Tournament {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(organizerTournamentStorageKey(STORAGE_KEY));
     if (raw) return JSON.parse(raw);
   } catch (error) {
     console.error('Could not read synchronized tournament state.', error);
@@ -71,7 +72,7 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
   useEffect(() => { tournamentRef.current = tournament; }, [tournament]);
   useEffect(() => { if (!cloud.conflict) setPendingConflictFields([]); }, [cloud.conflict]);
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(tournament));
+    localStorage.setItem(organizerTournamentStorageKey(STORAGE_KEY), JSON.stringify(tournament));
   }, [tournament]);
 
   const updateTournament = (updater: (previous: Tournament) => Tournament) => {
@@ -113,7 +114,7 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
   const persistTournament = (next: Tournament) => {
     setTournament(next);
     tournamentRef.current = next;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    localStorage.setItem(organizerTournamentStorageKey(STORAGE_KEY), JSON.stringify(next));
   };
 
   const unifiedSync = async () => {

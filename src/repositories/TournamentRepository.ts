@@ -1,3 +1,4 @@
+import { organizerTournamentStorageKey } from '../cloud/organizerTournamentStorage';
 import { Tournament, BoardPairing } from '../types';
 import { RoundEngineMetadata } from '../engine/adapters/types';
 
@@ -39,7 +40,7 @@ export class LocalStorageTournamentRepository implements TournamentRepository {
   public async getTournament(id?: string): Promise<Tournament | null> {
     try {
       const raw = this.hasLocalStorage()
-        ? localStorage.getItem(STORAGE_KEY)
+        ? localStorage.getItem(organizerTournamentStorageKey(STORAGE_KEY))
         : (memoryStore.get(STORAGE_KEY) || null);
       if (!raw) return null;
       return JSON.parse(raw) as Tournament;
@@ -53,11 +54,11 @@ export class LocalStorageTournamentRepository implements TournamentRepository {
     try {
       const serialized = JSON.stringify(tournament);
       if (this.hasLocalStorage()) {
-        const previousRaw = localStorage.getItem(STORAGE_KEY);
+        const previousRaw = localStorage.getItem(organizerTournamentStorageKey(STORAGE_KEY));
         if (previousRaw) {
-          localStorage.setItem(`${BACKUP_PREFIX}last_good`, previousRaw);
+          localStorage.setItem(organizerTournamentStorageKey(`${BACKUP_PREFIX}last_good`), previousRaw);
         }
-        localStorage.setItem(STORAGE_KEY, serialized);
+        localStorage.setItem(organizerTournamentStorageKey(STORAGE_KEY), serialized);
       } else {
         const prev = memoryStore.get(STORAGE_KEY);
         if (prev) {

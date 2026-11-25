@@ -1,5 +1,7 @@
 # Production Parity Matrix
 
+The [final SYNC verification report](docs/FINAL-SYNC-VERIFICATION-2026-11-24.md) records the follow-up local changes, current evidence, and remaining release blockers.
+
 24 ноември 2026 г. · Публична базова линия `779b78b533b8338e1114816e6fb3828bcd35c4d2`. Локалният кандидат е върху `d8e8589c86fb0d8e8ddfa289e61f194950e6747a`.
 
 ## Git и production
@@ -24,19 +26,19 @@
 | Google Authentication и SSO | WARNING · конфигурацията и анонимното `/api/auth/me` отговарят, реален вход не е изпълнен | PASS · Chromium с Google fixture, cookie сесия и продължаване към Companion |
 | Индивидуално Cloud пространство | NOT VERIFIED · операция с реален тестов акаунт липсва | PASS · Cloud roundtrip и изолирани синтетични данни |
 | User Isolation | NOT VERIFIED · две production тестови самоличности | PASS · двама Google потребители в изолираната Worker suite и проверка на обхвата на браузърното хранилище |
-| Autosave и Cloud Sync | WARNING · Cloud Workspace Integration и Unified SYNC Phantom Conflict са успешни за публичния commit, Freeze Guard е FAIL | PASS · локални fixture записи, ревизии, отказ при 401/403 и сериализация. Freeze е отделен блокер |
+| Autosave и Cloud Sync | WARNING · Cloud Workspace Integration и Unified SYNC Phantom Conflict са успешни за публичния commit, Freeze Guard е FAIL | PASS · локални fixture записи, ревизии, отказ при 401/403 и сериализация. Freeze и реалният междусистемен тест остават блокери |
 | HMAC Bridge Token | WARNING · read-only audit потвърди маршрута. Няма обмен с реална тестова сесия | PASS · изолирано издаване и проверка на токена. Browser transport е с fixture |
-| Account Switching | NOT VERIFIED · реална смяна между два тестови Google акаунта | WARNING · синтетичен Google и Organizer Token вход в отделни контексти, отделна проверка на namespaces |
-| Sign Out | FAIL · regression test върху чистия production източник възпроизвежда фиктивен успех при отказ от Hub API | PASS · HTTP 503 и `ok: false`, сесията остава и повторението завършва изхода |
+| Account Switching | NOT VERIFIED · реална смяна между два тестови Google акаунта | PASS в Chromium · два Google профила в един браузър, изход от стария таб, различни namespaces, отделен Cloud списък и 404 за чужд турнир |
+| Sign Out | FAIL · regression test върху чистия production източник възпроизвежда фиктивен успех при отказ от Hub API | PASS в публичния сайт и `/app/` · HTTP 503 и `ok: false`, сесията остава и повторението завършва изхода |
 | LocalStorage | NOT VERIFIED · няма вход в production | PASS · namespacing, изчистване при изход и browser persistence с fixture |
 | IndexedDB | NOT VERIFIED · няма вход в production | PASS · разделяне по обхват и FIDE cache активиране, rollback и reload |
 | Arbiter Companion | PASS · GitHub Pages, публична входна страница и точни имена на live bundles | PASS · Chromium Google и token handoff, избор на турнир, меню, reload и sign-out |
 | Chess-Results Integration | WARNING · известен успешен deployment. Няма нова публикация към външния доставчик | PASS · локални contract/transport проверки и синтетична публикация в Chromium |
 | Registration | WARNING · предходният deploy browser smoke е успешен | PASS · четирима синтетични участници и player parity suite |
 | Starting List | WARNING · предходният deploy browser smoke е успешен | PASS · resort, player parity, PDF преглед и печат |
-| Pairings | WARNING · предходният deploy browser smoke е успешен | WARNING · browser Gacrux pairing и UI са проверени, native Linux suites под Windows се провалят |
+| Pairings | PASS · съществуващият production build премина native Architecture и Desktop–Web Parity | PASS · Architecture 34/34 и Desktop–Web Parity 11/11 на Ubuntu |
 | Standings | WARNING · предходният deploy browser smoke е успешен | PASS · локални standings, класиране и TXT/PDF сценарии |
-| Tie-Break Checkers | NOT VERIFIED · текуща автентикирана проверка | PASS · локални tie-break / checker suites. Native BBP qualification е отделна |
+| Tie-Break Checkers | NOT VERIFIED · текуща автентикирана проверка | PASS · локални tie-break / checker suites и native BBP във fixtures на Linux |
 | TRF16 | NOT VERIFIED · текуща автентикирана проверка | PASS · локална TRF regression suite |
 | TRF26 | WARNING · проверка при предходния build | PASS · TRF regression, rating export, final-place policy и Fast Classical |
 | Pairings TXT Export | WARNING · проверка при предходния deploy | PASS · съвпадение на preview, download и print |
@@ -55,32 +57,52 @@
 ## Изпълнени проверки
 
 - Публични `/`, `/app/`, `/tournaments` и Companion върнаха HTTP 200. API `/` връща `404 not_found`, `/api/v1/health` върна HTTP 200 с D1/B2 и API v1, `/api/auth/me?optional=1` върна HTTP 200 без сесия, а частният workspace върна 401. [Публичен сайт](https://chess-publisher.org/) · [Web портал](https://chess-publisher.org/app/) · [Tournament Hub](https://chess-publisher.org/tournaments) · [Arbiter Companion](https://web.chess-publisher.org/) · [Hub health](https://api.chess-publisher.org/api/v1/health)
+- Повторното сравнение потвърди `origin/main` на `d8e8589`, live Companion build `779b78b` и същия production commit за шестте изтеглени `/app/` assets `host.js`, `login.mjs`, `login.css`, `workspace.css`, `autosave.js` и `engine-adapter.js`. Реален Chromium с чист профил зареди Google GIS бутона и Organizer Token входа. [Live Companion build](https://web.chess-publisher.org/companion-build-info.json)
 - `npm ci`, `npm run lint` и `npm run build` преминаха. Browser runtime и порталът са изградени с пиновете от release скриптовете. Генерираният портал премина TRF26 rating export и 16/16 FIDE eligibility.
-- Преминаха 20 от 22 командни suites в каноничното Web хранилище. Сред тях са транзакции, finalization, FIDE, TRF, tie-break/checker, online-cloud, Chess-Results, Cloud roundtrip и tournament import. FIDE suite премина с `unzip` от Git for Windows. Четири защитаващи hashes suites преминаха в чист LF checkout. `test:arch` и `test:parity` се провалиха при изпълнение на native Linux бинарните файлове под Windows.
-- Web Full `npm test` завърши 41/50 на Windows. Девет native engine случая се провалиха при недостъпен Linux engine. Отделното изпълнение на изолираните Hub auth, CORS/CSRF, isolation, bridge token, authorization, concurrency, autosave и UI suites завърши 39/39. Linux container build за локалния Web Full commit остава NOT VERIFIED.
-- `npm audit --omit=dev --audit-level=high` отчете 7 наследени записа, включително 4 high и 1 critical. Записите обхващат `adm-zip`, `body-parser`, `fast-xml-parser`, `proxy-addr`, `qs`, `source-map-js` и `vite`. Кандидатът е изграден със същия lockfile.
+- Предходната Windows проверка покри 20 командни suites. Разрешеният тестов клон `codex/final-gate-linux-2026-11-24` изпълни `test:arch` 34/34 и `test:parity` 11/11 на Ubuntu с реалните Gacrux и BBP. GitHub Actions изпълни и lint, FIDE, Cloud roundtrip, build и Chromium. Последният тестов snapshot е `d44680c`. Workflow има само `contents: read`. [Linux validation](https://github.com/kbilyal/Chess-Publisher-Web/actions/runs/45469723648)
+- В Web Full 41/41 локални теста за Hub auth, CORS/CSRF, изолация, bridge, HTTP authorization, autosave и UI преминаха. Windows опитът за целия suite на изходната версия показа девет непреминали случая при недостъпни Linux binaries. Историческият GitHub run на Web Full `origin/main` премина native suite и Docker smoke. Същият пълен run върху локалния Web Full кандидат остава непотвърден. [Web Full baseline CI](https://github.com/kbilyal/ChessPublisher-Web-Full/actions/runs/45266395510)
+- Каноничният npm lockfile разрешава `proxy-addr` 2.0.8, `body-parser` 1.20.9, `adm-zip` 0.6.1, `source-map-js` 1.2.4 и `vite` 6.4.6. Съвместими версии на Express 4 и `qs` премахнаха свързаните advisory записи. `npm audit` и `npm audit --omit=dev --audit-level=high` дават 0 Critical, 0 High и един Low за `fast-xml-parser`. Web Full дава 0 общо. Използвани са съществуващите dependency диапазони.
 - Синтетичният browser regression за Web Sign Out даде FAIL върху production източника и PASS върху кандидата. Browser fixtures обслужваха API заявките без запис в production. Няма използвани реални данни на потребители.
+- Login fixture потвърди, че забавен отговор от Google конфигурацията не презаписва грешка при Organizer Token. Формата разрешава submit след инсталиране на JavaScript обработчика.
 - Пълният `desktop-web/smoke.mjs` премина при локално обслужване на production пътя `/app/`. Проверени са осем таба на пет ширини, Chess-Results retry, Admin и Upload Data, Baku pairing, autosave, спиране при 401, restore и touch FIDE контрол. Отделните smoke проверки за FIDE cache и TXT/PDF печат също преминаха.
-- В Chromium са проверени публичните страници на 390 и 1440 px, както и пренасочването при директен вход към workspace без сесия. Ширината на съдържанието съвпадна с viewport и в двата размера. Локалните login изгледи имат еднаква геометрия преди и след patch-а. При 7 студени зареждания на вариант медианата на DOMContentLoaded е 25,3 → 32,5 ms на 390 px и 36,4 → 34,6 ms на 1440 px. Измерването е локално с блокирани външни заявки и не установява системен ефект. Трите променени browser assets добавят общо 840 байта в локалния build. Генерираният workspace HTML и stylesheet са байт по байт еднакви между двата build-а.
+- В Chromium са проверени публичните страници на 390 и 1440 px, както и пренасочването при директен вход към workspace без сесия. Ширината на съдържанието съвпадна с viewport и в двата размера. Предходното измерване на patch-а само за logout отчете еднаква геометрия и медиана на DOMContentLoaded от 25,3 → 32,5 ms на 390 px и 36,4 → 34,6 ms на 1440 px. Измерването е локално със седем студени зареждания на вариант и блокирани външни заявки. Генерираният workspace HTML и stylesheet са байт по байт еднакви между двата build-а в онова сравнение.
 - Публичната FIDE проверка `45408451022` е FAIL от timeout към официалния FIDE сървър. Локалният FIDE cache smoke и rating suites преминаха. [GitHub Actions run 45408451022](https://github.com/kbilyal/Chess-Publisher-Web/actions/runs/45408451022)
+
+## Причина за разминаването в защитения SYNC
+
+| Файл | Одобрена beta.96 r4 база | Production и `origin/main` |
+| --- | --- | --- |
+| `src/cloud/OnlineCloudProviderV2.tsx` | `c1e2e4a4882fc4c5e48686fdaef0108ddf96d140` | `71aa6dda90567e21e636a81b302d32ffc2d9cb1c` |
+| `src/cloud/cloudWorkspaceApi.ts` | `f6adbfb385a61d2daf5702935f912dc89d350975` | `ed081163181082449605e1cef3631b00ad1d1dd1` |
+
+И двете разлики за първи път се появяват в SSO commit `e75dfd6`. Provider-ът добавя Google resume, cookie auth, bridge state и изчистване на локалния турнир при смяна на организатор. API клиентът сменя Hub origin, включва cookies и добавя auth маршрути. Сравнението с frozen blobs показва 138/11 реда в Provider и 14/2 в API клиента. Hash-овете на останалите девет записа съвпадат. Checker provenance и phantom-conflict регресиите преминават отделно. Официалният Freeze Guard остава FAIL в LF checkout до одобрение и повторна Desktop–Web/Cloud проверка в реална среда. [SSO commit](https://github.com/kbilyal/Chess-Publisher-Web/commit/e75dfd6882af74ed74db04d3dc8d55dde5048f26) · [Freeze Guard](https://github.com/kbilyal/Chess-Publisher-Web/actions/runs/45389748752)
+
+## Одит на Web Full `65ffad8`
+
+Оригиналният диф спрямо `9fdd805` обхваща 17 файла, 12 319 добавени и 39 премахнати реда. От тях 8 868 са копието на Hub Worker, 1 353 са auth, CORS, cache и миграция, 1 195 са тестове, 853 са клиентският код и Express transport, а 50 са конфигурация. Worker промените обхващат също публичния Hub, администрация, Arbiter достъп, частен Cloud, revisions, публикуване и B2. Защитените шахматни файлове, двигателите, пиновете и release workflow файловете са извън дифа.
+
+- Локалните корекции изискват потвърден logout, ограничават bridge credential до Chess-Results origin и неговите API маршрути, запазват Request метода и тялото и извличат само `cp_session` за Express authorization. Hub копието проверява предназначението на сесията и отхвърля невалидно тяло при издаване на Desktop ключ. Fixture тестовете упражняват тези граници.
+- Пакетираният Worker е отделен от публичния кандидат. `wrangler.toml` сочи real Worker, custom domain и D1. Миграцията очаква съществуващи таблици и неприлагани `user_id` колони. Реалната съвместимост на D1 миграцията и пълно съвпадение на копието с действащия Worker остават непотвърдени. Изолираните проверки не доказват deploy или rollback на този Worker.
+- Локална SQLite проверка с действителната миграция потвърди конфликт при свързване на legacy организатор към Google профил, който вече има собствен организатор. Уникалният индекс върху `organizers.user_id` спира присвояването. Прехвърлянето на ownership изисква отделно потвърждение за съдбата на турнирите, ревизиите, настройките и Desktop ключовете от двата организатора.
+- В копието остават отделни рискове за евентуален Worker release. Stateless logout изтрива cookie без server-side отзоваване. Hard-delete търси R2 bindings и не чисти B2 файловете. При запис на Cloud snapshot се сваля предишният B2 обект за проверка на еквивалентно съдържание преди revision отказ. Това е свързано с действащата защита срещу phantom conflicts и изисква проверка преди промяна.
 
 ## Pre-Deployment Final Gate
 
 | Критерий | Статус | Доказателство или блокер |
 | --- | --- | --- |
 | Production Feature Parity | NOT VERIFIED | Няма автентикиран production sweep |
-| Functional Integrity | WARNING | Покритите fixture потоци са успешни. Native и реални Cloud проверки остават открити |
+| Functional Integrity | WARNING | Native и fixture проверките са успешни. Реалните Cloud операции остават непотвърдени |
 | UI Regression | PASS | Локални Chromium smoke, responsive и сравнение на assets |
-| Authentication | NOT VERIFIED | Синтетичните Google, legacy token и отказ при logout са проверени. Реален вход и account switching остават открити |
-| User Isolation | NOT VERIFIED | Два синтетични потребителя са проверени изолирано. Няма две production тестови самоличности |
-| Security | FAIL | Наследени high/critical audit записи |
+| Authentication | NOT VERIFIED | Google GIS се зарежда в production. Две синтетични самоличности, legacy token и отказ при logout са проверени. Няма тестови Google акаунти за реален вход |
+| User Isolation | NOT VERIFIED | Chromium потвърждава две fixture самоличности в един браузър. Реалният Cloud за две самоличности остава непотвърден |
+| Security | PASS за npm gate | 0 Critical и 0 High в пълен и production npm audit |
 | Cloud Sync | NOT VERIFIED | Локални Cloud suites са успешни. Реален междусистемен тест остава за одобрения SYNC процес |
 | Autosave | PASS | Изолирани Web Full safety и локални browser fixture проверки |
 | Data Integrity | WARNING | Транзакции, finalization и Cloud fixtures са успешни. Реална recovery проверка липсва |
 | Protected Core Integrity | FAIL | Freeze Guard отчита `OnlineCloudProviderV2.tsx` и `cloudWorkspaceApi.ts`. Кандидатът няма промени в двата файла или в манифеста |
 | Performance | WARNING | Локално измерване на входа и размерите на assets. Production load тест липсва |
 | Build | PASS | Vite/Node и генерираният Web портал са изградени |
-| Regression Tests | FAIL | Native Linux suites и проверки на защитената базова линия блокират release |
-| Deployment Readiness | FAIL | Публикуване е блокирано от Freeze, security и непроверени критични production потоци |
+| Regression Tests | FAIL | Native Linux suites преминаха. Freeze Guard остава FAIL |
+| Deployment Readiness | FAIL | Freeze Guard и непотвърдените реални Google/Cloud потоци блокират release |
 
-**FINAL GATE: FAIL.** Кандидатът е запазен в локалния checkout. Разрешението за commit, push и deployment е обвързано с PASS, затова няма финален commit или нов deployment run. Production проверките по-горе отразяват съществуващите версии.
+**FINAL GATE: FAIL.** Кандидатът и корекциите в Web Full са запазени локално. Изпратени са само разрешените тестови snapshot commits към отделен клон. Production версиите и main клоновете остават на проверените бази.

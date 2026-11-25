@@ -1,3 +1,4 @@
+import { organizerTournamentStorageKey } from '../cloud/organizerTournamentStorage';
 import { authApi } from '../cloud/cloudWorkspaceApi';
 
 export class ChessResultsApiError extends Error {
@@ -44,7 +45,7 @@ function organizerToken() {
 function readCurrentTournament(): any {
   if (typeof window === 'undefined') return null;
   try {
-    const raw = localStorage.getItem(TOURNAMENT_STORAGE_KEY);
+    const raw = localStorage.getItem(organizerTournamentStorageKey(TOURNAMENT_STORAGE_KEY));
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;

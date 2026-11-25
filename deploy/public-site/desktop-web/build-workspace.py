@@ -379,6 +379,44 @@ for relative in adapters:
             '    window.cpWebOnAuthCleared?.(()=>{tokenCache="";});\n    async function getToken(){',
         )
         js = replace_once(
+            js,
+            'async function commitLocalTournament(oldName,tournament,{baseRevision,baseFingerprint,remoteChecksum',
+            'async function commitLocalTournament(oldName,tournament,{expectedContentFingerprint,baseRevision,baseFingerprint,remoteChecksum',
+        )
+        js = replace_once(
+            js,
+            '''      if(oldName!==newName)delete data.tournaments[oldName];
+      data.tournaments[newName]=clean;data.currentTournament=newName;
+      try{if(typeof cpResetTournamentDocumentBinding==="function")cpResetTournamentDocumentBinding(newName,"cloud-directional-merge");}catch(_){ }
+      try{if(typeof normalizeData==="function")normalizeData();}catch(_){ }''',
+            '''      const originalData=data;
+      const beforePull=expectedContentFingerprint?JSON.stringify(data):"";
+      if(beforePull)data=JSON.parse(beforePull);
+      if(oldName!==newName)delete data.tournaments[oldName];
+      data.tournaments[newName]=clean;data.currentTournament=newName;
+      if(beforePull){
+        let normalizedData;
+        try{
+          if(typeof normalizeData==="function")normalizeData();
+          normalizedData=data;
+        }finally{data=originalData;}
+        if(await localFingerprint(newName,normalizedData.tournaments[newName])!==expectedContentFingerprint){
+          throw new Error("This Cloud snapshot changes during browser normalization. The local tournament and sync base were preserved.");
+        }
+        if(data!==originalData||JSON.stringify(data)!==beforePull){
+          throw new Error("The local tournament changed during the pull. Retry SYNC.");
+        }
+        data=normalizedData;
+      }
+      try{if(typeof cpResetTournamentDocumentBinding==="function")cpResetTournamentDocumentBinding(newName,"cloud-directional-merge");}catch(_){ }
+      if(!beforePull){try{if(typeof normalizeData==="function")normalizeData();}catch(_){ }}''',
+        )
+        js = replace_once(
+            js,
+            'const clean=await commitLocalTournament(name,imported,{baseRevision:remoteRevision,baseFingerprint:remoteHash,',
+            'const clean=await commitLocalTournament(name,imported,{expectedContentFingerprint:remoteHash,baseRevision:remoteRevision,baseFingerprint:remoteHash,',
+        )
+        js = replace_once(
             js, '          try{await resolveMissingBaseWholeTournament(side);overlay.remove();}',
             '          try{await (window.cpWebRunCloudExclusive?window.cpWebRunCloudExclusive(()=>resolveMissingBaseWholeTournament(side)):resolveMissingBaseWholeTournament(side));overlay.remove();}',
         )
@@ -457,6 +495,97 @@ html = replace_once(html, '      try{\n        if(runtime.state!=="ready"||runti
     '      runtime.autoTimer=null;\n      try{\n        if(runtime.state!=="ready"||runtime.busy)return;')
 html = replace_once(html, '    }finally{runtime.busy=false;renderStatus();}\n  }\n\n  function scheduleAutoCheck',
     '    }finally{runtime.busy=false;renderStatus();window.cpRefreshRoundControlLog?.();}\n  }\n\n  function scheduleAutoCheck')
+
+# Fix Variable (2026) Buchholz/Sonneborn-Berger checker & label mapping and .tunx [68] TRF26 descriptors.
+html = replace_once(
+    html,
+    r"""  if(text.includes("Buchholz Tie-Break")) return "BH";
+  if(text.includes("Sonneborn-Berger")) return "SB";""",
+    r"""  if(/Buchholz Tie-Break Variable \(2026\)/i.test(text)){
+    const mod=typeof tieBreakModifierInfo==="function"?tieBreakModifierInfo(text):{strongest:0,weakest:0};
+    const high=Math.max(0,Math.floor(Number(mod?.strongest)||0)),low=Math.max(0,Math.floor(Number(mod?.weakest)||0));
+    if(high>0) return low===high?`BH/M${high}`:`BH/M${high}/C${low}`;
+    return low>0?`BH/C${low}`:"BH";
+  }
+  if(text.includes("Buchholz Tie-Break")) return "BH";
+  if(/Sonneborn(?:[- ]?)Berger Tie-Break Variable \(2026\)/i.test(text)){
+    const mod=typeof tieBreakModifierInfo==="function"?tieBreakModifierInfo(text):{strongest:0,weakest:0};
+    const high=Math.max(0,Math.floor(Number(mod?.strongest)||0)),low=Math.max(0,Math.floor(Number(mod?.weakest)||0));
+    if(high>0) return low===high?`SB/M${high}`:`SB/M${high}/C${low}`;
+    return low>0?`SB/C${low}`:"SB";
+  }
+  if(text.includes("Sonneborn-Berger") || text.includes("Sonneborn Berger")) return "SB";""",
+)
+html = replace_once(
+    html,
+    r"""    if(text.includes("victories (WIN)")) return withP("WIN");
+    if(text.includes("games won (WON)")) return withP("WON");
+    if(text.includes("games played with Black (BPG)")) return opt.countForfeits?cpTrfCustomDescriptor("BPG_P"):"BPG";
+    if(text.includes("games won with Black (BWG)")) return opt.countForfeits?cpTrfCustomDescriptor("BWG_P"):"BWG";""",
+    r"""    if(/(?:victories|Number of Wins) \(WIN\)/i.test(text)) return withP("WIN");
+    if(/games won \(WON\)/i.test(text)) return withP("WON");
+    if(/games played with Black \(BPG\)/i.test(text)) return opt.countForfeits?cpTrfCustomDescriptor("BPG_P"):"BPG";
+    if(/games won with Black \(BWG\)/i.test(text)) return opt.countForfeits?cpTrfCustomDescriptor("BWG_P"):"BWG";""",
+)
+html = replace_once(
+    html,
+    r"""    if(id===84 || /\bBH\b|Buchholz/i.test(text)){
+      const opt=typeof getTieBreakOptions==="function"?getTieBreakOptions(text):{countForfeits:false};
+      let base="";
+      if(/BH-C1|Buchholz Cut-1/i.test(text))base="BH/C1";
+      else if(/BH-C2|Buchholz Cut-2/i.test(text))base="BH/C2";
+      else if(/BH-M1|Median Buchholz(?! 2)|Median-1/i.test(text))base="BH/M1";
+      else if(/BH-M2|Median Buchholz 2|Median-2/i.test(text))base="BH/M2";
+      else if(/Buchholz Tie-Break|\bBH\b/i.test(text))base="BH";
+      if(base) return opt.countForfeits?`${base}/P`:base;
+    }
+
+    if(id===85 || /\bSB\b|Sonneborn-Berger|Sonneborn Berger/i.test(text)){
+      const opt=typeof getTieBreakOptions==="function"?getTieBreakOptions(text):{countForfeits:false};
+      let base="";
+      if(/SB-C1|Sonneborn-Berger Cut-1|Sonneborn Berger Cut-1/i.test(text))base="SB/C1";
+      else if(/SB-C2|Sonneborn-Berger Cut-2|Sonneborn Berger Cut-2/i.test(text))base="SB/C2";
+      else base="SB";
+      return opt.countForfeits?`${base}/P`:base;
+    }""",
+    r"""    if(id===84 || /\bBH\b|Buchholz/i.test(text)){
+      const opt=typeof getTieBreakOptions==="function"?getTieBreakOptions(text):{countForfeits:false};
+      let base="";
+      if(/Buchholz Tie-Break Variable \(2026\)/i.test(text)){
+        const mod=typeof tieBreakModifierInfo==="function"?tieBreakModifierInfo(text):{strongest:0,weakest:0};
+        const strongest=Math.max(0,Math.floor(Number(mod?.strongest)||0));
+        const weakest=Math.max(0,Math.floor(Number(mod?.weakest)||0));
+        if(strongest===0&&weakest===0)base="BH";
+        else if(strongest===0&&weakest===1)base="BH/C1";
+        else if(strongest===0&&weakest===2)base="BH/C2";
+        else if(strongest===1&&weakest===1)base="BH/M1";
+        else if(strongest===2&&weakest===2)base="BH/M2";
+        else return "";
+      }else if(/BH-C1|Buchholz Cut-1/i.test(text))base="BH/C1";
+      else if(/BH-C2|Buchholz Cut-2/i.test(text))base="BH/C2";
+      else if(/BH-M1|Median Buchholz(?! 2)|Median-1/i.test(text))base="BH/M1";
+      else if(/BH-M2|Median Buchholz 2|Median-2/i.test(text))base="BH/M2";
+      else if(/Buchholz Tie-Break|\bBH\b/i.test(text))base="BH";
+      if(base) return opt.countForfeits?`${base}/P`:base;
+    }
+
+    if(id===85 || /\bSB\b|Sonneborn-Berger|Sonneborn Berger/i.test(text)){
+      const opt=typeof getTieBreakOptions==="function"?getTieBreakOptions(text):{countForfeits:false};
+      let base="";
+      if(/Sonneborn(?:[- ]?)Berger Tie-Break Variable \(2026\)/i.test(text)){
+        const mod=typeof tieBreakModifierInfo==="function"?tieBreakModifierInfo(text):{strongest:0,weakest:0};
+        const strongest=Math.max(0,Math.floor(Number(mod?.strongest)||0));
+        const weakest=Math.max(0,Math.floor(Number(mod?.weakest)||0));
+        if(strongest===0&&weakest===0)base="SB";
+        else if(strongest===0&&weakest===1)base="SB/C1";
+        else if(strongest===0&&weakest===2)base="SB/C2";
+        else return "";
+      }else if(/SB-C1|Sonneborn-Berger Cut-1|Sonneborn Berger Cut-1/i.test(text))base="SB/C1";
+      else if(/SB-C2|Sonneborn-Berger Cut-2|Sonneborn Berger Cut-2/i.test(text))base="SB/C2";
+      else base="SB";
+      return opt.countForfeits?`${base}/P`:base;
+    }""",
+)
 
 # Clean up export button labels without changing any onclick handlers or functionality.
 for before, after in (

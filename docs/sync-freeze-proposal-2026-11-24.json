@@ -1,0 +1,39 @@
+{
+  "status": "PROPOSED",
+  "proposedOn": "2026-11-24",
+  "requestedApproval": "Required after real two-account Google and Desktop\u2013Web\u2013Cloud confirmation",
+  "activeFreeze": "SYNC-FREEZE-v1.06.00-beta.96.json",
+  "activeBaseline": "1dac6498a279e4ea3445bd4acf9fdca63ba13df1",
+  "fingerprintContentSchema": 7,
+  "comparedGitHubMain": "d8e8589c86fb0d8e8ddfa289e61f194950e6747a",
+  "comparedPublishedWeb": "779b78b533b8338e1114816e6fb3828bcd35c4d2",
+  "protectedBlobReplacements": {
+    "src/cloud/OnlineCloudProviderV2.tsx": {
+      "active": "c1e2e4a4882fc4c5e48686fdaef0108ddf96d140",
+      "candidate": "7f69317dfee49ae4765edb17c16e561471dce19b",
+      "reason": "Google organizer binding, scoped draft recovery, and confirmed logout"
+    },
+    "src/cloud/cloudWorkspaceApi.ts": {
+      "active": "f6adbfb385a61d2daf5702935f912dc89d350975",
+      "candidate": "7004c76b3e778107dfc6b8a8b33c445f871218e7",
+      "reason": "Attach the expected organizer to cookie-authenticated Cloud requests"
+    },
+    "src/companion/companionCloudActions.ts": {
+      "active": "8bdd1a6e9c47f2700eb6693368b7ac5f68ba4ef8",
+      "candidate": "e84c39c31e74b631b1182ea61b0ac7557679a266",
+      "reason": "Route all private draft reads and writes through the organizer storage key"
+    }
+  },
+  "proposedAdditionalProtectedBlobs": {
+    "src/cloud/organizerTournamentStorage.ts": "1e2324543d110f1d4d730d483ca43bfff43c85de"
+  },
+  "originalRuntimeEvidence": {
+    "windowsPortableSha256": "5e18d6f9e02dc68e7af0df25ed0a1da17a1f11692fafedbdf8120f1869f8c803",
+    "workerSha256": "13773e265867f802631d03bcecd8bd259a74f5fdff87fd3fa52a663a5264fa22"
+  },
+  "candidateRuntimeEvidence": {
+    "windowsPortableSha256": null,
+    "deployedWorkerSha256": null,
+    "realGoogleAccountIsolation": "PENDING"
+  }
+}

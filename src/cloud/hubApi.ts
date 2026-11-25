@@ -1,4 +1,4 @@
-import { CLOUD_API_BASE, COOKIE_SESSION_TOKEN } from './cloudWorkspaceApi';
+import { applyOrganizerAuthentication, CLOUD_API_BASE } from './cloudWorkspaceApi';
 
 const enc = (value: unknown) => encodeURIComponent(String(value));
 
@@ -29,9 +29,7 @@ async function request(path: string, options: {
   // authenticated by Authorization; the optional client-version header is not
   // part of the security contract and can cause the Worker preflight to reject
   // a valid browser request before token validation runs.
-  if (options.token && options.token !== COOKIE_SESSION_TOKEN) {
-    headers.set('Authorization', `Bearer ${options.token}`);
-  }
+  applyOrganizerAuthentication(headers, options.token);
 
   let body = options.rawBody;
   if (options.body !== undefined) {

@@ -1,6 +1,7 @@
+import { organizerTournamentStorageKey, setOrganizerTournamentScope } from './organizerTournamentStorage';
 import React, { createContext, ReactNode, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Tournament } from '../types';
-import { authApi, cloudApi, CloudApiError, COOKIE_SESSION_TOKEN } from './cloudWorkspaceApi';
+import { authApi, cloudApi, CloudApiError, COOKIE_SESSION_TOKEN, setExpectedGoogleOrganizer } from './cloudWorkspaceApi';
 import { hubApi, HubApiError } from './hubApi';
 import { setGoogleSessionBridgeActive } from '../chessResults/api';
 import { buildPublicHubSnapshot } from './publicHubSnapshot';
@@ -28,7 +29,6 @@ import { createCleanTournament, importTournamentFile } from '../importers/tourna
 const TOURNAMENT_STORAGE_KEY = 'fide_tournament_manager_v2';
 const TOKEN_SESSION_KEY = 'cpstudio.organizerToken.session';
 const TOKEN_LOCAL_KEY = 'cpstudio.organizerToken.remembered';
-const LAST_ORGANIZER_KEY = 'cpstudio.lastOrganizerId';
 const DEVICE_KEY = 'cpstudio.cloud.device.v1';
 const FINGERPRINT_SCHEMA = PORTABLE_FINGERPRINT_SCHEMA;
 const AUTOSYNC_DELAY_MS = 1000;
@@ -106,7 +106,7 @@ function browserDevice() {
 }
 
 function readLocalTournament(): Tournament | null {
-  const raw = localStorage.getItem(TOURNAMENT_STORAGE_KEY);
+  const raw = localStorage.getItem(organizerTournamentStorageKey(TOURNAMENT_STORAGE_KEY));
   if (!raw) return null;
   try { return JSON.parse(raw); }
   catch { return null; }
@@ -186,39 +186,30 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
     [googleUser, workspace]
   );
 
-  function enforcePerUserLocalIsolation(organizerId: string) {
-    const nextId = text(organizerId);
-    if (!nextId) return;
-    try {
-      const previousId = text(localStorage.getItem(LAST_ORGANIZER_KEY));
-      if (previousId && previousId !== nextId) {
-        localStorage.removeItem(TOURNAMENT_STORAGE_KEY);
-        lastObservedRawRef.current = '';
-      }
-      localStorage.setItem(LAST_ORGANIZER_KEY, nextId);
-    } catch { /* ignore */ }
-  }
-
   function log(message: string) {
     const line = `${new Date().toLocaleTimeString()}  ${message}`;
     setLogs(current => [line, ...current].slice(0, 120));
   }
 
   function commitLocal(tournament: Tournament, remount = false) {
-    localStorage.setItem(TOURNAMENT_STORAGE_KEY, JSON.stringify(tournament));
-    lastObservedRawRef.current = localStorage.getItem(TOURNAMENT_STORAGE_KEY) || '';
+    localStorage.setItem(organizerTournamentStorageKey(TOURNAMENT_STORAGE_KEY), JSON.stringify(tournament));
+    lastObservedRawRef.current = localStorage.getItem(organizerTournamentStorageKey(TOURNAMENT_STORAGE_KEY)) || '';
     if (remount) setAppKey(value => value + 1);
   }
 
-  async function refreshWorkspace(currentToken = tokenRef.current) {
+  async function refreshWorkspace(currentToken = tokenRef.current, expectedOrganizer = googleUser?.organizerId) {
     const [ws, list] = await Promise.all([
       cloudApi.workspace(currentToken),
       cloudApi.listTournaments(currentToken)
     ]);
-    setWorkspace(ws);
-    if (ws?.organizer?.id) {
-      enforcePerUserLocalIsolation(String(ws.organizer.id));
+    const organizerId = text(ws?.organizer?.id);
+    if (!organizerId || (expectedOrganizer && organizerId !== expectedOrganizer)) {
+      throw new CloudApiError('The organizer session changed. Sign in again.', {
+        status: 401, code: 'organizer_session_changed'
+      });
     }
+    setOrganizerTournamentScope(organizerId);
+    setWorkspace(ws);
     const tournaments = list?.tournaments || [];
     setCloudTournaments(tournaments);
     return tournaments as CloudTournamentMeta[];
@@ -667,6 +658,13 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
         const current = readLocalTournament();
         const cloudFingerprint = await fingerprintTournament(parsed.tournament);
         const remoteRevision = Number(result?.tournament?.revision ?? meta.revision ?? 0);
+        const currentCloud = current?.cloud;
+        const currentFingerprint = currentCloud?.cloudTournamentId === meta.id &&
+          currentCloud.internalId === (result?.tournament?.localKey || meta.localKey)
+          ? await fingerprintTournament(current) : '';
+        const recoverDraft = current && currentFingerprint && currentFingerprint !== cloudFingerprint &&
+          (currentCloud?.fingerprintSchema !== FINGERPRINT_SCHEMA ||
+            currentFingerprint !== currentCloud?.baseFingerprint);
         const loaded: any = preserveInstallationLocalFields(parsed.tournament, current, {
           cloudTournamentId: meta.id,
           baseRevision: remoteRevision,
@@ -684,13 +682,14 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
         setConflict(false);
         conflictRef.current = false;
         setRemoteChangesAvailable(false);
-        setCloudDirty(false);
+        setCloudDirty(Boolean(recoverDraft));
         setLastSyncAt(loaded.cloud.lastSyncAt);
-        commitLocal(loaded, true);
+        commitLocal(recoverDraft ? current : loaded, true);
         setPhase('app');
         phaseRef.current = 'app';
-        setStatus(`Synced · r${remoteRevision}`);
-        setStatusKind('ok');
+        setStatus(recoverDraft ? 'Recovered local changes · checking Cloud revision…' : `Synced · r${remoteRevision}`);
+        setStatusKind(recoverDraft ? 'busy' : 'ok');
+        if (recoverDraft) scheduleAutomaticSync();
         log(`Opened private cloud tournament at revision ${remoteRevision}.`);
         if (
           continuationHintRef.current &&
@@ -811,13 +810,21 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
   }
 
   async function completeGoogleSession(user: GoogleUserProfile) {
+    setExpectedGoogleOrganizer(user.organizerId);
+    let list: CloudTournamentMeta[];
+    try {
+      list = await refreshWorkspace(COOKIE_SESSION_TOKEN, user.organizerId);
+    } catch (error) {
+      setExpectedGoogleOrganizer('');
+      throw error;
+    }
+    sessionStorage.removeItem(TOKEN_SESSION_KEY);
+    localStorage.removeItem(TOKEN_LOCAL_KEY);
     setGoogleSessionBridgeActive(true);
-    enforcePerUserLocalIsolation(user.organizerId || user.id);
     tokenRef.current = COOKIE_SESSION_TOKEN;
     setToken(COOKIE_SESSION_TOKEN);
     setAuthMode('google');
     setGoogleUser(user);
-    const list = await refreshWorkspace(COOKIE_SESSION_TOKEN);
     setStatus('Connected via Google');
     setStatusKind('ok');
     log(`Google Cloud Workspace connected (${user.email || user.id}).`);
@@ -912,6 +919,33 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
+    if (authMode !== 'google' || !googleUser) return;
+    let checking = false;
+    let cancelled = false;
+    const checkSession = async () => {
+      if (checking || cancelled || document.visibilityState === 'hidden') return;
+      checking = true;
+      try {
+        const me = await authApi.me();
+        if (!cancelled && (me?.authenticated !== true ||
+            me.user?.id !== googleUser.id || me.user?.organizerId !== googleUser.organizerId)) {
+          leaveSession();
+        }
+      } catch { /* Keep the local draft available while offline. */ }
+      finally { checking = false; }
+    };
+    const timer = window.setInterval(checkSession, 15000);
+    window.addEventListener('focus', checkSession);
+    document.addEventListener('visibilitychange', checkSession);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      window.removeEventListener('focus', checkSession);
+      document.removeEventListener('visibilitychange', checkSession);
+    };
+  }, [authMode, googleUser]);
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
@@ -919,7 +953,7 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
         if (!cancelled && cfg?.googleClientId) {
           setGoogleClientId(String(cfg.googleClientId));
         }
-        const me = await authApi.me().catch(() => null);
+        const me = await authApi.me();
         if (!cancelled && me?.authenticated === true && me?.user?.organizerId) {
           setBusy(true);
           try {
@@ -929,7 +963,13 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
             if (!cancelled) setBusy(false);
           }
         }
-      } catch { /* fallback to token */ }
+      } catch (error: any) {
+        if (!cancelled) {
+          setStatus(error?.message || 'Could not verify the Google session.');
+          setStatusKind(error?.code === 'network_error' ? 'offline' : 'warn');
+        }
+        return;
+      }
 
       if (cancelled) return;
       const remembered = sessionStorage.getItem(TOKEN_SESSION_KEY) || localStorage.getItem(TOKEN_LOCAL_KEY) || '';
@@ -945,9 +985,9 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (phase !== 'app') return;
-    lastObservedRawRef.current = localStorage.getItem(TOURNAMENT_STORAGE_KEY) || '';
+    lastObservedRawRef.current = localStorage.getItem(organizerTournamentStorageKey(TOURNAMENT_STORAGE_KEY)) || '';
     const timer = window.setInterval(() => {
-      const raw = localStorage.getItem(TOURNAMENT_STORAGE_KEY) || '';
+      const raw = localStorage.getItem(organizerTournamentStorageKey(TOURNAMENT_STORAGE_KEY)) || '';
       if (!raw || raw === lastObservedRawRef.current) return;
       lastObservedRawRef.current = raw;
       const local = readLocalTournament();
@@ -1136,35 +1176,32 @@ export function OnlineCloudProvider({ children }: { children: ReactNode }) {
     setStatusKind('ok');
   }
 
-  function signOut() {
+  function leaveSession() {
     coordinatorRef.current.cancelScheduled();
-    const wasGoogle = authMode === 'google';
     setGoogleSessionBridgeActive(false);
+    setExpectedGoogleOrganizer('');
+    tokenRef.current = '';
+    phaseRef.current = 'login';
     sessionStorage.removeItem(TOKEN_SESSION_KEY);
     localStorage.removeItem(TOKEN_LOCAL_KEY);
-    localStorage.removeItem(TOURNAMENT_STORAGE_KEY);
-    localStorage.removeItem(LAST_ORGANIZER_KEY);
-    lastObservedRawRef.current = '';
-    if (wasGoogle) {
-      void authApi.logout().catch(() => {});
-      try { (window as any).google?.accounts?.id?.disableAutoSelect?.(); } catch { /* ignore */ }
+    document.documentElement.style.visibility = 'hidden';
+    window.location.reload();
+  }
+
+  async function signOut() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      if (authMode === 'google') {
+        const result = await authApi.logout();
+        if (result?.ok !== true) throw new Error('Logout was not confirmed.');
+      }
+      leaveSession();
+    } catch {
+      setStatus('Could not sign out. Please try again.');
+      setStatusKind('warn');
+      setBusy(false);
     }
-    setToken('');
-    tokenRef.current = '';
-    setAuthMode('none');
-    setGoogleUser(null);
-    setWorkspace(null);
-    setCloudTournaments([]);
-    setArchivedCloudTournaments([]);
-    setActiveCloud(null);
-    activeRef.current = null;
-    setPhase('login');
-    phaseRef.current = 'login';
-    setStatus('Sign in with Google or enter Organizer Token');
-    setStatusKind('warn');
-    setConflict(false);
-    conflictRef.current = false;
-    setRemoteChangesAvailable(false);
   }
 
   const context: OnlineCloudContextValue = {

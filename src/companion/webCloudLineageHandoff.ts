@@ -1,3 +1,4 @@
+import { organizerTournamentStorageKey } from '../cloud/organizerTournamentStorage';
 import { Tournament } from '../types';
 import { cloudApi } from '../cloud/cloudWorkspaceApi';
 import {
@@ -128,7 +129,7 @@ export function preserveNewestCloudLineage(existing: Tournament | any, incoming:
 export function withLatestStoredCloudLineage(tournament: Tournament): Tournament {
   if (typeof window === 'undefined') return tournament;
   try {
-    const raw = window.localStorage.getItem(TOURNAMENT_STORAGE_KEY);
+    const raw = window.localStorage.getItem(organizerTournamentStorageKey(TOURNAMENT_STORAGE_KEY));
     if (!raw) return tournament;
     return preserveNewestCloudLineage(JSON.parse(raw), tournament);
   } catch {
@@ -200,7 +201,7 @@ export function preservePrivateIdentityAfterPublicPublish(
 function readStoredTournament(): Tournament | null {
   if (typeof window === 'undefined') return null;
   try {
-    const raw = window.localStorage.getItem(TOURNAMENT_STORAGE_KEY);
+    const raw = window.localStorage.getItem(organizerTournamentStorageKey(TOURNAMENT_STORAGE_KEY));
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -209,7 +210,7 @@ function readStoredTournament(): Tournament | null {
 
 function persistTournament(tournament: Tournament) {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(TOURNAMENT_STORAGE_KEY, JSON.stringify(tournament));
+  window.localStorage.setItem(organizerTournamentStorageKey(TOURNAMENT_STORAGE_KEY), JSON.stringify(tournament));
 }
 
 function freshTournamentForCloudFacade(facade: Record<string, any>, tournament: Tournament) {
@@ -358,7 +359,7 @@ export function installWebCloudLineageWriteGuard() {
 
   const originalSetItem = Storage.prototype.setItem;
   Storage.prototype.setItem = function guardedSetItem(key: string, value: string) {
-    if (this === window.localStorage && key === TOURNAMENT_STORAGE_KEY) {
+    if (this === window.localStorage && key === organizerTournamentStorageKey(TOURNAMENT_STORAGE_KEY)) {
       try {
         const existingRaw = window.localStorage.getItem(key);
         if (existingRaw) {

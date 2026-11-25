@@ -6,6 +6,20 @@ export const CLOUD_API_BASE = typeof window !== 'undefined' && !isProductionClou
   ? '/cloud-api'
   : REMOTE_CLOUD_API_BASE;
 export const CLOUD_CLIENT_VERSION = 'chess-publisher-web-online-cloud-beta5';
+let expectedGoogleOrganizer = '';
+
+export function setExpectedGoogleOrganizer(organizerId: string) {
+  expectedGoogleOrganizer = organizerId;
+}
+
+export function applyOrganizerAuthentication(headers: Headers, token?: string) {
+  if (token === COOKIE_SESSION_TOKEN) {
+    if (!expectedGoogleOrganizer) throw new CloudApiError('Sign in again to continue.', { status: 401 });
+    headers.set('X-Expected-Organizer', expectedGoogleOrganizer);
+  } else if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+}
 
 export class CloudApiError extends Error {
   status: number;
@@ -34,9 +48,7 @@ async function request(path: string, options: {
 } = {}) {
   const headers = new Headers(options.headers || {});
   headers.set('Accept', 'application/json');
-  if (options.token && options.token !== COOKIE_SESSION_TOKEN) {
-    headers.set('Authorization', `Bearer ${options.token}`);
-  }
+  applyOrganizerAuthentication(headers, options.token);
 
   let body: BodyInit | undefined;
   if (options.body !== undefined) {
@@ -179,6 +191,6 @@ export const authApi = {
   config: () => request('/api/auth/config'),
   me: () => request('/api/auth/me?optional=1'),
   googleLogin: (credential: string) => request('/api/auth/google', { method: 'POST', body: { credential } }),
-  logout: () => request('/api/auth/logout', { method: 'POST' }),
-  bridgeToken: () => request('/api/auth/bridge-token', { method: 'POST' })
+  logout: () => request('/api/auth/logout', { method: 'POST', token: COOKIE_SESSION_TOKEN }),
+  bridgeToken: () => request('/api/auth/bridge-token', { method: 'POST', token: COOKIE_SESSION_TOKEN })
 };

@@ -12,13 +12,15 @@ const api = 'https://api.chess-publisher.org';
 const token = 'ci-legacy-organizer';
 const user = { id: 'user-1', organizerId: 'organizer-1', name: 'Test organizer' };
 const tournament = { id: 'cloud.example', name: 'Spring Open', localKey: 'test-local', revision: 1 };
+const secondUser = { id: 'user-2', organizerId: 'organizer-2', name: 'Second organizer' };
+const secondTournament = { id: 'cloud.second', name: 'Autumn Open', localKey: 'test-local', revision: 1 };
 const portalSource = 'deploy/public-site/desktop-web';
 const snapshot = { data: { currentTournament: tournament.name, tournaments: {
   [tournament.name]: createInitialEmptyTournament(tournament.name)
 } } };
 
-async function configure(context) {
-  let googleSession = false;
+async function configure(context, googleClientId = Promise.resolve('fixture')) {
+  let googleSession;
   let logoutFailure;
   const calls = [];
   await context.route('**/*', route => route.abort());
@@ -52,27 +54,34 @@ async function configure(context) {
         button.textContent = 'Google fixture sign-in';
         button.onclick = () => this.callback({ credential: 'fixture-google-credential' });
         el.append(button);
+        const second = document.createElement('button');
+        second.textContent = 'Second Google fixture account';
+        second.onclick = () => this.callback({ credential: 'fixture-second-credential' });
+        el.append(second);
       }
     } } };`
   }));
   await context.route(`${api}/**`, async route => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
-    const { origin, authorization: bearer } = await request.allHeaders();
+    const { origin, authorization: bearer, 'x-expected-organizer': expectedOrganizer } = await request.allHeaders();
     const headers = {
       'access-control-allow-origin': origin || web,
       'access-control-allow-credentials': 'true',
       'access-control-allow-methods': 'GET, OPTIONS, POST',
-      'access-control-allow-headers': 'Authorization, Content-Type'
+      'access-control-allow-headers': 'Authorization, Content-Type, X-Expected-Organizer'
     };
     const reply = (json, status = 200) => route.fulfill({ headers, json, status });
     if (request.method() === 'OPTIONS') return route.fulfill({ headers, status: 204 });
-    calls.push({ path, origin, bearer });
-    if (path === '/api/auth/me') return reply({ ok: true, authenticated: googleSession, user: googleSession ? user : null });
-    if (path === '/api/auth/config') return reply({ googleClientId: 'fixture' });
+    calls.push({ path, origin, bearer, expectedOrganizer, method: request.method(), body: request.postData() });
+    if (expectedOrganizer && expectedOrganizer !== googleSession?.organizerId) {
+      return reply({ ok: false, error: 'organizer_session_changed' }, 401);
+    }
+    if (path === '/api/auth/me') return reply({ ok: true, authenticated: Boolean(googleSession), user: googleSession || null });
+    if (path === '/api/auth/config') return reply({ googleClientId: await googleClientId });
     if (path === '/api/auth/google' && origin === web) {
-      googleSession = true;
-      return reply({ ok: true, user });
+      googleSession = request.postDataJSON().credential === 'fixture-second-credential' ? secondUser : user;
+      return reply({ ok: true, user: googleSession });
     }
     if (path === '/api/auth/logout') {
       if (logoutFailure) {
@@ -80,15 +89,20 @@ async function configure(context) {
         logoutFailure = undefined;
         return reply(json, status);
       }
-      googleSession = false;
+      googleSession = undefined;
       return reply({ ok: true });
     }
     if (!googleSession && bearer !== `Bearer ${token}`) return reply({ error: 'unauthorized' }, 401);
-    if (path.endsWith('/workspace')) return reply({ ok: true, organizer: user });
+    const organizer = googleSession || user;
+    const owned = organizer === secondUser ? secondTournament : tournament;
+    if (path.endsWith('/workspace')) return reply({ ok: true, organizer: { id: organizer.organizerId, displayName: organizer.name } });
     if (path.endsWith('/archived')) return reply({ ok: true, tournaments: [] });
-    if (path.endsWith('/tournaments')) return reply({ ok: true, tournaments: [tournament] });
-    if (path.endsWith('/snapshot')) return reply({ ok: true, tournament, snapshot });
-    return reply({ ok: true, tournament });
+    if (path.endsWith('/tournaments')) return reply({ ok: true, tournaments: [owned] });
+    if (path.startsWith('/api/v1/cloud/tournaments/') && !path.split('/').includes(owned.id)) {
+      return reply({ ok: false, error: 'not_found' }, 404);
+    }
+    if (path.endsWith('/snapshot')) return reply({ ok: true, tournament: owned, snapshot });
+    return reply({ ok: true, tournament: owned });
   });
   return { calls, failNextLogout: (json, status) => { logoutFailure = { json, status }; } };
 }
@@ -132,6 +146,9 @@ try {
   await checkWidth(googleCompanion);
   assert.equal(googleCalls.filter(call => call.path === '/api/auth/google').length, 1);
   assert.ok(googleCalls.some(call => call.path.endsWith('/snapshot') && call.origin === companion && !call.bearer));
+  assert.ok(googleCalls.some(call => call.path.endsWith('/snapshot') && call.expectedOrganizer === user.organizerId));
+  const draftKey = `cpstudio.organizer:${user.organizerId}:fide_tournament_manager_v2`;
+  assert.ok(await googleCompanion.evaluate(key => localStorage.getItem(key), draftKey));
 
   const readSession = () => page.evaluate(() => sessionStorage.getItem('cp.desktop-web.session'));
   const activeWorkspace = `${web}/app/workspace.html?cloudTournamentId=${tournament.id}`;
@@ -163,22 +180,79 @@ try {
   await signOut.waitFor();
   const accountSession = await readSession();
   assert.equal(JSON.parse(accountSession).authMode, 'cookie');
+  const otherTab = await mobile.newPage();
+  await otherTab.goto(signedOutUrl);
+  await otherTab.waitForURL(`${web}/app/workspace.html`);
+  await otherTab.evaluate(() => window.cpWebStorage.setItem('test-private-tournament', 'first-account-only'));
   failNextLogout({ ok: false }, 200);
   await signOut.click();
   await page.getByRole('status').filter({ hasText: logoutMessage }).waitFor({ timeout: 3000 });
   assert.equal(page.url(), accountUrl);
   assert.equal(await readSession(), accountSession);
   await signOut.click();
-  await page.waitForURL(signedOutUrl);
+  await Promise.all([page.waitForURL(signedOutUrl), otherTab.waitForURL(signedOutUrl)]);
   assert.equal(await readSession(), null);
+  assert.equal(await otherTab.evaluate(() => sessionStorage.getItem('cp.desktop-web.session')), null);
   assert.equal(googleCalls.filter(call => call.path === '/api/auth/logout').length, 4);
+
+  await page.goto(accountUrl);
+  await page.getByRole('button', { name: 'Second Google fixture account' }).click();
+  await page.getByText(secondUser.name, { exact: true }).waitFor();
+  assert.equal(await page.locator('#google-auth-section').isVisible(), false);
+  await page.getByRole('link', { name: secondTournament.name }).waitFor();
+  assert.equal(await page.getByRole('link', { name: tournament.name }).count(), 0);
+  await googleCompanion.bringToFront();
+  await googleCompanion.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await googleCompanion.getByText(secondTournament.name, { exact: true }).waitFor();
+  assert.equal(await googleCompanion.getByText(tournament.name, { exact: true }).count(), 0);
+  assert.ok(await googleCompanion.evaluate(key => localStorage.getItem(key), draftKey));
+  assert.equal(await googleCompanion.evaluate(() => localStorage.getItem('fide_tournament_manager_v2')), null);
+  await page.bringToFront();
+  await page.locator('#open-workspace-btn').click();
+  await page.waitForURL(`${web}/app/workspace.html`);
+  assert.notEqual(JSON.parse(await readSession()).scope, JSON.parse(accountSession).scope);
+  assert.equal(await page.evaluate(() => window.cpWebStorage.getItem('test-private-tournament')), null);
+  const statusOfFirstTournament = await page.evaluate(async url => (await fetch(url)).status, `${api}/api/v1/cloud/tournaments/${tournament.id}`);
+  assert.equal(statusOfFirstTournament, 404);
+  await page.evaluate(async url => {
+    const request = new Request(url, { method: 'POST', body: 'request-body-fixture' });
+    const response = await fetch(request);
+    if (!response.ok) throw new Error('Cloud request fixture failed');
+  }, `${api}/api/v1/cloud/tournaments`);
+  assert.ok(googleCalls.some(call => call.path === '/api/v1/cloud/tournaments' &&
+    call.method === 'POST' && call.body === 'request-body-fixture'));
+  const rewrittenStatus = await page.evaluate(async () => {
+    const request = new Request('https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev/api/v1/cloud/tournaments', {
+      method: 'POST',
+      body: 'request-body-fixture'
+    });
+    return (await fetch(request)).status;
+  });
+  assert.equal(rewrittenStatus, 200);
+  assert.equal(googleCalls.filter(call => call.path === '/api/v1/cloud/tournaments' && call.method === 'POST').length, 2);
+
+  await page.goto(web);
+  await page.getByRole('button', { name: secondUser.name }).click();
+  failNextLogout({ ok: false }, 200);
+  await signOut.click();
+  await page.getByRole('status').filter({ hasText: logoutMessage }).waitFor();
+  await signOut.click();
+  await page.getByRole('link', { name: 'Sign in', exact: true }).waitFor();
   await mobile.close();
 
   const desktop = await browser.newContext({ viewport: { width: 1440, height: 960 }, serviceWorkers: 'block' });
-  const { calls: tokenCalls } = await configure(desktop);
+  const { promise: delayedGoogleConfig, resolve: finishGoogleConfig } = Promise.withResolvers();
+  const { calls: tokenCalls } = await configure(desktop, delayedGoogleConfig);
   const portal = await desktop.newPage();
   await portal.goto(`${web}/app/?cloudTournamentId=${tournament.id}`);
   await portal.locator('#legacy-token-details summary').click();
+  await portal.getByLabel('Organizer Token').fill('fixture-invalid-token');
+  await portal.getByRole('button', { name: 'Open Workspace' }).click();
+  const tokenError = portal.getByText('The Organizer Token is invalid or access was revoked.');
+  await tokenError.waitFor();
+  finishGoogleConfig(null);
+  await portal.getByText('Google Sign-In is unavailable.', { exact: false }).waitFor();
+  assert.equal(await tokenError.isVisible(), true);
   await portal.getByLabel('Organizer Token').fill(token);
   await portal.getByRole('button', { name: 'Open Workspace' }).click();
   await portal.waitForURL(`${web}/app/workspace.html?cloudTournamentId=${tournament.id}`);
@@ -216,4 +290,4 @@ try {
   await browser.close();
 }
 
-console.log('PASS Web organizer entry, Google cookie sign-out and retry, token handoff, tournament continuation, Companion navigation and responsive layouts.');
+console.log('PASS Web organizer entry, Google sign-out and retry, account switching and Cloud isolation, token handoff and Companion navigation.');

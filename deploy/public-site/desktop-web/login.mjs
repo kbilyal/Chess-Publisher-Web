@@ -12,6 +12,7 @@ const form = document.querySelector('form');
 const input = document.querySelector('#organizer-token');
 const button = form?.querySelector?.('button');
 const status = document.querySelector('#login-status');
+const googleStatus = document.querySelector('#google-status');
 const googleSection = document.querySelector('#google-auth-section');
 const googleBtnContainer = document.querySelector('#google-signin-button');
 const signedInPanel = document.querySelector('#signed-in-panel');
@@ -23,6 +24,8 @@ const openWorkspaceBtn = document.querySelector('#open-workspace-btn');
 const accountLogoutBtn = document.querySelector('#account-logout-btn');
 const accountStatus = document.querySelector('#account-status');
 const loginTournamentsList = document.querySelector('#login-tournaments-list');
+const accountChanges = typeof BroadcastChannel === 'function'
+  ? new BroadcastChannel('cp.desktop-web.google-session') : null;
 
 async function sha256Hex(value) {
   const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(value)));
@@ -30,8 +33,8 @@ async function sha256Hex(value) {
 }
 
 async function persistCookieSession(user) {
-  const identity = user?.organizerId || user?.id;
-  if (!identity || typeof user !== 'object' || Array.isArray(user)) {
+  const identity = user?.organizerId;
+  if (!identity || !user?.id || typeof user !== 'object' || Array.isArray(user)) {
     throw new Error('Invalid user profile');
   }
   const scope = await sha256Hex(identity);
@@ -61,10 +64,10 @@ function workspaceTargetUrl(path = './workspace.html') {
 async function handleGoogleCredential(response) {
   const credential = String(response?.credential || '').trim();
   if (!credential) {
-    if (status) status.textContent = 'Google returned an invalid sign-in response.';
+    if (googleStatus) googleStatus.textContent = 'Google returned an invalid sign-in response.';
     return;
   }
-  if (status) status.textContent = 'Signing in with Google…';
+  if (googleStatus) googleStatus.textContent = 'Signing in with Google…';
   try {
     const res = await fetch(`${apiBase}/api/auth/google`, {
       method: 'POST',
@@ -80,25 +83,27 @@ async function handleGoogleCredential(response) {
       throw new Error(data?.message || 'Google auth failed');
     }
     await persistCookieSession(data.user);
+    accountChanges?.postMessage({ id: data.user.id, organizerId: data.user.organizerId });
     if (isAccountView) showSignedInPanel(data.user);
     else location.assign(workspaceTargetUrl());
   } catch {
-    if (status) status.textContent = 'Google Sign-In is temporarily unavailable. Please try again.';
+    if (googleStatus) googleStatus.textContent = 'Google Sign-In is temporarily unavailable. Please try again.';
   }
 }
 
-async function loadMyTournamentsOnLogin() {
+async function loadMyTournamentsOnLogin(organizerId) {
   if (!loginTournamentsList) return;
   loginTournamentsList.textContent = 'Loading…';
   try {
     const res = await fetch(`${apiBase}/api/v1/cloud/tournaments`, {
-      headers: { Accept: 'application/json' },
+      headers: { Accept: 'application/json', 'X-Expected-Organizer': organizerId },
       credentials: 'include',
       redirect: 'error',
       cache: 'no-store',
       signal: AbortSignal.timeout(8000)
     });
-    const data = res.ok ? await res.json().catch(() => null) : null;
+    if (!res.ok) throw new Error('Could not load this organizer workspace.');
+    const data = await res.json();
     const rows = Array.isArray(data?.tournaments) ? data.tournaments : [];
     loginTournamentsList.replaceChildren();
     if (!rows.length) {
@@ -135,6 +140,13 @@ function showSignedInPanel(user) {
     }
   }
   if (openArbiterLink) openArbiterLink.href = workspaceTargetUrl(openArbiterLink.href);
+  accountChanges?.addEventListener('message', ({ data }) => {
+    if (data?.id !== user.id || data?.organizerId !== user.organizerId) {
+      signedInPanel.hidden = true;
+      sessionStorage.removeItem('cp.desktop-web.session');
+      location.reload();
+    }
+  });
   openWorkspaceBtn?.addEventListener('click', () => location.assign(workspaceTargetUrl()), { once: true });
   accountLogoutBtn?.addEventListener('click', async () => {
     if (accountLogoutBtn.disabled) return;
@@ -143,6 +155,7 @@ function showSignedInPanel(user) {
     try {
       const res = await fetch(`${apiBase}/api/auth/logout`, {
         method: 'POST',
+        headers: { 'X-Expected-Organizer': user.organizerId },
         credentials: 'include',
         redirect: 'error',
         cache: 'no-store',
@@ -156,10 +169,11 @@ function showSignedInPanel(user) {
       return;
     }
     sessionStorage.removeItem('cp.desktop-web.session');
+    accountChanges?.postMessage(null);
     try { window.google?.accounts?.id?.disableAutoSelect?.(); } catch {}
     location.replace('./');
   });
-  loadMyTournamentsOnLogin();
+  void loadMyTournamentsOnLogin(user.organizerId);
 }
 
 async function resolveGoogleClientId() {
@@ -210,7 +224,7 @@ async function initGoogleSignIn() {
 
   const clientId = await resolveGoogleClientId();
   if (!clientId) {
-    if (status) status.textContent = 'Google Sign-In is unavailable. You can sign in with an Organizer Token below.';
+    if (googleStatus) googleStatus.textContent = 'Google Sign-In is unavailable. You can sign in with an Organizer Token below.';
     return;
   }
 
@@ -278,3 +292,5 @@ form?.addEventListener('submit', async event => {
     button.disabled = false;
   }
 });
+
+if (button) button.disabled = false;

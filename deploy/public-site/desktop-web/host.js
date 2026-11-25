@@ -11,9 +11,12 @@
 
   const hasValidScope = !!session && /^[a-f0-9]{64}$/.test(session.scope || '');
   const isCookieMode = hasValidScope && session.authMode === 'cookie' &&
-    !!session.user && typeof session.user.id === 'string' && session.user.id.length > 0;
+    !!session.user && typeof session.user.id === 'string' && session.user.id.length > 0 &&
+    typeof session.user.organizerId === 'string' && session.user.organizerId.length > 0;
   const isLegacyTokenMode = hasValidScope && /^[!-~]{1,2048}$/.test(session.token || '');
-  const allowed = isCookieMode || isLegacyTokenMode;
+  let allowed = isCookieMode || isLegacyTokenMode;
+  const accountChanges = isCookieMode && typeof BroadcastChannel === 'function'
+    ? new BroadcastChannel('cp.desktop-web.google-session') : null;
 
   if (!allowed) {
     sessionStorage.removeItem(sessionKey);
@@ -72,6 +75,8 @@
   let bridgeTokenCache = { token: '', expMs: 0 };
 
   function clearAuthState() {
+    allowed = false;
+    window.cpDesktopWebAllowed = false;
     bridgeTokenCache = { token: '', expMs: 0 };
     secrets.clear();
     if (session) session.token = '';
@@ -82,16 +87,31 @@
     }
   }
 
-  if (isCookieMode && typeof window.fetch === 'function') {
+  function leaveStaleWorkspace() {
+    if (!allowed) return;
+    clearAuthState();
+    document.documentElement.style.visibility = 'hidden';
+    location.replace('./');
+  }
+
+  accountChanges?.addEventListener('message', ({ data }) => {
+    if (data?.id !== session.user.id || data?.organizerId !== session.user.organizerId) {
+      leaveStaleWorkspace();
+    }
+  });
+
+  if ((isCookieMode || (isLegacyTokenMode && window.CP_API_BASE)) && typeof window.fetch === 'function') {
     const nativeFetch = window.fetch.bind(window);
+    const expectedOrganizer = session.user?.organizerId;
 
     async function getBridgeToken(forceRefresh = false) {
+      if (!allowed) throw new Error('Signed out.');
       if (!forceRefresh && bridgeTokenCache.token && Date.now() < bridgeTokenCache.expMs - 60000) {
         return bridgeTokenCache.token;
       }
       const res = await nativeFetch(`${apiBase}/api/auth/bridge-token`, {
         method: 'POST',
-        headers: { Accept: 'application/json' },
+        headers: { Accept: 'application/json', 'X-Expected-Organizer': expectedOrganizer },
         credentials: 'include',
         cache: 'no-store'
       });
@@ -105,54 +125,58 @@
     }
 
     window.fetch = async (input, init) => {
+      let parsed;
       try {
         const rawUrl = input instanceof Request ? input.url : String(input);
-        const parsed = new URL(rawUrl, window.location?.href || apiBase);
-        const apiOrigin = new URL(apiBase).origin;
-        const isTargetApi = parsed.origin === LEGACY_API_ORIGIN || parsed.origin === apiOrigin;
-        if (isTargetApi) {
-          const rewrittenUrl = `${apiBase}${parsed.pathname}${parsed.search}`;
-          const headers = new Headers(input instanceof Request ? input.headers : undefined);
-          if (init?.headers) {
-            new Headers(init.headers).forEach((value, key) => headers.set(key, value));
-          }
-          const authHeader = headers.get('Authorization') || '';
-          if (authHeader.trim() === `Bearer ${COOKIE_SENTINEL}`) {
-            headers.delete('Authorization');
-          }
-          const nextInit = { ...init, headers, credentials: 'include' };
-          if (input instanceof Request) {
-            return nativeFetch(new Request(rewrittenUrl, nextInit));
-          }
-          return nativeFetch(rewrittenUrl, nextInit);
+        parsed = new URL(rawUrl, window.location?.href || apiBase);
+      } catch {
+        return nativeFetch(input, init);
+      }
+      const apiOrigin = new URL(apiBase).origin;
+      const isTargetApi = parsed.origin === LEGACY_API_ORIGIN || parsed.origin === apiOrigin;
+      if (isTargetApi) {
+        const rewrittenUrl = `${apiBase}${parsed.pathname}${parsed.search}`;
+        const headers = new Headers(input instanceof Request ? input.headers : undefined);
+        if (init?.headers) {
+          new Headers(init.headers).forEach((value, key) => headers.set(key, value));
         }
+        const authHeader = headers.get('Authorization') || '';
+        if (authHeader.trim() === `Bearer ${COOKIE_SENTINEL}`) {
+          headers.delete('Authorization');
+        }
+        const usesWorkspaceSession = /^\/api\/(?:auth\/(?:desktop-tokens|link-organizer|logout)(?:\/|$)|v1\/(?:cloud|organizer)(?:\/|$))/.test(parsed.pathname);
+        if (usesWorkspaceSession && isCookieMode) {
+          if (!allowed) throw new Error('Signed out.');
+          headers.set('X-Expected-Organizer', expectedOrganizer);
+        }
+        const nextInit = { ...init, headers, ...(isCookieMode ? { credentials: 'include' } : {}) };
+        if (input instanceof Request && rewrittenUrl !== input.url) {
+          return nativeFetch(new Request(rewrittenUrl, input), nextInit);
+        }
+        return nativeFetch(input instanceof Request ? input : rewrittenUrl, nextInit);
+      }
 
-        const isChessResults = parsed.origin === CHESS_RESULTS_ORIGIN || parsed.pathname.startsWith('/api/chess-results/');
-        if (isChessResults) {
-          const headers = new Headers(input instanceof Request ? input.headers : undefined);
-          if (init?.headers) {
-            new Headers(init.headers).forEach((value, key) => headers.set(key, value));
-          }
-          const authHeader = headers.get('Authorization') || '';
-          if (!authHeader || authHeader.trim() === `Bearer ${COOKIE_SENTINEL}`) {
-            const bridgeToken = await getBridgeToken(false);
-            headers.set('Authorization', `Bearer ${bridgeToken}`);
-            const nextInit = { ...init, headers };
-            const res = input instanceof Request
-              ? await nativeFetch(new Request(rawUrl, nextInit))
-              : await nativeFetch(rawUrl, nextInit);
-            if (res.status === 401) {
-              const refreshed = await getBridgeToken(true);
-              headers.set('Authorization', `Bearer ${refreshed}`);
-              const retryInit = { ...init, headers };
-              return input instanceof Request
-                ? nativeFetch(new Request(rawUrl, retryInit))
-                : nativeFetch(rawUrl, retryInit);
-            }
-            return res;
-          }
+      const isChessResults = parsed.origin === CHESS_RESULTS_ORIGIN && parsed.pathname.startsWith('/api/chess-results/');
+      if (isChessResults && isCookieMode) {
+        const headers = new Headers(input instanceof Request ? input.headers : undefined);
+        if (init?.headers) {
+          new Headers(init.headers).forEach((value, key) => headers.set(key, value));
         }
-      } catch {}
+        const authHeader = headers.get('Authorization') || '';
+        if (!authHeader || authHeader.trim() === `Bearer ${COOKIE_SENTINEL}`) {
+          const bridgeToken = await getBridgeToken(false);
+          headers.set('Authorization', `Bearer ${bridgeToken}`);
+          const nextInit = { ...init, headers };
+          const retry = input instanceof Request ? input.clone() : input;
+          const res = await nativeFetch(input, nextInit);
+          if (res.status === 401) {
+            const refreshed = await getBridgeToken(true);
+            headers.set('Authorization', `Bearer ${refreshed}`);
+            return nativeFetch(retry, { ...nextInit, headers });
+          }
+          return res;
+        }
+      }
       return nativeFetch(input, init);
     };
   }
@@ -351,6 +375,7 @@
           } catch {
             throw new Error('Could not sign out. Please try again.');
           }
+          accountChanges?.postMessage(null);
           try { window.google?.accounts?.id?.disableAutoSelect?.(); } catch {}
         }
         clearAuthState();
@@ -423,17 +448,25 @@
   document.addEventListener('DOMContentLoaded', () => {
     if (!allowed) return;
     if (isCookieMode && typeof window.fetch === 'function') {
-      window.fetch(`${apiBase}/api/auth/me?optional=1`, {
+      const verifyAccount = () => window.fetch(`${apiBase}/api/auth/me?optional=1`, {
         headers: { Accept: 'application/json' },
         credentials: 'include',
-        cache: 'no-store'
+        cache: 'no-store',
+        signal: AbortSignal.timeout(5000)
       }).then(async res => {
         const data = res.ok ? await res.json().catch(() => null) : null;
-        if (res.status === 401 || data?.authenticated === false) {
-          clearAuthState();
-          location.replace('./');
+        const user = data?.user;
+        if (res.status === 401 || (data?.ok === true && (
+          data.authenticated !== true || user?.id !== session.user.id || user?.organizerId !== session.user.organizerId
+        ))) {
+          leaveStaleWorkspace();
         }
       }).catch(() => {});
+      void verifyAccount();
+      window.addEventListener('focus', verifyAccount);
+      document.addEventListener('visibilitychange', () => {
+        if (allowed && document.visibilityState === 'visible') void verifyAccount();
+      });
     }
     const menu = document.querySelector('#classicMenuBar');
     if (!menu) return;

@@ -1,6 +1,8 @@
 # Next Task — TRF Full Parity (Integration Gate G)
 
-For the production parity candidate, resolve the two existing Freeze Guard mismatches through the approved SYNC change process and verify the release blockers in [AI_HANDOVER.md](AI_HANDOVER.md) before pushing or deploying.
+The pre-deployment SYNC gate remains FAIL. Use the [isolated acceptance runbook](docs/FINAL-SYNC-VERIFICATION-2026-11-24.md#isolated-manual-acceptance) for the two real Google accounts and the native Windows runtime. The [proposed freeze](docs/sync-freeze-proposal-2026-11-24.json) requires explicit approval.
+
+For the production parity candidate, obtain two test Google accounts and run real sign-in, account switching and Desktop–Web/Cloud isolation. Confirm the already deployed Google SSO changes through the approved SYNC process before replacing the beta.96 r4 baseline. Linux suites and the Critical/High npm gate passed on the validation branch. See [AI_HANDOVER.md](AI_HANDOVER.md).
 
 Keep the Companion browser smoke for Web sign-in, continuation of an owned tournament and responsive navigation. It exercises Google session reuse and the legacy Organizer Token handoff with API fixtures.
 

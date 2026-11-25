@@ -1,3 +1,4 @@
+import { organizerTournamentStorageKey } from '../cloud/organizerTournamentStorage';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Eye, Printer, X } from 'lucide-react';
 import { Player, Tournament } from '../types';
@@ -6,7 +7,7 @@ const TOURNAMENT_STORAGE_KEY = 'fide_tournament_manager_v2';
 
 function readTournament(expectedCloudId: string): Tournament | null {
   try {
-    const raw = localStorage.getItem(TOURNAMENT_STORAGE_KEY);
+    const raw = localStorage.getItem(organizerTournamentStorageKey(TOURNAMENT_STORAGE_KEY));
     if (!raw) return null;
     const tournament = JSON.parse(raw) as Tournament;
     const cloudId = String((tournament as any)?.cloud?.cloudTournamentId || '').trim();

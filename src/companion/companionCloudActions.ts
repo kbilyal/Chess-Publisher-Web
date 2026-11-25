@@ -1,3 +1,4 @@
+import { organizerTournamentStorageKey } from '../cloud/organizerTournamentStorage';
 import { Tournament } from '../types';
 import { cloudApi } from '../cloud/cloudWorkspaceApi';
 import { hubApi } from '../cloud/hubApi';
@@ -33,7 +34,7 @@ const isObject = (value: unknown): value is Record<string, any> => Boolean(value
 
 function readLocalTournament(): Tournament | null {
   try {
-    const raw = localStorage.getItem(TOURNAMENT_STORAGE_KEY);
+    const raw = localStorage.getItem(organizerTournamentStorageKey(TOURNAMENT_STORAGE_KEY));
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -322,7 +323,7 @@ async function smartPullChangesWithStrategy(
       baseRevision: currentRevision,
       baseFingerprint: currentFingerprint
     });
-    localStorage.setItem(TOURNAMENT_STORAGE_KEY, JSON.stringify(hydrated));
+    localStorage.setItem(organizerTournamentStorageKey(TOURNAMENT_STORAGE_KEY), JSON.stringify(hydrated));
 
     // Re-enter the provider only through Pull. With the freshly established base,
     // the merged copy is local-only, so this clears the conflict latch without PUT.
@@ -408,7 +409,7 @@ function adoptHubMetadata(tournament: Tournament | any, hub: any) {
     publicPageUrl: publicPageUrl || current.online?.publicPageUrl,
     revision: Number(hub.revision || current.online?.revision || 0)
   };
-  localStorage.setItem(TOURNAMENT_STORAGE_KEY, JSON.stringify(current));
+  localStorage.setItem(organizerTournamentStorageKey(TOURNAMENT_STORAGE_KEY), JSON.stringify(current));
   return current;
 }
 
@@ -452,7 +453,7 @@ async function retryPublishAgainstAuthoritativeHub(cloud: any, tournament: Tourn
   if (!text(current.cloud?.internalId) || String(current.cloud.internalId).startsWith('tournament:')) {
     current.cloud = { ...(current.cloud || {}), internalId: hub.id };
   }
-  localStorage.setItem(TOURNAMENT_STORAGE_KEY, JSON.stringify(current));
+  localStorage.setItem(organizerTournamentStorageKey(TOURNAMENT_STORAGE_KEY), JSON.stringify(current));
   return current;
 }
 
@@ -526,7 +527,7 @@ async function uploadRegulationsAndRepublish(cloud: any, tournament: Tournament,
     ...(current.hub || {}),
     regulationsFile: clone(attachment)
   };
-  localStorage.setItem(TOURNAMENT_STORAGE_KEY, JSON.stringify(current));
+  localStorage.setItem(organizerTournamentStorageKey(TOURNAMENT_STORAGE_KEY), JSON.stringify(current));
 
   // Uploading regulations changes public tournament content, not just private
   // Cloud state. Immediately create a new public Hub revision using the same

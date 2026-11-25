@@ -1,3 +1,4 @@
+import { organizerTournamentStorageKey } from '../cloud/organizerTournamentStorage';
 import { Tournament } from '../types';
 
 const STORAGE_KEY = 'fide_tournament_manager_v2';
@@ -6,7 +7,7 @@ const CONFIRMATION_MISMATCH = /Cloud has newer Desktop changes or a synchronizat
 function readStoredTournament(): Tournament | null {
   if (typeof window === 'undefined' || !window.localStorage) return null;
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(organizerTournamentStorageKey(STORAGE_KEY));
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;

@@ -1,3 +1,4 @@
+import { organizerTournamentStorageKey } from '../cloud/organizerTournamentStorage';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Check, Clipboard, Link2, Loader2, QrCode, RefreshCw, ShieldCheck, UserRoundCheck, Users, X } from 'lucide-react';
 import { arbiterApi, ArbiterAccessStatus, ArbiterSubmission } from './arbiterApi';
@@ -8,7 +9,7 @@ const QR_MODULE_URL = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/+esm'
 
 function readTournament(): Tournament | null {
   try {
-    const raw = localStorage.getItem(TOURNAMENT_STORAGE_KEY);
+    const raw = localStorage.getItem(organizerTournamentStorageKey(TOURNAMENT_STORAGE_KEY));
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
