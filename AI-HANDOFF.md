@@ -2,6 +2,8 @@
 
 A new AI agent must be able to continue Chess-Publisher Web without prior chat history.
 
+See [AI_HANDOVER.md](AI_HANDOVER.md) for the current production baseline, local candidate and release blockers.
+
 ## Startup procedure
 Read, in order:
 1. `AGENTS.md`

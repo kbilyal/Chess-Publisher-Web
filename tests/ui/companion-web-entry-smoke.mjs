@@ -19,6 +19,7 @@ const snapshot = { data: { currentTournament: tournament.name, tournaments: {
 
 async function configure(context) {
   let googleSession = false;
+  let logoutFailure;
   const calls = [];
   await context.route('**/*', route => route.abort());
   await context.route(`${web}/**`, route => {
@@ -29,7 +30,8 @@ async function configure(context) {
     // This fixture uses the real sign-in page and workspace host. The desktop
     // tournament shell is exercised separately by the public-site browser smoke.
     if (path === '/app/workspace.html') return route.fulfill({ contentType: 'text/html', body:
-      '<script src="./host.js"></script><nav id="classicMenuBar"></nav>' });
+      '<script src="./host.js"></script><nav id="classicMenuBar"></nav><output id="workspace-status"></output>' +
+      '<script>function setStatus(message) { document.querySelector("#workspace-status").textContent = message; }</script>' });
     const files = { '/app/': 'login.html', '/app/login.mjs': 'login.mjs', '/app/login.css': 'login.css', '/app/host.js': 'host.js' };
     return files[path] ? route.fulfill({ path: resolve(portalSource, files[path]) }) : route.abort();
   });
@@ -73,6 +75,11 @@ async function configure(context) {
       return reply({ ok: true, user });
     }
     if (path === '/api/auth/logout') {
+      if (logoutFailure) {
+        const { json, status } = logoutFailure;
+        logoutFailure = undefined;
+        return reply(json, status);
+      }
       googleSession = false;
       return reply({ ok: true });
     }
@@ -83,7 +90,7 @@ async function configure(context) {
     if (path.endsWith('/snapshot')) return reply({ ok: true, tournament, snapshot });
     return reply({ ok: true, tournament });
   });
-  return calls;
+  return { calls, failNextLogout: (json, status) => { logoutFailure = { json, status }; } };
 }
 
 async function checkTournament(page, calls) {
@@ -103,7 +110,7 @@ async function checkWidth(page) {
 
 try {
   const mobile = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
-  const googleCalls = await configure(mobile);
+  const { calls: googleCalls, failNextLogout } = await configure(mobile);
   const page = await mobile.newPage();
   await page.goto(web);
   assert.equal(await page.getByRole('link', { name: 'Sign in' }).getAttribute('href'), '/app/');
@@ -125,10 +132,50 @@ try {
   await checkWidth(googleCompanion);
   assert.equal(googleCalls.filter(call => call.path === '/api/auth/google').length, 1);
   assert.ok(googleCalls.some(call => call.path.endsWith('/snapshot') && call.origin === companion && !call.bearer));
+
+  const readSession = () => page.evaluate(() => sessionStorage.getItem('cp.desktop-web.session'));
+  const activeWorkspace = `${web}/app/workspace.html?cloudTournamentId=${tournament.id}`;
+  const accountUrl = `${web}/app/?account=1`;
+  const signedOutUrl = `${web}/app/`;
+  const logoutMessage = 'Could not sign out. Please try again.';
+  const signOut = page.getByRole('button', { name: 'Sign Out', exact: true });
+
+  await page.locator('#open-workspace-btn').click();
+  await page.waitForURL(activeWorkspace);
+  const workspaceSession = await readSession();
+  assert.equal(JSON.parse(workspaceSession).authMode, 'cookie');
+  failNextLogout({ ok: false, error: 'unavailable' }, 503);
+  await page.locator('#cpDesktopWebSignOut').click();
+  try {
+    await page.locator('#workspace-status').filter({ hasText: logoutMessage }).waitFor({ timeout: 3000 });
+  } catch (error) {
+    const workspaceStatus = await page.locator('#workspace-status').textContent({ timeout: 1000 }).catch(() => '');
+    throw new Error(`Workspace sign-out failure was not shown at ${page.url()}: ${workspaceStatus}`, { cause: error });
+  }
+  assert.equal(page.url(), activeWorkspace);
+  assert.equal(await readSession(), workspaceSession);
+  await signOut.click();
+  await page.waitForURL(signedOutUrl);
+  assert.equal(await readSession(), null);
+
+  await page.goto(accountUrl);
+  await page.getByRole('button', { name: 'Google fixture sign-in' }).click();
+  await signOut.waitFor();
+  const accountSession = await readSession();
+  assert.equal(JSON.parse(accountSession).authMode, 'cookie');
+  failNextLogout({ ok: false }, 200);
+  await signOut.click();
+  await page.getByRole('status').filter({ hasText: logoutMessage }).waitFor({ timeout: 3000 });
+  assert.equal(page.url(), accountUrl);
+  assert.equal(await readSession(), accountSession);
+  await signOut.click();
+  await page.waitForURL(signedOutUrl);
+  assert.equal(await readSession(), null);
+  assert.equal(googleCalls.filter(call => call.path === '/api/auth/logout').length, 4);
   await mobile.close();
 
   const desktop = await browser.newContext({ viewport: { width: 1440, height: 960 }, serviceWorkers: 'block' });
-  const tokenCalls = await configure(desktop);
+  const { calls: tokenCalls } = await configure(desktop);
   const portal = await desktop.newPage();
   await portal.goto(`${web}/app/?cloudTournamentId=${tournament.id}`);
   await portal.locator('#legacy-token-details summary').click();
@@ -169,4 +216,4 @@ try {
   await browser.close();
 }
 
-console.log('PASS Web-only organizer entry, Google cookie and token handoff, tournament continuation, Companion navigation and responsive layouts.');
+console.log('PASS Web organizer entry, Google cookie sign-out and retry, token handoff, tournament continuation, Companion navigation and responsive layouts.');

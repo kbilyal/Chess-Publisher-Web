@@ -1,5 +1,7 @@
 # Next Task — TRF Full Parity (Integration Gate G)
 
+For the production parity candidate, resolve the two existing Freeze Guard mismatches through the approved SYNC change process and verify the release blockers in [AI_HANDOVER.md](AI_HANDOVER.md) before pushing or deploying.
+
 Keep the Companion browser smoke for Web sign-in, continuation of an owned tournament and responsive navigation. It exercises Google session reuse and the legacy Organizer Token handoff with API fixtures.
 
 Keep the `/app/` browser checks for mobile menu clearance and exports when updating the pinned workspace. Pairings and Standings TXT previews must match the download and print output. Standings PDF must print the ranking shown in the shared preview.

@@ -21,6 +21,7 @@ const signedInEmail = document.querySelector('#signed-in-email');
 const openArbiterLink = document.querySelector('#open-arbiter-btn');
 const openWorkspaceBtn = document.querySelector('#open-workspace-btn');
 const accountLogoutBtn = document.querySelector('#account-logout-btn');
+const accountStatus = document.querySelector('#account-status');
 const loginTournamentsList = document.querySelector('#login-tournaments-list');
 
 async function sha256Hex(value) {
@@ -136,19 +137,28 @@ function showSignedInPanel(user) {
   if (openArbiterLink) openArbiterLink.href = workspaceTargetUrl(openArbiterLink.href);
   openWorkspaceBtn?.addEventListener('click', () => location.assign(workspaceTargetUrl()), { once: true });
   accountLogoutBtn?.addEventListener('click', async () => {
+    if (accountLogoutBtn.disabled) return;
     accountLogoutBtn.disabled = true;
+    accountStatus.hidden = true;
     try {
-      await fetch(`${apiBase}/api/auth/logout`, {
+      const res = await fetch(`${apiBase}/api/auth/logout`, {
         method: 'POST',
         credentials: 'include',
         redirect: 'error',
-        cache: 'no-store'
+        cache: 'no-store',
+        signal: AbortSignal.timeout(8000)
       });
-    } catch {}
+      if (!res.ok || (await res.json())?.ok !== true) throw new Error('Sign-out was not confirmed.');
+    } catch {
+      accountStatus.textContent = 'Could not sign out. Please try again.';
+      accountStatus.hidden = false;
+      accountLogoutBtn.disabled = false;
+      return;
+    }
     sessionStorage.removeItem('cp.desktop-web.session');
     try { window.google?.accounts?.id?.disableAutoSelect?.(); } catch {}
     location.replace('./');
-  }, { once: true });
+  });
   loadMyTournamentsOnLogin();
 }
 

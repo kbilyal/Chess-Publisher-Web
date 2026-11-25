@@ -1,5 +1,7 @@
 # Chess-Publisher Web — Project State
 
+The 2026-11-24 production parity candidate fixes Google Sign Out in the Web account panel and organizer workspace. Both require confirmation from the Hub API before clearing their local session. A failed request leaves the workspace available for retry. Deployment remains blocked by existing protected SYNC hash mismatches. See [AI_HANDOVER.md](AI_HANDOVER.md).
+
 Organizer sign-in starts at ChessPublisher Web (`/app/`). The public site links to Web, and Arbiter Companion resumes the existing Google session or receives the Organizer Token from the signed-in Web workspace. Tournament links still resolve against the authenticated Cloud list. Tournament-scoped arbiter invitations use their existing access flow. The Companion entry, tournament picker and workspace use the Web panel, action and focus styles.
 
 The `/app/` source uses the same export dialog for Pairings TXT and PDF, Standings TXT and PDF, and Starting List PDF. The fixed-width TXT previews feed the file download and print actions. Standings uses its existing ranking report and fixed-width text builders. The mobile menu grows when its controls wrap so Sign out stays above the workspace tabs (Issue #93).

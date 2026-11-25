@@ -33,3 +33,5 @@ See `PROTECTED-COMPONENTS.md`. Any change there requires a reproducible defect, 
 - project state and next task updated.
 
 `HANDOFF_READY` may become true only when every gate in `INTEGRATION-GATE.md` is PASS.
+
+For production work, read `AI_HANDOVER.md` and the current Production Parity Matrix before changing deployment paths. Check both Web remotes, compare live asset hashes and deployment metadata, and run the existing Freeze Guard against the release candidate. A failed gate or an unverified critical path blocks push and deployment for that candidate.

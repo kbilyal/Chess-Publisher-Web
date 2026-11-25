@@ -339,11 +339,18 @@
         }
         await window.cpWebFlushAutosave?.();
         if (isCookieMode) {
-          await fetch(`${apiBase}/api/auth/logout`, {
-            method: 'POST',
-            credentials: 'include',
-            cache: 'no-store'
-          }).catch(() => {});
+          try {
+            const res = await fetch(`${apiBase}/api/auth/logout`, {
+              method: 'POST',
+              credentials: 'include',
+              redirect: 'error',
+              cache: 'no-store',
+              signal: AbortSignal.timeout(8000)
+            });
+            if (!res.ok || (await res.json())?.ok !== true) throw new Error('Sign-out was not confirmed.');
+          } catch {
+            throw new Error('Could not sign out. Please try again.');
+          }
           try { window.google?.accounts?.id?.disableAutoSelect?.(); } catch {}
         }
         clearAuthState();

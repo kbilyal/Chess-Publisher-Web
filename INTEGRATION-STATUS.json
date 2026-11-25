@@ -13,6 +13,7 @@
     "requiresFinalReaudit": true
   },
   "regressionStatus": {
+    "productionParity20261124": "Google Sign Out failure and retry verified in isolated Chromium. FINAL GATE FAIL due to pre-existing Freeze Guard mismatches and remaining production checks.",
     "companionWebEntry": "ChessPublisher Web is the organizer sign-in entry. Browser smoke covers the Google session, Organizer Token handoff, Cloud tournament continuation and Companion navigation.",
     "publicAppResponsiveNavigation": "Chromium checks that the classic menu clears the workspace tabs and that all eight tabs and Sign out receive pointer input at five viewport widths (Issue #93).",
     "publicAppTxtExport": "Chromium checks the shared Pairings and Standings TXT dialogs, matches each preview against the download and print output, and verifies the fixed-width print styles.",
