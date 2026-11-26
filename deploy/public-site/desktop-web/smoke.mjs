@@ -256,6 +256,7 @@ try {
   await page.locator('#pairings aside.result-palette .result-main-action').nth(1).click();
   assert.equal(await page.evaluate(() => getCurrentTournament().pairings.liveBoards['1'][0].result), '0 - 1');
   assert.equal(await page.evaluate(() => getCurrentTournament().pairings.liveBoards['1'][1].result), '½ - ½');
+  await page.locator('#appMessageOk').click({ timeout: 10000 });
 
   // Keyboard tab navigation check
   await page.locator('#tabMain').focus();
@@ -313,6 +314,7 @@ try {
     saveData();
   });
   await page.locator('#cpWebHeaderSyncBtn').click();
+  await page.locator('#cpWebHeaderSyncBtn').filter({ hasText: '↻ Sync' }).waitFor({ timeout: 10000 });
   await page.locator('#cpWebCloudSaveStatus').filter({ hasText: 'Saved to private Cloud' }).waitFor({ timeout: 10000 });
   putDelayMs = 0;
   assert.equal(conflictResponses, 0);
