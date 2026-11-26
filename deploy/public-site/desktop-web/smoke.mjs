@@ -35,7 +35,8 @@ function sha256Hex(v) {
 async function seedGoogleCookieSession(page, user) {
   const scope = sha256Hex(user.organizerId);
   await page.addInitScript(({ user: u, scope: s }) => {
-    if (!sessionStorage.getItem('cp.desktop-web.session')) {
+    if (!sessionStorage.getItem('cp.__e2e_seeded')) {
+      sessionStorage.setItem('cp.__e2e_seeded', '1');
       sessionStorage.setItem('cp.desktop-web.session', JSON.stringify({
         authMode: 'cookie',
         scope: s,
