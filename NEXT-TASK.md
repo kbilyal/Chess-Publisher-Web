@@ -6,7 +6,7 @@ For the production parity candidate, obtain two test Google accounts and run rea
 
 Keep the Companion browser smoke for Web sign-in, continuation of an owned tournament and responsive navigation. It exercises Google session reuse and uses an isolated opener to check compatibility with older Organizer Token handoffs. Keep the separate fresh guest context coverage for homepage invitation routing, name-only entry, result submission, session reuse, and live arrival of new rounds with prior-round selection and draft preservation.
 
-Keep the guest touch result-entry checks for phone and tablet layouts, board search, the Missing filter, batch SYNC, and confirmation when changing or clearing a recorded score.
+Keep the guest touch result-entry checks for phone and tablet layouts, legible board numbers, board search, the Missing filter, batch SYNC, and confirmation when changing or clearing a recorded score.
 
 Keep the `/app/` browser checks for mobile menu clearance and exports when updating the pinned workspace. Pairings and Standings TXT previews must match the download and print output. Standings PDF must print the ranking shown in the shared preview.
 

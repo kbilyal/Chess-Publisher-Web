@@ -722,7 +722,8 @@
 
   .arbiter-shell .arbiter-board-number {
     grid-area: board;
-    font-size: 12.5px;
+    font-size: 18px;
+    line-height: 1.2;
     align-self: center;
   }
 
