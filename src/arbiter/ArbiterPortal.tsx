@@ -147,6 +147,8 @@ export const ArbiterPortal: React.FC = () => {
   const [activeRound, setActiveRound] = useState(0);
   const [followNewestRound, setFollowNewestRound] = useState(true);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [boardQuery, setBoardQuery] = useState('');
+  const [expandedExtras, setExpandedExtras] = useState<Record<string, boolean>>({});
   const [overwriteConfirmation, setOverwriteConfirmation] = useState<OverwriteConfirmation | null>(null);
   const [externalResultNotices, setExternalResultNotices] = useState<ExternalResultNotice[]>([]);
   const [busy, setBusy] = useState(false);
@@ -641,6 +643,24 @@ export const ArbiterPortal: React.FC = () => {
     const result = drafts[key];
     return isNormalGame(board) && Boolean(result) && result !== currentResult && isAllowedSubmissionResult(result);
   }).length;
+  const totalNormalGames = boards.filter(isNormalGame).length;
+  const enteredCount = boards.filter(board => {
+    if (!isNormalGame(board)) return false;
+    const key = `${activeRound}:${board.board}`;
+    const currentResult = recordedResult(board.result);
+    const selected = drafts[key] || currentResult;
+    return selected !== CLEAR_RESULT;
+  }).length;
+  const normalizedBoardQuery = boardQuery.trim().toLowerCase();
+  const visibleBoards = !normalizedBoardQuery
+    ? boards
+    : boards.filter(board => {
+        const white = playerLabel(view, board.whiteKey);
+        const black = playerLabel(view, board.blackKey);
+        return String(board.board).toLowerCase().includes(normalizedBoardQuery)
+          || white.name.toLowerCase().includes(normalizedBoardQuery)
+          || black.name.toLowerCase().includes(normalizedBoardQuery);
+      });
 
   return (
     <div className="arbiter-shell">
@@ -659,22 +679,47 @@ export const ArbiterPortal: React.FC = () => {
         {message && <div className="arbiter-message"><CheckCircle2 size={16} /> {message}</div>}
 
         <section className="arbiter-round-toolbar">
-          <div><strong>Pairings & Results</strong><span>{finalized ? `Round ${activeRound} is finalized and read-only.` : 'Choose results or Clear result, then press ↕ SYNC once. Existing results require confirmation before overwrite.'}</span></div>
+          <div className="arbiter-round-heading">
+            <div className="arbiter-round-title-row">
+              <strong>Pairings & Results</strong>
+              {totalNormalGames > 0 && (
+                <span className="arbiter-round-progress">{enteredCount}/{totalNormalGames} entered</span>
+              )}
+            </div>
+            <span>{finalized ? `Round ${activeRound} is finalized and read-only.` : 'Choose results or Clear result, then press ↕ SYNC once. Existing results require confirmation before overwrite.'}</span>
+          </div>
           <div className="arbiter-round-actions">
             <button type="button" className="arbiter-send-all" data-unified-arbiter-sync="true" disabled={busy || !online} onClick={() => void submitAll()} title="Synchronize the current tournament state and send every changed result with revision protection.">
               {busy ? <Loader2 size={17} className="spin" /> : null} ↕ SYNC{pendingDraftCount ? ` (${pendingDraftCount})` : ''}
             </button>
-            <label><span>Round</span><select value={activeRound} onChange={event => {
-              const selected = Number(event.target.value);
-              setActiveRound(selected);
-              setFollowNewestRound(selected === newestRound);
-            }}>{rounds.map(round => <option key={round} value={round}>Round {round}</option>)}</select></label>
+            <div className="arbiter-round-controls">
+              <label><span>Round</span><select value={activeRound} onChange={event => {
+                const selected = Number(event.target.value);
+                setActiveRound(selected);
+                setFollowNewestRound(selected === newestRound);
+              }}>{rounds.map(round => <option key={round} value={round}>Round {round}</option>)}</select></label>
+              <div className="arbiter-board-search">
+                <input
+                  type="search"
+                  value={boardQuery}
+                  onChange={event => setBoardQuery(event.target.value)}
+                  placeholder="Board # or player…"
+                  aria-label="Filter boards by number or player name"
+                />
+                {boardQuery && (
+                  <button type="button" className="arbiter-board-search-clear" onClick={() => setBoardQuery('')} aria-label="Clear search">×</button>
+                )}
+              </div>
+            </div>
           </div>
         </section>
 
         <section className="arbiter-board-list">
           {boards.length === 0 && <div className="arbiter-empty">No pairings are available for this round yet.</div>}
-          {boards.map(board => {
+          {boards.length > 0 && visibleBoards.length === 0 && (
+            <div className="arbiter-empty">No boards match &ldquo;{boardQuery.trim()}&rdquo;.</div>
+          )}
+          {visibleBoards.map(board => {
             const white = playerLabel(view, board.whiteKey);
             const black = playerLabel(view, board.blackKey);
             const key = `${activeRound}:${board.board}`;
@@ -682,6 +727,9 @@ export const ArbiterPortal: React.FC = () => {
             const selected = drafts[key] || currentResult;
             const canEdit = isNormalGame(board) && !finalized;
             const clearSelected = selected === CLEAR_RESULT && currentResult !== CLEAR_RESULT;
+            const isDraft = Boolean(drafts[key]) && drafts[key] !== currentResult;
+            const hasSpecialOrClear = specialResults.includes(selected as any) || clearSelected;
+            const extrasOpen = Boolean(expandedExtras[key]) || hasSpecialOrClear;
             const chooseResult = (result: ArbiterSubmissionResult) => requestResultChange(
               key,
               activeRound,
@@ -694,7 +742,13 @@ export const ArbiterPortal: React.FC = () => {
               result
             );
             return (
-              <article className="arbiter-board-card" data-result-missing={currentResult === CLEAR_RESULT ? 'true' : 'false'} key={key}>
+              <article
+                className="arbiter-board-card"
+                data-result-missing={currentResult === CLEAR_RESULT ? 'true' : 'false'}
+                data-has-draft={isDraft ? 'true' : 'false'}
+                data-result-entered={selected !== CLEAR_RESULT ? 'true' : 'false'}
+                key={key}
+              >
                 <div className="arbiter-board-number">Board {board.board}</div>
                 <div className="arbiter-player white">
                   <div className="arbiter-player-name-row"><span className="arbiter-color-badge white" aria-label="White">W</span><strong>{white.name}</strong></div>
@@ -711,20 +765,30 @@ export const ArbiterPortal: React.FC = () => {
                       <div className="arbiter-result-buttons">
                         {standardResults.map(result => <button key={result} type="button" className={selected === result ? 'selected' : ''} onClick={() => chooseResult(result)}>{result}</button>)}
                       </div>
-                      <div className="arbiter-special-results">
-                        <span>Special results</span>
-                        <div className="arbiter-result-buttons arbiter-special-result-buttons">
-                          {specialResults.map(result => <button key={result} type="button" className={selected === result ? 'selected' : ''} onClick={() => chooseResult(result)}>{result}</button>)}
-                        </div>
-                      </div>
                       <button
                         type="button"
-                        className={`arbiter-clear-result${clearSelected ? ' selected' : ''}`}
-                        disabled={selected === CLEAR_RESULT && currentResult === CLEAR_RESULT}
-                        onClick={() => chooseResult(CLEAR_RESULT)}
+                        className={`arbiter-extras-toggle${extrasOpen ? ' is-open' : ''}`}
+                        aria-expanded={extrasOpen}
+                        onClick={() => setExpandedExtras(prev => ({ ...prev, [key]: !extrasOpen }))}
                       >
-                        Clear result
+                        {extrasOpen ? 'Hide forfeit / clear ▲' : 'Forfeit / Clear ▾'}
                       </button>
+                      <div className={`arbiter-result-extras${extrasOpen ? ' is-open' : ''}`}>
+                        <div className="arbiter-special-results">
+                          <span>Special results</span>
+                          <div className="arbiter-result-buttons arbiter-special-result-buttons">
+                            {specialResults.map(result => <button key={result} type="button" className={selected === result ? 'selected' : ''} onClick={() => chooseResult(result)}>{result}</button>)}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          className={`arbiter-clear-result${clearSelected ? ' selected' : ''}`}
+                          disabled={selected === CLEAR_RESULT && currentResult === CLEAR_RESULT}
+                          onClick={() => chooseResult(CLEAR_RESULT)}
+                        >
+                          Clear result
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ) : (

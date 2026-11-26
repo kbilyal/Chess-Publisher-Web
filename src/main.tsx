@@ -28,6 +28,7 @@ import './arbiter/organizer-pairings-print.css';
 import './arbiter/arbiter-ui-fixes.css';
 import './arbiter/arbiter-print-filter-fixes.css';
 import './arbiter/arbiter-desktop-dense.css';
+import './mobile-ergonomics.css';
 
 const isArbiterAccess = new URLSearchParams(window.location.search).has('arbiter');
 
