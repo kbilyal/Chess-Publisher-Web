@@ -785,6 +785,43 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
   padding: 4px 6px;
   background: #fff;
 }
+#registration #fideResults .fide-item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  padding: 6px 8px;
+  min-height: auto;
+  white-space: normal;
+  line-height: 1.35;
+  border-bottom: 1px solid #e2e8f0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+#registration #fideResults .fide-name {
+  min-width: 0;
+  font-weight: 600;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+}
+#registration #fideResults .fide-info {
+  min-width: 0;
+  margin-top: 0;
+  font-size: 0.88em;
+  line-height: 1.35;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+#registration #fideResults .fide-info.cp-r7-rating-sources,
+#registration #fideResults .fide-info.cp-rating-sequence-fallback {
+  font-size: 0.84em;
+  opacity: 0.88;
+}
 @media (max-width: 1100px) {
   #registration.page.active { overflow: auto; }
   #registration #registrationListsContainer {

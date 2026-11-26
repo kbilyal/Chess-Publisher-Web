@@ -59,7 +59,7 @@ async function draw(payload) {
   const output = '/preview.txt';
   const args = python.toPy([
     '-p', '-m', 'dutch', '-i', input, '-o', output, '-f', 'TRF', '-F', 'TXT', '-d', 'T',
-    '-n', String(round), '-N', String(rounds), '-t', topColor, '-x', 'weighted',
+    '-n', String(round), '-N', String(rounds), '-t', topColor,
     ...(excluded.length ? ['-u', ...excluded.map(String)] : [])
   ]);
   const runPairing = python.globals.get('run_pairing');
@@ -80,7 +80,7 @@ async function draw(payload) {
       return pairs;
     }
     const pairs = run();
-    if (excluded.length || pairs.some(pair => !pair.black)) {
+    if (excluded.length || pairs.some(pair => !pair.black) || players.size > 64) {
       if (JSON.stringify(pairs) !== JSON.stringify(run())) throw new Error('Gacrux regeneration mismatch.');
     } else {
       const blocks = new Map();
@@ -93,7 +93,7 @@ async function draw(payload) {
         ? line.slice(0, end) + blocks.get(Number(line.slice(4, 8))) : line).join('\r\n');
       python.FS.writeFile(input, toLatin1Bytes(checked));
       const checkArgs = python.toPy(['-c','-m','dutch','-i',input,'-o',output,'-f','TRF','-F','JSON',
-        '-n',String(round),'-N',String(rounds),'-t',topColor,'-x','weighted','-d','T']);
+        '-n',String(round),'-N',String(rounds),'-t',topColor,'-d','T']);
       try {
         const code = runPairing(checkArgs);
         const report = python.FS.readFile(output, {encoding:'utf8'});
