@@ -244,13 +244,13 @@
       const importBtn = toolbar ? qs('button[onclick*="trfResultsImportFile"]', toolbar) : null;
       const importInput = byId('trfResultsImportFile');
       const syncWebBtn = byId('pairingsDownloadWebResultsBtn');
-      if (syncWebBtn) syncWebBtn.classList.add('cp-ws-btn-secondary');
+      hide(syncWebBtn);
       const manualCtrl = byId('manualPairingControls');
       const delRoundBtn = toolbar ? qs('button[onclick*="deleteCurrentRound"]', toolbar) : null;
       const resetTourneyBtn = qs('button[onclick*="resetTournamentRounds"]', pairings);
       if (resetTourneyBtn) resetTourneyBtn.classList.remove('cp-top-reset-tournament');
 
-      [importBtn, importInput, syncWebBtn, manualCtrl].forEach(el => el && subRight.appendChild(el));
+      [importBtn, importInput, manualCtrl].forEach(el => el && subRight.appendChild(el));
       subRight.appendChild(make('span', 'cp-ws-divider'));
       [delRoundBtn, resetTourneyBtn].forEach(el => el && subRight.appendChild(el));
 

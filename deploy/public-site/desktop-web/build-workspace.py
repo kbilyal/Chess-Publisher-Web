@@ -120,7 +120,7 @@ if len(autosave_control.findall(html)) != 1:
     raise SystemExit("Expected one desktop Autosave switch.")
 html = autosave_control.sub(
     '      <span id="cpWebCloudSaveStatus" role="status">Cloud autosave on</span>\n'
-    '      <button id="cpWebHeaderSyncBtn" type="button" class="cp-header-sync-btn" title="Synchronize current tournament with private Cloud" aria-label="Sync now">↻ Sync</button>',
+    '      <button id="cpWebHeaderSyncBtn" type="button" class="cp-header-sync-btn" title="SYNC the current tournament with private Cloud and download validated Web-entered results" aria-label="Sync now">↻ Sync</button>',
     html,
     count=1,
 )

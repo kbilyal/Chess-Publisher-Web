@@ -877,10 +877,6 @@
     const quickSection = makeEl('div', 'cp-user-panel-section');
     quickSection.append(makeEl('div', 'cp-user-section-title', 'Cloud & Companion'));
 
-    const syncNowBtn = makeEl('button', 'cp-user-action-btn cp-user-sync-btn', '↻ Sync Now');
-    syncNowBtn.type = 'button';
-    syncNowBtn.id = 'cpUserMenuSyncBtn';
-
     const panelArbiterLink = makeEl('a', 'cp-user-panel-link', 'Open Arbiter Companion ↗');
     panelArbiterLink.id = 'cpUserPanelArbiterLink';
     panelArbiterLink.href = ARBITER_COMPANION_URL;
@@ -902,7 +898,7 @@
       void openArbiterAccessModal();
     });
 
-    quickSection.append(syncNowBtn, panelArbiterLink, guestArbiterBtn);
+    quickSection.append(panelArbiterLink, guestArbiterBtn);
     panel.append(quickSection);
 
     const tournamentsSection = makeEl('div', 'cp-user-panel-section');
@@ -1032,14 +1028,26 @@
       }
       const headerSyncBtn = document.getElementById('cpWebHeaderSyncBtn');
       if (headerSyncBtn) { headerSyncBtn.disabled = true; headerSyncBtn.textContent = 'Syncing…'; }
-      syncNowBtn.disabled = true;
       try {
-        if (typeof window.cpCloudSyncUnifiedNow === 'function') {
-          await window.cpCloudSyncUnifiedNow();
+        let handled = false;
+        if (typeof window.downloadWebEnteredResults === 'function' && typeof window.cpCloudDownloadWebResults === 'function') {
+          const ok = await window.downloadWebEnteredResults();
+          handled = true;
+          if (!ok && window.cpCloudGetStatus?.()?.state === 'CONFLICT' && typeof window.cpCloudResolveConflict === 'function') {
+            window.cpCloudResolveConflict();
+          }
         } else if (typeof window.cpCloudDownloadWebResults === 'function') {
           const run = () => window.cpCloudDownloadWebResults();
-          await (window.cpWebRunCloudExclusive ? window.cpWebRunCloudExclusive(run) : run());
-        } else {
+          const res = await (window.cpWebRunCloudExclusive ? window.cpWebRunCloudExclusive(run) : run());
+          handled = true;
+          if (res?.conflict && typeof window.cpCloudResolveConflict === 'function') {
+            window.cpCloudResolveConflict();
+          }
+        } else if (typeof window.cpCloudSyncUnifiedNow === 'function') {
+          await window.cpCloudSyncUnifiedNow();
+          handled = true;
+        }
+        if (!handled) {
           throw new Error('Cloud sync service is not ready yet.');
         }
         if (loadedTournaments) await loadUserTournaments(true);
@@ -1048,19 +1056,12 @@
         if (typeof setStatus === 'function') setStatus(msg);
         if (typeof window.appAlert === 'function') await window.appAlert(msg, 'Cloud Sync', 'warning');
       } finally {
-        syncNowBtn.disabled = false;
         if (headerSyncBtn) { headerSyncBtn.disabled = false; headerSyncBtn.textContent = '↻ Sync'; }
         try { document.dispatchEvent(new CustomEvent('cp:hub-ui-updated')); } catch {}
       }
     }
 
     window.cpWebRunManualSync = runManualSync;
-
-    syncNowBtn.addEventListener('click', () => {
-      panel.hidden = true;
-      toggle.setAttribute('aria-expanded', 'false');
-      void runManualSync();
-    });
 
     refreshListBtn.addEventListener('click', () => void loadUserTournaments(true));
 
