@@ -5,6 +5,7 @@ import './arbiter-confirmation.css';
 
 const DEVICE_KEY = 'cp.arbiter.device.v1';
 const standardResults = ['1 - 0', '½ - ½', '0 - 1'] as const;
+const standardResultLabels = { '1 - 0': 'White wins', '½ - ½': 'Draw', '0 - 1': 'Black wins' };
 const specialResults = ['1F - 0F', '0F - 1F', '0F - 0F'] as const;
 const allowedResults = [...standardResults, ...specialResults] as const;
 const CLEAR_RESULT = '-' as const;
@@ -676,7 +677,9 @@ export const ArbiterPortal: React.FC = () => {
       </header>
 
       <main className="arbiter-main">
-        {message && <div className="arbiter-message"><CheckCircle2 size={16} /> {message}</div>}
+        <div role="status">
+          {message && <div className="arbiter-message"><CheckCircle2 size={16} aria-hidden="true" /> {message}</div>}
+        </div>
 
         <section className="arbiter-round-toolbar">
           <div className="arbiter-round-heading">
@@ -689,11 +692,11 @@ export const ArbiterPortal: React.FC = () => {
             <span>{finalized ? `Round ${activeRound} is finalized and read-only.` : 'Choose results or Clear result, then press ↕ SYNC once. Existing results require confirmation before overwrite.'}</span>
           </div>
           <div className="arbiter-round-actions">
-            <button type="button" className="arbiter-send-all" data-unified-arbiter-sync="true" disabled={busy || !online} onClick={() => void submitAll()} title="Synchronize the current tournament state and send every changed result with revision protection.">
+            <button type="button" className="arbiter-send-all" data-unified-arbiter-sync="true" aria-busy={busy} disabled={busy || !online} onClick={() => void submitAll()} title="Synchronize the current tournament state and send every changed result with revision protection.">
               {busy ? <Loader2 size={17} className="spin" /> : null} ↕ SYNC{pendingDraftCount ? ` (${pendingDraftCount})` : ''}
             </button>
             <div className="arbiter-round-controls">
-              <label><span>Round</span><select value={activeRound} onChange={event => {
+              <label><span>Round</span><select aria-label="Round" value={activeRound} onChange={event => {
                 const selected = Number(event.target.value);
                 setActiveRound(selected);
                 setFollowNewestRound(selected === newestRound);
@@ -701,8 +704,12 @@ export const ArbiterPortal: React.FC = () => {
               <div className="arbiter-board-search">
                 <input
                   type="search"
+                  enterKeyHint="search"
                   value={boardQuery}
                   onChange={event => setBoardQuery(event.target.value)}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter') event.currentTarget.blur();
+                  }}
                   placeholder="Board # or player…"
                   aria-label="Filter boards by number or player name"
                 />
@@ -728,8 +735,8 @@ export const ArbiterPortal: React.FC = () => {
             const canEdit = isNormalGame(board) && !finalized;
             const clearSelected = selected === CLEAR_RESULT && currentResult !== CLEAR_RESULT;
             const isDraft = Boolean(drafts[key]) && drafts[key] !== currentResult;
-            const hasSpecialOrClear = specialResults.includes(selected as any) || clearSelected;
-            const extrasOpen = Boolean(expandedExtras[key]) || hasSpecialOrClear;
+            const extrasOpen = expandedExtras[key] ?? (specialResults.some(result => result === selected) || clearSelected);
+            const extrasId = `arbiter-result-extras-${activeRound}-${board.board}`;
             const chooseResult = (result: ArbiterSubmissionResult) => requestResultChange(
               key,
               activeRound,
@@ -754,7 +761,10 @@ export const ArbiterPortal: React.FC = () => {
                   <div className="arbiter-player-name-row"><span className="arbiter-color-badge white" aria-label="White">W</span><strong>{white.name}</strong></div>
                   <span>{white.meta}</span>
                 </div>
-                <div className="arbiter-result-value">{selected === CLEAR_RESULT ? '—' : selected}</div>
+                <div className="arbiter-result-value">
+                  <span>{selected === CLEAR_RESULT ? '—' : selected}</span>
+                  <span className="arbiter-touch-result-status">{isDraft ? 'Awaiting SYNC' : selected === CLEAR_RESULT ? 'Missing' : 'Recorded'}</span>
+                </div>
                 <div className="arbiter-player black">
                   <div className="arbiter-player-name-row"><span className="arbiter-color-badge black" aria-label="Black">B</span><strong>{black.name}</strong></div>
                   <span>{black.meta}</span>
@@ -763,27 +773,41 @@ export const ArbiterPortal: React.FC = () => {
                   <div className="arbiter-result-actions">
                     <div className="arbiter-result-groups">
                       <div className="arbiter-result-buttons">
-                        {standardResults.map(result => <button key={result} type="button" className={selected === result ? 'selected' : ''} onClick={() => chooseResult(result)}>{result}</button>)}
+                        {standardResults.map(result => (
+                          <button
+                            key={result}
+                            type="button"
+                            className={selected === result ? 'selected' : ''}
+                            aria-pressed={selected === result}
+                            aria-description={standardResultLabels[result]}
+                            disabled={busy}
+                            onClick={() => chooseResult(result)}
+                          >
+                            {result}
+                            <span className="arbiter-touch-result-label" aria-hidden="true">{standardResultLabels[result]}</span>
+                          </button>
+                        ))}
                       </div>
                       <button
                         type="button"
                         className={`arbiter-extras-toggle${extrasOpen ? ' is-open' : ''}`}
                         aria-expanded={extrasOpen}
+                        aria-controls={extrasId}
                         onClick={() => setExpandedExtras(prev => ({ ...prev, [key]: !extrasOpen }))}
                       >
                         {extrasOpen ? 'Hide forfeit / clear ▲' : 'Forfeit / Clear ▾'}
                       </button>
-                      <div className={`arbiter-result-extras${extrasOpen ? ' is-open' : ''}`}>
+                      <div id={extrasId} className={`arbiter-result-extras${extrasOpen ? ' is-open' : ''}`}>
                         <div className="arbiter-special-results">
                           <span>Special results</span>
                           <div className="arbiter-result-buttons arbiter-special-result-buttons">
-                            {specialResults.map(result => <button key={result} type="button" className={selected === result ? 'selected' : ''} onClick={() => chooseResult(result)}>{result}</button>)}
+                            {specialResults.map(result => <button key={result} type="button" className={selected === result ? 'selected' : ''} aria-pressed={selected === result} disabled={busy} onClick={() => chooseResult(result)}>{result}</button>)}
                           </div>
                         </div>
                         <button
                           type="button"
                           className={`arbiter-clear-result${clearSelected ? ' selected' : ''}`}
-                          disabled={selected === CLEAR_RESULT && currentResult === CLEAR_RESULT}
+                          disabled={busy || selected === CLEAR_RESULT}
                           onClick={() => chooseResult(CLEAR_RESULT)}
                         >
                           Clear result

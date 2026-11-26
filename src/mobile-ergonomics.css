@@ -1,8 +1,5 @@
 /*
- * Mobile ergonomics overhaul for Arbiter Portal & Arbiter Companion.
- * Strictly isolated to mobile/tablet screens (<= 820px) except hiding the
- * mobile-only forfeit/clear disclosure toggle on wider viewports so desktop
- * dense grids and print sheets remain 100% untouched.
+ * Responsive layouts for the organizer workspace and guest Arbiter Portal.
  */
 
 /* Base styles for the new toolbar search & progress controls (safe on all screens) */
@@ -74,14 +71,14 @@
   cursor: pointer;
 }
 
-/* On tablet/desktop (> 640px), keep forfeit/special + Clear result directly visible in the grid */
-@media screen and (min-width: 641px) {
-  .arbiter-extras-toggle {
-    display: none !important;
-  }
-  .arbiter-result-extras {
-    display: contents;
-  }
+.arbiter-extras-toggle,
+.arbiter-touch-result-label,
+.arbiter-touch-result-status {
+  display: none;
+}
+
+.arbiter-result-extras {
+  display: contents;
 }
 
 /* ==========================================================================
@@ -539,11 +536,11 @@
 }
 
 /* ==========================================================================
-   3. GUEST ARBITER PORTAL (?arbiter=...) — MOBILE ERGONOMICS (<= 640px)
+   3. GUEST ARBITER PORTAL (?arbiter=...) — PHONE AND TABLET RESULT ENTRY
    ========================================================================== */
-@media screen and (max-width: 640px) {
+@media screen and (max-width: 899px), screen and (max-width: 1400px) and (pointer: coarse) {
   .arbiter-shell .arbiter-topbar {
-    padding: 10px 12px;
+    padding: calc(10px + env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 10px max(12px, env(safe-area-inset-left));
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
@@ -584,7 +581,7 @@
   }
 
   .arbiter-shell .arbiter-main {
-    padding: 10px 10px calc(84px + env(safe-area-inset-bottom));
+    padding: 10px max(10px, env(safe-area-inset-right)) calc(84px + env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
   }
 
   .arbiter-shell .arbiter-message {
@@ -597,6 +594,8 @@
   .arbiter-shell .arbiter-round-toolbar {
     margin-bottom: 10px;
     padding: 10px 12px;
+    align-items: stretch;
+    flex-direction: column;
     gap: 9px;
     border-radius: 13px;
   }
@@ -625,14 +624,13 @@
   }
 
   .arbiter-shell .arbiter-round-toolbar label > span {
-    font-size: 12px;
-    font-weight: 700;
+    display: none;
   }
 
   .arbiter-shell .arbiter-round-toolbar select {
-    min-height: 42px;
+    min-height: 44px;
     padding: 0 10px;
-    font-size: 14px;
+    font-size: 16px;
   }
 
   .arbiter-shell .arbiter-board-search {
@@ -641,51 +639,65 @@
   }
 
   .arbiter-shell .arbiter-board-search input {
-    min-height: 42px;
+    min-height: 44px;
+    padding-right: 44px;
     font-size: 16px;
     border-radius: 10px;
   }
 
-  /* Single-row unified bottom dock: Filter (left) + SYNC (right) */
+  .arbiter-shell .arbiter-board-search input::-webkit-search-cancel-button {
+    display: none;
+  }
+
+  .arbiter-shell .arbiter-board-search-clear {
+    right: 0;
+    width: 44px;
+    height: 44px;
+  }
+
   .cp-arbiter-result-filter {
-    left: 10px !important;
-    right: auto !important;
-    width: calc(52% - 14px);
-    bottom: calc(10px + env(safe-area-inset-bottom)) !important;
-    height: 52px;
-    padding: 4px !important;
-    gap: 4px !important;
-    border-radius: 14px !important;
-    box-sizing: border-box;
+    left: max(10px, env(safe-area-inset-left), calc(50% - 264px));
+    right: calc(50% + 4px);
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    min-height: 54px;
+    padding: 4px;
+    gap: 4px;
+    border-radius: 14px;
   }
 
   .cp-arbiter-result-filter > span {
-    display: none !important;
+    display: none;
   }
 
   .cp-arbiter-result-filter button {
-    min-height: 42px !important;
-    padding: 0 6px !important;
-    font-size: 12.5px !important;
-    border-radius: 10px !important;
+    flex: 1;
+    min-height: 44px;
+    padding: 0 4px;
+    font-size: 12px;
+    border-radius: 10px;
     white-space: nowrap;
+    touch-action: manipulation;
   }
 
   .arbiter-shell .arbiter-send-all {
-    left: auto !important;
-    right: 10px !important;
-    width: calc(48% - 14px) !important;
-    bottom: calc(10px + env(safe-area-inset-bottom)) !important;
-    min-height: 52px !important;
-    height: 52px !important;
-    padding: 0 12px !important;
-    border-radius: 14px !important;
-    font-size: 14.5px !important;
+    left: calc(50% + 4px);
+    right: max(10px, env(safe-area-inset-right), calc(50% - 264px));
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    min-height: 54px;
+    padding: 0 8px;
+    border-radius: 14px;
+    font-size: 15px;
+    touch-action: manipulation;
   }
 
   /* Clean scannable mobile board cards */
   .arbiter-shell .arbiter-board-list {
     gap: 9px;
+    align-items: start;
+  }
+
+  .arbiter-shell .arbiter-empty {
+    grid-column: 1 / -1;
   }
 
   .arbiter-shell .arbiter-board-card {
@@ -693,11 +705,13 @@
     border-radius: 13px;
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
-      "board result"
-      "white white"
-      "black black"
+      "board board"
+      "white result"
+      "black result"
       "actions actions";
-    gap: 6px 8px;
+    gap: 8px;
+    scroll-margin-top: calc(70px + env(safe-area-inset-top));
+    scroll-margin-bottom: calc(76px + env(safe-area-inset-bottom));
   }
 
   .arbiter-shell .arbiter-board-card[data-has-draft="true"] {
@@ -715,11 +729,14 @@
   .arbiter-shell .arbiter-result-value {
     grid-area: result;
     justify-self: end;
-    padding: 4px 10px;
+    display: grid;
+    gap: 4px;
+    min-width: 76px;
+    padding: 7px 8px;
     border-radius: 8px;
     background: #f1f5f9;
     color: #334155;
-    font-size: 13.5px;
+    font-size: 14px;
     font-weight: 900;
   }
 
@@ -731,6 +748,11 @@
   .arbiter-shell .arbiter-board-card[data-has-draft="true"] .arbiter-result-value {
     background: #fef3c7;
     color: #92400e;
+  }
+
+  .arbiter-touch-result-status {
+    display: block;
+    font: 700 11px/1.25 system-ui, sans-serif;
   }
 
   .arbiter-shell .arbiter-player.white {
@@ -745,6 +767,7 @@
     font-size: 14.5px;
     white-space: normal;
     line-height: 1.25;
+    overflow-wrap: anywhere;
   }
 
   .arbiter-shell .arbiter-player > span {
@@ -753,21 +776,41 @@
   }
 
   .arbiter-shell .arbiter-result-actions {
+    grid-area: actions;
+    grid-column: 1 / -1 !important;
+    grid-template-columns: minmax(0, 1fr);
     margin-top: 4px;
   }
 
   .arbiter-shell .arbiter-result-groups {
+    grid-template-columns: minmax(0, 1fr);
     gap: 8px;
   }
 
-  .arbiter-shell .arbiter-result-buttons button {
-    min-height: 52px !important;
-    font-size: 17px !important;
+  .arbiter-shell .arbiter-result-buttons {
+    gap: 8px !important;
+  }
+
+  .arbiter-shell .arbiter-result-buttons:not(.arbiter-special-result-buttons) button {
+    min-height: 64px !important;
+    height: auto;
+    padding: 6px 4px !important;
+    font-size: 18px !important;
     border-radius: 11px !important;
+    line-height: 1.15 !important;
+  }
+
+  .arbiter-touch-result-label {
+    display: block;
+    margin-top: 3px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: normal;
   }
 
   .arbiter-shell .arbiter-extras-toggle {
-    min-height: 36px;
+    display: block;
+    min-height: 44px;
     width: 100%;
     padding: 0 10px;
     border: 1px dashed #cbd5e1;
@@ -807,17 +850,38 @@
 
   .arbiter-shell .arbiter-special-result-buttons button {
     min-height: 44px !important;
+    height: auto;
+    padding: 4px !important;
     font-size: 13px !important;
   }
 
   .arbiter-shell .arbiter-clear-result {
+    width: 100%;
     min-height: 44px;
+    height: auto;
     font-size: 13.5px;
     border-radius: 11px;
   }
 
   .arbiter-shell .arbiter-readonly {
+    grid-area: actions;
     font-size: 12px;
     padding-top: 2px;
+  }
+
+  .arbiter-shell :is(.arbiter-confirmation-backdrop, .arbiter-external-result-backdrop) {
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .arbiter-shell :is(.arbiter-confirmation-dialog, .arbiter-external-result-dialog) {
+    max-height: 100%;
+    overflow: auto;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media screen and (min-width: 768px) and (max-width: 899px), screen and (min-width: 768px) and (max-width: 1400px) and (pointer: coarse) {
+  .arbiter-shell .arbiter-board-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
