@@ -45,7 +45,8 @@ async function seedGoogleCookieSession(page, user) {
   }, { user, scope });
 }
 
-async function installCloudFixture(page, expectedUser = userA) {
+async function installCloudFixture(page, expectedUser = userA, { authenticated = true } = {}) {
+  let isAuthed = authenticated;
   await page.route('https://accounts.google.com/**', route =>
     route.fulfill({ status: 200, contentType: 'application/javascript', body: '' })
   );
@@ -64,10 +65,13 @@ async function installCloudFixture(page, expectedUser = userA) {
 
     if (path === '/api/auth/config') return reply({ ok: true, googleClientId: 'smoke-client.apps.googleusercontent.com' });
     if (path === '/api/auth/me') {
-      if (rejectWith401) return reply({ ok: true, authenticated: false, user: null });
+      if (rejectWith401 || !isAuthed) return reply({ ok: true, authenticated: false, user: null });
       return reply({ ok: true, authenticated: true, user: activeAuthUser, organizer: { id: activeAuthUser.organizerId, displayName: activeAuthUser.name } });
     }
-    if (path === '/api/auth/logout' && method === 'POST') return reply({ ok: true });
+    if (path === '/api/auth/logout' && method === 'POST') {
+      isAuthed = false;
+      return reply({ ok: true });
+    }
 
     const expectedOrg = (await request.allHeaders())['x-expected-organizer'];
     if (expectedOrg !== expectedUser.organizerId || rejectWith401) {
@@ -173,7 +177,7 @@ async function waitForCloudSave() {
 try {
   // 1. Verify login page has no manual token entry and unauthenticated workspace redirects to ./
   const unauthPage = await browser.newPage();
-  await installCloudFixture(unauthPage);
+  await installCloudFixture(unauthPage, userA, { authenticated: false });
   await unauthPage.goto(new URL('workspace.html', url).href);
   await unauthPage.getByRole('heading', { name: 'Chess-Publisher Web' }).waitFor();
   assert.equal(await unauthPage.locator('#legacy-token-details, #organizer-token').count(), 0);
