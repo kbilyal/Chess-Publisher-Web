@@ -145,6 +145,7 @@ export const ArbiterPortal: React.FC = () => {
   const [view, setView] = useState<ArbiterTournamentView | null>(null);
   const [sessionName, setSessionName] = useState('');
   const [activeRound, setActiveRound] = useState(0);
+  const [followNewestRound, setFollowNewestRound] = useState(true);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [overwriteConfirmation, setOverwriteConfirmation] = useState<OverwriteConfirmation | null>(null);
   const [externalResultNotices, setExternalResultNotices] = useState<ExternalResultNotice[]>([]);
@@ -156,15 +157,31 @@ export const ArbiterPortal: React.FC = () => {
   const observedResultsRef = useRef<Record<string, ResultObservation> | null>(null);
   const ownResultWritesRef = useRef<Record<string, string>>({});
 
+  const newestRound = latestRound(view);
+  useEffect(() => {
+    if (busy || overwriteConfirmation) return;
+    const currentBoards = view?.pairings.liveBoards[String(activeRound)];
+    if (!currentBoards) {
+      setActiveRound(newestRound);
+      setFollowNewestRound(true);
+      return;
+    }
+    const hasDrafts = !view?.pairings.finalizedRounds?.[String(activeRound)]
+      && currentBoards.some(board => drafts[`${activeRound}:${board.board}`]);
+    if (followNewestRound && !hasDrafts) setActiveRound(newestRound);
+  }, [activeRound, busy, drafts, followNewestRound, newestRound, overwriteConfirmation, view]);
+
+  const acceptTournamentView = (next: ArbiterTournamentView) => {
+    setView(current => current?.id === next.id && current.revision > next.revision ? current : next);
+  };
+
   const loadTournament = async (token = sessionToken, quiet = false) => {
     if (!token) return;
     if (!quiet) setBusy(true);
     try {
       const response = await arbiterApi.tournament(token);
-      setView(response.tournament);
+      acceptTournamentView(response.tournament);
       setSessionName(response.session.name);
-      const newest = latestRound(response.tournament);
-      setActiveRound(current => current && response.tournament.pairings.liveBoards[String(current)] ? current : newest);
       if (!quiet) setMessage('Connected · live Cloud state is current.');
       return response.tournament;
     } catch (error: any) {
@@ -424,7 +441,7 @@ export const ArbiterPortal: React.FC = () => {
 
       const synchronized = await arbiterApi.tournament(sessionToken);
       const retryView = synchronized.tournament;
-      setView(retryView);
+      acceptTournamentView(retryView);
       setSessionName(synchronized.session.name);
       validate(retryView);
       const response = await sendAtRevision(retryView.revision);
@@ -433,7 +450,7 @@ export const ArbiterPortal: React.FC = () => {
   };
 
   const submitAll = async () => {
-    if (!view || !sessionToken || !activeRound || busy) return;
+    if (!view || !sessionToken || busy) return;
     const roundBoards = view.pairings.liveBoards[String(activeRound)] || [];
     const requested = roundBoards.flatMap(board => {
       const key = `${activeRound}:${board.board}`;
@@ -458,7 +475,7 @@ export const ArbiterPortal: React.FC = () => {
     try {
       const synchronized = await arbiterApi.tournament(sessionToken);
       let workingView = synchronized.tournament;
-      setView(workingView);
+      acceptTournamentView(workingView);
       setSessionName(synchronized.session.name);
 
       if (!requested.length) {
@@ -519,7 +536,7 @@ export const ArbiterPortal: React.FC = () => {
         completedKeys.push(item.key);
       }
 
-      setView(workingView);
+      acceptTournamentView(workingView);
       setDrafts(current => {
         const next = { ...current };
         for (const key of completedKeys) delete next[key];
@@ -647,7 +664,11 @@ export const ArbiterPortal: React.FC = () => {
             <button type="button" className="arbiter-send-all" data-unified-arbiter-sync="true" disabled={busy || !online} onClick={() => void submitAll()} title="Synchronize the current tournament state and send every changed result with revision protection.">
               {busy ? <Loader2 size={17} className="spin" /> : null} ↕ SYNC{pendingDraftCount ? ` (${pendingDraftCount})` : ''}
             </button>
-            <label><span>Round</span><select value={activeRound} onChange={event => setActiveRound(Number(event.target.value))}>{rounds.map(round => <option key={round} value={round}>Round {round}</option>)}</select></label>
+            <label><span>Round</span><select value={activeRound} onChange={event => {
+              const selected = Number(event.target.value);
+              setActiveRound(selected);
+              setFollowNewestRound(selected === newestRound);
+            }}>{rounds.map(round => <option key={round} value={round}>Round {round}</option>)}</select></label>
           </div>
         </section>
 

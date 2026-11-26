@@ -6,6 +6,8 @@ The 2026-11-24 production parity candidate requires Hub API confirmation before 
 
 Organizer sign-in starts at ChessPublisher Web (`/app/`). The public site links to Web, and Arbiter Companion resumes the existing Google session or receives the Organizer Token from the signed-in Web workspace. Tournament links still resolve against the authenticated Cloud list. The public homepage forwards tournament-scoped arbiter invitations to the Companion guest form. Guests enter a display name and use their tournament-scoped session for results without an organizer account. The Companion entry, tournament picker and workspace use the Web panel, action and focus styles.
 
+Guest Arbiter Access follows newly synchronized rounds while viewing the latest round. A manually selected earlier round stays selected, and pending result edits keep an editable round visible until they are submitted. ↕ SYNC refreshes pairings before the first round as well.
+
 The `/app/` source uses the same export dialog for Pairings TXT and PDF, Standings TXT and PDF, and Starting List PDF. The fixed-width TXT previews feed the file download and print actions. Standings uses its existing ranking report and fixed-width text builders. The mobile menu grows when its controls wrap so Sign out stays above the workspace tabs (Issue #93).
 
 The public web workspace uses the Chess-Results console styling for the Round Control Log. Resort Starting List shares the Pairings toolbar with Generate Pairings and Publish to Chess-Results. Browser smoke checks the presentation, the resort action, and its disabled state while generation runs.
