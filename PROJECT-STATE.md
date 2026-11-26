@@ -10,6 +10,8 @@ Guest Arbiter Access follows newly synchronized rounds while viewing the latest 
 
 The `/app/` source uses the same export dialog for Pairings TXT and PDF, Standings TXT and PDF, and Starting List PDF. The fixed-width TXT previews feed the file download and print actions. Standings uses its existing ranking report and fixed-width text builders. The mobile menu grows when its controls wrap so Sign out stays above the workspace tabs (Issue #93).
 
+Pairings → SYNC in the public workspace waits for Cloud autosave before synchronizing. The browser regression exercises a new-round upload while the automatic save is in progress.
+
 The public web workspace uses the Chess-Results console styling for the Round Control Log. Resort Starting List shares the Pairings toolbar with Generate Pairings and Publish to Chess-Results. Browser smoke checks the presentation, the resort action, and its disabled state while generation runs.
 
 The generated `/app/` workspace uses a shared English PDF dialog for the starting list and the selected round's pairings. The pairings sheet shows round details, a results summary, and the tournament and round on every printed page. The Result column between White and Black prints recorded scores and gives pending games a blank box for handwriting. The Arbiter sheet preset adds an optional sign-off. The browser smoke covers single-page and multipage A4 output, mixed results, bye rows, mobile controls and the existing TXT dialog.
