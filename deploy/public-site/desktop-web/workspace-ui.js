@@ -842,6 +842,9 @@
       refreshBtn.addEventListener('click', () => { void loadPublicList(); });
       details.addEventListener('toggle', () => { if (details.open) void loadPublicList(); });
       document.addEventListener('cp:hub-ui-updated', syncHubCard);
+      document.addEventListener('cp:cloud-status-updated', syncHubCard);
+      byId('tabExport')?.addEventListener('click', () => setTimeout(syncHubCard, 0));
+      byId('exportTournamentSelect')?.addEventListener('change', () => setTimeout(syncHubCard, 0));
       syncHubCard();
     }
 

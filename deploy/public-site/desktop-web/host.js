@@ -1050,6 +1050,7 @@
       } finally {
         syncNowBtn.disabled = false;
         if (headerSyncBtn) { headerSyncBtn.disabled = false; headerSyncBtn.textContent = '↻ Sync'; }
+        try { document.dispatchEvent(new CustomEvent('cp:hub-ui-updated')); } catch {}
       }
     }
 
