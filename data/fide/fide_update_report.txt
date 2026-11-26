@@ -4,10 +4,10 @@ Status: UPDATED
 Provider: FIDE
 List version: 2026-11
 List date: 2026-11-01
-Version source: official-download-page
-Downloaded at: 2026-11-25T21:59:25.674Z
+Version source: official-archive-header
+Downloaded at: 2026-11-26T12:55:00.733Z
 Source: https://ratings.fide.com/download/standard_rating_list.zip (+rapid,+blitz)
-Archive SHA-256: 3f9e65846410ae889232a6cda753ecd8c8247d03e5f27016eb93f47093e8fbaa
+Archive SHA-256: 57d68c83c4da34d11a6ae09a8566be2f910bd53aab081e4a80e5ca9b08be32b1
 Players: 800241
 Standard rated: 573475
 Rapid rated: 486148
