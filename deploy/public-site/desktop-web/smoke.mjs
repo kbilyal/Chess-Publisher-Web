@@ -143,8 +143,8 @@ async function installCloudFixture(page, expectedUser = userA, { authenticated =
       if (method === 'GET') return reply({ ok: true, organizer: { id: expectedUser.organizerId }, tournaments: [...hubRows.values()] });
       if (method === 'POST') {
         const body = request.postDataJSON();
-        const rec = { hubTournamentId: 'hub_smoke1', publicSlug: 'smoke-open', revision: 0, name: body.name, isPublic: true, deleted: false, manageToken: 'mg_smoke_1' };
-        hubRows.set(rec.hubTournamentId, rec);
+        const rec = { id: 'hub_smoke1', publicSlug: 'smoke-open', publicPageUrl: 'https://chess-publisher.org/tournaments?id=smoke-open', revision: 0, name: body.name, isPublic: true, deleted: false, manageToken: 'mg_smoke_1' };
+        hubRows.set(rec.id, rec);
         return reply({ ok: true, tournament: rec }, 201);
       }
     }
