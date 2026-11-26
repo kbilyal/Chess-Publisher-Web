@@ -219,6 +219,11 @@ try {
   });
 
   await page.locator('#tabRegistration').click();
+  const manualDisclosure = page.locator('.cp-reg-manual-collapse-btn');
+  if (await manualDisclosure.count() && await manualDisclosure.getAttribute('aria-expanded') === 'false') {
+    await manualDisclosure.click();
+  }
+  await page.locator('#manualName').waitFor({ state: 'visible' });
   for (const name of ['Alpha One', 'Beta Two', 'Gamma Three', 'Delta Four']) {
     await page.locator('#manualName').fill(name);
     await page.locator('#manualAddPlayerBtn').click();
