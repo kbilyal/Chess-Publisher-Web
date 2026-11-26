@@ -4,7 +4,7 @@ The pre-deployment SYNC gate remains FAIL. Use the [isolated acceptance runbook]
 
 For the production parity candidate, obtain two test Google accounts and run real sign-in, account switching and Desktop–Web/Cloud isolation. Confirm the already deployed Google SSO changes through the approved SYNC process before replacing the beta.96 r4 baseline. Linux suites and the Critical/High npm gate passed on the validation branch. See [AI_HANDOVER.md](AI_HANDOVER.md).
 
-Keep the Companion browser smoke for Web sign-in, continuation of an owned tournament and responsive navigation. It exercises Google session reuse and the legacy Organizer Token handoff with API fixtures. Keep the separate fresh guest context coverage for homepage invitation routing, name-only entry, result submission and session reuse.
+Keep the Companion browser smoke for Web sign-in, continuation of an owned tournament and responsive navigation. It exercises Google session reuse and the legacy Organizer Token handoff with API fixtures. Keep the separate fresh guest context coverage for homepage invitation routing, name-only entry, result submission, session reuse, and live arrival of new rounds with prior-round selection and draft preservation.
 
 Keep the `/app/` browser checks for mobile menu clearance and exports when updating the pinned workspace. Pairings and Standings TXT previews must match the download and print output. Standings PDF must print the ranking shown in the shared preview.
 
