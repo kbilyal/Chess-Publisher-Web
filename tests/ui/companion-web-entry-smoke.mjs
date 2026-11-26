@@ -25,7 +25,8 @@ const snapshot = { data: { currentTournament: tournament.name, tournaments: {
 async function configure(context, googleClientId = Promise.resolve('fixture')) {
   let googleSession;
   let logoutFailure;
-  let arbiterResult = '-';
+  let latestArbiterRound = 0;
+  const arbiterResults = new Map();
   const calls = [];
   await context.route('**/*', route => route.abort());
   await context.route(`${web}/**`, route => {
@@ -105,15 +106,19 @@ async function configure(context, googleClientId = Promise.resolve('fixture')) {
     }
     if (path === '/api/v1/arbiter/tournament' && bearer === `Bearer ${arbiterToken}`) {
       return reply({ ok: true, session: arbiterSession, tournament: {
-        ...tournament, round: '1', players: [
+        ...tournament, revision: latestArbiterRound + 1, round: String(latestArbiterRound), players: [
           { localKey: 'white', pairingNumber: 1, name: 'White Player' },
           { localKey: 'black', pairingNumber: 2, name: 'Black Player' }
-        ], pairings: { liveBoards: { 1: [{ board: 1, whiteKey: 'white', blackKey: 'black', result: arbiterResult }] } }
+        ], pairings: { liveBoards: Object.fromEntries(Array.from({ length: latestArbiterRound }, (_, index) => {
+          const round = index + 1;
+          return [round, [{ board: 1, whiteKey: round % 2 ? 'white' : 'black',
+            blackKey: round % 2 ? 'black' : 'white', result: arbiterResults.get(round) || '-' }]];
+        })) }
       } });
     }
     if (path === '/api/v1/arbiter/results' && bearer === `Bearer ${arbiterToken}`) {
       const result = request.postDataJSON();
-      arbiterResult = result.result;
+      arbiterResults.set(result.round, result.result);
       return reply({ ok: true, submission: { id: 'result-1', ...result } });
     }
     if (!googleSession && bearer !== `Bearer ${token}`) return reply({ error: 'unauthorized' }, 401);
@@ -128,7 +133,11 @@ async function configure(context, googleClientId = Promise.resolve('fixture')) {
     if (path.endsWith('/snapshot')) return reply({ ok: true, tournament: owned, snapshot });
     return reply({ ok: true, tournament: owned });
   });
-  return { calls, failNextLogout: (json, status) => { logoutFailure = { json, status }; } };
+  return {
+    calls,
+    failNextLogout: (json, status) => { logoutFailure = { json, status }; },
+    publishArbiterRound: () => { latestArbiterRound += 1; }
+  };
 }
 
 async function checkTournament(page, calls) {
@@ -148,13 +157,19 @@ async function checkWidth(page) {
 
 try {
   const guestContext = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
-  const { calls: guestCalls } = await configure(guestContext);
+  const { calls: guestCalls, publishArbiterRound } = await configure(guestContext);
   const guestPage = await guestContext.newPage();
   await guestPage.goto(`${web}/?arbiter=${arbiterCode}&next=https://example.invalid`);
   await guestPage.waitForURL(`${companion}/?arbiter=${arbiterCode}`);
   await guestPage.getByRole('textbox', { name: 'Arbiter name' }).fill(arbiterSession.name);
   await guestPage.getByRole('button', { name: 'Join tournament' }).click();
-  await guestPage.getByText('Pairings & Results', { exact: true }).waitFor();
+  await guestPage.getByText('No pairings are available for this round yet.').waitFor();
+  const guestRound = guestPage.getByRole('combobox', { name: 'Round' });
+  const guestSync = guestPage.getByRole('button', { name: /SYNC/ });
+  publishArbiterRound();
+  await guestSync.click();
+  await guestPage.getByText(/SYNC complete · no result changes/).waitFor({ timeout: 3000 });
+  await guestPage.waitForFunction(() => document.querySelector('.arbiter-round-actions select').value === '1');
   await guestPage.getByRole('button', { name: '1 - 0', exact: true }).click();
   await guestPage.getByRole('button', { name: /SYNC/ }).click();
   await guestPage.getByText(/1 result change\(s\) synchronized with Cloud/).waitFor();
@@ -162,6 +177,22 @@ try {
     && call.bearer === `Bearer ${arbiterToken}` && JSON.parse(call.body).result === '1 - 0'));
   await guestPage.reload();
   await guestPage.locator('.arbiter-result-value').filter({ hasText: '1 - 0' }).waitFor();
+  publishArbiterRound();
+  await guestPage.waitForFunction(() => document.querySelector('.arbiter-round-actions select').value === '2', null, { timeout: 8000 });
+  await guestPage.locator('.arbiter-player.white').getByText('Black Player').waitFor();
+  await guestPage.getByRole('button', { name: '1 - 0', exact: true }).click();
+  publishArbiterRound();
+  await guestPage.getByText('Cloud revision 4', { exact: false }).waitFor({ timeout: 8000 });
+  assert.equal(await guestRound.inputValue(), '2', 'Keep the current round while a result draft awaits submission.');
+  await guestSync.click();
+  await guestPage.waitForFunction(() => document.querySelector('.arbiter-round-actions select').value === '3');
+  assert.ok(guestCalls.some(call => call.path === '/api/v1/arbiter/results' && JSON.parse(call.body).round === 2));
+  await guestRound.selectOption('1');
+  publishArbiterRound();
+  await guestPage.getByText('Cloud revision 5', { exact: false }).waitFor({ timeout: 8000 });
+  assert.equal(await guestRound.inputValue(), '1', 'Keep a deliberately selected previous round.');
+  await guestRound.selectOption('4');
+  await guestPage.locator('.arbiter-player.white').getByText('Black Player').waitFor();
   assert.equal(guestCalls.filter(call => call.path === '/api/v1/arbiter/join').length, 1);
   assert.ok(guestCalls.every(call => !call.path.startsWith('/api/auth/')));
   await guestContext.close();
@@ -333,4 +364,4 @@ try {
   await browser.close();
 }
 
-console.log('PASS guest invitation, name-only join and result submission, Web organizer entry, Google sign-out and retry, account switching and Cloud isolation, token handoff and Companion navigation.');
+console.log('PASS guest invitation, name-only join, new-round refresh and result submission, Web organizer entry, Google sign-out and retry, account switching and Cloud isolation, token handoff and Companion navigation.');
