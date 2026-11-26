@@ -1,6 +1,16 @@
 (() => {
   'use strict';
 
+  if (['/', '/index.html'].includes(window.location.pathname)) {
+    const accessCode = new URLSearchParams(window.location.search).get('arbiter');
+    if (accessCode?.trim()) {
+      const invite = new URL('https://web.chess-publisher.org/');
+      invite.searchParams.set('arbiter', accessCode);
+      window.location.replace(invite.href);
+      return;
+    }
+  }
+
   const API_BASE = 'https://api.chess-publisher.org';
   const WEB_PORTAL_URL = '/app/';
   const accountChanges = typeof BroadcastChannel === 'function'

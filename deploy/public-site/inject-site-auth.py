@@ -5,7 +5,7 @@ import sys
 
 site_dir = Path(sys.argv[1])
 css_tag = '<link href="/site-auth.css?v=20261124-web-entry" rel="stylesheet"/>'
-js_tag = '<script defer="" src="/site-auth.js?v=20261124-web-entry"></script>'
+js_tag = '<script defer="" src="/site-auth.js?v=20261126-arbiter-invite"></script>'
 
 pages = [
     site_dir / "index.html",
