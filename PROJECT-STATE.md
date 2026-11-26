@@ -8,6 +8,8 @@ Organizer sign-in starts at ChessPublisher Web (`/app/`). The public site links 
 
 Guest Arbiter Access follows newly synchronized rounds while viewing the latest round. A manually selected earlier round stays selected, and pending result edits keep an editable round visible until they are submitted. ↕ SYNC refreshes pairings before the first round as well.
 
+Guest result entry uses full-width score controls on phones and two-column board cards on wider tablets. Board cards show whether a score is recorded or awaiting SYNC. The All and Missing filters sit beside the fixed SYNC action, and result corrections still require confirmation.
+
 The `/app/` source uses the same export dialog for Pairings TXT and PDF, Standings TXT and PDF, and Starting List PDF. The fixed-width TXT previews feed the file download and print actions. Standings uses its existing ranking report and fixed-width text builders. The mobile menu grows when its controls wrap so Sign out stays above the workspace tabs (Issue #93).
 
 Pairings → SYNC in the public workspace waits for Cloud autosave before synchronizing. The browser regression exercises a new-round upload while the automatic save is in progress.

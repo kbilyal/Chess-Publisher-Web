@@ -27,6 +27,7 @@ async function configure(context, googleClientId = Promise.resolve('fixture')) {
   let logoutFailure;
   let latestArbiterRound = 0;
   const arbiterResults = new Map();
+  const arbiterRoundSizes = new Map();
   const calls = [];
   await context.route('**/*', route => route.abort());
   await context.route(`${web}/**`, route => {
@@ -108,17 +109,26 @@ async function configure(context, googleClientId = Promise.resolve('fixture')) {
       return reply({ ok: true, session: arbiterSession, tournament: {
         ...tournament, revision: latestArbiterRound + 1, round: String(latestArbiterRound), players: [
           { localKey: 'white', pairingNumber: 1, name: 'White Player' },
-          { localKey: 'black', pairingNumber: 2, name: 'Black Player' }
+          { localKey: 'black', pairingNumber: 2, name: 'Black Player' },
+          { localKey: 'long', pairingNumber: 3, name: 'Alexandra Longlastnamewithmanyletters' }
         ], pairings: { liveBoards: Object.fromEntries(Array.from({ length: latestArbiterRound }, (_, index) => {
           const round = index + 1;
-          return [round, [{ board: 1, whiteKey: round % 2 ? 'white' : 'black',
-            blackKey: round % 2 ? 'black' : 'white', result: arbiterResults.get(round) || '-' }]];
+          const boards = Array.from({ length: arbiterRoundSizes.get(round) }, (_, boardIndex) => {
+            const board = boardIndex + 1;
+            return {
+              board,
+              whiteKey: board === 2 ? 'long' : round % 2 ? 'white' : 'black',
+              blackKey: round % 2 ? 'black' : 'white',
+              result: arbiterResults.get(`${round}:${board}`) || '-'
+            };
+          });
+          return [round, boards];
         })) }
       } });
     }
     if (path === '/api/v1/arbiter/results' && bearer === `Bearer ${arbiterToken}`) {
       const result = request.postDataJSON();
-      arbiterResults.set(result.round, result.result);
+      arbiterResults.set(`${result.round}:${result.board}`, result.result);
       return reply({ ok: true, submission: { id: 'result-1', ...result } });
     }
     if (!googleSession && bearer !== `Bearer ${token}`) return reply({ error: 'unauthorized' }, 401);
@@ -136,7 +146,10 @@ async function configure(context, googleClientId = Promise.resolve('fixture')) {
   return {
     calls,
     failNextLogout: (json, status) => { logoutFailure = { json, status }; },
-    publishArbiterRound: () => { latestArbiterRound += 1; }
+    publishArbiterRound: (boardCount = 1) => {
+      latestArbiterRound += 1;
+      arbiterRoundSizes.set(latestArbiterRound, boardCount);
+    }
   };
 }
 
@@ -153,6 +166,94 @@ ${calls.map(call => [call.path, call.origin]).join('\n')}`, { cause: error });
 
 async function checkWidth(page) {
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth));
+}
+
+async function checkTouchResultEntry() {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, serviceWorkers: 'block'
+  });
+  try {
+    const { calls, publishArbiterRound } = await configure(context);
+    publishArbiterRound(8);
+    const page = await context.newPage();
+    await page.goto(`${companion}/?arbiter=${arbiterCode}`);
+    await page.getByRole('textbox', { name: 'Arbiter name' }).fill(arbiterSession.name);
+    await page.getByRole('button', { name: 'Join tournament' }).tap();
+
+    const board = number => page.locator('.arbiter-board-card').filter({
+      has: page.getByText(`Board ${number}`, { exact: true })
+    });
+    const score = (number, result) => board(number).getByRole('button', { name: result, exact: true });
+    const firstResult = score(1, '1 - 0');
+    const search = page.getByRole('searchbox');
+    const sync = page.getByRole('button', { name: /SYNC/ });
+    const filters = page.getByRole('group', { name: 'Filter pairings by result status' });
+    const missing = filters.getByRole('button', { name: /^Missing/ });
+    const submitted = () => calls.filter(call => call.path === '/api/v1/arbiter/results').map(call => JSON.parse(call.body));
+    await firstResult.waitFor();
+
+    for (const [width, height] of [[320, 568], [390, 844], [667, 375], [768, 1024], [1024, 768], [1366, 1024]]) {
+      await page.setViewportSize({ width, height });
+      await checkWidth(page);
+      const targets = await Promise.all([firstResult, board(1).getByRole('button', { name: /Forfeit \/ Clear/ }), search, missing, sync]
+        .map(locator => locator.boundingBox()));
+      assert.ok(targets.every(target => target && target.width >= 44 && target.height >= 44), `${width}px touch targets`);
+      const [resultBox, , , missingBox, syncBox] = targets;
+      assert.ok(resultBox.height >= 64, `${width}px score target`);
+      assert.ok(missingBox.x + missingBox.width < syncBox.x, `${width}px dock controls overlap`);
+      assert.ok(syncBox.y + syncBox.height <= height, `${width}px SYNC goes below the viewport`);
+      const [first, second] = await Promise.all([board(1).boundingBox(), board(2).boundingBox()]);
+      assert.equal(first.y === second.y, width >= 768, `${width}px board columns`);
+      assert.ok(await firstResult.getByText('White wins').isVisible());
+    }
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await missing.tap();
+    await search.fill('longlastname');
+    assert.equal(await page.locator('.arbiter-board-card:visible').count(), 1);
+    assert.ok(await board(2).isVisible());
+    await page.getByRole('button', { name: 'Clear search' }).tap();
+    await search.fill('8');
+    await search.press('Enter');
+    assert.equal(await page.locator('.arbiter-board-card:visible').count(), 1);
+    await score(8, '0 - 1').tap();
+    await board(8).getByText('Awaiting SYNC').waitFor();
+    assert.equal(await score(8, '0 - 1').getAttribute('aria-pressed'), 'true');
+    assert.equal(submitted().length, 0, 'Tapping a score must only stage the result.');
+    await page.getByRole('button', { name: 'Clear search' }).tap();
+    await firstResult.tap();
+    assert.match(await sync.innerText(), /\(2\)/);
+    await board(8).scrollIntoViewIfNeeded();
+    await sync.tap();
+    await page.getByRole('status').getByText(/2 result change\(s\) synchronized/).waitFor();
+    await board(8).waitFor({ state: 'hidden' });
+    assert.deepEqual(submitted().map(({ board, result }) => [board, result]), [[1, '1 - 0'], [8, '0 - 1']]);
+
+    await filters.getByRole('button', { name: /^All/ }).tap();
+    await board(8).getByText('Recorded').waitFor();
+    await page.setViewportSize({ width: 667, height: 375 });
+    await score(8, '½ - ½').tap();
+    const confirmation = page.getByRole('dialog', { name: 'Confirm result change' });
+    await confirmation.getByRole('button', { name: 'Cancel' }).tap();
+    assert.equal(await score(8, '0 - 1').getAttribute('aria-pressed'), 'true');
+    await board(8).getByRole('button', { name: /Forfeit \/ Clear/ }).tap();
+    await score(8, '1F - 0F').tap();
+    await confirmation.getByRole('button', { name: 'Change result' }).tap();
+    await board(8).getByRole('button', { name: /Hide forfeit/ }).tap();
+    await score(8, '1F - 0F').waitFor({ state: 'hidden' });
+    await sync.tap();
+    await page.getByRole('status').getByText(/1 result change\(s\) synchronized/).waitFor();
+    assert.equal(submitted().at(-1).result, '1F - 0F');
+
+    await board(8).getByRole('button', { name: /Forfeit \/ Clear/ }).tap();
+    await board(8).getByRole('button', { name: 'Clear result' }).tap();
+    await confirmation.getByRole('button', { name: 'Change result' }).tap();
+    await sync.tap();
+    await board(8).getByText('Missing', { exact: true }).waitFor();
+    assert.equal(submitted().at(-1).result, '-');
+  } finally {
+    await context.close();
+  }
 }
 
 try {
@@ -195,7 +296,12 @@ try {
   await guestPage.locator('.arbiter-player.white').getByText('Black Player').waitFor();
   assert.equal(guestCalls.filter(call => call.path === '/api/v1/arbiter/join').length, 1);
   assert.ok(guestCalls.every(call => !call.path.startsWith('/api/auth/')));
+  await guestPage.setViewportSize({ width: 1440, height: 900 });
+  assert.ok((await guestPage.getByRole('button', { name: '1 - 0', exact: true }).boundingBox()).height < 44);
+  assert.ok(await guestPage.getByRole('button', { name: '1F - 0F', exact: true }).isVisible());
   await guestContext.close();
+
+  await checkTouchResultEntry();
 
   const mobile = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
   const { calls: googleCalls, failNextLogout } = await configure(mobile);
@@ -231,11 +337,11 @@ try {
   const logoutMessage = 'Could not sign out. Please try again.';
   const signOut = page.getByRole('button', { name: 'Sign Out', exact: true });
 
-  await page.locator('#open-workspace-btn').click();
   await page.waitForURL(activeWorkspace);
   const workspaceSession = await readSession();
   assert.equal(JSON.parse(workspaceSession).authMode, 'cookie');
   failNextLogout({ ok: false, error: 'unavailable' }, 503);
+  await page.locator('#cpDesktopWebUserBtn').click();
   await page.locator('#cpDesktopWebSignOut').click();
   try {
     await page.locator('#workspace-status').filter({ hasText: logoutMessage }).waitFor({ timeout: 3000 });
@@ -251,6 +357,8 @@ try {
 
   await page.goto(accountUrl);
   await page.getByRole('button', { name: 'Google fixture sign-in' }).click();
+  await page.waitForURL(`${web}/app/workspace.html`);
+  await page.goto(accountUrl);
   await signOut.waitFor();
   const accountSession = await readSession();
   assert.equal(JSON.parse(accountSession).authMode, 'cookie');
@@ -271,6 +379,8 @@ try {
 
   await page.goto(accountUrl);
   await page.getByRole('button', { name: 'Second Google fixture account' }).click();
+  await page.waitForURL(`${web}/app/workspace.html`);
+  await page.goto(accountUrl);
   await page.getByText(secondUser.name, { exact: true }).waitFor();
   assert.equal(await page.locator('#google-auth-section').isVisible(), false);
   await page.getByRole('link', { name: secondTournament.name }).waitFor();
@@ -319,17 +429,23 @@ try {
   const { calls: tokenCalls } = await configure(desktop, delayedGoogleConfig);
   const portal = await desktop.newPage();
   await portal.goto(`${web}/app/?cloudTournamentId=${tournament.id}`);
-  await portal.locator('#legacy-token-details summary').click();
-  await portal.getByLabel('Organizer Token').fill('fixture-invalid-token');
-  await portal.getByRole('button', { name: 'Open Workspace' }).click();
-  const tokenError = portal.getByText('The Organizer Token is invalid or access was revoked.');
-  await tokenError.waitFor();
+  await portal.getByRole('heading', { name: 'Chess-Publisher Web' }).waitFor();
+  assert.equal(await portal.getByLabel('Organizer Token').count(), 0);
   finishGoogleConfig(null);
-  await portal.getByText('Google Sign-In is unavailable.', { exact: false }).waitFor();
-  assert.equal(await tokenError.isVisible(), true);
-  await portal.getByLabel('Organizer Token').fill(token);
-  await portal.getByRole('button', { name: 'Open Workspace' }).click();
-  await portal.waitForURL(`${web}/app/workspace.html?cloudTournamentId=${tournament.id}`);
+  await portal.getByText('Google Sign-In is temporarily unavailable.', { exact: false }).waitFor();
+  const legacyOpener = `${web}/legacy-companion-fixture`;
+  await portal.route(legacyOpener, route => route.fulfill({
+    contentType: 'text/html',
+    body: `<a href="${companion}/?webHandoff=1&amp;cloudTournamentId=${tournament.id}" target="_blank" rel="opener">Arbiter Companion</a>
+    <script>
+      window.addEventListener('message', event => {
+        if (event.origin === '${companion}' && event.data?.type === 'cp:companion-ready') {
+          event.source.postMessage({ type: 'cp:web-organizer-token', token: '${token}' }, event.origin);
+        }
+      });
+    </script>`
+  }));
+  await portal.goto(legacyOpener);
   const [tokenCompanion] = await Promise.all([
     portal.waitForEvent('popup'),
     portal.getByRole('link', { name: 'Arbiter Companion' }).click()
@@ -364,4 +480,4 @@ try {
   await browser.close();
 }
 
-console.log('PASS guest invitation, name-only join, new-round refresh and result submission, Web organizer entry, Google sign-out and retry, account switching and Cloud isolation, token handoff and Companion navigation.');
+console.log('PASS guest invitation, touch result entry, batch SYNC and corrections, new-round refresh, Web organizer entry, Google sign-out and retry, account switching and Cloud isolation, legacy Companion handoff and navigation.');
