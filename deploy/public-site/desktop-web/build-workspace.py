@@ -146,6 +146,11 @@ html = replace_once(
     """    if((!force || window.cpDesktopWebAllowed) && !idbOk && !localOk && !managedFileOk) throw new Error("All available save locations failed.");
     if(!job.skipCloudAutosave && globalSnapshotCurrent && (idbOk || localOk || managedFileOk)) window.cpWebQueueAutosave?.(snapshot);""",
 )
+# Pairings uses the same Cloud lock as the organizer list to avoid competing PUTs.
+html = replace_once(
+    html, 'const result=await window.cpCloudDownloadWebResults();',
+    'const result=await window.cpWebRunCloudExclusive(()=>window.cpCloudDownloadWebResults());',
+)
 html = replace_once(
     html, '    try{window.cpWebStorage.setItem(STORAGE_KEY,JSON.stringify(data));}catch(err){console.warn("Core local save after rename failed:",err);}',
     """    try{window.cpWebStorage.setItem(STORAGE_KEY,JSON.stringify(data));}catch(err){console.warn("Core local save after rename failed:",err);}
