@@ -99,6 +99,12 @@
       resetBtn.classList.remove('cp-top-reset-tournament');
       dangerGroup.appendChild(resetBtn);
     }
+    const cardRight = qs('.cp-ws-pairings-card > .cp-ws-card-header > .cp-ws-card-header-right', pairings);
+    const hubPubBtn = byId('pairingsHubPublishBtn');
+    if (cardRight && hubPubBtn && hubPubBtn.parentElement !== cardRight) {
+      hubPubBtn.classList.add('cp-ws-btn-secondary');
+      cardRight.appendChild(hubPubBtn);
+    }
     if (!document.body.classList.contains('cp-pairing-generating') &&
         typeof window.setPairingsPlayerSearch === 'function') {
       const firstAction = qs('.result-main-action', pairings);
@@ -223,6 +229,8 @@
       if (resortBtn) hRight.appendChild(resortBtn);
       if (genBtn) { genBtn.classList.add('cp-ws-cta-primary'); hRight.appendChild(genBtn); }
       if (crPubBtn) { crPubBtn.classList.add('cp-ws-btn-secondary'); hRight.appendChild(crPubBtn); }
+      const hubPubBtn = byId('pairingsHubPublishBtn');
+      if (hubPubBtn) { hubPubBtn.classList.add('cp-ws-btn-secondary'); hRight.appendChild(hubPubBtn); }
       cardHeader.append(hLeft, hRight);
 
       const subbar = make('div', 'cp-ws-pane-subbar');
@@ -677,8 +685,248 @@
       if (backupBtn) backupBtn.classList.add('cp-ws-btn-secondary');
     }
 
+    if (!byId('cpWsPublicHubCard')) {
+      const hubCard = make('div', 'groupbox cp-ws-card cp-ws-hub-card');
+      hubCard.id = 'cpWsPublicHubCard';
+
+      const header = make('div', 'cp-ws-card-header');
+      const hLeft = make('div', 'cp-ws-card-header-left');
+      hLeft.appendChild(make('span', 'cp-ws-card-title', 'Public Tournament Hub'));
+      const statusPill = make('span', 'cp-ws-hub-status-pill cp-ws-hub-status-neutral', 'Not published');
+      statusPill.id = 'cpWsHubStatusPill';
+      hLeft.appendChild(statusPill);
+
+      const hRight = make('div', 'cp-ws-card-header-right');
+      const pubBtn = make('button', 'cp-ws-btn-secondary', 'Publish to Hub');
+      pubBtn.type = 'button';
+      pubBtn.id = 'cpWsHubPublishBtn';
+      pubBtn.addEventListener('click', () => {
+        window.cpHubPublishOnline?.().catch(() => {});
+      });
+      const openBtn = make('button', 'cp-ws-btn-subtle', 'Open Public Page ↗');
+      openBtn.type = 'button';
+      openBtn.id = 'cpWsHubOpenBtn';
+      openBtn.addEventListener('click', () => window.cpHubOpenPublicPage?.());
+      const copyBtn = make('button', 'cp-ws-btn-subtle', 'Copy Link');
+      copyBtn.type = 'button';
+      copyBtn.id = 'cpWsHubCopyBtn';
+      copyBtn.addEventListener('click', async () => {
+        const st = window.cpHubGetState?.();
+        if (!st?.publicUrl) return;
+        try {
+          await navigator.clipboard.writeText(st.publicUrl);
+          if (typeof window.setStatus === 'function') window.setStatus('Public tournament link copied.');
+        } catch {}
+      });
+      hRight.append(pubBtn, openBtn, copyBtn);
+      header.append(hLeft, hRight);
+
+      const body = make('div', 'cp-ws-card-body');
+      const details = make('details', 'cp-ws-hub-details');
+      details.appendChild(make('summary', null, 'Public Hub Options & Published Tournaments'));
+
+      const kv = make('div', 'cp-ws-hub-kv');
+      const slugVal = make('span', null, '—');
+      const idVal = make('span', null, 'Not linked');
+      const revVal = make('span', null, '0');
+      const regsVal = make('span', null, 'No regulations file uploaded.');
+      [
+        ['Public slug', slugVal],
+        ['Hub Tournament ID', idVal],
+        ['Public revision', revVal],
+        ['Regulations file', regsVal]
+      ].forEach(([label, valEl]) => {
+        kv.appendChild(make('strong', null, label));
+        kv.appendChild(valEl);
+      });
+
+      const actions = make('div', 'cp-ws-hub-actions');
+      const uploadRegsBtn = make('button', 'cp-ws-btn-secondary', 'Upload Regulations');
+      uploadRegsBtn.type = 'button';
+      uploadRegsBtn.addEventListener('click', () => window.cpHubChooseRegulationsFile?.('hub'));
+      const restoreBtn = make('button', 'cp-ws-btn-subtle', 'Restore');
+      restoreBtn.type = 'button';
+      restoreBtn.addEventListener('click', () => window.cpHubRestoreOnline?.().catch(() => {}));
+      const deleteBtn = make('button', 'danger', 'Soft Delete');
+      deleteBtn.type = 'button';
+      deleteBtn.addEventListener('click', () => window.cpHubDeleteOnline?.().catch(() => {}));
+      const refreshBtn = make('button', 'cp-ws-btn-subtle', 'Refresh Public List');
+      refreshBtn.type = 'button';
+      actions.append(uploadRegsBtn, restoreBtn, deleteBtn, refreshBtn);
+
+      const listWrap = make('div', 'table-frame cp-ws-hub-table-wrap');
+      const table = document.createElement('table');
+      const thead = document.createElement('thead');
+      const trHead = document.createElement('tr');
+      ['Name', 'Rev.', 'State', 'Open'].forEach(col => trHead.appendChild(make('th', null, col)));
+      thead.appendChild(trHead);
+      const tbody = document.createElement('tbody');
+      const emptyRow = document.createElement('tr');
+      const emptyCell = make('td', 'muted', 'Expand or press Refresh Public List to load published tournaments.');
+      emptyCell.colSpan = 4;
+      emptyRow.appendChild(emptyCell);
+      tbody.appendChild(emptyRow);
+      table.append(thead, tbody);
+      listWrap.appendChild(table);
+
+      details.append(kv, actions, listWrap);
+      body.appendChild(details);
+      hubCard.append(header, body);
+
+      if (logBox && logBox.parentElement) logBox.parentElement.insertBefore(hubCard, logBox);
+      else exp.appendChild(hubCard);
+
+      const syncHubCard = () => {
+        const st = window.cpHubGetState?.();
+        if (!st) return;
+        const label = !st.linked ? 'Not published' : (st.deleted ? 'Deleted (recoverable)' : `Published · Rev ${st.revision}`);
+        statusPill.textContent = label;
+        statusPill.className = `cp-ws-hub-status-pill ${!st.linked ? 'cp-ws-hub-status-neutral' : (st.deleted ? 'cp-ws-hub-status-warn' : 'cp-ws-hub-status-ok')}`;
+        slugVal.textContent = st.publicSlug || '—';
+        idVal.textContent = st.hubTournamentId || 'Not linked';
+        revVal.textContent = String(st.revision || 0);
+        regsVal.textContent = st.regulationsFileLabel || 'No regulations file uploaded.';
+        pubBtn.disabled = st.busy || !st.hasTournament || st.deleted;
+        openBtn.disabled = st.busy || !st.publicUrl || st.deleted;
+        copyBtn.disabled = st.busy || !st.publicUrl || st.deleted;
+        uploadRegsBtn.disabled = st.busy || !st.linked || st.deleted;
+        restoreBtn.disabled = st.busy || !st.linked || !st.deleted;
+        deleteBtn.disabled = st.busy || !st.linked || st.deleted;
+      };
+
+      const loadPublicList = async () => {
+        if (typeof window.cpHubListOrganizerTournaments !== 'function') return;
+        refreshBtn.disabled = true;
+        try {
+          const result = await window.cpHubListOrganizerTournaments();
+          const rows = Array.isArray(result?.tournaments) ? result.tournaments : [];
+          tbody.replaceChildren();
+          if (!rows.length) {
+            const tr = document.createElement('tr');
+            const td = make('td', 'muted', 'No public tournaments published yet.');
+            td.colSpan = 4;
+            tr.appendChild(td);
+            tbody.appendChild(tr);
+            return;
+          }
+          rows.forEach(row => {
+            const tr = document.createElement('tr');
+            tr.appendChild(make('td', null, row.name || row.publicSlug || 'Tournament'));
+            tr.appendChild(make('td', null, String(Number(row.revision) || 0)));
+            tr.appendChild(make('td', null, row.deleted ? 'Deleted' : (row.isPublic ? 'Public' : 'Linked')));
+            const openTd = document.createElement('td');
+            if (!row.deleted && row.publicSlug) {
+              const link = make('a', null, 'Open ↗');
+              link.href = `https://chess-publisher.org/tournaments?id=${encodeURIComponent(row.publicSlug)}`;
+              link.target = '_blank';
+              link.rel = 'noopener noreferrer';
+              openTd.appendChild(link);
+            } else {
+              openTd.textContent = '—';
+            }
+            tr.appendChild(openTd);
+            tbody.appendChild(tr);
+          });
+        } catch (err) {
+          tbody.replaceChildren();
+          const tr = document.createElement('tr');
+          const td = make('td', 'muted', err?.message || 'Could not load public tournaments.');
+          td.colSpan = 4;
+          tr.appendChild(td);
+          tbody.appendChild(tr);
+        } finally {
+          refreshBtn.disabled = false;
+        }
+      };
+
+      refreshBtn.addEventListener('click', () => { void loadPublicList(); });
+      details.addEventListener('toggle', () => { if (details.open) void loadPublicList(); });
+      document.addEventListener('cp:hub-ui-updated', syncHubCard);
+      syncHubCard();
+    }
+
     if (logBox) {
       logBox.classList.add('cp-ws-card', 'cp-ws-syslog-card');
+    }
+  }
+
+  function enhanceNavigationAndMenus() {
+    const tabBar = qs('#appWindow .tabs');
+    if (tabBar && tabBar.dataset.cpWsNavBound !== '1') {
+      tabBar.dataset.cpWsNavBound = '1';
+      tabBar.setAttribute('role', 'tablist');
+      const getVisibleTabs = () => qsa('.tab', tabBar).filter(el => el.style.display !== 'none');
+      const syncTabAria = () => {
+        getVisibleTabs().forEach(tab => {
+          const active = tab.classList.contains('active');
+          tab.setAttribute('role', 'tab');
+          tab.setAttribute('aria-selected', String(active));
+          tab.setAttribute('tabindex', active ? '0' : '-1');
+        });
+      };
+      syncTabAria();
+      new MutationObserver(syncTabAria).observe(tabBar, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        attributeFilter: ['class']
+      });
+      tabBar.addEventListener('keydown', event => {
+        const tabs = getVisibleTabs();
+        if (!tabs.length) return;
+        const currentIdx = tabs.indexOf(document.activeElement);
+        if (currentIdx < 0) return;
+        let nextIdx = -1;
+        if (event.key === 'ArrowRight') nextIdx = (currentIdx + 1) % tabs.length;
+        else if (event.key === 'ArrowLeft') nextIdx = (currentIdx - 1 + tabs.length) % tabs.length;
+        else if (event.key === 'Home') nextIdx = 0;
+        else if (event.key === 'End') nextIdx = tabs.length - 1;
+        else if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          tabs[currentIdx].click();
+          return;
+        }
+        if (nextIdx >= 0) {
+          event.preventDefault();
+          tabs[nextIdx].focus();
+          tabs[nextIdx].click();
+        }
+      });
+    }
+
+    const fileMenu = byId('fileMenu');
+    if (fileMenu && !byId('cpMenuMyCloudTournaments')) {
+      const recentBtn = qs('button[onclick*="fileOpenRecent"]', fileMenu);
+      const cloudBtn = make('button', null);
+      cloudBtn.type = 'button';
+      cloudBtn.id = 'cpMenuMyCloudTournaments';
+      cloudBtn.appendChild(make('span', null, 'My Cloud Tournaments…'));
+      cloudBtn.appendChild(make('span', null, ''));
+      cloudBtn.addEventListener('click', () => {
+        fileMenu.classList.remove('open');
+        if (typeof window.newTournamentPrompt === 'function') {
+          window.newTournamentPrompt();
+          setTimeout(() => { void window.openMyOnlineTournamentsFromNewDialog?.(); }, 0);
+        }
+      });
+      if (recentBtn) recentBtn.insertAdjacentElement('afterend', cloudBtn);
+      else fileMenu.prepend(cloudBtn);
+    }
+
+    const pairingsMenu = byId('pairingsMenu');
+    if (pairingsMenu && !byId('cpMenuGuestArbiterAccess')) {
+      const resortBtn = byId('menuPairingsResort');
+      const arbiterBtn = make('button', null);
+      arbiterBtn.type = 'button';
+      arbiterBtn.id = 'cpMenuGuestArbiterAccess';
+      arbiterBtn.appendChild(make('span', null, 'Guest Arbiter Access (Link & QR)…'));
+      arbiterBtn.appendChild(make('span', null, ''));
+      arbiterBtn.addEventListener('click', () => {
+        pairingsMenu.classList.remove('open');
+        void window.cpWebOpenArbiterAccessModal?.();
+      });
+      if (resortBtn) resortBtn.insertAdjacentElement('afterend', arbiterBtn);
+      else pairingsMenu.appendChild(arbiterBtn);
     }
   }
 
@@ -689,6 +937,7 @@
     enhanceChessResults();
     enhanceSchedule();
     enhanceExportPage();
+    enhanceNavigationAndMenus();
   }
 
   // Run after the desktop bundle's own DOMContentLoaded installers.

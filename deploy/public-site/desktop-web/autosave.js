@@ -8,11 +8,23 @@
   let retryDelay = 2500;
   let authBlocked = false;
   let message = 'Cloud autosave on';
+  let statusState = 'ok';
 
-  function setCloudStatus(value) {
+  function setCloudStatus(value, state = statusState) {
     message = value;
+    statusState = state;
     const status = document.getElementById('cpWebCloudSaveStatus');
-    if (status) status.textContent = value;
+    if (status) {
+      status.textContent = value;
+      if (status.dataset) status.dataset.cpCloudState = state;
+      if (status.classList) {
+        status.classList.remove('cp-cloud-status-ok', 'cp-cloud-status-syncing', 'cp-cloud-status-warn', 'cp-cloud-status-expired');
+        if (state === 'syncing') status.classList.add('cp-cloud-status-syncing');
+        else if (state === 'conflict' || state === 'offline' || state === 'pending') status.classList.add('cp-cloud-status-warn');
+        else if (state === 'expired') status.classList.add('cp-cloud-status-expired');
+        else status.classList.add('cp-cloud-status-ok');
+      }
+    }
   }
 
   function schedule(delay = 1250) {
@@ -34,7 +46,7 @@
     pending.clear();
     blocked.clear();
     clearTimeout(timer);
-    setCloudStatus('Session expired · Sign in again');
+    setCloudStatus('Session expired · Sign in again', 'expired');
   });
 
   async function saveBatch() {
@@ -43,7 +55,7 @@
       return false;
     }
     if (!navigator.onLine || window.__cpOnlineCloudBusy) {
-      if (!navigator.onLine) setCloudStatus('Offline · Cloud save pending');
+      if (!navigator.onLine) setCloudStatus('Offline · Cloud save pending', 'offline');
       schedule(retryDelay);
       return true;
     }
@@ -74,14 +86,14 @@
           continue;
         }
 
-        setCloudStatus('Saving to private Cloud…');
+        setCloudStatus('Saving to private Cloud…', 'syncing');
         const result = await window.cpWebBackupTournament(name, job.tournament);
         const status = Number(result?.error?.status || 0);
         if (result?.noToken || status === 401 || status === 403) {
           authBlocked = true;
           pending.clear();
           blocked.clear();
-          setCloudStatus('Session expired · Sign in again');
+          setCloudStatus('Session expired · Sign in again', 'expired');
           break;
         }
         if (result?.ok && !result.updateAvailable && !result.skipped) {
@@ -109,15 +121,15 @@
 
     if (authBlocked) return false;
     if (retry) {
-      setCloudStatus('Saved locally · Cloud save pending');
+      setCloudStatus('Saved locally · Cloud save pending', 'pending');
       schedule(retryDelay);
       retryDelay = Math.min(60000, retryDelay * 2);
       return true;
     }
     retryDelay = 2500;
-    if (blocked.size) setCloudStatus('Cloud changes need review · Open Online & Cloud');
-    else if (pending.size) setCloudStatus('Cloud save pending');
-    else setCloudStatus('Saved to private Cloud');
+    if (blocked.size) setCloudStatus('Cloud changes need review · Click Sync', 'conflict');
+    else if (pending.size) setCloudStatus('Cloud save pending', 'pending');
+    else setCloudStatus('Saved to private Cloud', 'ok');
     if (pending.size) schedule(250);
     return false;
   }
@@ -129,20 +141,54 @@
     return running;
   }
 
+  async function reconcileBlockedAndStatus() {
+    if (authBlocked) return;
+    const core = window.ChessPublisherCloudSyncInternals;
+    if (core && blocked.size) {
+      for (const name of [...blocked.keys()]) {
+        const local = data?.tournaments?.[name];
+        if (!local) {
+          blocked.delete(name);
+          pending.delete(name);
+          continue;
+        }
+        try {
+          const hash = await core.tournamentContentHash(name, local);
+          if (local.cloud?.cloudTournamentId && core.storedBaseFingerprint(local.cloud) === hash) {
+            blocked.delete(name);
+            const queued = pending.get(name);
+            if (queued && queued.tournament?.cloud?.internalId === local.cloud?.internalId) {
+              const queuedHash = await core.tournamentContentHash(name, queued.tournament);
+              if (queuedHash === hash) pending.delete(name);
+            }
+          }
+        } catch (error) {
+          console.warn('Cloud autosave status check:', error);
+        }
+      }
+    }
+    if (authBlocked || running) return;
+    if (blocked.size) setCloudStatus('Cloud changes need review · Click Sync', 'conflict');
+    else if (pending.size) setCloudStatus('Cloud save pending', 'pending');
+    else setCloudStatus('Saved to private Cloud', 'ok');
+  }
+
   window.cpWebQueueAutosave = enqueue;
   window.cpWebWaitAutosaveIdle = async () => {
     while (running) await running;
   };
   window.cpWebRunCloudExclusive = async fn => {
+    clearTimeout(timer);
     await window.cpWebWaitAutosaveIdle();
     if (window.__cpOnlineCloudBusy) {
-      throw new Error('Another Online & Cloud operation is already running.');
+      throw new Error('Another Cloud sync operation is already running.');
     }
     window.__cpOnlineCloudBusy = true;
     try {
       return await fn();
     } finally {
       window.__cpOnlineCloudBusy = false;
+      await reconcileBlockedAndStatus();
       if (pending.size && !authBlocked) schedule(250);
     }
   };
@@ -154,11 +200,21 @@
       if (hadRetry || !pending.size) break;
     }
   };
+  window.cpWebFlushPairingNow = async () => {
+    if (authBlocked || !navigator.onLine) return false;
+    if (typeof window.cpRunAutosaveCheckpoint === 'function') {
+      await window.cpRunAutosaveCheckpoint().catch(() => {});
+    } else if (typeof window.cpFlushPersistence === 'function') {
+      await window.cpFlushPersistence().catch(() => {});
+    }
+    await window.cpWebFlushAutosave();
+    return true;
+  };
 
   window.addEventListener('online', () => schedule(0));
   window.addEventListener('pageshow', () => schedule(0));
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') schedule(0);
   });
-  document.addEventListener('DOMContentLoaded', () => setCloudStatus(message), { once: true });
+  document.addEventListener('DOMContentLoaded', () => setCloudStatus(message, statusState), { once: true });
 })();

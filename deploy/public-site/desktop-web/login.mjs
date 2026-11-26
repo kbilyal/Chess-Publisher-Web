@@ -7,11 +7,6 @@ const apiBase = (() => {
   return String(configured).trim().replace(/\/+$/, '');
 })();
 
-const api = `${apiBase}/api/v1/cloud/workspace`;
-const form = document.querySelector('form');
-const input = document.querySelector('#organizer-token');
-const button = form?.querySelector?.('button');
-const status = document.querySelector('#login-status');
 const googleStatus = document.querySelector('#google-status');
 const googleSection = document.querySelector('#google-auth-section');
 const googleBtnContainer = document.querySelector('#google-signin-button');
@@ -19,8 +14,8 @@ const signedInPanel = document.querySelector('#signed-in-panel');
 const signedInAvatar = document.querySelector('#signed-in-avatar');
 const signedInName = document.querySelector('#signed-in-name');
 const signedInEmail = document.querySelector('#signed-in-email');
-const openArbiterLink = document.querySelector('#open-arbiter-btn');
 const openWorkspaceBtn = document.querySelector('#open-workspace-btn');
+const openArbiterLink = document.querySelector('#open-arbiter-btn');
 const accountLogoutBtn = document.querySelector('#account-logout-btn');
 const accountStatus = document.querySelector('#account-status');
 const loginTournamentsList = document.querySelector('#login-tournaments-list');
@@ -51,14 +46,16 @@ async function persistCookieSession(user) {
   }));
 }
 
-const params = new URLSearchParams(location.search);
-const isAccountView = params.get('account') === '1';
-const tournamentHint = (params.get('cloudTournamentId') || '').trim();
-
 function workspaceTargetUrl(path = './workspace.html') {
-  return /^[A-Za-z0-9._:-]{1,200}$/.test(tournamentHint)
-    ? `${path}?cloudTournamentId=${encodeURIComponent(tournamentHint)}`
-    : path;
+  try {
+    const raw = new URLSearchParams(typeof location !== 'undefined' ? (location.search || '') : '').get('cloudTournamentId');
+    const safe = String(raw || '').trim();
+    if (/^[A-Za-z0-9._:-]{1,200}$/.test(safe)) {
+      const separator = path.includes('?') ? '&' : '?';
+      return `${path}${separator}cloudTournamentId=${encodeURIComponent(safe)}`;
+    }
+  } catch {}
+  return path;
 }
 
 async function handleGoogleCredential(response) {
@@ -84,8 +81,7 @@ async function handleGoogleCredential(response) {
     }
     await persistCookieSession(data.user);
     accountChanges?.postMessage({ id: data.user.id, organizerId: data.user.organizerId });
-    if (isAccountView) showSignedInPanel(data.user);
-    else location.assign(workspaceTargetUrl());
+    location.assign(workspaceTargetUrl());
   } catch {
     if (googleStatus) googleStatus.textContent = 'Google Sign-In is temporarily unavailable. Please try again.';
   }
@@ -139,7 +135,9 @@ function showSignedInPanel(user) {
       signedInAvatar.hidden = true;
     }
   }
-  if (openArbiterLink) openArbiterLink.href = workspaceTargetUrl(openArbiterLink.href);
+  if (openArbiterLink) {
+    openArbiterLink.href = workspaceTargetUrl(openArbiterLink.href || 'https://web.chess-publisher.org/');
+  }
   accountChanges?.addEventListener('message', ({ data }) => {
     if (data?.id !== user.id || data?.organizerId !== user.organizerId) {
       signedInPanel.hidden = true;
@@ -151,7 +149,7 @@ function showSignedInPanel(user) {
   accountLogoutBtn?.addEventListener('click', async () => {
     if (accountLogoutBtn.disabled) return;
     accountLogoutBtn.disabled = true;
-    accountStatus.hidden = true;
+    if (accountStatus) accountStatus.hidden = true;
     try {
       const res = await fetch(`${apiBase}/api/auth/logout`, {
         method: 'POST',
@@ -163,8 +161,10 @@ function showSignedInPanel(user) {
       });
       if (!res.ok || (await res.json())?.ok !== true) throw new Error('Sign-out was not confirmed.');
     } catch {
-      accountStatus.textContent = 'Could not sign out. Please try again.';
-      accountStatus.hidden = false;
+      if (accountStatus) {
+        accountStatus.textContent = 'Could not sign out. Please try again.';
+        accountStatus.hidden = false;
+      }
       accountLogoutBtn.disabled = false;
       return;
     }
@@ -200,6 +200,7 @@ async function resolveGoogleClientId() {
 async function initGoogleSignIn() {
   if (!googleBtnContainer) return;
 
+  const isAccountView = typeof location !== 'undefined' && new URLSearchParams(location.search || '').get('account') === '1';
   try {
     const meRes = await fetch(`${apiBase}/api/auth/me?optional=1`, {
       headers: { Accept: 'application/json' },
@@ -224,7 +225,7 @@ async function initGoogleSignIn() {
 
   const clientId = await resolveGoogleClientId();
   if (!clientId) {
-    if (googleStatus) googleStatus.textContent = 'Google Sign-In is unavailable. You can sign in with an Organizer Token below.';
+    if (googleStatus) googleStatus.textContent = 'Google Sign-In is temporarily unavailable. Please try again later.';
     return;
   }
 
@@ -254,43 +255,3 @@ async function initGoogleSignIn() {
 if (typeof window !== 'undefined' && googleBtnContainer) {
   initGoogleSignIn();
 }
-
-form?.addEventListener('submit', async event => {
-  event.preventDefault();
-  if (button.disabled) return;
-  const token = input.value.trim();
-  if (!/^[!-~]{1,2048}$/.test(token)) {
-    status.textContent = 'Enter a valid Organizer Token.';
-    return;
-  }
-
-  button.disabled = true;
-  status.textContent = 'Checking your access…';
-  try {
-    const response = await fetch(api, {
-      headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
-      credentials: 'omit', redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(8000)
-    });
-    if ([401, 403].includes(response.status)) {
-      status.textContent = 'The Organizer Token is invalid or access was revoked.';
-      return;
-    }
-    const data = response.ok ? await response.json() : null;
-    const organizer = data?.organizer;
-    if (data?.ok === false || !organizer || typeof organizer !== 'object' ||
-        Array.isArray(organizer) || Object.keys(organizer).length === 0) {
-      throw new Error('Workspace unavailable');
-    }
-    const identity = organizer.id || organizer.organizerId || token;
-    const scope = await sha256Hex(identity);
-    sessionStorage.setItem('cp.desktop-web.session', JSON.stringify({ token, scope }));
-    input.value = '';
-    location.assign(workspaceTargetUrl());
-  } catch {
-    status.textContent = 'Sign-in is temporarily unavailable. Please try again.';
-  } finally {
-    button.disabled = false;
-  }
-});
-
-if (button) button.disabled = false;

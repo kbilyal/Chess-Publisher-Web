@@ -113,13 +113,16 @@ html = html[:start] + html[end:]
 html = replace_once(html, ' dgt:"tabDgt",', "")
 html = replace_once(
     html, "function showTab(id,button){",
-    'function showTab(id,button){\n  if(id==="dgt"){id="main";button=document.getElementById("tabMain");}',
+    'function showTab(id,button){\n  if(id==="dgt"||id==="hub"||id==="cloudWorkspace"){id="main";button=document.getElementById("tabMain");}',
 )
 autosave_control = re.compile(r'      <label class="autosave-switch"[^\n]+</label>')
 if len(autosave_control.findall(html)) != 1:
     raise SystemExit("Expected one desktop Autosave switch.")
 html = autosave_control.sub(
-    '      <span id="cpWebCloudSaveStatus" role="status">Cloud autosave on</span>', html, count=1,
+    '      <span id="cpWebCloudSaveStatus" role="status">Cloud autosave on</span>\n'
+    '      <button id="cpWebHeaderSyncBtn" type="button" class="cp-header-sync-btn" title="Synchronize current tournament with private Cloud" aria-label="Sync now">↻ Sync</button>',
+    html,
+    count=1,
 )
 html = replace_once(
     html, '    autosaveEnabled=pref===null ? true : pref!=="0";', "    autosaveEnabled=true;",
@@ -152,17 +155,54 @@ html = replace_once(
     'const result=await window.cpWebRunCloudExclusive(()=>window.cpCloudDownloadWebResults());',
 )
 html = replace_once(
+    html,
+    '  saveData();\n  populatePairingsRoundMenu();\n  setVal("pairingsRound",String(round));\n  t.pairings.round=String(round);',
+    '  saveData();\n  if(window.cpDesktopWebAllowed) setTimeout(()=>{ window.cpWebFlushPairingNow?.(); },0);\n  populatePairingsRoundMenu();\n  setVal("pairingsRound",String(round));\n  t.pairings.round=String(round);',
+)
+html = replace_once(
+    html,
+    '    const count=Math.max(0,Number(result?.applied)||0);',
+    '''    if(result?.conflict){
+      setStatus(getLanguage()==="bg"?"\\u041a\\u043e\\u043d\\u0444\\u043b\\u0438\\u043a\\u0442 \\u0432 Cloud \\u0438\\u0437\\u0438\\u0441\\u043a\\u0432\\u0430 \\u0440\\u0430\\u0437\\u0440\\u0435\\u0448\\u0430\\u0432\\u0430\\u043d\\u0435 \\u043f\\u0440\\u0435\\u0434\\u0438 \\u0442\\u0435\\u0433\\u043b\\u0435\\u043d\\u0435 \\u043d\\u0430 \\u0440\\u0435\\u0437\\u0443\\u043b\\u0442\\u0430\\u0442\\u0438.":"Cloud conflict must be resolved before pairing.");
+      if(typeof appAlert==="function") await appAlert("Resolve the Cloud conflict before generating the next round.","SYNC","warning");
+      return;
+    }
+    const count=Math.max(0,Number(result?.applied)||0);''',
+)
+html = replace_once(
     html, '    try{window.cpWebStorage.setItem(STORAGE_KEY,JSON.stringify(data));}catch(err){console.warn("Core local save after rename failed:",err);}',
     """    try{window.cpWebStorage.setItem(STORAGE_KEY,JSON.stringify(data));}catch(err){console.warn("Core local save after rename failed:",err);}
     if(window.cpDesktopWebAllowed){ cpStateRevision++; await writePersistentState(false,true); }""",
 )
 html = replace_once(
+    html,
+    '      if(state)state.textContent="Organizer Token is not connected on this installation.";\n      if(body)body.innerHTML=\'<tr><td colspan="4" class="muted">Connect the Organizer Token once to access your online tournaments.</td></tr>\';',
+    '      if(state)state.textContent="Sign in with Google to access your online tournaments.";\n      if(body)body.innerHTML=\'<tr><td colspan="4" class="muted">Sign in with Google to access your online tournaments.</td></tr>\';',
+)
+html = replace_once(
+    html,
+    '"No online tournaments are stored for this Organizer Token."',
+    '"No online tournaments are saved for this Google account."',
+)
+html = replace_once(
     html, '  if(window.__cpOnlineCloudBusy){\n    const state=document.getElementById("cpNewOnlineState");if(state)state.textContent="Another Online & Cloud operation is still running.";\n    return false;\n  }',
     """  await window.cpWebWaitAutosaveIdle?.();
   if(window.__cpOnlineCloudBusy){
-    const state=document.getElementById("cpNewOnlineState");if(state)state.textContent="Another Online & Cloud operation is still running.";
+    const state=document.getElementById("cpNewOnlineState");if(state)state.textContent="Another Cloud sync operation is still running.";
     return false;
   }""",
+)
+html = replace_once(
+    html,
+    """function openOnlineCloudFromNewDialog(){
+  const modal=document.getElementById("createScreen");if(modal){modal.style.display="none";modal.setAttribute("aria-hidden","true");}
+  const tab=document.getElementById("tabHub");if(tab&&typeof showTab==="function")showTab("hub",tab);
+  setTimeout(()=>document.getElementById("hubOrganizerToken")?.focus(),120);
+}""",
+    """function openOnlineCloudFromNewDialog(){
+  const modal=document.getElementById("createScreen");if(modal){modal.style.display="none";modal.setAttribute("aria-hidden","true");}
+  location.assign("./");
+}""",
 )
 html = replace_once(
     html, '    const opened=await window.cpCloudOpenTournament(id);',
@@ -292,9 +332,95 @@ for relative in adapters:
         js = replace_once(js, "window.chrome.webview.postMessage(payload);", "window.__cpBrowserHostBridge.postMessage(payload);")
         js = replace_once(js, 'window.chrome.webview.addEventListener("message",event=>{', 'window.__cpBrowserHostBridge.addEventListener("message",event=>{')
         js = replace_once(
+            js, '    function log(message,kind="info"){\n      const box=document.getElementById("hubLog");\n      const line=`[${new Date().toLocaleTimeString("en-GB",{hour12:false})}] ${message}`;\n      if(box){box.value+=(box.value?"\\n":"")+line;box.scrollTop=box.scrollHeight;}\n      try{ if(typeof setStatus==="function") setStatus(message); }catch(_){}\n      if(kind==="error") console.error("Chess-Publisher Hub:",message);\n    }',
+            '    function log(message,kind="info"){\n      try{ if(typeof setStatus==="function") setStatus(message); }catch(_){}\n      if(kind==="error") console.error("Chess-Publisher Hub:",message);\n    }',
+        )
+        js = replace_once(
+            js, '    async function getOrganizerToken(){',
+            '    window.cpWebOnAuthCleared?.(()=>{organizerTokenCache="";organizerInfo=null;});\n    async function getOrganizerToken(){',
+        )
+        js = replace_once(
+            js, '    function setBusy(value,label=""){\n      busy=!!value;\n      document.querySelectorAll(\'#hub button[id^="hub"],#hub input[id^="hub"]\').forEach(el=>{\n        if(el.id==="hubOrganizerToken"&&busy)el.disabled=true;\n        else if(el.tagName==="BUTTON")el.disabled=busy;\n        else if(el.id==="hubOrganizerToken")el.disabled=false;\n      });\n      const busyLabel=document.getElementById("hubBusyLabel");\n      if(busyLabel)busyLabel.textContent=busy?(label||"Working…"):"";\n    }',
+            '    function setBusy(value,label=""){\n      busy=!!value;\n      try{document.dispatchEvent(new CustomEvent("cp:hub-ui-updated",{detail:{busy,label}}));}catch(_){}\n    }',
+        )
+        js = replace_once(
+            js, '    async function verifyOrganizer(){\n      return runBusy("Verifying organizer…",async()=>{\n        const field=document.getElementById("hubOrganizerToken");\n        let token=text(field?.value);\n        if(!token)token=await getOrganizerToken();\n        if(!token)throw new Error("Paste an Organizer Token first.");\n        const result=await api.organizerMe(token);\n        await window.cpNativeHubSecretSet(organizerSecretKey(),token);\n        organizerTokenCache=token;\n        organizerInfo=result.organizer||null;\n        if(field){field.value="";field.placeholder="Saved for this installation";}\n        log(`Organizer verified: ${organizerInfo?.displayName||organizerInfo?.id||"connected"}.`);\n        return result;\n      });\n    }\n\n    async function forgetOrganizer(){\n      if(busy)return;\n      await window.cpNativeHubSecretRemove(organizerSecretKey());\n      organizerTokenCache="";organizerInfo=null;\n      const field=document.getElementById("hubOrganizerToken");if(field){field.value="";field.placeholder="Paste Organizer Token";}\n      log("Organizer credential removed from this installation.");refreshUi();\n    }',
+            '    async function verifyOrganizer(){\n      return runBusy("Verifying organizer…",async()=>{\n        const token=await getOrganizerToken();\n        if(!token)throw new Error("Sign in with Google first.");\n        const result=await api.organizerMe(token);\n        organizerTokenCache=token;\n        organizerInfo=result.organizer||null;\n        return result;\n      });\n    }\n\n    async function forgetOrganizer(){\n      organizerTokenCache="";organizerInfo=null;refreshUi();\n    }',
+        )
+        js = replace_once(
             js, '    async function runBusy(label,action){\n      if(busy||window.__cpOnlineCloudBusy)return;',
             '    async function runBusy(label,action){\n      await window.cpWebWaitAutosaveIdle?.();\n      if(busy||window.__cpOnlineCloudBusy)return;',
         )
+        js = replace_once(
+            js,
+            '      if(el("hubOpenBtn"))el("hubOpenBtn").disabled=busyState||!publicUrl(meta)||del;\n      if(el("hubDeleteBtn"))el("hubDeleteBtn").disabled=busyState||!linked||del;\n      if(el("hubRestoreBtn"))el("hubRestoreBtn").disabled=busyState||!linked||!del;\n    }',
+            '      if(el("hubOpenBtn"))el("hubOpenBtn").disabled=busyState||!publicUrl(meta)||del;\n      if(el("hubDeleteBtn"))el("hubDeleteBtn").disabled=busyState||!linked||del;\n      if(el("hubRestoreBtn"))el("hubRestoreBtn").disabled=busyState||!linked||!del;\n      try{document.dispatchEvent(new CustomEvent("cp:hub-ui-updated"));}catch(_){}\n    }',
+        )
+        js = js.replace('if(!token)throw new Error("Verify and save an Organizer Token first.");', 'if(!token)throw new Error("Sign in with Google first.");')
+        js = js.replace('if(!organizerToken)throw new Error("Organizer credential is missing.");', 'if(!organizerToken)throw new Error("Sign in with Google first.");')
+        js = js.replace('Tournament management credential is missing from this Windows profile.', 'Tournament management credential is missing for this browser session.')
+        js = js.replace('Create/link the tournament in Online Hub first', 'Publish this tournament to Public Hub first')
+        hub_inject_start = "    function injectUi(){"
+        hub_inject_end = "    injectUi();\n  }catch(error){"
+        if js.count(hub_inject_start) != 1 or js.count(hub_inject_end) != 1:
+            raise SystemExit("Unable to locate HubAdapter.js injectUi() block.")
+        h_start = js.index(hub_inject_start)
+        h_end = js.index(hub_inject_end, h_start)
+        js = js[:h_start] + """    function injectUi(){
+      injectPairingsPublishButton();
+      const setupUploadButton=document.getElementById("setupRegulationsUploadBtn");
+      if(setupUploadButton&&!setupUploadButton.__cpHubBound){
+        setupUploadButton.__cpHubBound=true;
+        setupUploadButton.addEventListener("click",()=>chooseRegulationsFile("setup"));
+      }
+      const regulationsFileInput=document.getElementById("hubRegulationsFileInput");
+      if(regulationsFileInput&&!regulationsFileInput.__cpHubBound){
+        regulationsFileInput.__cpHubBound=true;
+        regulationsFileInput.addEventListener("change",()=>{
+          const file=regulationsFileInput.files?.[0];
+          const source=regulationsFileInput.dataset.uploadSource||"hub";
+          if(file)uploadRegulationsFile(file,source).catch(()=>{});
+        });
+      }
+      for(const selectorId of ["mainTournamentSelect","registrationTournamentSelect","pairingsTournamentSelect","chessResultsTournamentSelect","standingsTournamentSelect","scheduleTournamentSelect","exportTournamentSelect"]){
+        document.getElementById(selectorId)?.addEventListener("change",()=>setTimeout(refreshUi,0));
+      }
+      refreshUi();
+      window.cpHubRefreshUi=refreshUi;
+      window.cpHubPublishOnline=publishOnlineSmart;
+      window.cpHubPublishCurrentTournament=publishCurrentTournament;
+      window.cpHubOpenPublicPage=openPublicTournament;
+      window.cpHubDeleteOnline=deleteOnlineTournament;
+      window.cpHubRestoreOnline=restoreOnlineTournament;
+      window.cpHubChooseRegulationsFile=chooseRegulationsFile;
+      window.cpHubListOrganizerTournaments=async()=>{
+        const token=await getOrganizerToken();
+        if(!token)throw new Error("Sign in with Google first.");
+        return api.listOrganizerTournaments(token);
+      };
+      window.cpHubGetState=()=>{
+        const t=currentTournament();
+        const meta=t?.hub||{};
+        const regulationsFile=meta?.regulationsFile;
+        const regulationsFileLabel=regulationsFile?.name?`${regulationsFile.name} (${formatBytes(regulationsFile.size)})`:"No regulations file uploaded.";
+        return {
+          hasTournament:!!t,
+          tournamentName:currentTournamentName(t)||"",
+          linked:!!text(meta.hubTournamentId),
+          deleted:!!meta.deleted,
+          publicSlug:text(meta.publicSlug),
+          publicUrl:publicUrl(meta),
+          revision:Math.max(0,Number(meta.revision)||0),
+          hubTournamentId:text(meta.hubTournamentId),
+          localKey:text(meta.localKey),
+          regulationsFileLabel,
+          busy:busy||!!window.__cpOnlineCloudBusy
+        };
+      };
+      log("Public Hub publishing ready.");
+    }
+
+""" + js[h_end:]
     if relative == "webview/CloudWorkspaceAdapter.js":
         js = replace_once(js, 'try{return window.cpWebStorage.getItem(AUTO_SYNC_KEY)!=="0";}catch(_){return true;}', "return true;")
         js = replace_once(
@@ -372,26 +498,42 @@ for relative in adapters:
             '    async function foreground(label,fn){\n      await window.cpWebWaitAutosaveIdle?.();\n      if(window.__cpOnlineCloudBusy){',
         )
         js = replace_once(
-            js, '    window.cpCloudSyncAllLocal=syncAllLocal;',
-            '    window.cpCloudSyncAllLocal=syncAllLocal;\n    window.cpWebBackupTournament=(name,savedTournament)=>syncTournamentByName(name,{quiet:true,allowPull:false,savedTournament});')
-        js = replace_once(
-            js, """          if(id==="cloudWorkspace"){
-            const hub=document.getElementById("tabHub");
-            const result=originalShowTab.call(this,"hub",hub||button);
-            setTimeout(()=>openWorkspace().catch(error=>console.warn("Cloud Workspace open:",error)),0);
-            return result;
-          }
-          const result=originalShowTab.apply(this,arguments);
-          if(id==="hub")setTimeout(()=>openWorkspace().catch(error=>console.warn("Cloud Workspace open:",error)),0);""",
-            """          if(id==="cloudWorkspace"){
-            const hub=document.getElementById("tabHub");
-            const result=originalShowTab.call(this,"hub",hub||button);
-            setTimeout(()=>(window.cpCloudWorkspaceOpen||openWorkspace)().catch(error=>console.warn("Cloud Workspace open:",error)),0);
-            return result;
-          }
-          const result=originalShowTab.apply(this,arguments);
-          if(id==="hub")setTimeout(()=>(window.cpCloudWorkspaceOpen||openWorkspace)().catch(error=>console.warn("Cloud Workspace open:",error)),0);""",
+            js, 'Another Online & Cloud operation is already running.',
+            'Another Cloud sync operation is already running.',
         )
+        js = replace_once(
+            js, 'await appAlert(cloudErrorText(error),"Online & Cloud","error")',
+            'await appAlert(cloudErrorText(error),"Cloud Sync","error")',
+        )
+        js = js.replace('Organizer Token is not connected.', 'Sign in with Google to synchronize with Cloud.')
+        js = replace_once(
+            js, '    window.cpCloudSyncAllLocal=syncAllLocal;',
+            '    window.cpCloudSyncAllLocal=syncAllLocal;\n'
+            '    window.cpWebBackupTournament=(name,savedTournament)=>syncTournamentByName(name,{quiet:true,allowPull:false,savedTournament});\n'
+            '    window.cpCloudListRevisions=async id=>{const token=await getOrganizerToken();if(!token)throw new Error("Sign in with Google first.");return api.listRevisions(token,id);};\n'
+            '    window.cpCloudRestoreRevision=restoreRevision;',
+        )
+        cwa_inject_start = "    function injectUi(){"
+        cwa_inject_end = "    window.ChessPublisherCloudSyncInternals=Object.freeze({"
+        if js.count(cwa_inject_start) != 1 or js.count(cwa_inject_end) != 1:
+            raise SystemExit("Unable to locate CloudWorkspaceAdapter.js injectUi() block.")
+        c_start = js.index(cwa_inject_start)
+        c_end = js.index(cwa_inject_end, c_start)
+        js = js[:c_start] + """    function injectUi(){
+      try{
+        if(data?.preferences?.activeTab==="cloudWorkspace"||data?.preferences?.activeTab==="hub"){
+          data.preferences.activeTab="main";
+          if(typeof saveData==="function")saveData();
+        }
+      }catch(_){ }
+      for(const selectorId of ["mainTournamentSelect","registrationTournamentSelect","pairingsTournamentSelect","chessResultsTournamentSelect","standingsTournamentSelect","scheduleTournamentSelect","exportTournamentSelect"]){
+        document.getElementById(selectorId)?.addEventListener("change",()=>setTimeout(renderCurrent,0));
+      }
+      renderAccount();renderCurrent();
+      log("Private Cloud sync ready.");
+    }
+
+""" + js[c_end:]
     if relative == "webview/CloudWorkspaceRedesign.js":
         js = replace_once(
             js, '    async function getToken(){',
@@ -436,6 +578,10 @@ for relative in adapters:
             'const clean=await commitLocalTournament(name,imported,{expectedContentFingerprint:remoteHash,baseRevision:remoteRevision,baseFingerprint:remoteHash,',
         )
         js = replace_once(
+            js, '      const resolve=document.getElementById("cloudResolveConflictBtn");if(resolve)resolve.hidden=state!=="CONFLICT";\n      try{renderSimpleCloudControls();}catch(_){ }\n    }',
+            '      const resolve=document.getElementById("cloudResolveConflictBtn");if(resolve)resolve.hidden=state!=="CONFLICT";\n      try{renderSimpleCloudControls();}catch(_){ }\n      try{document.dispatchEvent(new CustomEvent("cp:cloud-status-updated",{detail:{state,message:currentStatus.message,friendlyMessage:simpleCloudMessage(),remoteRevision:currentStatus.remoteRevision}}));}catch(_){ }\n    }',
+        )
+        js = replace_once(
             js, '          try{await resolveMissingBaseWholeTournament(side);overlay.remove();}',
             '          try{await (window.cpWebRunCloudExclusive?window.cpWebRunCloudExclusive(()=>resolveMissingBaseWholeTournament(side)):resolveMissingBaseWholeTournament(side));overlay.remove();}',
         )
@@ -443,13 +589,32 @@ for relative in adapters:
             js, 'if(btn.dataset.action==="save"){btn.disabled=true;try{await saveResolvedConflict(choices);overlay.remove();}',
             'if(btn.dataset.action==="save"){btn.disabled=true;try{await (window.cpWebRunCloudExclusive?window.cpWebRunCloudExclusive(()=>saveResolvedConflict(choices)):saveResolvedConflict(choices));overlay.remove();}',
         )
+        js = js.replace('Organizer Token is not connected.', 'Sign in with Google to synchronize with Cloud.')
+        cwr_install_start = "    function installUi(){"
+        cwr_install_end = "    const oldOpen=window.cpCloudWorkspaceOpen;"
+        if js.count(cwr_install_start) != 1 or js.count(cwr_install_end) != 1:
+            raise SystemExit("Unable to locate CloudWorkspaceRedesign.js installUi() block.")
+        r_start = js.index(cwr_install_start)
+        r_end = js.index(cwr_install_end, r_start)
+        js = js[:r_start] + """    function installUi(){
+      for(const selectorId of ["mainTournamentSelect","registrationTournamentSelect","pairingsTournamentSelect","chessResultsTournamentSelect","standingsTournamentSelect","scheduleTournamentSelect","exportTournamentSelect"]){
+        const selector=document.getElementById(selectorId);
+        if(selector&&!selector.__cpIronCloudRender){
+          selector.__cpIronCloudRender=true;
+          selector.addEventListener("change",()=>setTimeout(renderSimpleCloudControls,0));
+        }
+      }
+      renderSimpleCloudControls();
+      return true;
+    }
+
+""" + js[r_end:]
         js = replace_once(
-            js, '        sync.addEventListener("click",()=>syncCurrentFromList().catch(async error=>{',
-            '        sync.addEventListener("click",()=>(window.cpWebRunCloudExclusive?window.cpWebRunCloudExclusive(()=>syncCurrentFromList()):syncCurrentFromList()).catch(async error=>{',
-        )
-        js = replace_once(
-            js, '          openCloudRowSafely(btn.dataset.cloudId).catch(async error=>{',
-            '          (window.cpWebRunCloudExclusive?window.cpWebRunCloudExclusive(()=>openCloudRowSafely(btn.dataset.cloudId)):openCloudRowSafely(btn.dataset.cloudId)).catch(async error=>{',
+            js, '    window.cpCloudSyncCurrent=syncCurrent;',
+            '    window.cpCloudSyncCurrent=syncCurrent;\n'
+            '    window.cpCloudSyncUnifiedNow=()=>(window.cpWebRunCloudExclusive?window.cpWebRunCloudExclusive(()=>syncCurrentFromList()):syncCurrentFromList());\n'
+            '    window.cpCloudOpenRowSafely=id=>(window.cpWebRunCloudExclusive?window.cpWebRunCloudExclusive(()=>openCloudRowSafely(id)):openCloudRowSafely(id));\n'
+            '    window.cpCloudGetStatus=()=>({...currentStatus,friendlyMessage:simpleCloudMessage()});',
         )
     target = output / relative
     target.parent.mkdir(parents=True, exist_ok=True)

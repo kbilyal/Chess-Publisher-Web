@@ -56,11 +56,6 @@ th, td { text-align: left; border-bottom: 1px solid var(--line); padding: .55rem
 }
 .secondary-link:hover { background: #f8fafc; border-color: #93b4e8; }
 
-#login-form { max-width: 31rem; }
-#login-form h2, .workspace-header h2 { margin: 0; }
-#login-form > p { margin: .5rem 0 1rem; }
-#login-form #login-status { margin-bottom: 0; }
-#login-status:empty { display: none; }
 .workspace-header {
   display: flex;
   align-items: center;
@@ -79,26 +74,6 @@ th, td { text-align: left; border-bottom: 1px solid var(--line); padding: .55rem
 
 #google-signin-button {
   min-height: 44px;
-}
-
-#legacy-token-details {
-  margin-top: 1.25rem;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: .8rem;
-  padding: .85rem 1.15rem;
-}
-
-#legacy-token-details summary {
-  cursor: pointer;
-  font-weight: 600;
-  color: var(--action);
-}
-
-#legacy-token-details form {
-  margin-top: .85rem;
-  border: 0;
-  padding: 0;
 }
 
 .signed-in-header {

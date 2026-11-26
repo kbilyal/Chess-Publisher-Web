@@ -18,8 +18,56 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
   #appWindow .content { min-width: 0; overflow: auto !important; }
 }
 
-#cpWebCloudSaveStatus { font-size: 11px; }
-#cloudWorkspace label:has(#cloudAutoSync) { display: none !important; }
+#cpWebCloudSaveStatus {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  white-space: nowrap;
+}
+#cpWebCloudSaveStatus.cp-cloud-status-syncing { background: rgba(147, 197, 253, 0.25); }
+#cpWebCloudSaveStatus.cp-cloud-status-warn { background: rgba(251, 191, 36, 0.28); color: #fef3c7; }
+#cpWebCloudSaveStatus.cp-cloud-status-expired { background: rgba(248, 113, 113, 0.3); color: #fee2e2; cursor: pointer; }
+#cpWebCloudSaveStatus[data-cp-cloud-state="conflict"] { cursor: pointer; }
+.cp-header-sync-btn {
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.cp-header-sync-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.26); }
+.cp-header-sync-btn:disabled { opacity: 0.6; cursor: progress; }
+.cp-session-expired-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 7px 12px;
+  background: #fff8e5;
+  border-bottom: 1px solid #e4c86d;
+  color: #7a4a00;
+  font-size: 12px;
+  font-weight: 600;
+}
+.cp-session-expired-text { flex: 1 1 260px; }
+.cp-session-expired-btn {
+  padding: 4px 10px;
+  border-radius: 5px;
+  border: 1px solid #0f3d91;
+  background: #0f3d91;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
 #cpNewTournamentOnlinePanel:not(.hidden) { display: block !important; }
 
 #createScreen .cp-new-tournament-window {
@@ -1906,7 +1954,7 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
   top: calc(100% + 4px);
   right: 0;
   z-index: 9000;
-  width: 290px;
+  width: 320px;
   max-width: 92vw;
   background: #ffffff;
   border: 1px solid #cbd5e1;
@@ -1923,6 +1971,15 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
   border-bottom: 1px solid #e2e8f0;
 }
 
+#appWindow #classicMenuBar .cp-user-panel-eyebrow {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  color: #64748b;
+  margin-bottom: 2px;
+}
+
 #appWindow #classicMenuBar .cp-user-panel-email {
   color: #64748b;
   font-size: 11px;
@@ -1933,19 +1990,29 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
   margin-bottom: 8px;
   padding-bottom: 8px;
   border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+#appWindow #classicMenuBar .cp-user-section-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
 }
 
 #appWindow #classicMenuBar .cp-user-section-title {
   font-weight: 700;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   color: #334155;
 }
 
 #appWindow #classicMenuBar .cp-user-tournaments-list {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  max-height: 180px;
+  gap: 4px;
+  max-height: 190px;
   overflow-y: auto;
 }
 
@@ -1963,10 +2030,78 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
   cursor: pointer;
 }
 
+#appWindow #classicMenuBar .cp-user-tournament-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+#appWindow #classicMenuBar .cp-user-tournament-item {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#appWindow #classicMenuBar .cp-user-tournament-current {
+  background: #eef4ff;
+  border-color: #93b4e8;
+  font-weight: 600;
+}
+
+#appWindow #classicMenuBar .cp-user-current-badge,
+#appWindow #classicMenuBar .cp-user-rev-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #334155;
+  flex-shrink: 0;
+}
+
+#appWindow #classicMenuBar .cp-user-current-badge {
+  background: #dbeafe;
+  color: #0f3d91;
+}
+
+#appWindow #classicMenuBar .cp-user-mini-btn {
+  padding: 3px 7px;
+  border-radius: 5px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+#appWindow #classicMenuBar .cp-user-mini-btn:hover {
+  background: #f1f5f9;
+}
+
+#appWindow #classicMenuBar .cp-user-sync-btn {
+  background: #eef4ff;
+  border-color: #93b4e8;
+  color: #0f3d91;
+  font-weight: 600;
+}
+
+#appWindow #classicMenuBar .cp-user-panel-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
 #appWindow #classicMenuBar .cp-user-signout-btn {
-  width: auto;
-  padding: 1px 7px;
-  height: 22px;
+  width: 100%;
+  padding: 5px 10px;
+  height: auto;
   line-height: 18px;
   white-space: nowrap;
   text-align: center;
@@ -2031,5 +2166,240 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
   #appWindow #classicMenuBar .cp-arbiter-link {
     padding: 0 5px;
     font-size: 11px;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   PUBLIC HUB RELOCATED CARD & CLOUD MODALS (History / Guest Arbiter / Conflict)
+   -------------------------------------------------------------------------- */
+.cp-ws-hub-card {
+  flex-shrink: 0;
+}
+
+.cp-ws-hub-status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 700;
+}
+.cp-ws-hub-status-ok { background: #edf7ed; border-color: #9fd29f; color: #107c10; }
+.cp-ws-hub-status-warn { background: #fff8e5; border-color: #e4c86d; color: #8a5a00; }
+.cp-ws-hub-status-neutral { background: #f4f6f8; border-color: #c9d2dc; color: #4c5966; }
+
+.cp-ws-hub-details > summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f3d91;
+}
+
+.cp-ws-hub-kv {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: 5px 10px;
+  margin: 10px 0;
+  font-size: 12px;
+}
+
+.cp-ws-hub-kv span {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+
+.cp-ws-hub-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-bottom: 10px;
+}
+
+.cp-ws-hub-table-wrap {
+  max-height: 190px;
+  overflow: auto;
+}
+
+.cp-modal-overlay,
+.cloud-conflict-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9500;
+  background: rgba(15, 23, 42, 0.48);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.cp-modal-card,
+.cloud-conflict-card {
+  width: min(640px, 100%);
+  max-height: 88vh;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.24);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+
+.cloud-conflict-card {
+  padding: 16px;
+  overflow: auto;
+  gap: 10px;
+}
+
+.cp-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #f8fafc;
+  border-bottom: 1px solid #d8dee6;
+}
+
+.cp-modal-title {
+  font-size: 13.5px;
+  color: #0f172a;
+}
+
+.cp-modal-close {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  border-radius: 5px;
+  width: 26px;
+  height: 26px;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.cp-modal-body {
+  padding: 14px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 12.5px;
+}
+
+.cp-modal-footer {
+  padding: 10px 14px;
+  background: #f8fafc;
+  border-top: 1px solid #d8dee6;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.cp-modal-status { margin: 0; font-weight: 600; color: #1e293b; }
+.cp-modal-note { margin: 0; color: #475569; font-size: 12px; }
+.cp-modal-table-frame { max-height: 300px; overflow: auto; }
+.cp-modal-btn-secondary {
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cp-arbiter-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cp-arbiter-share-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #d8dee6;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.cp-arbiter-link-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.cp-arbiter-link-row input {
+  flex: 1 1 260px;
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+}
+
+.cp-arbiter-qr-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 6px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  align-self: center;
+}
+
+.cp-arbiter-sessions-wrap {
+  font-size: 12px;
+}
+
+.cp-arbiter-sessions-title {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.cp-arbiter-sessions-list {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.cloud-conflict-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cloud-field-conflict {
+  border: 1px solid #d8dee6;
+  border-radius: 7px;
+  padding: 10px;
+  background: #f8fafc;
+}
+
+.cloud-conflict-values {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.cloud-conflict-values pre {
+  background: #ffffff;
+  border: 1px solid #d8dee6;
+  border-radius: 5px;
+  padding: 6px;
+  max-height: 150px;
+  overflow: auto;
+  font-size: 11px;
+}
+
+@media (max-width: 760px) {
+  .cp-ws-hub-kv,
+  .cloud-conflict-values {
+    grid-template-columns: 1fr;
   }
 }

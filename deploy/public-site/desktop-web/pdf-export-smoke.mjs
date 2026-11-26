@@ -17,6 +17,7 @@ try {
   await page.route('https://accounts.google.com/**', route =>
     route.fulfill({ status: 200, contentType: 'application/javascript', body: '' })
   );
+  const user = { id: 'usr_pdf_ci', email: 'pdf-ci@example.com', name: 'PDF Test', organizerId: 'pdf-test' };
   const handleApiRoute = route => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
@@ -24,20 +25,21 @@ try {
       'access-control-allow-origin': new URL(url).origin,
       'access-control-allow-credentials': 'true',
       'access-control-allow-methods': 'GET, POST, PUT, OPTIONS',
-      'access-control-allow-headers': 'Authorization, Content-Type, X-Client-Version, X-Expected-Revision',
+      'access-control-allow-headers': 'Authorization, Content-Type, X-Client-Version, X-Expected-Revision, X-Expected-Organizer',
     };
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
-    if (path === '/api/auth/me') return route.fulfill({ headers, json: { ok: false, authenticated: false } });
+    if (path === '/api/auth/me') return route.fulfill({ headers, json: { ok: true, authenticated: true, user } });
     if (path === '/api/auth/config') return route.fulfill({ headers, json: { ok: true, googleClientId: null } });
-    return route.fulfill({ headers, json: { ok: true, organizer: { id: 'pdf-test', displayName: 'PDF test' }, tournaments: [] } });
+    return route.fulfill({ headers, json: { ok: true, organizer: { id: 'pdf-test', displayName: 'PDF Test' }, tournaments: [] } });
   };
   await page.route('https://api.chess-publisher.org/**', handleApiRoute);
   await page.route('https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev/**', handleApiRoute);
+  await page.addInitScript(({ user: u, scope }) => {
+    if (!sessionStorage.getItem('cp.desktop-web.session')) {
+      sessionStorage.setItem('cp.desktop-web.session', JSON.stringify({ authMode: 'cookie', scope, user: u }));
+    }
+  }, { user, scope: 'p'.repeat(64) });
   await page.goto(new URL('workspace.html', url).href);
-  await page.getByRole('heading', { name: 'Chess-Publisher Web' }).waitFor();
-  await page.locator('#legacy-token-details summary').click();
-  await page.getByLabel('Organizer Token').fill('ci-pdf-export-organizer');
-  await page.getByRole('button', { name: 'Open Workspace' }).click();
   const name = page.getByRole('textbox', { name: 'Tournament name', exact: true });
   try {
     await name.fill('Sofia Open', { timeout: 10000 });

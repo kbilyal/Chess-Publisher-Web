@@ -10,23 +10,31 @@ const search = '#fideSearch';
 const results = '#fideResults';
 
 try {
-  await page.addInitScript(() => {
-    sessionStorage.setItem('cp.desktop-web.session', JSON.stringify({
-      scope: 'f'.repeat(64),
-      token: 'ci-fide-organizer',
-    }));
-  });
+  const user = { id: 'usr_fide_ci', email: 'fide-ci@example.com', name: 'FIDE CI', organizerId: 'ci-fide-organizer' };
+  await page.addInitScript(({ user: u, scope }) => {
+    if (!sessionStorage.getItem('cp.desktop-web.session')) {
+      sessionStorage.setItem('cp.desktop-web.session', JSON.stringify({ authMode: 'cookie', scope, user: u }));
+    }
+  }, { user, scope: 'f'.repeat(64) });
+  await page.route('https://accounts.google.com/**', route =>
+    route.fulfill({ status: 200, contentType: 'application/javascript', body: '' })
+  );
   const handleApiRoute = route => {
-    const path = new URL(route.request().url()).pathname;
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    const headers = {
+      'access-control-allow-origin': origin,
+      'access-control-allow-credentials': 'true',
+      'access-control-allow-methods': 'GET, POST, PUT, OPTIONS',
+      'access-control-allow-headers': 'Authorization, Content-Type, X-Client-Version, X-Expected-Revision, X-Expected-Organizer'
+    };
+    if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
     if (path === '/api/auth/me') {
-      return route.fulfill({
-        json: { ok: false, authenticated: false },
-        headers: { 'access-control-allow-origin': origin, 'access-control-allow-credentials': 'true' }
-      });
+      return route.fulfill({ json: { ok: true, authenticated: true, user }, headers });
     }
     return route.fulfill({
-      json: { ok: true, organizer: { id: 'ci-fide-organizer' }, tournaments: [] },
-      headers: { 'access-control-allow-origin': origin, 'access-control-allow-credentials': 'true' }
+      json: { ok: true, organizer: { id: 'ci-fide-organizer', displayName: 'FIDE CI' }, tournaments: [] },
+      headers
     });
   };
   await page.route('https://api.chess-publisher.org/**', handleApiRoute);
