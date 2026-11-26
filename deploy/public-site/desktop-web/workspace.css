@@ -1410,12 +1410,13 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
   flex-wrap: wrap;
 }
 
-.cp-ws-pairings-card .live-pairing-table-wrap {
+#appWindow #pairings .cp-ws-pairings-card .live-pairing-table-wrap {
   flex: 1;
-  min-height: 220px;
+  min-height: 220px !important;
   height: auto !important;
   max-height: clamp(340px, 56vh, 620px) !important;
-  overflow: auto;
+  overflow: auto !important;
+  overscroll-behavior: auto !important;
 }
 
 .cp-ws-pairings-card .live-pairing-table thead th {
@@ -1429,6 +1430,7 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
   height: auto !important;
   max-height: none !important;
   overflow: visible !important;
+  overscroll-behavior: auto !important;
   align-self: start !important;
   align-content: start !important;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
@@ -1891,7 +1893,7 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
   #pairings .cp-ws-pairings-card {
     min-height: 0;
   }
-  #pairings .cp-ws-pairings-card .live-pairing-table-wrap {
+  #appWindow #pairings .cp-ws-pairings-card .live-pairing-table-wrap {
     max-height: 340px !important;
   }
   .cp-ws-export-cards-grid {
