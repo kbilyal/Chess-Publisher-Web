@@ -10,6 +10,9 @@ const web = 'https://chess-publisher.org';
 const companion = 'https://web.chess-publisher.org';
 const api = 'https://api.chess-publisher.org';
 const token = 'ci-legacy-organizer';
+const arbiterCode = 'fixture-arbiter-invitation';
+const arbiterToken = 'fixture-arbiter-session';
+const arbiterSession = { id: 'arbiter-1', name: 'Guest Arbiter' };
 const user = { id: 'user-1', organizerId: 'organizer-1', name: 'Test organizer' };
 const tournament = { id: 'cloud.example', name: 'Spring Open', localKey: 'test-local', revision: 1 };
 const secondUser = { id: 'user-2', organizerId: 'organizer-2', name: 'Second organizer' };
@@ -22,6 +25,7 @@ const snapshot = { data: { currentTournament: tournament.name, tournaments: {
 async function configure(context, googleClientId = Promise.resolve('fixture')) {
   let googleSession;
   let logoutFailure;
+  let arbiterResult = '-';
   const calls = [];
   await context.route('**/*', route => route.abort());
   await context.route(`${web}/**`, route => {
@@ -92,6 +96,26 @@ async function configure(context, googleClientId = Promise.resolve('fixture')) {
       googleSession = undefined;
       return reply({ ok: true });
     }
+    if (path === '/api/v1/arbiter/join') {
+      const { accessCode, name, deviceId } = request.postDataJSON();
+      if (accessCode !== arbiterCode || name !== arbiterSession.name || !deviceId || bearer) {
+        return reply({ ok: false, message: 'Invalid fixture invitation.' }, 400);
+      }
+      return reply({ ok: true, sessionToken: arbiterToken, session: arbiterSession, tournament });
+    }
+    if (path === '/api/v1/arbiter/tournament' && bearer === `Bearer ${arbiterToken}`) {
+      return reply({ ok: true, session: arbiterSession, tournament: {
+        ...tournament, round: '1', players: [
+          { localKey: 'white', pairingNumber: 1, name: 'White Player' },
+          { localKey: 'black', pairingNumber: 2, name: 'Black Player' }
+        ], pairings: { liveBoards: { 1: [{ board: 1, whiteKey: 'white', blackKey: 'black', result: arbiterResult }] } }
+      } });
+    }
+    if (path === '/api/v1/arbiter/results' && bearer === `Bearer ${arbiterToken}`) {
+      const result = request.postDataJSON();
+      arbiterResult = result.result;
+      return reply({ ok: true, submission: { id: 'result-1', ...result } });
+    }
     if (!googleSession && bearer !== `Bearer ${token}`) return reply({ error: 'unauthorized' }, 401);
     const organizer = googleSession || user;
     const owned = organizer === secondUser ? secondTournament : tournament;
@@ -123,6 +147,25 @@ async function checkWidth(page) {
 }
 
 try {
+  const guestContext = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
+  const { calls: guestCalls } = await configure(guestContext);
+  const guestPage = await guestContext.newPage();
+  await guestPage.goto(`${web}/?arbiter=${arbiterCode}&next=https://example.invalid`);
+  await guestPage.waitForURL(`${companion}/?arbiter=${arbiterCode}`);
+  await guestPage.getByRole('textbox', { name: 'Arbiter name' }).fill(arbiterSession.name);
+  await guestPage.getByRole('button', { name: 'Join tournament' }).click();
+  await guestPage.getByText('Pairings & Results', { exact: true }).waitFor();
+  await guestPage.getByRole('button', { name: '1 - 0', exact: true }).click();
+  await guestPage.getByRole('button', { name: /SYNC/ }).click();
+  await guestPage.getByText(/1 result change\(s\) synchronized with Cloud/).waitFor();
+  assert.ok(guestCalls.some(call => call.path === '/api/v1/arbiter/results'
+    && call.bearer === `Bearer ${arbiterToken}` && JSON.parse(call.body).result === '1 - 0'));
+  await guestPage.reload();
+  await guestPage.locator('.arbiter-result-value').filter({ hasText: '1 - 0' }).waitFor();
+  assert.equal(guestCalls.filter(call => call.path === '/api/v1/arbiter/join').length, 1);
+  assert.ok(guestCalls.every(call => !call.path.startsWith('/api/auth/')));
+  await guestContext.close();
+
   const mobile = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
   const { calls: googleCalls, failNextLogout } = await configure(mobile);
   const page = await mobile.newPage();
@@ -290,4 +333,4 @@ try {
   await browser.close();
 }
 
-console.log('PASS Web organizer entry, Google sign-out and retry, account switching and Cloud isolation, token handoff and Companion navigation.');
+console.log('PASS guest invitation, name-only join and result submission, Web organizer entry, Google sign-out and retry, account switching and Cloud isolation, token handoff and Companion navigation.');
