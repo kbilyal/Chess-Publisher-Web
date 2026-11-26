@@ -185,6 +185,7 @@ async function checkTouchResultEntry() {
     });
     const score = (number, result) => board(number).getByRole('button', { name: result, exact: true });
     const firstResult = score(1, '1 - 0');
+    const firstBoardNumber = board(1).getByText('Board 1', { exact: true });
     const search = page.getByRole('searchbox');
     const sync = page.getByRole('button', { name: /SYNC/ });
     const filters = page.getByRole('group', { name: 'Filter pairings by result status' });
@@ -195,6 +196,8 @@ async function checkTouchResultEntry() {
     for (const [width, height] of [[320, 568], [390, 844], [667, 375], [768, 1024], [1024, 768], [1366, 1024]]) {
       await page.setViewportSize({ width, height });
       await checkWidth(page);
+      const boardNumberSize = await firstBoardNumber.evaluate(element => parseFloat(getComputedStyle(element).fontSize));
+      assert.ok(boardNumberSize >= 18, `${width}px board number must be at least 18px`);
       const targets = await Promise.all([firstResult, board(1).getByRole('button', { name: /Forfeit \/ Clear/ }), search, missing, sync]
         .map(locator => locator.boundingBox()));
       assert.ok(targets.every(target => target && target.width >= 44 && target.height >= 44), `${width}px touch targets`);
