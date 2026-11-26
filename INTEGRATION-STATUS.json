@@ -19,6 +19,7 @@
     "companionWebEntry": "ChessPublisher Web is the organizer sign-in entry. Browser smoke covers the Google session, Organizer Token handoff, Cloud tournament continuation and Companion navigation.",
     "publicAppResponsiveNavigation": "Chromium checks that the classic menu clears the workspace tabs and that all eight tabs and Sign out receive pointer input at five viewport widths (Issue #93).",
     "publicAppTxtExport": "Chromium checks the shared Pairings and Standings TXT dialogs, matches each preview against the download and print output, and verifies the fixed-width print styles.",
+    "publicAppPairingsSync": "The browser smoke checks that Pairings SYNC waits for Cloud autosave and that the committed snapshot contains the new round.",
     "publicAppPairingsLog": "Browser smoke compares the Round Control Log and Chess-Results console styles, verifies round readiness and result updates, and exercises the relocated resort action and its pairing-time guard.",
     "publicAppPdfExport": "Dedicated Chromium smoke covers Starting List, Pairings and Standings previews, single-page and multipage A4 layout, mobile controls, round summaries, bye rows, recorded and handwritten results, and arbiter sign-off.",
     "publicAppFideCache": "PASS in Chromium: full update from the available browser mirror imported 778,954 players and found Carlsen by name and FIDE ID. Browser smoke also covers atomic rollback, legacy-cache reads and reload.",

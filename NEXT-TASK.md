@@ -8,7 +8,7 @@ Keep the Companion browser smoke for Web sign-in, continuation of an owned tourn
 
 Keep the `/app/` browser checks for mobile menu clearance and exports when updating the pinned workspace. Pairings and Standings TXT previews must match the download and print output. Standings PDF must print the ranking shown in the shared preview.
 
-Keep the Pairings browser smoke when updating the pinned workspace. It verifies the shared log styling, live readiness and result updates, and the resort action on the Pairings toolbar.
+Keep the Pairings browser smoke when updating the pinned workspace, including new-round synchronization during an in-flight Cloud autosave. It verifies the shared log styling, live readiness and result updates, and the resort action on the Pairings toolbar.
 
 Keep the public `/app/` PDF export smoke when updating the pinned workspace. It exercises the registration and pairings toolbar actions, preview controls, the Arbiter sheet sign-off, and single-page and multipage A4 printing on the generated workspace.
 

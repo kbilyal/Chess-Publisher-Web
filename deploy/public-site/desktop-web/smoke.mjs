@@ -557,6 +557,25 @@ try {
   assert.equal(rows.size, 1);
   await page.locator('#cpWebCloudSaveStatus').filter({ hasText: 'Saved to private Cloud' }).waitFor({ timeout: 10000 });
 
+  // A newly drawn round may be in its automatic Cloud PUT when the arbiter clicks SYNC.
+  putDelayMs = 2000;
+  await page.evaluate(() => {
+    const pairing = getCurrentTournament().pairings;
+    pairing.liveBoards['2'] = pairing.liveBoards['1'].map(board => ({
+      ...board, whiteKey: board.blackKey, blackKey: board.whiteKey, result: '-'
+    }));
+    pairing.round = '2';
+    saveData();
+  });
+  await page.locator('#cpWebCloudSaveStatus').filter({ hasText: 'Saving to private Cloud…' }).waitFor({ timeout: 10000 });
+  await page.locator('#pairingsDownloadWebResultsBtn').click();
+  await page.locator('#pairingsDownloadWebResultsBtn:not([disabled])').waitFor({ timeout: 10000 });
+  putDelayMs = 0;
+  assert.equal(conflictResponses, 0, 'Pairings SYNC must wait for the in-flight Cloud autosave.');
+  const cloudState = [...rows.values()][0].snapshot.data;
+  assert.ok(cloudState.tournaments[cloudState.currentTournament].pairings.liveBoards['2']?.length,
+    'The new round must be present in the Cloud snapshot after Pairings SYNC resolves.');
+
   await page.locator('#tabHub').click();
   await page.locator('#cloudSyncCurrentBtn:not([disabled])').waitFor({ timeout: 10000 });
   await page.locator('#cloudListFriendlyStatus').filter({ hasText: 'Current tournament is synchronized.' }).waitFor({ timeout: 10000 });
