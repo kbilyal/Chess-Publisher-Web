@@ -329,7 +329,7 @@ try {
   const standingsText = await txtPreview.textContent();
   assert.equal(standingsText, await page.evaluate(() => withExportLanguage(() =>
     cpBeta69.buildFixedText(refreshFinalStandings(), getLanguage() === 'bg'))));
-  assert.match(standingsText, /КРАЙНО КЛАСИРАНЕ/);
+  assert.match(standingsText, /FINAL STANDINGS/);
   assert.match(standingsText, /Александър Иванов <Юноши>/);
   assert.equal(await txtPreview.locator('*').count(), 0);
   assert.equal(await page.evaluate(() => window.__cpTxtPrintCalls), 1, 'Opening the preview does not start printing');

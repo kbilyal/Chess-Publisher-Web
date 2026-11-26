@@ -183,12 +183,48 @@ async function waitForCloudSave() {
 }
 
 try {
+  const account = await browser.newPage();
+  const accountUser = { id: 'ci-google-user', name: 'CI Google organizer' };
+  await account.route('https://accounts.google.com/**', route => route.fulfill({
+    contentType: 'application/javascript', body: '',
+  }));
+  await account.route('https://api.chess-publisher.org/**', route => {
+    const path = new URL(route.request().url()).pathname;
+    const headers = {
+      'access-control-allow-origin': origin,
+      'access-control-allow-credentials': 'true',
+      'access-control-allow-methods': 'GET, POST, OPTIONS',
+      'access-control-allow-headers': 'Content-Type',
+    };
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
+    if (path === '/api/auth/me') {
+      return route.fulfill({ headers, json: { ok: true, authenticated: true, user: accountUser } });
+    }
+    if (path === '/api/v1/cloud/tournaments') return route.fulfill({ headers, json: { tournaments: [] } });
+    return route.fulfill({ headers, status: 503, json: { ok: false } });
+  });
+  await account.goto(new URL('?account=1', url).href);
+  await account.getByRole('heading', { name: 'My Tournaments' }).waitFor();
+  await account.getByText('You have no saved online tournaments.').waitFor();
+  await account.locator('#open-workspace-btn').click();
+  await account.waitForURL('**/workspace.html');
+  await account.locator('#cpDesktopWebUserBtn').evaluate(button => button.click());
+  const accountMenu = account.locator('#cpUserMenuPanel');
+  await accountMenu.getByText('My Tournaments', { exact: true }).waitFor();
+  await accountMenu.getByText('Desktop Sync', { exact: true }).waitFor();
+  await accountMenu.getByText('You have no online tournaments.').waitFor();
+  await accountMenu.getByRole('button', { name: 'Generate Desktop API Key' }).evaluate(button => button.click());
+  await accountMenu.getByText('Could not generate API key.').waitFor();
+  await account.close();
+  console.log('English account menu, tournament status and desktop API key error passed.');
+
   const page = await browser.newPage({ viewport: { width: 1440, height: 920 } });
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await installCloudFixture(page);
   await page.goto(new URL('workspace.html', url).href);
   await page.getByRole('heading', { name: 'Chess-Publisher Web' }).waitFor();
+  assert.equal(await page.locator('html').getAttribute('lang'), 'en');
   await page.locator('#google-signin-button').waitFor({ state: 'attached' });
   assert.deepEqual(
     await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('cp-desktop-web:signed-out:'))),
@@ -206,6 +242,8 @@ try {
   assert.ok((await arbiterBtn.getAttribute('href'))?.startsWith('https://web.chess-publisher.org/'));
   const tournamentName = page.getByRole('textbox', { name: 'Tournament name', exact: true });
   await tournamentName.waitFor();
+  assert.equal(await page.locator('html').getAttribute('lang'), 'en');
+  await page.getByRole('button', { name: 'Sign Out', exact: true }).waitFor();
   assert.equal(await tournamentName.getAttribute('placeholder'), 'eg. My tournament');
   assert.equal(await tournamentName.inputValue(), '');
   const swiss = page.getByRole('radio', { name: 'Swiss Dutch' });
@@ -484,7 +522,9 @@ try {
     await page.locator('#cpDesktopWebSignOut').click({ trial: true });
     for (const [tabId, pageId] of allTabs) {
       await page.locator(`#${tabId}`).click();
-      await page.locator(`#${pageId}.active`).waitFor();
+      const panel = page.locator(`#${pageId}.active`);
+      await panel.waitFor();
+      assert.doesNotMatch(await panel.innerText(), /[\u0400-\u04ff]/u, `${tabId} displayed Cyrillic in the English fixture`);
       await page.waitForTimeout(50);
       const audit = await page.evaluate((pid) => {
         const docOverflowX = document.documentElement.scrollWidth - document.documentElement.clientWidth;

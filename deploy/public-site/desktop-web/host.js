@@ -390,7 +390,7 @@
     async function loadUserTournaments() {
       if (loadedTournaments) return;
       loadedTournaments = true;
-      list.textContent = 'Зареждане…';
+      list.textContent = 'Loading…';
       try {
         const res = await fetch(`${apiBase}/api/v1/cloud/tournaments`, {
           headers: {
@@ -404,7 +404,7 @@
         const rows = Array.isArray(data?.tournaments) ? data.tournaments : [];
         list.replaceChildren();
         if (!rows.length) {
-          list.textContent = 'Нямате онлайн турнири.';
+          list.textContent = 'You have no online tournaments.';
           return;
         }
         for (const item of rows.slice(0, 10)) {
@@ -422,7 +422,7 @@
           list.append(itemBtn);
         }
       } catch {
-        list.textContent = 'Грешка при зареждане.';
+        list.textContent = 'Could not load tournaments.';
         loadedTournaments = false;
       }
     }

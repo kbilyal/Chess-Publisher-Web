@@ -20,6 +20,26 @@ def asset_version(filename):
     return "?v=" + hashlib.sha256(asset.read_bytes()).hexdigest()[:10]
 
 
+# Web reports use English. Telegram messages still use the tournament language.
+html = replace_once(html, '<html lang="bg"', '<html lang="en"')
+html = replace_once(
+    html,
+    'return exportLanguageContext ? getExportLanguage() : "en"',
+    'return exportLanguageContext || "en"',
+)
+html = replace_once(html, "function withExportLanguage(action){", "function withExportLanguage(action, language=\"en\"){")
+html = replace_once(html, "  exportLanguageContext=true;", "  exportLanguageContext=language;")
+html = replace_once(
+    html, "function T(k){const l=getLanguage();",
+    "function withTelegramLanguage(action){return withExportLanguage(action,getExportLanguage())}\n"
+    "function T(k){const l=getLanguage();",
+)
+html = html.replace("sendTelegram(withExportLanguage(", "sendTelegram(withTelegramLanguage(")
+html = replace_once(
+    html, '  const bg=sendLanguage==="bg";', '  const bg=getLanguage()==="bg";',
+)
+html = replace_once(html, '${bg?"Част":"Part"}', '${sendLanguage==="bg"?"Част":"Part"}')
+
 # Windows behavior stays in the pinned source. Only the browser artifact gets
 # an account-scoped storage namespace and an authoritative local engine adapter.
 dialog = re.search(
