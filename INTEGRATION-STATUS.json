@@ -26,6 +26,7 @@
     "publicAppPdfExport": "Dedicated Chromium smoke covers Starting List, Pairings and Standings previews, single-page and multipage A4 layout, mobile controls, round summaries, bye rows, recorded and handwritten results, and arbiter sign-off.",
     "publicAppFideCache": "PASS in Chromium: full update from the available browser mirror imported 778,954 players and found Carlsen by name and FIDE ID. Browser smoke also covers atomic rollback, legacy-cache reads and reload.",
     "webExactFideLookup": "Browser regressions cover Web directory lookup before the rating cache is populated, exact local matches and mismatched directory responses, and Companion directory fallback and late prefix responses.",
+    "sharedAutoSaveSync": "Browser checks cover a single per-organizer switch shared by both Web hosts, manual save while paused, and resumption of the existing automatic sync queue.",
     "publicAppTournamentDialog": "Browser smoke covers the tournament-name placeholder, Files → New Tournament, pairing-system selection and focus styling, local file selection and online tournament opening.",
     "publicAppFastClassical": "Desktop eligibility regression runs on the generated workspace. Browser smoke covers Standard classification, schedule limits and rating export warnings.",
     "publicAppRatingExport": "TRF26 rating regression runs against the generated /app/ workspace during the site build.",

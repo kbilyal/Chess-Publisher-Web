@@ -1,7 +1,10 @@
+import { autoSaveSyncEnabled, watchAutoSaveSync } from './autoSaveSyncPreference';
+
 export class CloudSyncCoordinator {
   private tail: Promise<void> = Promise.resolve();
   private timer: ReturnType<typeof setTimeout> | null = null;
   private generation = 0;
+  private stopWatchingPreference?: () => void;
 
   enqueue<T>(operation: () => Promise<T>): Promise<T> {
     const run = this.tail.catch(() => undefined).then(operation);
@@ -12,15 +15,32 @@ export class CloudSyncCoordinator {
   schedule(operation: () => Promise<unknown>, delayMs = 1000) {
     this.cancelScheduled();
     const generation = ++this.generation;
-    this.timer = setTimeout(() => {
-      if (generation !== this.generation) return;
-      this.timer = null;
-      void this.enqueue(operation).catch(() => undefined);
-    }, Math.max(0, delayMs));
+    const arm = () => {
+      this.timer = setTimeout(() => {
+        this.timer = null;
+        void this.enqueue(async () => {
+          if (generation !== this.generation) return;
+          if (autoSaveSyncEnabled()) await operation();
+          else waitForResume();
+        }).catch(() => undefined);
+      }, Math.max(0, delayMs));
+    };
+    const waitForResume = () => {
+      this.stopWatchingPreference = watchAutoSaveSync(enabled => {
+        if (!enabled || generation !== this.generation) return;
+        this.stopWatchingPreference?.();
+        this.stopWatchingPreference = undefined;
+        arm();
+      });
+    };
+    if (autoSaveSyncEnabled()) arm();
+    else waitForResume();
   }
 
   cancelScheduled() {
     this.generation += 1;
+    this.stopWatchingPreference?.();
+    this.stopWatchingPreference = undefined;
     if (this.timer !== null) {
       clearTimeout(this.timer);
       this.timer = null;
@@ -28,6 +48,6 @@ export class CloudSyncCoordinator {
   }
 
   hasScheduled() {
-    return this.timer !== null;
+    return this.timer !== null || this.stopWatchingPreference !== undefined;
   }
 }

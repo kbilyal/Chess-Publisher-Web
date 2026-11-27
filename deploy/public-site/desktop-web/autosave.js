@@ -9,6 +9,7 @@
   let authBlocked = false;
   let message = 'Cloud autosave on';
   let statusState = 'ok';
+  const automaticEnabled = () => window.cpWebAutoSaveSyncEnabled?.() !== false;
 
   function setCloudStatus(value, state = statusState) {
     message = value;
@@ -28,7 +29,7 @@
   }
 
   function schedule(delay = 1250) {
-    if (!pending.size || authBlocked) return;
+    if (!pending.size || authBlocked || !automaticEnabled()) return;
     clearTimeout(timer);
     timer = setTimeout(flush, delay);
   }
@@ -54,6 +55,7 @@
       pending.clear();
       return false;
     }
+    if (!automaticEnabled()) return false;
     if (!navigator.onLine || window.__cpOnlineCloudBusy) {
       if (!navigator.onLine) setCloudStatus('Offline · Cloud save pending', 'offline');
       schedule(retryDelay);
@@ -65,7 +67,7 @@
     try {
       const core = window.ChessPublisherCloudSyncInternals;
       for (const [name, job] of [...pending]) {
-        if (authBlocked) break;
+        if (authBlocked || !automaticEnabled()) break;
         if (pending.get(name) !== job) continue;
         const local = data?.tournaments?.[name];
         if (!local || local.cloud?.internalId !== job.tournament.cloud?.internalId) {
@@ -75,6 +77,7 @@
         }
 
         const hash = await core.tournamentContentHash(name, job.tournament);
+        if (!automaticEnabled()) break;
         if (pending.get(name) !== job) continue;
         if (local.cloud?.cloudTournamentId && core.storedBaseFingerprint(local.cloud) === hash) {
           pending.delete(name);
@@ -120,6 +123,10 @@
     }
 
     if (authBlocked) return false;
+    if (!automaticEnabled()) {
+      setCloudStatus('AutoSave & Sync off', 'paused');
+      return false;
+    }
     if (retry) {
       setCloudStatus('Saved locally · Cloud save pending', 'pending');
       schedule(retryDelay);
@@ -135,7 +142,7 @@
   }
 
   function flush() {
-    if (running || authBlocked || !pending.size) return running;
+    if (running || authBlocked || !pending.size || !automaticEnabled()) return running;
     clearTimeout(timer);
     running = saveBatch().finally(() => { running = undefined; });
     return running;
@@ -168,6 +175,10 @@
       }
     }
     if (authBlocked || running) return;
+    if (!automaticEnabled()) {
+      setCloudStatus('AutoSave & Sync off', 'paused');
+      return;
+    }
     if (blocked.size) setCloudStatus('Cloud changes need review · Click Sync', 'conflict');
     else if (pending.size) setCloudStatus('Cloud save pending', 'pending');
     else setCloudStatus('Saved to private Cloud', 'ok');
@@ -195,13 +206,13 @@
   window.cpWebFlushAutosave = async () => {
     for (let pass = 0; pass < 5; pass++) {
       while (running) await running;
-      if (authBlocked || !pending.size || !navigator.onLine || window.__cpOnlineCloudBusy) break;
+      if (authBlocked || !pending.size || !automaticEnabled() || !navigator.onLine || window.__cpOnlineCloudBusy) break;
       const hadRetry = await flush();
       if (hadRetry || !pending.size) break;
     }
   };
   window.cpWebFlushPairingNow = async () => {
-    if (authBlocked || !navigator.onLine) return false;
+    if (authBlocked || !automaticEnabled() || !navigator.onLine) return false;
     if (typeof window.cpRunAutosaveCheckpoint === 'function') {
       await window.cpRunAutosaveCheckpoint().catch(() => {});
     } else if (typeof window.cpFlushPersistence === 'function') {
@@ -216,5 +227,30 @@
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') schedule(0);
   });
-  document.addEventListener('DOMContentLoaded', () => setCloudStatus(message, statusState), { once: true });
+  document.addEventListener('DOMContentLoaded', () => {
+    const toggle = document.getElementById('autosaveToggle');
+    const scope = window.cpWebAutoSaveSyncScope;
+    function applyPreference(enabled) {
+      if (toggle && !toggle.disabled) toggle.checked = enabled;
+      if (!enabled) {
+        clearTimeout(timer);
+        if (!authBlocked) setCloudStatus('AutoSave & Sync off', 'paused');
+      } else if (!authBlocked) {
+        setCloudStatus('Cloud autosave on', 'ok');
+        schedule(0);
+      }
+      if (typeof toggleAutosave !== 'function' || toggle?.disabled || autosaveEnabled === enabled) return;
+      const dirty = stateDirty;
+      toggleAutosave(enabled);
+      if (enabled && !dirty && getCurrentTournament()) {
+        void cpRunAutosaveCheckpoint().catch(error => console.warn('AutoSave restart:', error));
+      }
+    }
+    toggle?.addEventListener('change', () => {
+      toggle.checked = window.cpAutoSaveSync.setEnabled(scope, toggle.checked);
+    });
+    const unsubscribe = window.cpAutoSaveSync?.subscribe(scope, applyPreference);
+    if (unsubscribe) window.cpWebOnAuthCleared?.(unsubscribe);
+    applyPreference(automaticEnabled());
+  }, { once: true });
 })();

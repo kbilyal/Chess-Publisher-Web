@@ -119,13 +119,57 @@ autosave_control = re.compile(r'      <label class="autosave-switch"[^\n]+</labe
 if len(autosave_control.findall(html)) != 1:
     raise SystemExit("Expected one desktop Autosave switch.")
 html = autosave_control.sub(
+    '      <label class="autosave-switch" title="Automatically save and synchronize tournament changes"><input id="autosaveToggle" type="checkbox" role="switch" aria-label="AutoSave &amp; Sync"><span class="autosave-slider" aria-hidden="true"></span><span class="autosave-text">AutoSave &amp; Sync</span></label>\n'
     '      <span id="cpWebCloudSaveStatus" role="status">Cloud autosave on</span>\n'
     '      <button id="cpWebHeaderSyncBtn" type="button" class="cp-header-sync-btn" title="SYNC the current tournament with private Cloud and download validated Web-entered results" aria-label="Sync now">↻ Sync</button>',
     html,
     count=1,
 )
 html = replace_once(
-    html, '    autosaveEnabled=pref===null ? true : pref!=="0";', "    autosaveEnabled=true;",
+    html, "let autosaveEnabled=true;", "let autosaveEnabled=window.cpWebAutoSaveSyncEnabled();",
+)
+html = replace_once(
+    html, '    autosaveEnabled=pref===null ? true : pref!=="0";', "    autosaveEnabled=window.cpWebAutoSaveSyncEnabled();",
+)
+html = replace_once(
+    html, '  if(text) text.textContent=autosaveEnabled?"Autosave On":"Autosave Off";',
+    '  if(text) text.textContent="AutoSave & Sync";',
+)
+html = replace_once(
+    html, '  if(cpManagedCheckpointCaptureDepth>0)return;\n  try{\n    window.cpWebStorage.setItem(STORAGE_KEY,JSON.stringify(data));',
+    '  if(cpManagedCheckpointCaptureDepth>0)return;\n  if(autosaveEnabled && window.cpWebAutoSaveSyncEnabled()) try{\n    window.cpWebStorage.setItem(STORAGE_KEY,JSON.stringify(data));',
+)
+html = replace_once(
+    html, 'async function cpRunAutosaveCheckpoint(){\n  if(!autosaveEnabled) return false;',
+    'async function cpRunAutosaveCheckpoint(){\n  if(!autosaveEnabled || !window.cpWebAutoSaveSyncEnabled()) return false;',
+)
+html = replace_once(
+    html, '''    if(!autosaveEnabled && !force){
+      const localOk=globalSnapshotCurrent ? writeLocalBackup(snapshot) : true;
+      if(cpIsTournamentContextCurrent(saveContext)){
+        setSaveIndicator(stateDirty?"Unsaved changes":"Saved",stateDirty?"dirty":"saved");
+        if(showStatus) setStatus(stateDirty ? "Autosave is Off — changes are not saved to the tournament file. Press Save to commit them." : "Autosave is Off.");
+      }
+      cpPersistenceCompletedSequence=Math.max(cpPersistenceCompletedSequence,job.sequence);
+      return !!localOk;
+    }''',
+    '''    if((!autosaveEnabled || !window.cpWebAutoSaveSyncEnabled()) && !force){
+      if(cpIsTournamentContextCurrent(saveContext)){
+        setSaveIndicator(stateDirty?"Unsaved changes":"Saved",stateDirty?"dirty":"saved");
+        if(showStatus) setStatus(stateDirty ? "AutoSave & Sync is off. Press Save to keep your changes." : "AutoSave & Sync is off.");
+      }
+      cpPersistenceCompletedSequence=Math.max(cpPersistenceCompletedSequence,job.sequence);
+      return true;
+    }''',
+)
+html = replace_once(
+    html, 'window.addEventListener("beforeunload",()=>{\n  if(window.__cpNativeCloseApproved) return;',
+    '''window.addEventListener("beforeunload",event=>{
+  if(window.__cpNativeCloseApproved) return;
+  if(!window.cpWebAutoSaveSyncEnabled()){
+    if(stateDirty){event.preventDefault();event.returnValue="";}
+    return;
+  }''',
 )
 html = replace_once(
     html, "function cpCapturePersistentSaveJob(showStatus=false,force=false){",
@@ -152,7 +196,12 @@ html = replace_once(
 # Pairings uses the same Cloud lock as the organizer list to avoid competing PUTs.
 html = replace_once(
     html, 'const result=await window.cpCloudDownloadWebResults();',
-    'const result=await window.cpWebRunCloudExclusive(()=>window.cpCloudDownloadWebResults());',
+    '''const result=await window.cpWebRunCloudExclusive(async()=>{
+      if(!window.cpWebAutoSaveSyncEnabled() && getCurrentTournament() && !await fileSaveTournament(true)){
+        throw new Error("Save the tournament before synchronizing it.");
+      }
+      return window.cpCloudDownloadWebResults();
+    });''',
 )
 html = replace_once(
     html,
@@ -221,7 +270,10 @@ html = replace_once(
     'chessResultsLog("No TNR was saved locally. Retry reuses the same tournament identity.","warn");',
 )
 html = replace_once(
-    html, "<head>", '<head>\n<script src="./host.js"></script>\n<script src="./fide-cache.js"></script>',
+    html, "<head>", '<head>\n'
+    f'<script src="./auto-save-sync.js{asset_version("auto-save-sync.js")}"></script>\n'
+    f'<script src="./host.js{asset_version("host.js")}"></script>\n'
+    '<script src="./fide-cache.js"></script>',
 )
 html = replace_once(
     html,
@@ -453,7 +505,7 @@ for relative in adapters:
 
 """ + js[h_end:]
     if relative == "webview/CloudWorkspaceAdapter.js":
-        js = replace_once(js, 'try{return window.cpWebStorage.getItem(AUTO_SYNC_KEY)!=="0";}catch(_){return true;}', "return true;")
+        js = replace_once(js, 'try{return window.cpWebStorage.getItem(AUTO_SYNC_KEY)!=="0";}catch(_){return true;}', "return window.cpWebAutoSaveSyncEnabled();")
         js = replace_once(
             js, '    async function getOrganizerToken(){',
             '    window.cpWebOnAuthCleared?.(()=>{tokenCache="";organizerInfo=null;workspaceInfo=null;});\n    async function getOrganizerToken(){',
@@ -828,7 +880,7 @@ html = replace_once(
     "\n" + scripts
     + '\n<script src="./chess-results-browser-adapter.js"></script>'
     + '\n<script src="./engine-adapter.js"></script>'
-    + '\n<script src="./autosave.js"></script>'
+    + f'\n<script src="./autosave.js{asset_version("autosave.js")}"></script>'
     + f'\n<script src="./registration-ui.js{reg_v}"></script>'
     + f'\n<script src="./workspace-ui.js{ws_js_v}"></script>'
     + f'\n<link rel="stylesheet" href="./workspace.css{ws_css_v}">'

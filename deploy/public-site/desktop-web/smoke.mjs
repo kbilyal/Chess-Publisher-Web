@@ -298,6 +298,41 @@ try {
   }
 
   await page.setViewportSize({ width: 1440, height: 920 });
+  await page.locator('#tabMain').click();
+  const webAutoSave = page.getByRole('switch', { name: 'AutoSave & Sync' });
+  assert.equal(await webAutoSave.isChecked(), true);
+  await page.locator('.autosave-switch').click();
+  await page.waitForFunction(() => !document.querySelector('#autosaveToggle').checked);
+  const browserCity = () => page.evaluate(() => {
+    const stored = JSON.parse(window.cpWebStorage.getItem('ChessPublisherProfessionalData'));
+    return stored.tournaments[stored.currentTournament].settings.city;
+  });
+  const cloudRow = () => [...rows.values()][0];
+  const cloudCity = () => cloudRow()?.snapshot?.data?.tournaments?.['Browser workflow test']?.settings?.city;
+  const previouslySavedCity = await browserCity();
+  const previousRevision = cloudRow().tournament.revision;
+  await page.locator('#city').fill('Paused Web edit');
+  await page.locator('#city').press('Tab');
+  await page.waitForFunction(() => getCurrentTournament().settings.city === 'Paused Web edit');
+  await page.waitForTimeout(1500);
+  assert.equal(await browserCity(), previouslySavedCity);
+  assert.equal(cloudRow().tournament.revision, previousRevision);
+  await page.locator('#manualSaveButton').click();
+  await page.waitForFunction(() => {
+    const stored = JSON.parse(window.cpWebStorage.getItem('ChessPublisherProfessionalData'));
+    return stored.tournaments[stored.currentTournament].settings.city === 'Paused Web edit';
+  });
+  assert.equal(cloudRow().tournament.revision, previousRevision);
+  await page.locator('#city').fill('Manual SYNC edit');
+  await page.locator('#city').press('Tab');
+  assert.equal(await browserCity(), 'Paused Web edit');
+  await page.locator('#cpWebHeaderSyncBtn').click();
+  await page.locator('#cpWebHeaderSyncBtn').filter({ hasText: '↻ Sync' }).waitFor();
+  assert.equal(cloudCity(), 'Manual SYNC edit', 'Explicit SYNC must write the current unsaved edit while automatic actions are paused.');
+  assert.equal(await browserCity(), 'Manual SYNC edit');
+  await page.locator('.autosave-switch').click();
+  assert.equal(await webAutoSave.isChecked(), true);
+
   await page.locator('#tabPairings').click();
   await page.locator('#cpWebCloudSaveStatus').filter({ hasText: 'Saved to private Cloud' }).waitFor({ timeout: 10000 });
 
