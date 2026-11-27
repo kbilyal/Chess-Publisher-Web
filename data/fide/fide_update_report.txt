@@ -5,13 +5,13 @@ Provider: FIDE
 List version: 2026-11
 List date: 2026-11-01
 Version source: official-archive-header
-Downloaded at: 2026-11-26T12:55:00.733Z
+Downloaded at: 2026-11-27T12:48:12.767Z
 Source: https://ratings.fide.com/download/standard_rating_list.zip (+rapid,+blitz)
-Archive SHA-256: 57d68c83c4da34d11a6ae09a8566be2f910bd53aab081e4a80e5ca9b08be32b1
-Players: 800241
+Archive SHA-256: f900d5beb479277e2eded0dd75eae3352d0d74e9b1d1b90f9f8fdd5f2cfddae1
+Players: 800160
 Standard rated: 573475
-Rapid rated: 486148
-Blitz rated: 321078
+Rapid rated: 486033
+Blitz rated: 321084
 Unrated: 0
 
 Tournament data was not modified. Rating-list refresh is an independent data operation.
