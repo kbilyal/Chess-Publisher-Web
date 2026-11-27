@@ -104,6 +104,27 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
   const [editingPlayer, setEditingPlayer] = useState<import('../types').Player | null>(null);
   const [editDraft, setEditDraft] = useState({ name: '', fideId: '', fed: 'BUL', rating: '', birth: '', title: '' as FideTitle, gender: 'm' as Gender });
   const debounceRef = useRef<number | null>(null);
+  const editDialogRef = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    const dialog = editDialogRef.current;
+    if (!editingPlayer || !dialog) return;
+    dialog.showModal();
+    const viewport = window.visualViewport;
+    const fitViewport = () => {
+      if (!viewport) return;
+      dialog.style.setProperty('--companion-edit-visible-height', `${viewport.height}px`);
+      dialog.style.setProperty('--companion-edit-visible-top', `${viewport.offsetTop}px`);
+    };
+    fitViewport();
+    viewport?.addEventListener('resize', fitViewport);
+    viewport?.addEventListener('scroll', fitViewport);
+    return () => {
+      viewport?.removeEventListener('resize', fitViewport);
+      viewport?.removeEventListener('scroll', fitViewport);
+      dialog.close();
+    };
+  }, [editingPlayer]);
 
   const players = tournament.players || [];
   const ratingType: 'Standard' | 'Rapid' | 'Blitz' = tournament.settings.tournamentRatingType === 'Rapid'
@@ -414,6 +435,16 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
     setNotice(null);
   };
 
+  const closeEditPlayer = () => {
+    editDialogRef.current?.close();
+    setEditingPlayer(null);
+  };
+
+  const cancelEditPlayer = () => {
+    setNotice(null);
+    closeEditPlayer();
+  };
+
   const saveEditedPlayer = (event: React.FormEvent) => {
     event.preventDefault();
     if (!editingPlayer) return;
@@ -426,7 +457,7 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
       setNotice({ kind: 'error', text: 'Player name is required.' });
       return;
     }
-    if (fideId && !/^\\d+$/.test(fideId)) {
+    if (fideId && !/^\d+$/.test(fideId)) {
       setNotice({ kind: 'error', text: 'FIDE ID must contain digits only.' });
       return;
     }
@@ -464,7 +495,7 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
       )
     }));
     setNotice({ kind: 'ok', text: `${name} updated successfully. Starting number, pairings and results were preserved.` });
-    setEditingPlayer(null);
+    closeEditPlayer();
   };
 
   const removePlayer = async (localKey: string, name: string) => {
@@ -488,8 +519,8 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
 
   return (
     <div className="companion-registration">
-      {notice && (
-        <div className={`companion-registration-notice ${notice.kind}`}>
+      {notice && !editingPlayer && (
+        <div className={`companion-registration-notice ${notice.kind}`} role="status">
           {notice.kind === 'ok' ? <Check size={16} /> : <X size={16} />}
           <span>{notice.text}</span>
         </div>
@@ -498,13 +529,31 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
       <section className="companion-registration-card companion-registration-search">
         <div className="companion-registration-heading">
           <div><span className="companion-eyebrow">FAST REGISTRATION</span><h2>Find player in FIDE</h2><p>Search by name or FIDE ID, then add with one tap.</p></div>
-          <button type="button" className="companion-button secondary" onClick={() => setManualOpen(value => !value)}><UserPlus size={16} /> Manual player</button>
+          <button type="button" className="companion-button secondary" aria-expanded={manualOpen} aria-controls="companion-manual-player" onClick={() => setManualOpen(value => !value)}><UserPlus size={16} /> Manual player</button>
         </div>
         <label className="companion-searchbox">
           <Search size={18} />
-          <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Name or FIDE ID" autoComplete="off" />
+          <input value={query} onChange={event => setQuery(event.target.value)} aria-label="Name or FIDE ID" placeholder="Name or FIDE ID" autoComplete="off" enterKeyHint="search" />
           {searching && <Loader2 size={17} className="spin" />}
         </label>
+
+        {manualOpen && (
+          <form id="companion-manual-player" className="companion-manual-form" onSubmit={registerManual}>
+            <div className="companion-manual-grid">
+              <label><span>First name *</span><input autoComplete="given-name" value={manual.firstName} onChange={event => setManual(current => ({ ...current, firstName: event.target.value }))} required /></label>
+              <label><span>Last name *</span><input autoComplete="family-name" value={manual.lastName} onChange={event => setManual(current => ({ ...current, lastName: event.target.value }))} required /></label>
+              <label><span>FIDE ID</span><input inputMode="numeric" value={manual.fideId} onChange={event => setManual(current => ({ ...current, fideId: event.target.value }))} /></label>
+              <label><span>Federation</span><input maxLength={3} value={manual.fed} onChange={event => setManual(current => ({ ...current, fed: event.target.value.toUpperCase() }))} /></label>
+              <label><span>{ratingType} rating</span><input inputMode="numeric" value={manual.rating} onChange={event => setManual(current => ({ ...current, rating: event.target.value }))} /></label>
+              <label><span>Birth year/date</span><input value={manual.birth} onChange={event => setManual(current => ({ ...current, birth: event.target.value }))} placeholder="YYYY or YYYY-MM-DD" /></label>
+              <label><span>Title</span><select value={manual.title} onChange={event => setManual(current => ({ ...current, title: event.target.value as FideTitle }))}><option value="">No title</option>{['GM','IM','WGM','FM','WIM','CM','WFM','WCM'].map(title => <option key={title} value={title}>{title}</option>)}</select></label>
+            </div>
+            <div className="companion-manual-actions">
+              <button type="button" className="companion-button secondary" onClick={() => setManualOpen(false)}>Cancel</button>
+              <button type="submit" className="companion-button primary" disabled={busyKey !== '' || !manual.firstName.trim() || !manual.lastName.trim()}>{busyKey === 'manual' ? <Loader2 size={15} className="spin" /> : <UserPlus size={15} />} Register player</button>
+            </div>
+          </form>
+        )}
 
         {results.length > 0 && (
           <div className="companion-fide-results">
@@ -525,30 +574,12 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
             })}
           </div>
         )}
-
-        {manualOpen && (
-          <form className="companion-manual-form" onSubmit={registerManual}>
-            <div className="companion-manual-grid">
-              <label><span>First name *</span><input autoComplete="given-name" value={manual.firstName} onChange={event => setManual(current => ({ ...current, firstName: event.target.value }))} required /></label>
-              <label><span>Last name *</span><input autoComplete="family-name" value={manual.lastName} onChange={event => setManual(current => ({ ...current, lastName: event.target.value }))} required /></label>
-              <label><span>FIDE ID</span><input inputMode="numeric" value={manual.fideId} onChange={event => setManual(current => ({ ...current, fideId: event.target.value }))} /></label>
-              <label><span>Federation</span><input maxLength={3} value={manual.fed} onChange={event => setManual(current => ({ ...current, fed: event.target.value.toUpperCase() }))} /></label>
-              <label><span>{ratingType} rating</span><input inputMode="numeric" value={manual.rating} onChange={event => setManual(current => ({ ...current, rating: event.target.value }))} /></label>
-              <label><span>Birth year/date</span><input value={manual.birth} onChange={event => setManual(current => ({ ...current, birth: event.target.value }))} placeholder="YYYY or YYYY-MM-DD" /></label>
-              <label><span>Title</span><select value={manual.title} onChange={event => setManual(current => ({ ...current, title: event.target.value as FideTitle }))}><option value="">No title</option>{['GM','IM','WGM','FM','WIM','CM','WFM','WCM'].map(title => <option key={title} value={title}>{title}</option>)}</select></label>
-            </div>
-            <div className="companion-manual-actions">
-              <button type="button" className="companion-button secondary" onClick={() => setManualOpen(false)}>Cancel</button>
-              <button type="submit" className="companion-button primary" disabled={busyKey !== '' || !manual.firstName.trim() || !manual.lastName.trim()}>{busyKey === 'manual' ? <Loader2 size={15} className="spin" /> : <UserPlus size={15} />} Register player</button>
-            </div>
-          </form>
-        )}
       </section>
 
       <section className="companion-registration-card">
         <div className="companion-registration-heading">
           <div><span className="companion-eyebrow">TOURNAMENT ROSTER</span><h2>Registered players</h2><p>{rankLocked ? `Starting numbers are locked. New players join from round ${latestRound + 1}.` : 'Changes here use the same protected desktop player transactions.'}</p></div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <div className="companion-roster-actions">
             <button
               type="button"
               className="companion-button secondary"
@@ -565,7 +596,7 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
         </div>
         <div className="companion-sort-note">{listStatusText}. Rating refresh never changes official starting numbers, pairings or results.</div>
         <div className="companion-roster-toolbar">
-          <label className="companion-searchbox small"><Search size={16} /><input value={listQuery} onChange={event => setListQuery(event.target.value)} placeholder="Filter registered players" /></label>
+          <label className="companion-searchbox small"><Search size={16} /><input value={listQuery} onChange={event => setListQuery(event.target.value)} aria-label="Filter registered players" placeholder="Filter registered players" enterKeyHint="search" /></label>
           <label className="companion-sort-control">
             <ArrowUpDown size={15} />
             <span>Sort & publish</span>
@@ -618,31 +649,33 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
         </div>
       </section>
     {editingPlayer && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="companion-edit-player-title">
-        <form className="companion-registration-card w-full max-w-lg space-y-4 shadow-2xl" onSubmit={saveEditedPlayer}>
+      <dialog ref={editDialogRef} className="companion-edit-dialog" aria-labelledby="companion-edit-player-title" onCancel={event => { event.preventDefault(); cancelEditPlayer(); }}>
+        <form className="companion-registration-card companion-edit-form" onSubmit={saveEditedPlayer}>
           <div className="companion-registration-heading">
             <div>
               <span className="companion-eyebrow">EDIT PLAYER</span>
               <h2 id="companion-edit-player-title">Edit registered player</h2>
               <p>Pairing number and tournament history are preserved.</p>
             </div>
-            <button type="button" className="companion-button secondary" onClick={() => setEditingPlayer(null)}>Cancel</button>
           </div>
           <div className="companion-manual-grid">
-            <label><span>Name *</span><input autoFocus required value={editDraft.name} onChange={event => setEditDraft(current => ({ ...current, name: event.target.value }))} /></label>
-            <label><span>FIDE ID</span><input inputMode="numeric" value={editDraft.fideId} onChange={event => setEditDraft(current => ({ ...current, fideId: event.target.value.replace(/\\D/g, '') }))} /></label>
+            <label><span>Name *</span><input required value={editDraft.name} onChange={event => setEditDraft(current => ({ ...current, name: event.target.value }))} /></label>
+            <label><span>FIDE ID</span><input inputMode="numeric" value={editDraft.fideId} onChange={event => setEditDraft(current => ({ ...current, fideId: event.target.value.replace(/\D/g, '') }))} /></label>
             <label><span>Federation</span><input maxLength={3} value={editDraft.fed} onChange={event => setEditDraft(current => ({ ...current, fed: event.target.value.toUpperCase() }))} /></label>
             <label><span>Rating</span><input inputMode="numeric" min="0" max="3500" value={editDraft.rating} onChange={event => setEditDraft(current => ({ ...current, rating: event.target.value }))} /></label>
             <label><span>Birth year/date</span><input value={editDraft.birth} onChange={event => setEditDraft(current => ({ ...current, birth: event.target.value }))} /></label>
             <label><span>Title</span><select value={editDraft.title} onChange={event => setEditDraft(current => ({ ...current, title: event.target.value as FideTitle }))}><option value="">No title</option>{['GM','IM','WGM','FM','WIM','CM','WFM','WCM'].map(title => <option key={title} value={title}>{title}</option>)}</select></label>
             <label><span>Gender</span><select value={editDraft.gender} onChange={event => setEditDraft(current => ({ ...current, gender: event.target.value as Gender }))}><option value="m">Male</option><option value="f">Female</option></select></label>
           </div>
-          <div className="companion-manual-actions">
-            <button type="button" className="companion-button secondary" onClick={() => setEditingPlayer(null)}>Cancel</button>
-            <button type="submit" className="companion-button primary">Save changes</button>
+          <div className="companion-edit-footer">
+            {notice?.kind === 'error' && <div className="companion-registration-notice error" role="alert">{notice.text}</div>}
+            <div className="companion-manual-actions">
+              <button type="button" className="companion-button secondary" onClick={cancelEditPlayer}>Cancel</button>
+              <button type="submit" className="companion-button primary">Save changes</button>
+            </div>
           </div>
         </form>
-      </div>
+      </dialog>
     )}
 
     </div>

@@ -8,6 +8,8 @@ Keep the Companion browser smoke for Web sign-in, continuation of an owned tourn
 
 Keep the guest touch result-entry checks for phone and tablet layouts, legible board numbers, board search, the Missing filter, batch SYNC, and confirmation when changing or clearing a recorded score.
 
+Keep the organizer Companion mobile browser coverage for setup section shortcuts, FIDE and manual registration, roster action sizes, and a scrollable player editor on short screens.
+
 Keep the `/app/` browser checks for mobile menu clearance and exports when updating the pinned workspace. Pairings and Standings TXT previews must match the download and print output. Standings PDF must print the ranking shown in the shared preview.
 
 Keep the Pairings browser smoke when updating the pinned workspace, including new-round synchronization during an in-flight Cloud autosave. It verifies the shared log styling, live readiness and result updates, and the resort action on the Pairings toolbar.

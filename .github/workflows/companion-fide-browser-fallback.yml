@@ -31,10 +31,9 @@ jobs:
           test -s dist/vendor/sql-wasm.wasm
           test "$(stat -c%s dist/fide/fide_ratings.sqlite)" -gt 1000000
           test "$(stat -c%s dist/vendor/sql-wasm.wasm)" -gt 100000
-      - name: Install Playwright Chromium
+      - name: Install Playwright for the runner's Chrome
         run: |
-          npm install --no-save playwright@1.55.0
-          npx playwright install --with-deps chromium
+          npm install --no-save playwright-core@1.65.1
       - name: Prepare isolated registration preview with static FIDE assets
         run: |
           set -euo pipefail
@@ -81,8 +80,8 @@ jobs:
         run: |
           mkdir -p companion-fide-preview
           cat > verify-fide-fallback.mjs <<'EOF'
-          import { chromium } from 'playwright';
-          const browser = await chromium.launch({ headless: true });
+          import { chromium } from 'playwright-core';
+          const browser = await chromium.launch({ executablePath: process.argv[2] });
           for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }]) {
             const page = await browser.newPage({ viewport });
             const pageErrors = [];
@@ -105,7 +104,7 @@ jobs:
           }
           await browser.close();
           EOF
-          node verify-fide-fallback.mjs
+          node verify-fide-fallback.mjs "$(command -v google-chrome)"
       - uses: actions/upload-artifact@v4
         with:
           name: companion-fide-browser-fallback-preview

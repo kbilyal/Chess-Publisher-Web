@@ -13,6 +13,13 @@ type UsefulLink = { label: string; url: string };
 
 const text = (value: unknown) => String(value ?? '').trim();
 const MAX_USEFUL_LINKS = 12;
+const setupSections = [
+  ['companion-setup-identity', 'Identity'],
+  ['companion-setup-dates', 'Place & dates'],
+  ['companion-setup-format', 'Format & time'],
+  ['companion-setup-officials', 'Officials & contact'],
+  ['companion-setup-public', 'Public information']
+];
 
 function classifyTimeControl(value: string, fallback: RatingType): RatingType {
   const candidate = text(value);
@@ -181,7 +188,11 @@ export const CompanionSetup: React.FC<Props> = ({ tournament, onUpdateTournament
         <div className="companion-setup-progress"><strong>{completion}%</strong><span>ready</span></div>
       </section>
 
-      <section className="companion-setup-card">
+      <nav className="companion-setup-jump" aria-label="Tournament setup sections">
+        {setupSections.map(([id, label]) => <a key={id} href={`#${id}`}>{label}</a>)}
+      </nav>
+
+      <section id="companion-setup-identity" tabIndex={-1} className="companion-setup-card">
         <div className="companion-setup-heading"><Trophy size={18} /><div><h3>Identity</h3><p>Name, organizer, federation and rating status.</p></div></div>
         <div className="companion-setup-grid two">
           <label className="wide"><span>Tournament name *</span><input value={tournament.name || ''} onChange={event => updateName(event.target.value)} placeholder="Tournament name" /></label>
@@ -198,7 +209,7 @@ export const CompanionSetup: React.FC<Props> = ({ tournament, onUpdateTournament
         </div>
       </section>
 
-      <section className="companion-setup-card">
+      <section id="companion-setup-dates" tabIndex={-1} className="companion-setup-card">
         <div className="companion-setup-heading"><MapPin size={18} /><div><h3>Place & dates</h3><p>Location and tournament window.</p></div></div>
         <div className="companion-setup-grid two">
           <label><span>City *</span><input value={settings.city || ''} onChange={event => updateSetting('city', event.target.value)} /></label>
@@ -210,7 +221,7 @@ export const CompanionSetup: React.FC<Props> = ({ tournament, onUpdateTournament
         </div>
       </section>
 
-      <section className="companion-setup-card">
+      <section id="companion-setup-format" tabIndex={-1} className="companion-setup-card">
         <div className="companion-setup-heading"><Clock size={18} /><div><h3>Format & time control</h3><p>Core tournament format. Pairing generation itself remains Desktop-only.</p></div></div>
         <div className="companion-setup-grid two">
           <label><span>Format *</span><select value={settings.tournamentFormat} onChange={event => changeFormat(event.target.value as TournamentFormat)}><option value="Individual Swiss">Individual Swiss</option><option value="Individual Round Robin">Individual Round Robin</option></select></label>
@@ -223,7 +234,7 @@ export const CompanionSetup: React.FC<Props> = ({ tournament, onUpdateTournament
         </div>
       </section>
 
-      <section className="companion-setup-card">
+      <section id="companion-setup-officials" tabIndex={-1} className="companion-setup-card">
         <div className="companion-setup-heading"><ShieldCheck size={18} /><div><h3>Officials & contact</h3><p>Information used in Hub and Chess-Results publication.</p></div></div>
         <div className="companion-setup-grid two">
           <label><span>Chief arbiter *</span><input value={settings.chiefArbiter || ''} onChange={event => updateSetting('chiefArbiter', event.target.value)} /></label>
@@ -235,7 +246,7 @@ export const CompanionSetup: React.FC<Props> = ({ tournament, onUpdateTournament
         </div>
       </section>
 
-      <section className="companion-setup-card">
+      <section id="companion-setup-public" tabIndex={-1} className="companion-setup-card">
         <div className="companion-setup-heading"><Users size={18} /><div><h3>Registration & public information</h3><p>Optional details published with the tournament.</p></div></div>
         <div className="companion-setup-grid two">
           <label><span>Entry fee</span><input value={regulations.entryFee || ''} onChange={event => updateRegulation('entryFee', event.target.value)} /></label>

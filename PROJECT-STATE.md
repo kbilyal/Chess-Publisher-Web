@@ -12,6 +12,8 @@ Guest Arbiter Access follows newly synchronized rounds while viewing the latest 
 
 Guest result entry uses 18 px board numbers and full-width score controls on phones, with two-column board cards on wider tablets. Board cards show whether a score is recorded or awaiting SYNC. The All and Missing filters sit beside the fixed SYNC action, and result corrections still require confirmation.
 
+The organizer Companion shows registered players as touch-friendly cards at widths up to 820 px. The player editor scrolls within the visible viewport, shows validation next to Save, and accepts numeric FIDE IDs when editing an existing player. Setup provides shortcuts to its sections and uses larger fields throughout the touch layout. The Companion browser smoke exercises FIDE and manual registration, editing and canceling from the roster, and local persistence of tournament settings and public links.
+
 The `/app/` source uses the same export dialog for Pairings TXT and PDF, Standings TXT and PDF, and Starting List PDF. The fixed-width TXT previews feed the file download and print actions. Standings uses its existing ranking report and fixed-width text builders. The mobile menu grows when its controls wrap so Sign out stays above the workspace tabs (Issue #93).
 
 Pairings → SYNC in the public workspace waits for Cloud autosave before synchronizing. The browser regression exercises a new-round upload while the automatic save is in progress.
