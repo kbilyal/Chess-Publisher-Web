@@ -950,6 +950,11 @@
       if (resortBtn) resortBtn.insertAdjacentElement('afterend', arbiterBtn);
       else pairingsMenu.appendChild(arbiterBtn);
     }
+
+    const manualBtn = byId('cpUserManualBtn');
+    if (manualBtn && manualBtn.textContent !== 'User Manual') {
+      manualBtn.textContent = 'User Manual';
+    }
   }
 
   function enhanceMobileShell() {

@@ -880,6 +880,7 @@ for before, after in (
     ('<button onclick="openStartingListExportDialog()">Starting List PDF Design</button>', '<button onclick="openStartingListExportDialog()">Starting List PDF</button>'),
     ('<button onclick="printReport(\'program\')">Tournament Schedule PDF Design</button>', '<button onclick="printReport(\'program\')">Tournament Schedule PDF</button>'),
     ('<button onclick="printReport(\'regulations\')">Regulations PDF Design</button>', '<button onclick="printReport(\'regulations\')">Regulations PDF</button>'),
+    ("b.id='cpUserManualBtn';b.type='button';b.className='titlebar-save';b.textContent='Manual';", "b.id='cpUserManualBtn';b.type='button';b.className='titlebar-save';b.textContent='User Manual';"),
 ):
     html = replace_once(html, before, after)
 
