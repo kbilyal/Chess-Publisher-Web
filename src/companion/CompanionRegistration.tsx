@@ -667,10 +667,12 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
             <label><span>Title</span><select value={editDraft.title} onChange={event => setEditDraft(current => ({ ...current, title: event.target.value as FideTitle }))}><option value="">No title</option>{['GM','IM','WGM','FM','WIM','CM','WFM','WCM'].map(title => <option key={title} value={title}>{title}</option>)}</select></label>
             <label><span>Gender</span><select value={editDraft.gender} onChange={event => setEditDraft(current => ({ ...current, gender: event.target.value as Gender }))}><option value="m">Male</option><option value="f">Female</option></select></label>
           </div>
-          {notice?.kind === 'error' && <div className="companion-registration-notice error" role="alert">{notice.text}</div>}
-          <div className="companion-manual-actions">
-            <button type="button" className="companion-button secondary" onClick={cancelEditPlayer}>Cancel</button>
-            <button type="submit" className="companion-button primary">Save changes</button>
+          <div className="companion-edit-footer">
+            {notice?.kind === 'error' && <div className="companion-registration-notice error" role="alert">{notice.text}</div>}
+            <div className="companion-manual-actions">
+              <button type="button" className="companion-button secondary" onClick={cancelEditPlayer}>Cancel</button>
+              <button type="submit" className="companion-button primary">Save changes</button>
+            </div>
           </div>
         </form>
       </dialog>

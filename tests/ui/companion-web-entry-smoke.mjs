@@ -240,12 +240,19 @@ async function checkTouchOrganizerEditing(page, draftKey) {
   const dialog = page.getByRole('dialog', { name: 'Edit registered player' });
   await dialog.waitFor();
   assert.ok(await dialog.evaluate(el => el.matches(':modal') && el.scrollHeight > el.clientHeight));
+  const save = dialog.getByRole('button', { name: 'Save changes' });
+  const isInViewport = el => {
+    const { top, bottom } = el.getBoundingClientRect();
+    return top >= 0 && bottom <= window.innerHeight;
+  };
+  assert.ok(await save.evaluate(isInViewport));
   assert.equal(await dialog.getByLabel('FIDE ID').inputValue(), String(fidePlayer.fideId));
   await dialog.getByLabel('Federation').fill('B');
-  const save = dialog.getByRole('button', { name: 'Save changes' });
   await checkTarget(save);
   await save.tap();
-  await dialog.getByRole('alert').filter({ hasText: 'Federation must be a valid 3-letter FIDE code.' }).waitFor();
+  const validation = dialog.getByRole('alert').filter({ hasText: 'Federation must be a valid 3-letter FIDE code.' });
+  await validation.waitFor();
+  assert.ok(await validation.evaluate(isInViewport));
   await dialog.getByLabel('Federation').fill('BUL');
   await dialog.getByLabel('Name').fill('Edited FIDE player');
   await save.tap();

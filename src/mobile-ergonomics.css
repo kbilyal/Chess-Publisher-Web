@@ -487,7 +487,21 @@
   .companion-edit-dialog {
     inset-block: calc(var(--companion-edit-visible-top, 0px) + max(8px, env(safe-area-inset-top))) auto;
     max-height: calc(var(--companion-edit-visible-height, 100dvh) - max(8px, env(safe-area-inset-top)) - max(8px, env(safe-area-inset-bottom)));
-    scroll-padding-block: 12px;
+    scroll-padding-block: 12px 76px;
+  }
+
+  .companion-edit-footer {
+    position: sticky;
+    bottom: 0;
+    padding: 8px 0 4px;
+    background: #fff;
+    box-shadow: 0 -8px 10px #fff;
+  }
+
+  .companion-edit-footer .companion-manual-actions { margin-top: 0; }
+
+  .companion-edit-footer .companion-registration-notice {
+    margin: 0 0 8px;
   }
 
   .companion-registration-notice {
@@ -654,6 +668,12 @@
   .organizer-arbiter-panel.is-open .organizer-arbiter-qr {
     width: 160px;
     height: 160px;
+  }
+}
+
+@media screen and (max-width: 360px) {
+  .companion-shell .companion-mobile-nav.companion-native-tabbar .companion-mobile-home-action > span:last-child {
+    font-size: 10px !important;
   }
 }
 
