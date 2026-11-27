@@ -121,9 +121,21 @@ if len(autosave_control.findall(html)) != 1:
 html = autosave_control.sub(
     '      <label class="autosave-switch" title="Automatically save and synchronize tournament changes"><input id="autosaveToggle" type="checkbox" role="switch" aria-label="AutoSave &amp; Sync"><span class="autosave-slider" aria-hidden="true"></span><span class="autosave-text">AutoSave &amp; Sync</span></label>\n'
     '      <span id="cpWebCloudSaveStatus" role="status">Cloud autosave on</span>\n'
-    '      <button id="cpWebHeaderSyncBtn" type="button" class="cp-header-sync-btn" title="SYNC the current tournament with private Cloud and download validated Web-entered results" aria-label="Sync now">↻ Sync</button>',
+    '      <button id="cpWebHeaderSyncBtn" type="button" class="cp-header-sync-btn" title="SYNC the current tournament with private Cloud and download validated Web-entered results" aria-label="Sync now">↻ Sync</button>\n'
+    '      <button id="cpWebHeaderChessResultsBtn" type="button" class="cp-header-sync-btn cp-header-cr-btn" onclick="publishChessResultsTournament();event.stopPropagation()" title="Publish or update this tournament on Chess-Results using the existing authenticated Chess-Results workflow" aria-label="Publish to Chess-Results">Publish to Chess-Results</button>',
     html,
     count=1,
+)
+html = replace_once(
+    html,
+    '            <!-- CP-BETA18-PAIRINGS-CHESSRESULTS-PUBLISH -->\n'
+    '            <button id="pairingsChessResultsPublishBtn" type="button" class="primary" onclick="publishChessResultsTournament()" title="Publish or update this tournament on Chess-Results using the existing authenticated Chess-Results workflow">Publish to Chess-Results</button>\n',
+    "",
+)
+html = replace_once(
+    html,
+    '  const pairingsPublish=document.getElementById("pairingsChessResultsPublishBtn");',
+    '  const pairingsPublish=document.getElementById("cpWebHeaderChessResultsBtn");',
 )
 html = replace_once(
     html, "let autosaveEnabled=true;", "let autosaveEnabled=window.cpWebAutoSaveSyncEnabled();",

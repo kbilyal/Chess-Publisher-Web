@@ -3,6 +3,7 @@ import fs from 'node:fs';
 
 const provider = fs.readFileSync('src/cloud/OnlineCloudProviderV2.tsx', 'utf8');
 const screens = fs.readFileSync('src/companion/CompanionCloudScreens.tsx', 'utf8');
+const indexHtml = fs.readFileSync('index.html', 'utf8');
 const css = fs.readFileSync('src/companion-cloud.css', 'utf8');
 const main = fs.readFileSync('src/main.tsx', 'utf8');
 
@@ -21,7 +22,9 @@ lacks(screens, 'THIS BROWSER', 'The obsolete This Browser section must stay remo
 lacks(screens, 'companion-local-continuation', 'The obsolete local continuation card must stay removed.');
 has(main, 'prepareWebOrganizerSession().finally', 'Legacy token access must start from ChessPublisher Web before the provider mounts.');
 has(provider, 'await authApi.me()', 'Companion must resume the Web cookie session.');
-lacks(screens, 'onGoogleCredential', 'Companion must not initiate Google sign-in.');
+has(indexHtml, 'https://accounts.google.com/gsi/client', 'Companion index.html must load Google Identity Services.');
+has(screens, 'onGoogleCredential', 'Companion login screen must support Google sign-in with the same Google account.');
+has(screens, 'companion-google-signin', 'Companion login screen must render the Google sign-in container.');
 lacks(screens, 'type="password"', 'Companion must not provide an Organizer Token form.');
 has(screens, 'My tournaments', 'My Tournaments heading is missing.');
 has(screens, 'Cloud tournaments', 'Cloud tournament list is missing.');

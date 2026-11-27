@@ -215,7 +215,6 @@
       const genBtn = byId('btnGenerateGacrux');
       const resortBtn = byId('pairingsResortStartingListBtn');
       const toolbarGenBtn = byId('pairingsToolbarGenerateBtn');
-      const crPubBtn = byId('pairingsChessResultsPublishBtn');
       hide(toolbarGenBtn);
 
       const card = make('div', 'cp-ws-card cp-ws-pairings-card');
@@ -228,7 +227,6 @@
       const hRight = make('div', 'cp-ws-card-header-right');
       if (resortBtn) hRight.appendChild(resortBtn);
       if (genBtn) { genBtn.classList.add('cp-ws-cta-primary'); hRight.appendChild(genBtn); }
-      if (crPubBtn) { crPubBtn.classList.add('cp-ws-btn-secondary'); hRight.appendChild(crPubBtn); }
       const hubPubBtn = byId('pairingsHubPublishBtn');
       if (hubPubBtn) { hubPubBtn.classList.add('cp-ws-btn-secondary'); hRight.appendChild(hubPubBtn); }
       cardHeader.append(hLeft, hRight);

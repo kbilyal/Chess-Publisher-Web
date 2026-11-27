@@ -32,6 +32,11 @@
 .companion-entry-field input:focus { border-color:#80b2ef; background:#fff; box-shadow:0 0 0 3px rgba(23,105,224,.08); }
 .companion-entry-primary { width:100%; min-height:46px; padding:0 14px; display:flex; align-items:center; justify-content:center; border-radius:7px; background:#0f3d91; color:#fff; font-size:.9375rem; font-weight:700; text-decoration:none; }
 .companion-entry-primary:hover { background:#0b3074; }
+.companion-google-auth { display:flex; flex-direction:column; align-items:stretch; gap:12px; margin-bottom:12px; }
+#companion-google-signin { display:flex; justify-content:center; min-height:44px; max-width:100%; overflow:hidden; }
+.companion-auth-divider { display:flex; align-items:center; gap:10px; color:#64748b; font-size:.75rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; }
+.companion-auth-divider::before,
+.companion-auth-divider::after { content:""; flex:1; height:1px; background:#dde5ee; }
 .companion-entry-status { min-height:38px; margin-top:11px; padding:8px 10px; display:flex; align-items:center; gap:7px; border:1px solid #dde5ee; border-radius:9px; background:#f8fafc; color:#536277; font-size:.875rem; font-weight:700; }
 .companion-entry-status.ok { border-color:#d2e7d9; background:#f2fbf5; color:#2f6748; }
 .companion-entry-status.warn { border-color:#ebdba9; background:#fff9eb; color:#7a5d1e; }

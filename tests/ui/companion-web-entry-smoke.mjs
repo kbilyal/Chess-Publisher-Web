@@ -98,7 +98,7 @@ async function configure(context, googleClientId = Promise.resolve('fixture')) {
     }
     if (path === '/api/auth/me') return reply({ ok: true, authenticated: Boolean(googleSession), user: googleSession || null });
     if (path === '/api/auth/config') return reply({ googleClientId: await googleClientId });
-    if (path === '/api/auth/google' && origin === web) {
+    if (path === '/api/auth/google' && (origin === web || origin === companion)) {
       googleSession = request.postDataJSON().credential === 'fixture-second-credential' ? secondUser : user;
       return reply({ ok: true, user: googleSession });
     }
@@ -458,8 +458,23 @@ try {
   const entryUrl = new URL(await openWeb.getAttribute('href'));
   assert.equal(entryUrl.origin + entryUrl.pathname, web + '/app/');
   assert.equal(entryUrl.searchParams.get('cloudTournamentId'), tournament.id);
-  assert.equal(await page.locator('input[type="password"], script[src*="accounts.google.com"]').count(), 0);
+  assert.equal(await page.locator('input[type="password"]').count(), 0);
+  await page.locator('#companion-google-signin button', { hasText: 'Google fixture sign-in' }).waitFor();
   await checkWidth(page);
+
+  const directCompanion = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
+  const { calls: directGoogleCalls } = await configure(directCompanion);
+  const directPage = await directCompanion.newPage();
+  await directPage.goto(`${companion}/?cloudTournamentId=${tournament.id}`);
+  await directPage.locator('#companion-google-signin button', { hasText: 'Google fixture sign-in' }).click();
+  await checkTournament(directPage, directGoogleCalls);
+  await checkWidth(directPage);
+  assert.ok(directGoogleCalls.some(call => call.origin === companion && call.path === '/api/auth/google'));
+  const sameAccountWeb = await directCompanion.newPage();
+  await sameAccountWeb.goto(`${web}/app/`);
+  await sameAccountWeb.waitForURL(`${web}/app/workspace.html`);
+  await directCompanion.close();
+
   await openWeb.click();
   await page.getByRole('button', { name: 'Google fixture sign-in' }).click();
   const [googleCompanion] = await Promise.all([

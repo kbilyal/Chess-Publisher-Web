@@ -1,5 +1,5 @@
 import { parseContinuationHint } from '../cloud/browserSyncPolicy';
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Archive,
@@ -31,28 +31,88 @@ export type CompanionCloudTournament = {
 
 type StatusKind = 'ok' | 'busy' | 'warn' | 'offline';
 
-// The Cloud provider owns session validation and still supplies the connection
-// state. Organizer credentials are collected by ChessPublisher Web.
-export function CompanionLoginScreen({ busy, status, statusKind }: {
+// The Cloud provider owns session validation and supplies the Google Sign-In
+// configuration and credential callback.
+export function CompanionLoginScreen({
+  busy,
+  status,
+  statusKind,
+  googleClientId,
+  onGoogleCredential
+}: {
   busy: boolean;
   status: string;
   statusKind: StatusKind;
+  googleClientId?: string;
+  onGoogleCredential?: (credential: string) => void;
   [key: string]: unknown;
 }) {
+  const displayStatus = statusKind === 'busy'
+    ? (status || 'Checking your ChessPublisher Web session…')
+    : statusKind === 'offline'
+      ? status
+      : (statusKind === 'warn' && status && status !== 'Sign in with Google or enter Organizer Token' ? status : '');
   return <CompanionEntryScreen
     busy={busy}
-    status={statusKind === 'busy' ? 'Checking your ChessPublisher Web session…' : statusKind === 'offline' ? status : ''}
+    status={displayStatus}
     statusKind={statusKind}
     tournamentHint={parseContinuationHint(window.location.search)}
+    googleClientId={googleClientId}
+    onGoogleCredential={onGoogleCredential}
   />;
 }
 
-export function CompanionEntryScreen({ busy, status, statusKind, tournamentHint }: {
+export function CompanionEntryScreen({
+  busy,
+  status,
+  statusKind,
+  tournamentHint,
+  googleClientId,
+  onGoogleCredential
+}: {
   busy: boolean;
   status: string;
   statusKind: StatusKind;
   tournamentHint: string;
+  googleClientId?: string;
+  onGoogleCredential?: (credential: string) => void;
 }) {
+  const googleBtnRef = useRef<HTMLDivElement>(null);
+  const onGoogleCredentialRef = useRef(onGoogleCredential);
+  onGoogleCredentialRef.current = onGoogleCredential;
+
+  useEffect(() => {
+    if (busy || !googleClientId || !onGoogleCredentialRef.current) return;
+    let cancelled = false;
+    let attempts = 0;
+    const mount = () => {
+      if (cancelled || !googleBtnRef.current) return;
+      const gsi = (window as any).google?.accounts?.id;
+      if (!gsi) {
+        if (++attempts < 40) window.setTimeout(mount, 150);
+        return;
+      }
+      gsi.initialize({
+        client_id: googleClientId,
+        callback: (res: any) => {
+          const cred = String(res?.credential || '').trim();
+          if (cred) onGoogleCredentialRef.current?.(cred);
+        },
+        auto_select: false
+      });
+      googleBtnRef.current.replaceChildren();
+      gsi.renderButton(googleBtnRef.current, {
+        theme: 'outline',
+        size: 'large',
+        text: 'signin_with',
+        shape: 'rectangular',
+        locale: 'en'
+      });
+    };
+    mount();
+    return () => { cancelled = true; };
+  }, [busy, googleClientId]);
+
   const webUrl = new URL('https://chess-publisher.org/app/');
   webUrl.searchParams.set('account', '1');
   if (tournamentHint) webUrl.searchParams.set('cloudTournamentId', tournamentHint);
@@ -66,8 +126,14 @@ export function CompanionEntryScreen({ busy, status, statusKind, tournamentHint 
         </div>
         <div className="companion-login-copy">
           <h1 id="companion-entry-title">Arbiter Companion</h1>
-          <p>Sign in through ChessPublisher Web, then open Arbiter Companion from your workspace.</p>
+          <p>Sign in with your Google account to open your synchronized tournaments, or open ChessPublisher Web.</p>
         </div>
+        {!busy && googleClientId && onGoogleCredential && (
+          <div className="companion-google-auth">
+            <div ref={googleBtnRef} id="companion-google-signin" />
+            <div className="companion-auth-divider"><span>or</span></div>
+          </div>
+        )}
         {!busy && <a className="companion-entry-primary" href={webUrl.href}>Open ChessPublisher Web</a>}
         {status && <div className={`companion-entry-status ${statusKind}`} role="status">{status}</div>}
       </section>

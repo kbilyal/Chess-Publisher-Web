@@ -335,6 +335,8 @@ try {
 
   await page.locator('#tabPairings').click();
   await page.locator('#cpWebCloudSaveStatus').filter({ hasText: 'Saved to private Cloud' }).waitFor({ timeout: 10000 });
+  assert.equal(await page.locator('#pairingsChessResultsPublishBtn').count(), 0);
+  await page.locator('.desktop-status-controls #cpWebHeaderChessResultsBtn').waitFor({ state: 'visible', timeout: 10000 });
 
   // Concurrent autosave + header Sync button check
   failNextUpload = true;
