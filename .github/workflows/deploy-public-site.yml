@@ -199,7 +199,6 @@ jobs:
           path: ${{ runner.temp }}/registration-visual-review/registration-visual-*.png
           if-no-files-found: error
           retention-days: 7
-          retention-days: 7
 
       - name: Remove September Update homepage sections
         shell: bash
