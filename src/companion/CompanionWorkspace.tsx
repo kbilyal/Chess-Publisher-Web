@@ -219,7 +219,8 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
     setBusy('hub');
     setMessage('');
     try {
-      await cloud.syncNow(checkpointForCloudAction());
+      checkpointForCloudAction();
+      await cloud.syncNow(tournamentRef.current);
       const synchronized = adoptSynchronizedTournament();
       await cloud.publishOnline(synchronized);
       adoptSynchronizedTournament();
@@ -251,7 +252,8 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
     setBusy('cr-publish');
     setMessage('');
     try {
-      await cloud.syncNow(checkpointForCloudAction());
+      checkpointForCloudAction();
+      await cloud.syncNow(tournamentRef.current);
       const current = adoptSynchronizedTournament();
       const initial = buildChessResultsXml(current);
       const clientId = 'cp-replace-' + oldKey;
@@ -369,7 +371,8 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
         persistTournament(transition);
       }
 
-      await cloud.syncNow(checkpointForCloudAction());
+      checkpointForCloudAction();
+      await cloud.syncNow(tournamentRef.current);
       const current = adoptSynchronizedTournament();
       const identityAfterSync = {
         cloudTournamentId: String((current as any)?.cloud?.cloudTournamentId || '').trim(),
