@@ -294,10 +294,10 @@ html = replace_once(
     html,
     "    const monthly=fideMainDb.get(id);if(monthly)return [cloneRow(monthly)];\n",
     """    const monthly=fideMainDb.get(id);if(monthly)return [cloneRow(monthly)];
-    if(window.cpDesktopWebAllowed){
+    if(window.cpDesktopWebAllowed&&window.cpBeta98R7?.readConfig()?.directory!==false){
       try{
         const response=await fetch(`https://lichess.org/api/fide/player/${encodeURIComponent(id)}`,{
-          headers:{Accept:'application/json'},signal:AbortSignal.timeout(6000),referrerPolicy:'no-referrer'
+          headers:{Accept:'application/json'},signal:AbortSignal.timeout?.(6000),referrerPolicy:'no-referrer'
         });
         if(!response.ok)return [];
         const player=await response.json();

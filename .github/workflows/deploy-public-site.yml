@@ -169,7 +169,7 @@ jobs:
       - name: Build and test the desktop web workspace
         shell: bash
         env:
-          CP_REG_UI_SCREENSHOT: ${{ github.event_name == 'pull_request' && format('{0}/registration-visual-parity.png', runner.temp) || '' }}
+          CP_AUDIT_SCREENSHOT_DIR: ${{ github.event_name == 'pull_request' && format('{0}/registration-visual-review', runner.temp) || '' }}
         run: |
           set -euo pipefail
           web_app=deploy/public-site/desktop-web
@@ -196,8 +196,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: chess-publisher-registration-visual-review
-          path: ${{ runner.temp }}/registration-visual-*.png
+          path: ${{ runner.temp }}/registration-visual-review/registration-visual-*.png
           if-no-files-found: error
+          retention-days: 7
           retention-days: 7
 
       - name: Remove September Update homepage sections

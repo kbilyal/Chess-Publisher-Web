@@ -66,6 +66,14 @@ try {
   await type('Carlsen');
   await page.locator(results).filter({ hasText: 'No player found' }).waitFor({ state: 'attached' });
 
+  assert.deepEqual(await page.evaluate(async () => {
+    const config = cpBeta98R7.readConfig();
+    cpBeta98R7.saveConfig({ ...config, directory: false });
+    try { return await cpBeta98R7.unifiedSearch('1503014'); }
+    finally { cpBeta98R7.saveConfig(config); }
+  }), [], 'Respect the setting that excludes the online directory.');
+  assert.deepEqual(directoryRequests, []);
+
   await type('1503014');
   await page.locator(results).filter({ hasText: 'FIDE Standard: 2819' }).waitFor({ state: 'attached' });
   assert.deepEqual(directoryRequests, ['1503014']);

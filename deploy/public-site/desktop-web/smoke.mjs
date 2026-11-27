@@ -293,6 +293,7 @@ try {
       }, pageId);
       assert.ok(overflow.docOverflowX <= 2, `${vp.width}px ${pageId} docOverflowX=${overflow.docOverflowX}`);
       assert.ok(overflow.pageOverflowX <= 4, `${vp.width}px ${pageId} pageOverflowX=${overflow.pageOverflowX}`);
+      if (pageId === 'registration') await snap(page, `registration-visual-${vp.width}`);
     }
   }
 
