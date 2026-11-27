@@ -43,6 +43,85 @@
     btn.classList.toggle("cp-reg-needs-action", needs);
   }
 
+  function getStartingListRowCount() {
+    const body = document.getElementById("registeredBody");
+    if (!body) return 0;
+    return Array.from(body.querySelectorAll("tr")).filter(tr => !tr.querySelector("td[colspan]")).length;
+  }
+
+  function applyMobilePane(container, bar, pane) {
+    if (!container || !bar) return;
+    container.dataset.cpRegMobilePane = pane;
+    bar.querySelectorAll(".cp-reg-mobile-pane-btn").forEach(btn => {
+      const active = btn.dataset.regPane === pane;
+      btn.classList.toggle("active", active);
+      btn.setAttribute("aria-pressed", String(active));
+    });
+  }
+
+  function syncMobilePaneSwitcher(reg) {
+    const countEl = qs(".cp-reg-pane-count", reg);
+    if (!countEl) return;
+    const next = String(getStartingListRowCount());
+    if (countEl.textContent !== next) countEl.textContent = next;
+  }
+
+  function buildMobilePaneSwitcher(reg) {
+    const container = document.getElementById("registrationListsContainer");
+    if (!container || qs(".cp-reg-mobile-pane-switch", reg)) return;
+    const bar = document.createElement("div");
+    bar.className = "cp-reg-mobile-pane-switch";
+    bar.setAttribute("role", "group");
+    bar.setAttribute("aria-label", "Registration view");
+
+    const fideBtn = document.createElement("button");
+    fideBtn.type = "button";
+    fideBtn.className = "cp-reg-mobile-pane-btn";
+    fideBtn.textContent = "Find & Add";
+    fideBtn.dataset.regPane = "fide";
+
+    const startingBtn = document.createElement("button");
+    startingBtn.type = "button";
+    startingBtn.className = "cp-reg-mobile-pane-btn";
+    startingBtn.dataset.regPane = "starting";
+    startingBtn.appendChild(document.createTextNode("Starting List "));
+    const countEl = document.createElement("span");
+    countEl.className = "cp-reg-pane-count";
+    countEl.textContent = String(getStartingListRowCount());
+    startingBtn.appendChild(countEl);
+
+    [fideBtn, startingBtn].forEach(btn => {
+      btn.addEventListener("click", () => {
+        applyMobilePane(container, bar, btn.dataset.regPane);
+      });
+      bar.appendChild(btn);
+    });
+
+    container.parentElement?.insertBefore(bar, container);
+    applyMobilePane(container, bar, getStartingListRowCount() > 0 ? "starting" : "fide");
+  }
+
+  function ensureFideOneTapAddButtons() {
+    const box = document.getElementById("fideResults");
+    if (!box) return;
+    box.querySelectorAll(".fide-item").forEach(item => {
+      if (item.querySelector(".cp-reg-fide-add-btn")) return;
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "cp-reg-fide-add-btn";
+      btn.textContent = "+ Add";
+      btn.setAttribute("aria-label", "Add player to Starting Rank List");
+      btn.addEventListener("click", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (typeof MouseEvent === "function") {
+          item.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, cancelable: true, view: window }));
+        }
+      });
+      item.appendChild(btn);
+    });
+  }
+
   function enhanceRegistrationPage() {
     const reg = document.getElementById("registration");
     if (!reg || reg.dataset.cpRegEnhanced === "1") return;
@@ -423,6 +502,9 @@
       syncResortButtonHighlight();
     }
 
+    buildMobilePaneSwitcher(reg);
+    ensureFideOneTapAddButtons();
+
     /* 5. Lightweight observer for late-injected elements & status updates */
     const obsOpts = { childList: true, subtree: true, characterData: true };
     const observer = new MutationObserver(() => {
@@ -432,6 +514,8 @@
         syncFideMiniSummary();
         syncResortButtonHighlight();
         syncSegmentedRatingUI();
+        syncMobilePaneSwitcher(reg);
+        ensureFideOneTapAddButtons();
 
         const tpnGroup = qs(".cp-reg-tpn-group", reg);
         if (tpnGroup) {

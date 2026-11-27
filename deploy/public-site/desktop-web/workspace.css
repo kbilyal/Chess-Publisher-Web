@@ -2537,3 +2537,1054 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
     grid-template-columns: 1fr;
   }
 }
+
+/* ==========================================================================
+   MOBILE UI OVERHAUL (<= 768px) — Modern Responsive Shell & Touch Ergonomics
+   ========================================================================== */
+.cp-ws-mobile-tools-btn,
+.cp-ws-palette-more-btn,
+.cp-reg-mobile-pane-switch,
+.cp-reg-fide-add-btn {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  /* 1. App Shell, Compact Header & Viewport-Safe Dropdowns */
+  #appWindow {
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+    background: #f1f5f9 !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+
+  #appWindow .desktop-header-strip {
+    height: auto !important;
+    min-height: 46px !important;
+    padding: max(6px, env(safe-area-inset-top)) 10px 6px !important;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 6px !important;
+    background: linear-gradient(135deg, #0b2447, #163a70) !important;
+    flex-shrink: 0;
+  }
+
+  #appWindow #windowDocumentTitle {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13.5px !important;
+    font-weight: 700 !important;
+    color: #ffffff !important;
+  }
+
+  #appWindow .desktop-status-controls {
+    flex: 0 0 auto;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end;
+    gap: 6px !important;
+    flex-wrap: nowrap !important;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  #appWindow .cp-ws-mobile-tools-btn {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #appWindow .cp-ws-mobile-tools-btn.cp-ws-mobile-tools-alert {
+    border-color: #fbbf24 !important;
+    background: rgba(251, 191, 36, 0.24) !important;
+    color: #fef3c7 !important;
+  }
+
+  #appWindow .cp-header-sync-btn,
+  #appWindow #manualSaveButton {
+    min-height: 34px !important;
+    height: 34px !important;
+    padding: 0 10px !important;
+    border-radius: 8px !important;
+    font-size: 12.5px !important;
+    font-weight: 600 !important;
+    width: auto !important;
+    min-width: 0 !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #appWindow:not(.cp-ws-mobile-tools-open) .desktop-status-controls > :not(#cpWebHeaderSyncBtn):not(#manualSaveButton):not(#cpMobileToolsToggle) {
+    display: none !important;
+  }
+
+  #appWindow.cp-ws-mobile-tools-open .desktop-header-strip {
+    flex-wrap: wrap !important;
+  }
+
+  #appWindow.cp-ws-mobile-tools-open .desktop-status-controls {
+    flex: 1 1 100% !important;
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap !important;
+    padding-top: 6px;
+    margin-top: 4px;
+    border-top: 1px solid rgba(255, 255, 255, 0.18);
+  }
+
+  #appWindow #classicMenuBar {
+    min-height: 44px !important;
+    height: auto !important;
+    padding: 5px 10px !important;
+    gap: 6px !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    background: #ffffff !important;
+    border-bottom: 1px solid #dbe2ea !important;
+    flex-shrink: 0;
+  }
+
+  #appWindow #classicMenuBar .menu-button {
+    min-height: 34px !important;
+    height: 34px !important;
+    width: auto !important;
+    min-width: 0 !important;
+    padding: 0 11px !important;
+    border-radius: 8px !important;
+    border: 1px solid #cbd5e1 !important;
+    background: #f8fafc !important;
+    color: #0f172a !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #appWindow #classicMenuBar .cp-user-menu {
+    margin-left: auto;
+    gap: 6px;
+    min-width: 0;
+    flex-shrink: 0;
+  }
+
+  #appWindow #classicMenuBar #currentFileLabel {
+    display: none !important;
+  }
+
+  #appWindow #classicMenuBar .cp-arbiter-link {
+    height: 34px !important;
+    min-height: 34px !important;
+    padding: 0 9px !important;
+    border-radius: 8px !important;
+    font-size: 12px !important;
+  }
+
+  #appWindow #classicMenuBar .cp-user-toggle {
+    height: 34px !important;
+    min-height: 34px !important;
+    padding: 0 8px !important;
+    border-radius: 8px !important;
+    font-size: 12.5px !important;
+    max-width: 136px;
+  }
+
+  #appWindow #classicMenuBar .cp-user-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 78px;
+  }
+
+  #appWindow #fileMenu.open,
+  #appWindow #pairingsMenu.open,
+  #appWindow #classicMenuBar .cp-user-panel:not([hidden]) {
+    position: fixed !important;
+    top: calc(92px + env(safe-area-inset-top)) !important;
+    left: 10px !important;
+    right: 10px !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: calc(100vw - 20px) !important;
+    max-height: calc(100dvh - 115px) !important;
+    overflow-y: auto !important;
+    border-radius: 14px !important;
+    padding: 10px !important;
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: 0 18px 44px rgba(15, 23, 42, 0.28) !important;
+    z-index: 9400 !important;
+  }
+
+  #appWindow #fileMenu button,
+  #appWindow #pairingsMenu button {
+    min-height: 42px !important;
+    height: auto !important;
+    width: 100% !important;
+    padding: 8px 12px !important;
+    font-size: 14px !important;
+    border-radius: 8px !important;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  #appWindow #fileMenu .menu-shortcut,
+  #appWindow #pairingsMenu .menu-shortcut {
+    display: none !important;
+  }
+
+  #appWindow #classicMenuBar .cp-user-panel-link,
+  #appWindow #classicMenuBar .cp-user-action-btn,
+  #appWindow #classicMenuBar .cp-user-tournament-item,
+  #appWindow #classicMenuBar .cp-user-signout-btn {
+    min-height: 42px !important;
+    padding: 8px 12px !important;
+    font-size: 13.5px !important;
+    border-radius: 8px !important;
+  }
+
+  #appWindow #classicMenuBar .cp-user-mini-btn {
+    min-height: 38px !important;
+    padding: 0 10px !important;
+    font-size: 12.5px !important;
+    border-radius: 8px !important;
+  }
+
+  /* 2. Pill Tab Bar */
+  #appWindow .tabs {
+    padding: 7px 10px !important;
+    gap: 6px !important;
+    margin: 0 !important;
+    background: #e9eff6 !important;
+    border-bottom: 1px solid #d5dde7 !important;
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    flex-shrink: 0;
+  }
+
+  #appWindow .tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  #appWindow .tabs .tab {
+    min-height: 36px !important;
+    height: auto !important;
+    padding: 6px 14px !important;
+    margin: 0 !important;
+    border-radius: 999px !important;
+    border: 1px solid #cbd5e1 !important;
+    background: #ffffff !important;
+    color: #334155 !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto !important;
+    white-space: nowrap;
+    scroll-snap-align: center;
+    box-shadow: none !important;
+    top: 0 !important;
+  }
+
+  #appWindow .tabs .tab.active {
+    background: #0f3d91 !important;
+    border-color: #0f3d91 !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 6px rgba(15, 61, 145, 0.28) !important;
+  }
+
+  /* 3. Content Area, Statusbar & Global Touch Controls */
+  #appWindow .content {
+    margin: 0 !important;
+    padding: 10px !important;
+    border: none !important;
+    background: #f1f5f9 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+  }
+
+  #appWindow .statusbar {
+    min-height: 24px !important;
+    margin: 0 !important;
+    padding: 4px 10px max(5px, env(safe-area-inset-bottom)) !important;
+    background: #f8fafc !important;
+    border-top: 1px solid #dbe2ea;
+    gap: 8px;
+    flex-wrap: nowrap !important;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  #appWindow .statusbar .status-panel {
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    min-height: 18px;
+    font-size: 11.5px;
+    color: #475569;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #appWindow .content input:not([type="checkbox"]):not([type="radio"]),
+  #appWindow .content select,
+  #appWindow .content textarea,
+  .modal-window input:not([type="checkbox"]):not([type="radio"]),
+  .modal-window select,
+  .modal-window textarea {
+    font-size: 16px !important;
+    min-height: 42px;
+    height: auto !important;
+    line-height: 1.35 !important;
+    padding: 8px 10px !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 8px !important;
+    background: #ffffff !important;
+    color: #0f172a;
+    box-sizing: border-box;
+    max-width: 100%;
+  }
+
+  #appWindow .content .cp-player-search-wrap {
+    padding: 2px 8px !important;
+    background: #ffffff !important;
+  }
+
+  #appWindow .content .cp-player-search-wrap input {
+    border: none !important;
+    min-height: 36px !important;
+    padding: 4px 6px !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  #appWindow .content .cp-ws-card-header .group-title,
+  #appWindow .content .cp-ws-card-header .cp-ws-card-title {
+    position: static !important;
+    top: auto !important;
+    left: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: none !important;
+  }
+
+  #appWindow .content textarea,
+  .modal-window textarea {
+    min-height: 88px;
+  }
+
+  #appWindow .content input[type="checkbox"],
+  #appWindow .content input[type="radio"],
+  .modal-window input[type="checkbox"],
+  .modal-window input[type="radio"] {
+    width: 20px;
+    height: 20px;
+    accent-color: #0f3d91;
+  }
+
+  #appWindow .content button,
+  .modal-window button {
+    min-height: 40px;
+    height: auto;
+    width: auto;
+    min-width: 0;
+    padding: 6px 12px;
+    font-size: 13.5px;
+    font-weight: 600;
+    border-radius: 8px;
+    touch-action: manipulation;
+    line-height: 1.25;
+  }
+
+  .cp-ws-card,
+  #appWindow .content .groupbox.cp-ws-card,
+  .cp-ws-command-strip,
+  .cp-ws-details-card,
+  #cpPlayersRatingDataBox,
+  #registration .cp-reg-manual-box,
+  #registration #fideResultsBox,
+  #registration #startingRankBox {
+    border-radius: 12px !important;
+    border: 1px solid #dbe2ea !important;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06) !important;
+  }
+
+  .cp-ws-command-strip {
+    padding: 10px !important;
+    gap: 8px !important;
+  }
+
+  .cp-ws-strip-left,
+  .cp-ws-strip-right,
+  .cp-ws-card-header-left,
+  .cp-ws-card-header-right,
+  .cp-ws-subbar-group {
+    width: 100%;
+    margin-left: 0 !important;
+  }
+
+  .cp-ws-divider,
+  .cp-reg-strip-divider {
+    display: none !important;
+  }
+
+  .cp-ws-export-segmented,
+  #registration .cp-reg-export-segmented {
+    width: 100%;
+    padding: 4px 6px !important;
+    gap: 6px !important;
+  }
+
+  .cp-ws-export-segmented button,
+  #registration .cp-reg-export-segmented button {
+    min-height: 36px !important;
+    height: auto !important;
+    padding: 4px 10px !important;
+    font-size: 12.5px !important;
+    border-radius: 6px !important;
+    border: 1px solid #dbe2ea !important;
+    background: #ffffff !important;
+  }
+
+  .cp-ws-export-segmented button.cp-ws-cta-primary {
+    background: #0f3d91 !important;
+    border-color: #0f3d91 !important;
+    color: #ffffff !important;
+  }
+
+  #appWindow .content .table-frame {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+    border: 1px solid #dbe2ea !important;
+    border-radius: 8px;
+  }
+
+  /* 4. Tournament Setup (#main) */
+  #main .cp-ws-command-strip select {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  #main .tournament-general-grid > label,
+  #appWindow .content .cp-ws-setup-card > .form-grid-4 > label,
+  .cp-ws-setup-card > .form-grid-4 > label,
+  .cp-ws-details-card .form-grid-4 > label {
+    font-size: 12px !important;
+    color: #334155 !important;
+    margin-top: 6px;
+    white-space: normal !important;
+  }
+
+  #appWindow .content .cp-ws-setup-card .setup-pab-compact {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    width: 100% !important;
+  }
+
+  #appWindow .content .cp-ws-setup-card .tie-break-priority-row {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center;
+    gap: 6px !important;
+    padding: 8px !important;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #f8fafc;
+  }
+
+  #appWindow .content .cp-ws-setup-card .tie-break-name {
+    flex: 1 1 calc(100% - 40px);
+    white-space: normal;
+  }
+
+  #appWindow .content .cp-ws-setup-card .tie-break-name span {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+  }
+
+  #appWindow .content .cp-ws-setup-card .tie-break-priority-row button {
+    min-height: 36px !important;
+  }
+
+  .cp-ws-details-card > summary {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    font-size: 14px !important;
+  }
+
+  /* 5. Lists & Players (#registration) */
+  #registration .cp-reg-command-strip {
+    padding: 10px !important;
+  }
+
+  #registration .cp-reg-strip-left,
+  #registration .cp-reg-strip-right {
+    width: 100%;
+    margin-left: 0 !important;
+  }
+
+  #registration .cp-reg-strip-left > button,
+  #registration .cp-reg-strip-right > button {
+    flex: 1 1 calc(50% - 4px);
+    justify-content: center;
+    white-space: normal !important;
+    text-align: center;
+  }
+
+  #registration .cp-reg-fide-mini {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+
+  #registration .cp-reg-manual-box {
+    padding: 10px !important;
+  }
+
+  #registration .cp-reg-manual-box > .group-title {
+    padding-right: 0 !important;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  #registration .cp-reg-manual-collapse-btn {
+    position: static !important;
+    min-height: 34px !important;
+    height: auto !important;
+    padding: 0 10px !important;
+    font-size: 12px !important;
+    margin-left: auto;
+  }
+
+  #registration .cp-reg-manual-box > .toolbar,
+  #registration .cp-reg-manual-form {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    align-items: end !important;
+  }
+
+  #registration .cp-reg-field {
+    width: auto !important;
+    flex: none !important;
+    min-width: 0 !important;
+  }
+
+  #registration .cp-reg-field input,
+  #registration .cp-reg-field select,
+  #registration #manualName,
+  #registration #manualRating,
+  #registration #manualTitle,
+  #registration #manualFed,
+  #registration #manualFide,
+  #registration #manualBirth,
+  #registration #manualGender {
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 42px !important;
+    min-height: 42px !important;
+  }
+
+  #registration .cp-reg-field-manualName,
+  #registration .cp-reg-manual-box > .toolbar > #manualName,
+  #registration .cp-reg-manual-box > .toolbar > #manualAddPlayerBtn {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  #registration .cp-reg-manual-box > .toolbar > input,
+  #registration .cp-reg-manual-box > .toolbar > select {
+    width: 100% !important;
+    min-width: 0 !important;
+    flex: none !important;
+  }
+
+  .cp-reg-mobile-pane-switch {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    padding: 4px;
+    background: #dbe3ee;
+    border-radius: 12px;
+    flex-shrink: 0;
+  }
+
+  .cp-reg-mobile-pane-btn {
+    min-height: 40px !important;
+    border: none !important;
+    border-radius: 9px !important;
+    background: transparent !important;
+    color: #334155 !important;
+    font-size: 13.5px !important;
+    font-weight: 700 !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .cp-reg-mobile-pane-btn.active {
+    background: #ffffff !important;
+    color: #0f3d91 !important;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.14);
+  }
+
+  .cp-reg-pane-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: #e2e8f0;
+    color: #1e293b;
+    font-size: 11.5px;
+    font-weight: 700;
+  }
+
+  .cp-reg-mobile-pane-btn.active .cp-reg-pane-count {
+    background: #dbeafe;
+    color: #0f3d91;
+  }
+
+  #registrationListsContainer[data-cp-reg-mobile-pane="fide"] #startingRankBox {
+    display: none !important;
+  }
+
+  #registrationListsContainer[data-cp-reg-mobile-pane="starting"] #fideResultsBox {
+    display: none !important;
+  }
+
+  #registration #fideResultsBox,
+  #registration #startingRankBox {
+    min-height: 360px !important;
+  }
+
+  #registration .cp-reg-fide-hint,
+  #registration .cp-reg-fide-search-hint,
+  #registration #btnMaximizeLists {
+    display: none !important;
+  }
+
+  #registration .cp-reg-rating-seg-btn {
+    min-height: 34px !important;
+    height: auto !important;
+    padding: 0 10px !important;
+    font-size: 12.5px !important;
+  }
+
+  #registration #fideResults .fide-item {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    align-items: center;
+    column-gap: 10px;
+    row-gap: 2px;
+    padding: 10px !important;
+    min-height: 54px;
+  }
+
+  #registration #fideResults .fide-name,
+  #registration #fideResults .fide-info {
+    grid-column: 1;
+  }
+
+  #registration #fideResults .cp-reg-fide-add-btn {
+    display: inline-flex !important;
+    grid-column: 2;
+    grid-row: 1 / span 4;
+    align-items: center;
+    justify-content: center;
+    min-height: 38px !important;
+    padding: 0 13px !important;
+    border-radius: 8px !important;
+    border: none !important;
+    background: #0f3d91 !important;
+    color: #ffffff !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    white-space: nowrap;
+  }
+
+  #registration .starting-font-controls button {
+    min-height: 34px !important;
+    padding: 0 9px !important;
+  }
+
+  #registration #startingRankBox table th,
+  #registration #startingRankBox table td {
+    padding: 8px 6px;
+    font-size: 13px;
+  }
+
+  /* 6. Pairings & Sticky Mobile Result Entry Dock (#pairings) */
+  #pairings.cp-ws-page.page.active {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding-bottom: 0 !important;
+  }
+
+  #pairings .cp-ws-hotkey-pill {
+    display: none !important;
+  }
+
+  #pairings .cp-ws-pairings-card .cp-ws-card-header-right {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  #pairings #btnGenerateGacrux {
+    grid-column: 1 / -1;
+    min-height: 44px;
+    font-size: 14.5px;
+  }
+
+  #pairings #pairingsPlayerSearch {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  #appWindow #pairings .cp-ws-pairings-card .live-pairing-table-wrap {
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+  }
+
+  #pairings .live-pairing-table th,
+  #pairings .live-pairing-table td {
+    padding: 9px 5px !important;
+    font-size: 13px !important;
+  }
+
+  #pairings .live-pairing-table .locked-player {
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
+    line-height: 1.28;
+  }
+
+  #pairings .live-pairing-table .result-display {
+    min-height: 34px;
+    min-width: 54px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    font-weight: 700;
+  }
+
+  #pairings aside.result-palette.cp-ws-palette-card {
+    position: sticky !important;
+    bottom: 0 !important;
+    top: auto !important;
+    z-index: 30 !important;
+    margin: 4px 0 0 !important;
+    padding: 10px 10px calc(10px + env(safe-area-inset-bottom)) !important;
+    border-radius: 16px 16px 0 0 !important;
+    background: rgba(255, 255, 255, 0.97) !important;
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.14) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+
+  #pairings aside.result-palette.cp-ws-palette-card > :not(.cp-ws-palette-header) {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  #pairings aside.result-palette .cp-ws-palette-header,
+  #pairings aside.result-palette .pairing-generate-actions {
+    display: none !important;
+  }
+
+  #pairings aside.result-palette .result-palette-title {
+    text-align: left !important;
+    font-size: 13px !important;
+    line-height: 1.3;
+    padding: 0 2px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  #pairings #nextRoundManager.cp-ws-nr-collapsed .cp-ws-card-subtitle {
+    display: none !important;
+  }
+
+  #pairings aside.result-palette .result-main-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  #pairings aside.result-palette .result-main-action {
+    min-height: 46px !important;
+    font-size: 16px !important;
+    font-weight: 800 !important;
+    border-radius: 10px !important;
+    padding: 6px 4px !important;
+  }
+
+  #pairings aside.result-palette .result-main-action small {
+    display: none !important;
+  }
+
+  #pairings aside.result-palette .cp-ws-palette-more-btn {
+    display: flex !important;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px !important;
+    background: #f1f5f9 !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #334155 !important;
+    font-size: 12.5px !important;
+    font-weight: 700 !important;
+    border-radius: 8px !important;
+  }
+
+  #pairings aside.result-palette:not(.cp-ws-palette-expanded) > :not(.result-palette-title):not(.result-main-grid):not(.cp-ws-palette-more-btn) {
+    display: none !important;
+  }
+
+  #pairings aside.result-palette.cp-ws-palette-expanded .result-admin-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+  }
+
+  #pairings aside.result-palette.cp-ws-palette-expanded #roundControlLog {
+    max-height: 120px;
+    overflow: auto;
+  }
+
+  #pairings .cp-ws-engine-bar {
+    padding: 10px !important;
+  }
+
+  /* 7. Standings (#standings) */
+  #standings .cp-ws-standings-main {
+    flex: 0 0 auto !important;
+    min-height: auto !important;
+  }
+
+  #standings .cp-ws-standings-main .table-frame {
+    min-height: 220px !important;
+    max-height: 55dvh;
+  }
+  #standings .cp-ws-strip-left {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  #standings .cp-ws-tb-wrap {
+    grid-column: 1 / -1;
+  }
+
+  #standings .cp-ws-kpi-chip {
+    justify-content: space-between;
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  #standings .final-standings-table th,
+  #standings .final-standings-table td {
+    padding: 8px 6px;
+    font-size: 13px;
+  }
+
+  /* 8. Schedule (#schedule) */
+  #schedule .schedule-table th,
+  #schedule .schedule-table td {
+    padding: 6px;
+    font-size: 13px;
+  }
+
+  #schedule .schedule-table input[type="datetime-local"],
+  #schedule .schedule-table input[type="text"],
+  #schedule .schedule-table input:not([type]) {
+    min-width: 150px;
+  }
+
+  #schedule .cp-ws-schedule-secondary .form-grid-4 {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  #schedule .cp-ws-schedule-secondary .form-grid-4 > label {
+    margin-top: 6px;
+    font-size: 12px;
+    color: #334155;
+  }
+
+  /* 9. Chess-Results (#chessresults) */
+  #chessresults.cp-ws-page.page.active {
+    padding-bottom: 24px !important;
+  }
+
+  #chessresults .cp-ws-strip-right {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  #chessresults .cp-ws-kpi-chip {
+    white-space: normal;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    padding: 6px 8px;
+  }
+
+  #chessresults .crpub-status-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  #chessresults #crXmlPublishButton {
+    width: 100%;
+    min-height: 46px;
+    font-size: 15px;
+  }
+
+  #chessresults .crpub-options-panel {
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-top: 8px;
+    box-shadow: none !important;
+    border: 1px solid #dbe2ea;
+    border-radius: 10px;
+    padding: 8px;
+    background: #f8fafc;
+  }
+
+  #chessresults .crpub-options-panel button:not([hidden]) {
+    min-height: 42px !important;
+    white-space: normal !important;
+    text-align: left;
+  }
+
+  /* 10. Other / Export (#exportPage) */
+  .cp-ws-export-cards-grid .report-export-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  .cp-ws-export-cards-grid .report-export-grid button {
+    min-height: 44px;
+    justify-content: center;
+    text-align: center;
+  }
+
+  /* 11. Mobile Bottom-Sheet Modals */
+  .modal-overlay,
+  .cp-modal-overlay,
+  .cloud-conflict-overlay {
+    padding: 8px !important;
+    align-items: flex-end !important;
+  }
+
+  .modal-window,
+  .cp-modal-card,
+  .cloud-conflict-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 92dvh !important;
+    border-radius: 16px !important;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.3) !important;
+  }
+
+  .modal-titlebar {
+    height: auto !important;
+    min-height: 44px;
+    padding: 10px 14px !important;
+    font-size: 15px !important;
+    background: #0f3d91 !important;
+    color: #ffffff !important;
+  }
+
+  .modal-body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 14px !important;
+  }
+
+  .modal-bottom,
+  .cp-modal-footer {
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom)) !important;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    background: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+  }
+
+  .modal-bottom button,
+  .cp-modal-footer button {
+    min-height: 42px !important;
+    flex: 1 1 110px;
+  }
+
+  .modal-window .form-grid,
+  .modal-window .form-grid-4 {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .cp-modal-close {
+    width: 36px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Hide Elo columns on phone Pairings table so Board/White/Pts/Result/Black/Pts fit cleanly */
+  #pairings .live-pairing-table .col-rating,
+  #pairings .live-pairing-table .rating-cell {
+    display: none !important;
+  }
+}
+
+@media (max-width: 420px) {
+  #appWindow #classicMenuBar .cp-user-name {
+    display: none;
+  }
+
+  #appWindow #classicMenuBar .cp-arbiter-link {
+    padding: 0 7px !important;
+    font-size: 11.5px !important;
+  }
+
+  .cp-ws-export-cards-grid .report-export-grid {
+    grid-template-columns: 1fr !important;
+  }
+}

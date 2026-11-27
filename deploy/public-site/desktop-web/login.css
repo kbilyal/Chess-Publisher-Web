@@ -35,8 +35,38 @@ button:disabled { cursor: progress; opacity: .65; }
 section h2 { margin-top: 0; }
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; border-bottom: 1px solid var(--line); padding: .55rem; }
-@media (max-width: 32rem) {
-  main { margin-top: 1.5rem; }
+@media (max-width: 640px) {
+  main {
+    margin: 1rem auto;
+    padding: 0 12px 2rem;
+  }
+  header { margin-bottom: 1rem; }
+  h1 { font-size: 1.65rem; }
+  form, section {
+    border-radius: 14px;
+    padding: 1.15rem;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+  }
+  input, select {
+    font-size: 16px;
+    min-height: 44px;
+    border-radius: 8px;
+  }
+  button, .secondary-link {
+    min-height: 44px;
+    border-radius: 8px;
+    justify-content: center;
+  }
+  .signed-in-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .signed-in-actions .secondary {
+    margin-left: 0;
+  }
+  #login-tournaments-list li {
+    padding: 4px 0;
+  }
   .fields { grid-template-columns: 1fr; gap: 0; }
 }
 

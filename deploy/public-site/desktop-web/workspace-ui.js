@@ -269,6 +269,20 @@
         pHead.appendChild(make('span', 'cp-ws-card-subtitle', 'Click row or 1/2/3'));
         palette.prepend(pHead);
       }
+      if (palette && !byId('cpMobilePaletteMoreBtn')) {
+        const moreBtn = make('button', 'cp-ws-palette-more-btn', 'Forfeit / Clear / Log ▾');
+        moreBtn.type = 'button';
+        moreBtn.id = 'cpMobilePaletteMoreBtn';
+        moreBtn.setAttribute('aria-expanded', 'false');
+        moreBtn.addEventListener('click', () => {
+          const expanded = palette.classList.toggle('cp-ws-palette-expanded');
+          moreBtn.setAttribute('aria-expanded', String(expanded));
+          moreBtn.textContent = expanded ? 'Hide extras ▲' : 'Forfeit / Clear / Log ▾';
+        });
+        const mainGrid = qs('.result-main-grid', palette);
+        if (mainGrid) mainGrid.insertAdjacentElement('afterend', moreBtn);
+        else palette.appendChild(moreBtn);
+      }
     }
 
     // Compact 1-Row Pairing Engine Strip
@@ -857,12 +871,19 @@
       tabBar.dataset.cpWsNavBound = '1';
       tabBar.setAttribute('role', 'tablist');
       const getVisibleTabs = () => qsa('.tab', tabBar).filter(el => el.style.display !== 'none');
+      let lastActiveTab = null;
       const syncTabAria = () => {
         getVisibleTabs().forEach(tab => {
           const active = tab.classList.contains('active');
           tab.setAttribute('role', 'tab');
           tab.setAttribute('aria-selected', String(active));
           tab.setAttribute('tabindex', active ? '0' : '-1');
+          if (active && tab !== lastActiveTab) {
+            lastActiveTab = tab;
+            if (typeof window.innerWidth === 'number' && window.innerWidth <= 768) {
+              try { tab.scrollIntoView?.({ behavior: 'smooth', inline: 'center', block: 'nearest' }); } catch (_) {}
+            }
+          }
         });
       };
       syncTabAria();
@@ -931,6 +952,42 @@
     }
   }
 
+  function enhanceMobileShell() {
+    const appWin = byId('appWindow');
+    const controls = qs('.desktop-status-controls');
+    if (!appWin || !controls || byId('cpMobileToolsToggle')) return;
+
+    const btn = make('button', 'cp-header-sync-btn cp-ws-mobile-tools-btn', 'More ▾');
+    btn.type = 'button';
+    btn.id = 'cpMobileToolsToggle';
+    btn.setAttribute('aria-expanded', 'false');
+    btn.setAttribute('aria-label', 'Toggle status and publishing tools');
+    btn.addEventListener('click', event => {
+      event.stopPropagation();
+      const open = appWin.classList.toggle('cp-ws-mobile-tools-open');
+      btn.setAttribute('aria-expanded', String(open));
+      btn.textContent = open ? 'Less ▲' : 'More ▾';
+    });
+    controls.appendChild(btn);
+
+    const cloudStatus = byId('cpWebCloudSaveStatus');
+    const syncAlert = () => {
+      if (!cloudStatus) return;
+      const st = cloudStatus.dataset?.cpCloudState || '';
+      const alert = st === 'conflict' ||
+        cloudStatus.classList.contains('cp-cloud-status-expired') ||
+        cloudStatus.classList.contains('cp-cloud-status-warn');
+      btn.classList.toggle('cp-ws-mobile-tools-alert', alert);
+    };
+    syncAlert();
+    if (cloudStatus && typeof MutationObserver === 'function') {
+      new MutationObserver(syncAlert).observe(cloudStatus, {
+        attributes: true,
+        attributeFilter: ['class', 'data-cp-cloud-state']
+      });
+    }
+  }
+
   function enhanceWorkspaceTabs() {
     enhancePairings();
     enhanceStandings();
@@ -939,6 +996,7 @@
     enhanceSchedule();
     enhanceExportPage();
     enhanceNavigationAndMenus();
+    enhanceMobileShell();
   }
 
   // Run after the desktop bundle's own DOMContentLoaded installers.
