@@ -195,6 +195,13 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
 
 
 #tieBreakCheckerBadge, #tieBreakCheckerActionBtn, #independentCheckerBadge, #independentCheckerPrepareBtn { display: none !important; }
+#fideModeBadge,
+#fideModeToggleBtn,
+#fideGlobalModeBadge,
+button[onclick*="showFideComplianceLog"],
+#main .tournament-general-box > .cp-ws-card-header > .cp-ws-card-header-right {
+  display: none !important;
+}
 
 /* ==========================================================================
    Lists & Players (#registration) Workspace-First Redesign
