@@ -7,6 +7,7 @@
   let running;
   let retryDelay = 2500;
   let authBlocked = false;
+  let exclusivePending = 0;
   let message = 'Cloud autosave on';
   let statusState = 'ok';
   const automaticEnabled = () => window.cpWebAutoSaveSyncEnabled?.() !== false;
@@ -56,8 +57,14 @@
       return false;
     }
     if (!automaticEnabled()) return false;
-    if (!navigator.onLine || window.__cpOnlineCloudBusy) {
+    if (!navigator.onLine || window.__cpOnlineCloudBusy || exclusivePending > 0) {
       if (!navigator.onLine) setCloudStatus('Offline · Cloud save pending', 'offline');
+      schedule(retryDelay);
+      return true;
+    }
+
+    const core = window.ChessPublisherCloudSyncInternals;
+    if (!core || typeof core.tournamentContentHash !== 'function' || typeof window.cpWebBackupTournament !== 'function') {
       schedule(retryDelay);
       return true;
     }
@@ -65,7 +72,6 @@
     window.__cpOnlineCloudBusy = true;
     let retry = false;
     try {
-      const core = window.ChessPublisherCloudSyncInternals;
       for (const [name, job] of [...pending]) {
         if (authBlocked || !automaticEnabled()) break;
         if (pending.get(name) !== job) continue;
@@ -142,7 +148,7 @@
   }
 
   function flush() {
-    if (running || authBlocked || !pending.size || !automaticEnabled()) return running;
+    if (running || authBlocked || exclusivePending > 0 || !pending.size || !automaticEnabled()) return running;
     clearTimeout(timer);
     running = saveBatch().finally(() => { running = undefined; });
     return running;
@@ -189,18 +195,24 @@
     while (running) await running;
   };
   window.cpWebRunCloudExclusive = async fn => {
-    clearTimeout(timer);
-    await window.cpWebWaitAutosaveIdle();
-    if (window.__cpOnlineCloudBusy) {
-      throw new Error('Another Cloud sync operation is already running.');
-    }
-    window.__cpOnlineCloudBusy = true;
+    exclusivePending += 1;
+    let acquired = false;
     try {
+      clearTimeout(timer);
+      await window.cpWebWaitAutosaveIdle();
+      if (window.__cpOnlineCloudBusy) {
+        throw new Error('Another Cloud sync operation is already running.');
+      }
+      window.__cpOnlineCloudBusy = true;
+      acquired = true;
       return await fn();
     } finally {
-      window.__cpOnlineCloudBusy = false;
-      await reconcileBlockedAndStatus();
-      if (pending.size && !authBlocked) schedule(250);
+      exclusivePending = Math.max(0, exclusivePending - 1);
+      if (acquired) {
+        window.__cpOnlineCloudBusy = false;
+        await reconcileBlockedAndStatus();
+        if (pending.size && !authBlocked) schedule(250);
+      }
     }
   };
   window.cpWebFlushAutosave = async () => {
@@ -222,10 +234,17 @@
     return true;
   };
 
-  window.addEventListener('online', () => schedule(0));
+  window.addEventListener('online', () => {
+    retryDelay = 2500;
+    schedule(0);
+  });
   window.addEventListener('pageshow', () => schedule(0));
+  window.addEventListener('pagehide', () => {
+    if (pending.size && !authBlocked && automaticEnabled() && navigator.onLine) flush();
+  });
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') schedule(0);
+    else if (document.visibilityState === 'hidden' && pending.size && !authBlocked && automaticEnabled() && navigator.onLine) flush();
   });
   document.addEventListener('DOMContentLoaded', () => {
     const toggle = document.getElementById('autosaveToggle');

@@ -82,14 +82,21 @@ async function request(path: string, options: {
 
   let response: Response;
   try {
+    const signal = typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+      ? AbortSignal.timeout(20000)
+      : undefined;
     response = await fetch(`${REMOTE_CLOUD_API_BASE}${path}`, {
       method: options.method || 'GET',
       headers,
       body,
       credentials: 'include',
-      cache: 'no-store'
+      cache: 'no-store',
+      ...(signal ? { signal } : {})
     });
   } catch (error: any) {
+    if (error?.name === 'TimeoutError' || error?.name === 'AbortError') {
+      throw new Error('Request timed out. Check your connection and press ↕ SYNC again.');
+    }
     throw new Error(error?.message || 'Arbiter Access is unavailable.');
   }
 

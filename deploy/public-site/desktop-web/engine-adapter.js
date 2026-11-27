@@ -1,5 +1,6 @@
 (() => {
   const engineVersion = '1.11.65';
+  const fatalWorkerErrorPattern = /Runtime asset|Pyodide|WebAssembly|out of memory|memory access|Aborted|unreachable|Unexpected Gacrux/i;
   let worker;
   let busy = false;
 
@@ -38,22 +39,25 @@
         clearTimeout(timer);
         active.removeEventListener('message', message);
         active.removeEventListener('error', failed);
+        active.removeEventListener('messageerror', messageError);
         if (resetWorker) { active.terminate(); worker = undefined; }
         busy = false;
         if (error) reject(error);
         else resolve(result);
       }
       function message({ data }) {
-        if (data.phase) return;
-        if (data.error) finish(new Error(data.error));
+        if (!data || data.phase) return;
+        if (data.error) finish(new Error(data.error), undefined, fatalWorkerErrorPattern.test(String(data.error)));
         else finish(null, data.result);
       }
       function failed() { finish(new Error('Gacrux could not load in this browser.'), undefined, true); }
+      function messageError() { finish(new Error('Gacrux worker communication failed. Retry pairing.'), undefined, true); }
       const timer = setTimeout(() => {
         finish(new Error('Gacrux exceeded the browser pairing time limit.'), undefined, true);
       }, 90_000);
       active.addEventListener('message', message);
       active.addEventListener('error', failed);
+      active.addEventListener('messageerror', messageError);
       active.postMessage(payload);
     });
   }

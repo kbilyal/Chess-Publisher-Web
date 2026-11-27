@@ -16,8 +16,10 @@ async function loadRuntime() {
     stderr: () => {}
   });
   const archives = [['gacrux.zip', '/gacrux.zip'], ['networkx.whl', '/networkx.whl']];
+  const archiveSignal = typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+    ? AbortSignal.timeout(30_000) : undefined;
   const archiveData = Promise.all(archives.map(async ([asset, path]) => {
-    const response = await fetch(new URL(`./runtime/${asset}`, import.meta.url));
+    const response = await fetch(new URL(`./runtime/${asset}`, import.meta.url), archiveSignal ? { signal: archiveSignal } : undefined);
     if (!response.ok) throw new Error('Runtime asset is missing.');
     return [path, new Uint8Array(await response.arrayBuffer())];
   }));
@@ -170,7 +172,7 @@ self.addEventListener('message', async event => {
     self.postMessage({ result: event.data?.type === 'standings' ? await checkStandings(event.data.request) : await draw(event.data) });
   } catch (error) {
     const message = error instanceof Error ? error.message :
-      'Жребият не завърши. Проверете TRF файла и опитайте отново.';
+      'Pairing did not complete. Check the tournament TRF data and try again.';
     self.postMessage({ error: message });
   }
 });

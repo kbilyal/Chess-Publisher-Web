@@ -285,7 +285,7 @@ html = replace_once(
     html, "<head>", '<head>\n'
     f'<script src="./auto-save-sync.js{asset_version("auto-save-sync.js")}"></script>\n'
     f'<script src="./host.js{asset_version("host.js")}"></script>\n'
-    '<script src="./fide-cache.js"></script>',
+    f'<script src="./fide-cache.js{asset_version("fide-cache.js")}"></script>',
 )
 html = replace_once(
     html,
@@ -885,20 +885,24 @@ for before, after in (
     html = replace_once(html, before, after)
 
 scripts = "\n".join(f'<script src="./{relative}"></script>' for relative in adapters)
+cr_v = asset_version("chess-results-browser-adapter.js")
+eng_v = asset_version("engine-adapter.js")
 reg_v = asset_version("registration-ui.js")
 ws_js_v = asset_version("workspace-ui.js")
 ws_css_v = asset_version("workspace.css")
+pdf_css_v = asset_version("pdf-export.css")
+pdf_js_v = asset_version("pdf-export.js")
 html = replace_once(
     html, "\n</body>\n</html>",
     "\n" + scripts
-    + '\n<script src="./chess-results-browser-adapter.js"></script>'
-    + '\n<script src="./engine-adapter.js"></script>'
+    + f'\n<script src="./chess-results-browser-adapter.js{cr_v}"></script>'
+    + f'\n<script src="./engine-adapter.js{eng_v}"></script>'
     + f'\n<script src="./autosave.js{asset_version("autosave.js")}"></script>'
     + f'\n<script src="./registration-ui.js{reg_v}"></script>'
     + f'\n<script src="./workspace-ui.js{ws_js_v}"></script>'
     + f'\n<link rel="stylesheet" href="./workspace.css{ws_css_v}">'
-    + '\n<link rel="stylesheet" href="./pdf-export.css">'
-    + '\n<script src="./pdf-export.js"></script>'
+    + f'\n<link rel="stylesheet" href="./pdf-export.css{pdf_css_v}">'
+    + f'\n<script src="./pdf-export.js{pdf_js_v}"></script>'
     + '\n</body>\n</html>',
 )
 (output / "workspace.html").write_text(html, encoding="utf-8")

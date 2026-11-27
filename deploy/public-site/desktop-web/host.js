@@ -75,11 +75,13 @@
     if (typeof listener === 'function') authClearListeners.add(listener);
   };
   let bridgeTokenCache = { token: '', expMs: 0 };
+  let bridgeTokenPromise = null;
 
   function clearAuthState() {
     allowed = false;
     window.cpDesktopWebAllowed = false;
     bridgeTokenCache = { token: '', expMs: 0 };
+    bridgeTokenPromise = null;
     secrets.clear();
     sessionStorage.removeItem(sessionKey);
     if (secretsKey) sessionStorage.removeItem(secretsKey);
@@ -156,25 +158,41 @@
     const nativeFetch = window.fetch.bind(window);
     const expectedOrganizer = session.user?.organizerId;
 
+    function withDefaultTimeout(signal, ms) {
+      if (typeof AbortSignal === 'undefined' || typeof AbortSignal.timeout !== 'function') return signal;
+      const timeoutSignal = AbortSignal.timeout(ms);
+      if (!signal) return timeoutSignal;
+      if (typeof AbortSignal.any === 'function') return AbortSignal.any([signal, timeoutSignal]);
+      return signal;
+    }
+
     async function getBridgeToken(forceRefresh = false) {
       if (!allowed) throw new Error('Signed out.');
       if (!forceRefresh && bridgeTokenCache.token && Date.now() < bridgeTokenCache.expMs - 60000) {
         return bridgeTokenCache.token;
       }
-      const res = await nativeFetch(`${apiBase}/api/auth/bridge-token`, {
-        method: 'POST',
-        headers: { Accept: 'application/json', 'X-Expected-Organizer': expectedOrganizer },
-        credentials: 'include',
-        cache: 'no-store'
+      if (bridgeTokenPromise) return bridgeTokenPromise;
+      bridgeTokenPromise = (async () => {
+        const signal = withDefaultTimeout(undefined, 15000);
+        const res = await nativeFetch(`${apiBase}/api/auth/bridge-token`, {
+          method: 'POST',
+          headers: { Accept: 'application/json', 'X-Expected-Organizer': expectedOrganizer },
+          credentials: 'include',
+          cache: 'no-store',
+          ...(signal ? { signal } : {})
+        });
+        const data = res.ok ? await res.json().catch(() => null) : null;
+        if (!res.ok || !data?.token) {
+          if (res.status === 401) void handleSessionExpired();
+          throw new Error(data?.message || 'Google session bridge token unavailable.');
+        }
+        const expMs = Number(data.exp) ? Number(data.exp) * 1000 : Date.now() + 14 * 60000;
+        bridgeTokenCache = { token: String(data.token), expMs };
+        return bridgeTokenCache.token;
+      })().finally(() => {
+        bridgeTokenPromise = null;
       });
-      const data = res.ok ? await res.json().catch(() => null) : null;
-      if (!res.ok || !data?.token) {
-        if (res.status === 401) void handleSessionExpired();
-        throw new Error(data?.message || 'Google session bridge token unavailable.');
-      }
-      const expMs = Number(data.exp) ? Number(data.exp) * 1000 : Date.now() + 14 * 60000;
-      bridgeTokenCache = { token: String(data.token), expMs };
-      return bridgeTokenCache.token;
+      return bridgeTokenPromise;
     }
 
     window.fetch = async (input, init) => {
@@ -217,9 +235,13 @@
           if (!allowed) throw new Error('Signed out.');
           headers.set('X-Expected-Organizer', expectedOrganizer);
         }
+        const existingSignal = init?.signal || (input instanceof Request ? input.signal : undefined);
+        const timeoutMs = /(?:\/snapshot|\/regulations-file)$/.test(effectivePath) ? 45000 : 25000;
+        const signal = withDefaultTimeout(existingSignal, timeoutMs);
         const nextInit = {
           ...init,
           ...(effectiveMethod ? { method: effectiveMethod } : {}),
+          ...(signal ? { signal } : {}),
           headers,
           credentials: 'include'
         };
@@ -246,13 +268,16 @@
         if (!authHeader || authHeader.trim() === `Bearer ${COOKIE_SENTINEL}`) {
           const bridgeToken = await getBridgeToken(false);
           headers.set('Authorization', `Bearer ${bridgeToken}`);
-          const nextInit = { ...init, headers };
+          const existingSignal = init?.signal || (input instanceof Request ? input.signal : undefined);
+          const signal = withDefaultTimeout(existingSignal, 45000);
+          const nextInit = { ...init, ...(signal ? { signal } : {}), headers };
           const retry = input instanceof Request ? input.clone() : input;
           const res = await nativeFetch(input, nextInit);
           if (res.status === 401) {
             const refreshed = await getBridgeToken(true);
             headers.set('Authorization', `Bearer ${refreshed}`);
-            return nativeFetch(retry, { ...nextInit, headers });
+            const retrySignal = withDefaultTimeout(existingSignal, 45000);
+            return nativeFetch(retry, { ...nextInit, ...(retrySignal ? { signal: retrySignal } : {}), headers });
           }
           return res;
         }
@@ -581,29 +606,38 @@
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-modal', 'true');
 
+    const close = () => {
+      document.removeEventListener?.('keydown', onKeyDown);
+      overlay.remove();
+    };
+    const onKeyDown = event => {
+      if (event.key === 'Escape') close();
+    };
+
     const card = makeEl('div', 'cp-modal-card');
     const header = makeEl('div', 'cp-modal-header');
     header.append(makeEl('strong', 'cp-modal-title', titleText));
     const closeBtn = makeEl('button', 'cp-modal-close', '×');
     closeBtn.type = 'button';
     closeBtn.setAttribute('aria-label', 'Close dialog');
-    closeBtn.addEventListener('click', () => overlay.remove());
+    closeBtn.addEventListener('click', close);
     header.append(closeBtn);
 
     const body = makeEl('div', 'cp-modal-body');
     const footer = makeEl('div', 'cp-modal-footer');
     const doneBtn = makeEl('button', 'cp-modal-btn-secondary', 'Close');
     doneBtn.type = 'button';
-    doneBtn.addEventListener('click', () => overlay.remove());
+    doneBtn.addEventListener('click', close);
     footer.append(doneBtn);
 
     card.append(header, body, footer);
     overlay.append(card);
     overlay.addEventListener('click', event => {
-      if (event.target === overlay) overlay.remove();
+      if (event.target === overlay) close();
     });
+    document.addEventListener?.('keydown', onKeyDown);
     document.body?.append(overlay);
-    return { overlay, body, footer, close: () => overlay.remove() };
+    return { overlay, body, footer, close };
   }
 
   async function openHistoryModal(tournamentId, tournamentName) {
@@ -734,11 +768,15 @@
     const sessionsWrap = makeEl('div', 'cp-arbiter-sessions-wrap');
     modal.body.append(intro, controlsRow, shareBox, sessionsWrap);
 
+    let hasActiveGrant = false;
+    revokeBtn.disabled = true;
+
     function renderGrantStatus(info) {
       const grant = info?.grant || null;
+      hasActiveGrant = !!grant;
       const sessions = Array.isArray(info?.sessions) ? info.sessions : [];
       const pendingCount = Number(info?.pendingResults || 0);
-      revokeBtn.disabled = !grant;
+      revokeBtn.disabled = !hasActiveGrant;
       createBtn.textContent = grant ? 'Rotate Guest Link & QR' : 'Create Guest Link & QR';
       if (info?.accessUrl) {
         linkInput.value = info.accessUrl;
@@ -794,6 +832,7 @@
         statusLine.textContent = error?.message || 'Could not create Guest Arbiter link.';
       } finally {
         createBtn.disabled = false;
+        revokeBtn.disabled = !hasActiveGrant;
       }
     });
 
@@ -816,14 +855,30 @@
         statusLine.textContent = error?.message || 'Could not revoke Guest Arbiter access.';
       } finally {
         createBtn.disabled = false;
+        revokeBtn.disabled = !hasActiveGrant;
       }
     });
 
-    try {
-      await loadStatus();
-    } catch (error) {
-      statusLine.textContent = error?.message || 'Could not load Guest Arbiter status.';
+    let retryBtn = null;
+    async function refreshStatusWithRetry() {
+      if (retryBtn) retryBtn.disabled = true;
+      try {
+        await loadStatus();
+        retryBtn?.remove();
+        retryBtn = null;
+      } catch (error) {
+        revokeBtn.disabled = true;
+        statusLine.textContent = error?.message || 'Could not load Guest Arbiter status.';
+        if (!retryBtn) {
+          retryBtn = makeEl('button', 'cp-user-action-btn', 'Retry');
+          retryBtn.type = 'button';
+          retryBtn.addEventListener('click', () => { void refreshStatusWithRetry(); });
+          statusLine.insertAdjacentElement('afterend', retryBtn);
+        }
+        retryBtn.disabled = false;
+      }
     }
+    await refreshStatusWithRetry();
   }
 
   window.cpWebOpenArbiterAccessModal = openArbiterAccessModal;
@@ -1022,45 +1077,52 @@
       }
     }
 
+    let manualSyncPromise = null;
     async function runManualSync() {
-      if (sessionExpired) {
-        await persistLocalUnsavedChangesQuietly();
-        location.replace('./');
-        return;
-      }
-      const headerSyncBtn = document.getElementById('cpWebHeaderSyncBtn');
-      if (headerSyncBtn) { headerSyncBtn.disabled = true; headerSyncBtn.textContent = 'Syncing…'; }
-      try {
-        let handled = false;
-        if (typeof window.downloadWebEnteredResults === 'function' && typeof window.cpCloudDownloadWebResults === 'function') {
-          const ok = await window.downloadWebEnteredResults();
-          handled = true;
-          if (!ok && window.cpCloudGetStatus?.()?.state === 'CONFLICT' && typeof window.cpCloudResolveConflict === 'function') {
-            window.cpCloudResolveConflict();
-          }
-        } else if (typeof window.cpCloudDownloadWebResults === 'function') {
-          const run = () => window.cpCloudDownloadWebResults();
-          const res = await (window.cpWebRunCloudExclusive ? window.cpWebRunCloudExclusive(run) : run());
-          handled = true;
-          if (res?.conflict && typeof window.cpCloudResolveConflict === 'function') {
-            window.cpCloudResolveConflict();
-          }
-        } else if (typeof window.cpCloudSyncUnifiedNow === 'function') {
-          await window.cpCloudSyncUnifiedNow();
-          handled = true;
+      if (manualSyncPromise) return manualSyncPromise;
+      manualSyncPromise = (async () => {
+        if (sessionExpired) {
+          await persistLocalUnsavedChangesQuietly();
+          location.replace('./');
+          return;
         }
-        if (!handled) {
-          throw new Error('Cloud sync service is not ready yet.');
+        const headerSyncBtn = document.getElementById('cpWebHeaderSyncBtn');
+        if (headerSyncBtn) { headerSyncBtn.disabled = true; headerSyncBtn.textContent = 'Syncing…'; }
+        try {
+          let handled = false;
+          if (typeof window.downloadWebEnteredResults === 'function' && typeof window.cpCloudDownloadWebResults === 'function') {
+            const ok = await window.downloadWebEnteredResults();
+            handled = true;
+            if (!ok && window.cpCloudGetStatus?.()?.state === 'CONFLICT' && typeof window.cpCloudResolveConflict === 'function') {
+              window.cpCloudResolveConflict();
+            }
+          } else if (typeof window.cpCloudDownloadWebResults === 'function') {
+            const run = () => window.cpCloudDownloadWebResults();
+            const res = await (window.cpWebRunCloudExclusive ? window.cpWebRunCloudExclusive(run) : run());
+            handled = true;
+            if (res?.conflict && typeof window.cpCloudResolveConflict === 'function') {
+              window.cpCloudResolveConflict();
+            }
+          } else if (typeof window.cpCloudSyncUnifiedNow === 'function') {
+            await window.cpCloudSyncUnifiedNow();
+            handled = true;
+          }
+          if (!handled) {
+            throw new Error('Cloud sync service is not ready yet.');
+          }
+          if (loadedTournaments) await loadUserTournaments(true);
+        } catch (error) {
+          const msg = error?.message || 'Cloud synchronization failed.';
+          if (typeof setStatus === 'function') setStatus(msg);
+          if (typeof window.appAlert === 'function') await window.appAlert(msg, 'Cloud Sync', 'warning');
+        } finally {
+          if (headerSyncBtn) { headerSyncBtn.disabled = false; headerSyncBtn.textContent = '↻ Sync'; }
+          try { document.dispatchEvent(new CustomEvent('cp:hub-ui-updated')); } catch {}
         }
-        if (loadedTournaments) await loadUserTournaments(true);
-      } catch (error) {
-        const msg = error?.message || 'Cloud synchronization failed.';
-        if (typeof setStatus === 'function') setStatus(msg);
-        if (typeof window.appAlert === 'function') await window.appAlert(msg, 'Cloud Sync', 'warning');
-      } finally {
-        if (headerSyncBtn) { headerSyncBtn.disabled = false; headerSyncBtn.textContent = '↻ Sync'; }
-        try { document.dispatchEvent(new CustomEvent('cp:hub-ui-updated')); } catch {}
-      }
+      })().finally(() => {
+        manualSyncPromise = null;
+      });
+      return manualSyncPromise;
     }
 
     window.cpWebRunManualSync = runManualSync;
@@ -1095,6 +1157,13 @@
 
     document.addEventListener('click', event => {
       if (!panel.hidden && !wrap.contains(event.target)) {
+        panel.hidden = true;
+        toggle.setAttribute('aria-expanded', 'false');
+      }
+    });
+
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && !panel.hidden) {
         panel.hidden = true;
         toggle.setAttribute('aria-expanded', 'false');
       }
@@ -1135,9 +1204,11 @@
   document.addEventListener('DOMContentLoaded', () => {
     if (!allowed) return;
     if (isCookieMode && typeof window.fetch === 'function') {
+      let verifyPromise = null;
       const verifyAccount = () => {
         if (!allowed || sessionExpired) return;
-        return window.fetch(`${apiBase}/api/auth/me?optional=1`, {
+        if (verifyPromise) return verifyPromise;
+        verifyPromise = window.fetch(`${apiBase}/api/auth/me?optional=1`, {
           headers: { Accept: 'application/json' },
           credentials: 'include',
           cache: 'no-store',
@@ -1152,7 +1223,10 @@
           } else if (res.status === 401 || (data?.ok === true && data.authenticated === false)) {
             await handleSessionExpired();
           }
-        }).catch(() => {});
+        }).catch(() => {}).finally(() => {
+          verifyPromise = null;
+        });
+        return verifyPromise;
       };
       void verifyAccount();
       window.addEventListener('focus', verifyAccount);

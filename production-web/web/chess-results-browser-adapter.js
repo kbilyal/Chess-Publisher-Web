@@ -159,6 +159,7 @@
   async function post(operation,payload,token){
     let response;
     try{
+      const signal=typeof AbortSignal!=="undefined"&&typeof AbortSignal.timeout==="function"?AbortSignal.timeout(45000):undefined;
       response=await fetch(API_PREFIX+operation,{
         method:"POST",
         mode:"cors",
@@ -169,9 +170,13 @@
         },
         body:JSON.stringify(payload||{}),
         cache:"no-store",
-        credentials:"omit"
+        credentials:"omit",
+        ...(signal?{signal}:{})
       });
-    }catch(_){
+    }catch(error){
+      if(error?.name==="TimeoutError"||error?.name==="AbortError"){
+        throw new Error("Chess-Results request timed out. Check your connection and retry; your TNR binding is preserved.");
+      }
       throw new Error("Chess-Results backend not connected. The secure Worker route is unavailable.");
     }
     let result={};

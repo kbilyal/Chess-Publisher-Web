@@ -151,7 +151,11 @@
     const pageLabelKey = '--cp-pdf-page-label';
     const originalTitle = document.title;
     const previousMarkup = [...root.childNodes];
+    let restored = false;
     const restore = () => {
+      if (restored) return;
+      restored = true;
+      window.removeEventListener('afterprint', restore);
       root.replaceChildren(...previousMarkup);
       document.title = originalTitle;
       if (pageLabel) pageStyle.removeProperty(pageLabelKey);
@@ -162,8 +166,8 @@
     window.addEventListener('afterprint', restore, { once: true });
     try {
       window.print();
+      return restore;
     } catch (error) {
-      window.removeEventListener('afterprint', restore);
       restore();
       throw error;
     }
@@ -290,6 +294,7 @@
       }
     };
     const resize = new ResizeObserver(fitPaper);
+    let activePrintRestore = null;
     d.addEventListener('change', draw);
     d.addEventListener('click', event => {
       const button = event.target.closest('button');
@@ -313,7 +318,7 @@
         const reportName = isStandings ? 'Final Standings' : heading;
         const filename = `${data.currentTournament} - ${reportName}${isPairings ? ` - Round ${round}` : ''}`;
         if (txtPreview) {
-          printReport(`<div class="print-doc final-txt-print"><pre class="final-txt-pre">${html(txtPreview.textContent)}</pre></div>`, filename);
+          activePrintRestore = printReport(`<div class="print-doc final-txt-print"><pre class="final-txt-pre">${html(txtPreview.textContent)}</pre></div>`, filename);
           return;
         }
         const options = read();
@@ -321,10 +326,12 @@
         else if (isPlayers) saveStartingListExportOptions(options);
         else savePairingsExportOptions(options);
         const pageLabel = isPairings ? `${data.currentTournament} · Round ${round}` : '';
-        printReport(paper.innerHTML, filename, pageLabel);
+        activePrintRestore = printReport(paper.innerHTML, filename, pageLabel);
       }
     });
     d.addEventListener('close', () => {
+      activePrintRestore?.();
+      activePrintRestore = null;
       resize.disconnect();
       d.remove();
       trigger?.focus();

@@ -47,20 +47,56 @@ type ExternalResultNotice = {
   pendingDraft?: ArbiterSubmissionResult;
 };
 
+function safeReadStorage(area: Storage | undefined, key: string) {
+  try {
+    return area?.getItem(key) || '';
+  } catch {
+    return '';
+  }
+}
+
+function safeWriteStorage(area: Storage | undefined, key: string, value: string) {
+  try {
+    area?.setItem(key, value);
+  } catch {}
+}
+
+function safeRemoveStorage(area: Storage | undefined, key: string) {
+  try {
+    area?.removeItem(key);
+  } catch {}
+}
+
 function accessCodeFromUrl() {
   return new URLSearchParams(window.location.search).get('arbiter')?.trim() || '';
 }
 
 function deviceId() {
-  const existing = localStorage.getItem(DEVICE_KEY);
+  const existing = safeReadStorage(localStorage, DEVICE_KEY);
   if (existing) return existing;
   const id = `arbiter-web:${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
-  localStorage.setItem(DEVICE_KEY, id);
+  safeWriteStorage(localStorage, DEVICE_KEY, id);
   return id;
 }
 
 function sessionStorageKey(accessCode: string) {
   return `cp.arbiter.session.${accessCode.slice(0, 20)}`;
+}
+
+function loadSavedDrafts(key: string): Record<string, string> {
+  const raw = safeReadStorage(typeof sessionStorage !== 'undefined' ? sessionStorage : undefined, key);
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const valid: Record<string, string> = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      if (typeof v === 'string' && isAllowedSubmissionResult(v)) valid[k] = v;
+    }
+    return valid;
+  } catch {
+    return {};
+  }
 }
 
 function latestRound(view: ArbiterTournamentView | null) {
@@ -141,13 +177,14 @@ function snapshotResults(view: ArbiterTournamentView) {
 export const ArbiterPortal: React.FC = () => {
   const accessCode = useMemo(accessCodeFromUrl, []);
   const storageKey = useMemo(() => sessionStorageKey(accessCode), [accessCode]);
-  const [sessionToken, setSessionToken] = useState(() => accessCode ? localStorage.getItem(storageKey) || '' : '');
+  const draftsStorageKey = `${storageKey}.drafts`;
+  const [sessionToken, setSessionToken] = useState(() => accessCode ? safeReadStorage(localStorage, storageKey) : '');
   const [name, setName] = useState('');
   const [view, setView] = useState<ArbiterTournamentView | null>(null);
   const [sessionName, setSessionName] = useState('');
   const [activeRound, setActiveRound] = useState(0);
   const [followNewestRound, setFollowNewestRound] = useState(true);
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [drafts, setDrafts] = useState<Record<string, string>>(() => accessCode ? loadSavedDrafts(`${storageKey}.drafts`) : {});
   const [boardQuery, setBoardQuery] = useState('');
   const [expandedExtras, setExpandedExtras] = useState<Record<string, boolean>>({});
   const [overwriteConfirmation, setOverwriteConfirmation] = useState<OverwriteConfirmation | null>(null);
@@ -159,6 +196,11 @@ export const ArbiterPortal: React.FC = () => {
   const overwriteApprovalsRef = useRef<Record<string, OverwriteApproval>>({});
   const observedResultsRef = useRef<Record<string, ResultObservation> | null>(null);
   const ownResultWritesRef = useRef<Record<string, string>>({});
+  const loadInFlightRef = useRef(false);
+  const busyRef = useRef(false);
+  const sessionTokenRef = useRef(sessionToken);
+  busyRef.current = busy;
+  sessionTokenRef.current = sessionToken;
 
   const newestRound = latestRound(view);
   useEffect(() => {
@@ -180,6 +222,8 @@ export const ArbiterPortal: React.FC = () => {
 
   const loadTournament = async (token = sessionToken, quiet = false) => {
     if (!token) return;
+    if (quiet && (!navigator.onLine || document.visibilityState === 'hidden' || loadInFlightRef.current || busyRef.current)) return;
+    loadInFlightRef.current = true;
     if (!quiet) setBusy(true);
     try {
       const response = await arbiterApi.tournament(token);
@@ -189,7 +233,9 @@ export const ArbiterPortal: React.FC = () => {
       return response.tournament;
     } catch (error: any) {
       if (error?.status === 401 || error?.status === 403) {
-        localStorage.removeItem(storageKey);
+        safeRemoveStorage(localStorage, storageKey);
+        safeRemoveStorage(typeof sessionStorage !== 'undefined' ? sessionStorage : undefined, draftsStorageKey);
+        setDrafts({});
         setSessionToken('');
         setView(null);
         setMessage('This Arbiter Access session is no longer valid. Ask the organizer for a new QR code.');
@@ -198,12 +244,33 @@ export const ArbiterPortal: React.FC = () => {
       }
       throw error;
     } finally {
+      loadInFlightRef.current = false;
       if (!quiet) setBusy(false);
     }
   };
 
   useEffect(() => {
-    const onOnline = () => setOnline(true);
+    if (!accessCode) return;
+    const area = typeof sessionStorage !== 'undefined' ? sessionStorage : undefined;
+    if (Object.keys(drafts).length) safeWriteStorage(area, draftsStorageKey, JSON.stringify(drafts));
+    else safeRemoveStorage(area, draftsStorageKey);
+  }, [accessCode, drafts, draftsStorageKey]);
+
+  useEffect(() => {
+    if (!Object.keys(drafts).length) return;
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warnBeforeUnload);
+    return () => window.removeEventListener('beforeunload', warnBeforeUnload);
+  }, [drafts]);
+
+  useEffect(() => {
+    const onOnline = () => {
+      setOnline(true);
+      if (sessionTokenRef.current) void loadTournament(sessionTokenRef.current, true).catch(() => undefined);
+    };
     const onOffline = () => setOnline(false);
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);
@@ -211,6 +278,7 @@ export const ArbiterPortal: React.FC = () => {
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -302,7 +370,9 @@ export const ArbiterPortal: React.FC = () => {
     setMessage('');
     try {
       const response = await arbiterApi.join(accessCode, name.trim(), deviceId());
-      localStorage.setItem(storageKey, response.sessionToken);
+      try {
+        localStorage.setItem(storageKey, response.sessionToken);
+      } catch {}
       setSessionToken(response.sessionToken);
       setSessionName(response.session.name);
       setMessage(`Welcome, ${response.session.name}.`);
@@ -630,6 +700,11 @@ export const ArbiterPortal: React.FC = () => {
           <Loader2 size={28} className="spin" />
           <h1>Loading tournament…</h1>
           {message && <p>{message}</p>}
+          {!busy && message && (
+            <button type="button" className="arbiter-primary" onClick={() => void loadTournament(sessionToken).catch(() => undefined)}>
+              Retry connection
+            </button>
+          )}
         </section>
       </main>
     );

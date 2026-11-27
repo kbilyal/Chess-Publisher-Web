@@ -728,7 +728,9 @@
         try {
           await navigator.clipboard.writeText(st.publicUrl);
           if (typeof window.setStatus === 'function') window.setStatus('Public tournament link copied.');
-        } catch {}
+        } catch {
+          if (typeof window.setStatus === 'function') window.setStatus('Could not copy link automatically.');
+        }
       });
       hRight.append(pubBtn, openBtn, copyBtn);
       header.append(hLeft, hRight);

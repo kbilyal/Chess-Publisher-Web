@@ -11,8 +11,17 @@
       const header = store.get(key);
       let snapshot;
       let missingChunk = false;
-      transaction.onabort = () => reject(transaction.error || new Error('Rating-list cache read aborted.'));
+      let settled = false;
+      const fail = error => {
+        if (settled) return;
+        settled = true;
+        reject(error);
+      };
+      transaction.onerror = () => fail(transaction.error || new Error('Rating-list cache read failed.'));
+      transaction.onabort = () => fail(transaction.error || new Error('Rating-list cache read aborted.'));
       transaction.oncomplete = () => {
+        if (settled) return;
+        settled = true;
         if (missingChunk) reject(new Error('The stored rating-list generation is incomplete.'));
         else resolve(snapshot);
       };
@@ -41,8 +50,19 @@
     return new Promise((resolve, reject) => {
       const transaction = db.transaction(storeName, 'readwrite');
       const store = transaction.objectStore(storeName);
-      transaction.oncomplete = () => resolve(true);
-      transaction.onabort = () => reject(transaction.error || new Error('Atomic rating-list write aborted.'));
+      let settled = false;
+      const fail = error => {
+        if (settled) return;
+        settled = true;
+        reject(error);
+      };
+      transaction.oncomplete = () => {
+        if (settled) return;
+        settled = true;
+        resolve(true);
+      };
+      transaction.onerror = () => fail(transaction.error || new Error('Atomic rating-list write failed.'));
+      transaction.onabort = () => fail(transaction.error || new Error('Atomic rating-list write aborted.'));
       try {
         // A single structured clone of the full FIDE list can exceed Chromium's
         // per-record message limit. Enqueue bounded records in the same transaction.
@@ -53,8 +73,8 @@
         }
         if (activation) store.put(activation.pointer, activation.key);
       } catch (error) {
-        reject(error);
-        transaction.abort();
+        fail(error);
+        try { transaction.abort(); } catch {}
       }
     });
   }
