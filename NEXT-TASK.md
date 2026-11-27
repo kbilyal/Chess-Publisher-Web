@@ -26,6 +26,8 @@ The public homepage navigation now has a deployment check for the WEB Companion 
 
 The full public Web workspace and Web Companion now share the official Chess-Results Worker. The official Test acceptance completed for TNR 1548947, including create, publish, update, Admin and Upload Data. The release runbook records production CreatorID assignments and verified legacy enrollment requirements.
 
+For the automatic CreatorID candidate, verify two authorized accounts without configured CreatorIDs against disposable Chess-Results test tournaments before production acceptance. Confirm that retry preserves each TNR and that account-scoped ownership checks still reject the other organizer.
+
 Creator XML examples have been reviewed and their required non-pairing and PAB mappings are covered by the Chess-Results publication contract test.
 
 The public Web startup screen is Organizer-Token-only; the `Continue without Cloud` bypass was removed without changing installed/Desktop local workflows.

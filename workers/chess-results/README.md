@@ -18,7 +18,7 @@ The browser sends the authenticated user's Organizer Token in the `Authorization
 
 The full Web workspace at `https://chess-publisher.org/app/` builds from the pinned Windows desktop HTML and uses its tournament validation, snapshot builder and publication UI. Both that workspace and the Web Companion on `web.chess-publisher.org` call the Worker directly with their signed-in Organizer Token.
 
-The official protocol uses Source ID `21` and a stable CreatorID assigned to each organizer. Test tournaments use federation `XXX`. The Worker persists each GETKEY allocation under the organizer and stable `clientId`. A retry returns the same TNR. A transport failure during GETKEY leaves the request pending for operator reconciliation because the provider may already have allocated a key.
+The official protocol uses Source ID `21` and a stable CreatorID for each authenticated organizer. The Worker uses established assignments from its configuration and automatically registers a unique CreatorID for organizers without one. The registry persists the assignment in the existing SQLite Durable Object namespace. Test tournaments use federation `XXX`. The Worker persists each GETKEY allocation under the organizer and stable `clientId`. A retry returns the same TNR. A transport failure during GETKEY leaves the request pending for operator reconciliation because the provider may already have allocated a key.
 
 The Worker issues signed organizer-scoped ownership proofs. A second browser can recover a Web-created TNR through `claim`. A Desktop TNR or a TNR from the previous Worker can be recovered after explicit server enrollment and verification that it appears in that organizer's synchronized tournament. The Cloud snapshot alone cannot confer Chess-Results ownership.
 
@@ -51,12 +51,12 @@ Configure these as Worker secrets, never as public Wrangler variables:
 - `CHESS_RESULTS_AES_KEY`
 - `CHESS_RESULTS_AES_IV`
 - `CHESS_RESULTS_OWNERSHIP_HMAC_SECRET`
-- `CHESS_RESULTS_CREATOR_MAP`
+- `CHESS_RESULTS_CREATOR_MAP` for established organizer assignments
 - `CHESS_RESULTS_LEGACY_TNRS` when migrating existing tournaments
 
 The AES secrets accept `base64:<value>`, `hex:<value>`, a JSON byte array, or a comma-separated byte list. Use the official values supplied for this source.
 
-Set `CHESS_RESULTS_CREATOR_MAP` to a JSON object mapping authenticated Hub organizer IDs to unique CreatorIDs assigned for Source ID 21. Keep each assignment stable. Example with fictitious IDs:
+Retain `CHESS_RESULTS_CREATOR_MAP` as a JSON object mapping existing Hub organizer IDs to their assigned CreatorIDs for Source ID 21. Keep these assignments stable. New accounts receive automatically registered IDs and require no map entry. Example with fictitious IDs:
 
 ```json
 {"organizer-example-1": 100, "organizer-example-2": 101}

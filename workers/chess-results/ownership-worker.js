@@ -2,6 +2,7 @@ import bridgeWorker, {
   AUTHENTICATED_ORGANIZER, BridgeError, corsHeaders, createOwnershipProof,
   creatorMapping, legacyRegistration, normalizeCreateInput, originAllowed, verifiedOwnership,
 } from './worker.js';
+import { FIRST_AUTOMATIC_CREATOR_ID } from './tnr-journal.js';
 
 const SOURCE_ID = 21;
 const text = value => String(value ?? '').trim();
@@ -73,16 +74,16 @@ async function authenticatedOrganizerId(request, env) {
 function scopedEnv(env, organizerId) {
   return new Proxy(env, {
     get(target, property) {
-      if (property === AUTHENTICATED_ORGANIZER) return { organizerId };
+      if (property === AUTHENTICATED_ORGANIZER) return { organizerId, resolveCreatorId: () => resolveCreatorId(env, organizerId) };
       return Reflect.get(target, property);
     },
   });
 }
 
-async function journal(env, organizerId, operation, body) {
+async function journal(env, name, operation, body) {
   const namespace = env.CHESS_RESULTS_JOURNAL;
   if (!namespace) throw new BridgeError(503, 'TNR_JOURNAL_UNAVAILABLE', 'Chess-Results TNR storage is unavailable.');
-  const stub = namespace.get(namespace.idFromName(organizerId));
+  const stub = namespace.get(namespace.idFromName(name));
   const response = await stub.fetch('https://journal.internal/' + operation, {
     method: 'POST',
     body: JSON.stringify(body),
@@ -90,6 +91,14 @@ async function journal(env, organizerId, operation, body) {
   const result = await response.json();
   if (!response.ok) throw new BridgeError(response.status, result.code, result.message);
   return result;
+}
+
+async function resolveCreatorId(env, organizerId) {
+  const configuredId = creatorMapping(env, organizerId);
+  if (configuredId !== null && configuredId < FIRST_AUTOMATIC_CREATOR_ID) return configuredId;
+
+  const { creatorId } = await journal(env, 'system:chess-results-creator-registry', 'creator-id', { organizerId, configuredId });
+  return creatorId;
 }
 
 async function ownershipResult(env, organizerId, creatorId, key, input) {
@@ -316,8 +325,7 @@ export default {
     if (!operation) return bridgeWorker.fetch(request, authenticated);
 
     try {
-      const creatorId = creatorMapping(env, organizerId);
-      if (operation === 'upload-diagnostic') return uploadDiagnostic(request, env, organizerId, creatorId);
+      if (operation === 'upload-diagnostic') return uploadDiagnostic(request, env, organizerId, await resolveCreatorId(env, organizerId));
       if (!request.headers.get('Content-Type')?.toLowerCase().includes('application/json')) {
         throw new BridgeError(415, 'JSON_REQUIRED', 'Chess-Results Worker accepts JSON requests only.');
       }
@@ -325,11 +333,12 @@ export default {
       if (!body || typeof body !== 'object' || Array.isArray(body)) {
         throw new BridgeError(400, 'INVALID_JSON', 'Request body must be a JSON object.');
       }
-      if (operation === 'claim') return await claimTnr(request, env, organizerId, creatorId, body);
+      if (operation === 'claim') return await claimTnr(request, env, organizerId, await resolveCreatorId(env, organizerId), body);
 
       const preflightFailure = createPreflightFailure(env);
       if (preflightFailure) return json({ ok: false, ...preflightFailure }, 500, headers);
       const input = normalizeCreateInput(body);
+      const creatorId = await resolveCreatorId(env, organizerId);
       const { key, recovered } = await journal(env, organizerId, 'allocate', { input, creatorId });
       return json({ ...await ownershipResult(env, organizerId, creatorId, key, input), recovered }, 200, headers);
     } catch (error) {

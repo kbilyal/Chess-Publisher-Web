@@ -1,5 +1,7 @@
 # Chess-Publisher Web — Project State
 
+The Chess-Results Worker candidate registers a stable CreatorID for each authenticated organizer who lacks a configured assignment. Existing choices and original tournament ownership proofs are preserved. The Worker regression covers concurrent allocation, retries, publication and cross-organizer rejection.
+
 The current local SYNC candidate passes the isolated Worker and browser runtime tests. The active Freeze Guard remains FAIL and the proposed hashes are recorded separately. Real two-account Google acceptance, the Windows WebView roundtrip, and verification of the production Worker source mapping are still open. See the [final SYNC verification report](docs/FINAL-SYNC-VERIFICATION-2026-11-24.md).
 
 The 2026-11-24 production parity candidate requires Hub API confirmation before signing out from the public site and Web workspace. A failed request keeps the session available for retry. Chromium verifies account switching, stale-tab invalidation and Cloud isolation with two fixture accounts. Linux Architecture 34/34, Desktop–Web Parity 11/11 and the zero-Critical/High npm audit passed. The protected SYNC hash mismatches predate the candidate and real two-account acceptance remains pending. See [AI_HANDOVER.md](AI_HANDOVER.md).
