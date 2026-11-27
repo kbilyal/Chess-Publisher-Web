@@ -1,4 +1,5 @@
 import { organizerTournamentStorageKey } from '../cloud/organizerTournamentStorage';
+import { autoSaveSyncEnabled, setAutoSaveSyncEnabled, watchAutoSaveSync } from '../cloud/autoSaveSyncPreference';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
@@ -60,6 +61,8 @@ function readTournament(): Tournament {
 
 export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
   const [tournament, setTournament] = useState<Tournament>(readTournament);
+  const [savedTournament, setSavedTournament] = useState(tournament);
+  const [automatic, setAutomatic] = useState(autoSaveSyncEnabled);
   const [activeTab, setActiveTab] = useState<CompanionTab>('setup');
   const [busy, setBusy] = useState<BusyAction>(null);
   const [message, setMessage] = useState('');
@@ -68,12 +71,26 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
   const [pendingConflictFields, setPendingConflictFields] = useState<string[]>([]);
   const tournamentRef = useRef(tournament);
   const chessResultsPublishLockRef = useRef(false);
+  const unsaved = tournament !== savedTournament;
 
   useEffect(() => { tournamentRef.current = tournament; }, [tournament]);
   useEffect(() => { if (!cloud.conflict) setPendingConflictFields([]); }, [cloud.conflict]);
+  useEffect(() => watchAutoSaveSync(setAutomatic), []);
   useEffect(() => {
-    localStorage.setItem(organizerTournamentStorageKey(STORAGE_KEY), JSON.stringify(tournament));
-  }, [tournament]);
+    if (unsaved && automatic && autoSaveSyncEnabled()) {
+      try { saveDraft(tournament); }
+      catch { setNotice('error', 'Could not save this tournament in the browser.'); }
+    }
+  }, [tournament, automatic, unsaved]);
+  useEffect(() => {
+    if (!unsaved) return;
+    const confirmClose = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', confirmClose);
+    return () => window.removeEventListener('beforeunload', confirmClose);
+  }, [unsaved]);
 
   const updateTournament = (updater: (previous: Tournament) => Tournament) => {
     setTournament(previous => updater(previous));
@@ -106,22 +123,31 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
 
   const adoptSynchronizedTournament = () => {
     const synchronized = readTournament();
+    setSavedTournament(synchronized);
     setTournament(synchronized);
     tournamentRef.current = synchronized;
     return synchronized;
   };
 
+  function saveDraft(current = tournamentRef.current) {
+    localStorage.setItem(organizerTournamentStorageKey(STORAGE_KEY), JSON.stringify(current));
+    setSavedTournament(current);
+    return current;
+  }
+
+  const checkpointForCloudAction = () => autoSaveSyncEnabled() ? tournamentRef.current : saveDraft();
+
   const persistTournament = (next: Tournament) => {
+    saveDraft(next);
     setTournament(next);
     tournamentRef.current = next;
-    localStorage.setItem(organizerTournamentStorageKey(STORAGE_KEY), JSON.stringify(next));
   };
 
   const unifiedSync = async () => {
     setBusy('sync');
     setMessage('');
     try {
-      const current = tournamentRef.current;
+      const current = checkpointForCloudAction();
       const state = await cloud.checkStatus(current);
       if (state?.kind === 'remote-changes') {
         const result = await cloud.pullChanges(current);
@@ -157,9 +183,10 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
     setBusy('pull');
     setMessage('');
     try {
+      const current = checkpointForCloudAction();
       const result = strategy === 'safe'
-      ? await cloud.resolveConflict(tournamentRef.current)
-      : await cloud.resolveConflictWithStrategy(tournamentRef.current, strategy);
+        ? await cloud.resolveConflict(current)
+        : await cloud.resolveConflictWithStrategy(current, strategy);
       adoptSynchronizedTournament();
       if (result?.kind === 'needs-choice') {
         const fields = Array.isArray(result.conflicts) ? result.conflicts : [];
@@ -192,7 +219,7 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
     setBusy('hub');
     setMessage('');
     try {
-      await cloud.syncNow(tournamentRef.current);
+      await cloud.syncNow(checkpointForCloudAction());
       const synchronized = adoptSynchronizedTournament();
       await cloud.publishOnline(synchronized);
       adoptSynchronizedTournament();
@@ -224,7 +251,7 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
     setBusy('cr-publish');
     setMessage('');
     try {
-      await cloud.syncNow(tournamentRef.current);
+      await cloud.syncNow(checkpointForCloudAction());
       const current = adoptSynchronizedTournament();
       const initial = buildChessResultsXml(current);
       const clientId = 'cp-replace-' + oldKey;
@@ -342,7 +369,7 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
         persistTournament(transition);
       }
 
-      await cloud.syncNow(tournamentRef.current);
+      await cloud.syncNow(checkpointForCloudAction());
       const current = adoptSynchronizedTournament();
       const identityAfterSync = {
         cloudTournamentId: String((current as any)?.cloud?.cloudTournamentId || '').trim(),
@@ -486,14 +513,16 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
     setMessage('');
     try {
       await cloud.openPublicPage(tournamentRef.current);
-      adoptSynchronizedTournament();
+      if (!unsaved || autoSaveSyncEnabled()) adoptSynchronizedTournament();
     } catch (error: any) {
       setNotice('error', error?.message || 'Could not open the public Hub page.');
     }
   };
 
   const leaveTournament = async () => {
-    if (cloud.cloudDirty) {
+    if (unsaved) {
+      if (!window.confirm('Leave this tournament and discard the unsaved changes?')) return;
+    } else if (cloud.cloudDirty) {
       const leave = window.confirm('Web has local changes that may not be confirmed in Cloud yet. Leave this tournament without forcing a hidden Push?');
       if (!leave) return;
     }
@@ -562,6 +591,26 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
       </header>
 
       <main className="companion-main">
+        <div className="companion-auto-save">
+          <label className="companion-auto-save-switch">
+            <input type="checkbox" role="switch" checked={automatic} onChange={event => {
+              const enabled = setAutoSaveSyncEnabled(event.target.checked);
+              setAutomatic(enabled);
+              if (enabled !== event.target.checked) setNotice('error', 'Could not change the shared browser setting.');
+            }} />
+            <span className="companion-auto-save-slider" aria-hidden="true" />
+            <span>AutoSave &amp; Sync</span>
+          </label>
+          {!automatic && (
+            <div className="companion-manual-save">
+              <span role="status">{unsaved ? 'Unsaved changes' : 'Paused'}</span>
+              <button type="button" className="companion-button secondary" disabled={!unsaved || busy !== null || cloud.busy} onClick={() => {
+                try { saveDraft(); setNotice('ok', 'Saved in this browser.'); }
+                catch { setNotice('error', 'Could not save this tournament in the browser.'); }
+              }}>Save</button>
+            </div>
+          )}
+        </div>
         {cloud.conflict && (
           <div className="companion-alert warn companion-conflict-alert">
             <WifiOff size={18} />
@@ -613,7 +662,7 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
 
         {activeTab === 'setup' && (
           <div className="companion-content-frame companion-setup-frame">
-            <CompanionSetup tournament={tournament} onUpdateTournament={updateTournament} />
+            <CompanionSetup tournament={tournament} onUpdateTournament={updateTournament} automatic={automatic} onBeforePublish={checkpointForCloudAction} />
           </div>
         )}
 

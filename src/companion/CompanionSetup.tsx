@@ -7,6 +7,8 @@ import { useOnlineCloud } from '../cloud/OnlineCloudProviderV2';
 interface Props {
   tournament: Tournament;
   onUpdateTournament: (updater: (previous: Tournament) => Tournament) => void;
+  automatic: boolean;
+  onBeforePublish: () => Tournament;
 }
 
 type UsefulLink = { label: string; url: string };
@@ -34,7 +36,7 @@ function classifyTimeControl(value: string, fallback: RatingType): RatingType {
   return 'Standard';
 }
 
-export const CompanionSetup: React.FC<Props> = ({ tournament, onUpdateTournament }) => {
+export const CompanionSetup: React.FC<Props> = ({ tournament, onUpdateTournament, automatic, onBeforePublish }) => {
   const cloud = useOnlineCloud();
   const [linksStatus, setLinksStatus] = useState('');
   const settings = tournament.settings;
@@ -80,7 +82,7 @@ export const CompanionSetup: React.FC<Props> = ({ tournament, onUpdateTournament
       ...previous,
       regulations: { ...previous.regulations, usefulLinks: links.slice(0, MAX_USEFUL_LINKS) } as any
     }));
-    setLinksStatus('Saved locally · Cloud autosync pending');
+    setLinksStatus('');
   };
 
   const editUsefulLink = (index: number, field: keyof UsefulLink, value: string) => {
@@ -109,7 +111,7 @@ export const CompanionSetup: React.FC<Props> = ({ tournament, onUpdateTournament
     }
     setLinksStatus('Publishing links to Tournament Hub…');
     try {
-      await cloud.publishOnline(tournament);
+      await cloud.publishOnline(onBeforePublish());
       setLinksStatus(`Published ${complete.length} link${complete.length === 1 ? '' : 's'} to Tournament Hub.`);
     } catch (error: any) {
       setLinksStatus(error?.message || 'Hub publish failed.');
@@ -276,12 +278,16 @@ export const CompanionSetup: React.FC<Props> = ({ tournament, onUpdateTournament
               <button type="button" className="companion-hub-link-add" onClick={addUsefulLink} disabled={usefulLinks.length >= MAX_USEFUL_LINKS}><Plus size={16} /> + Add link</button>
               <button type="button" className="companion-hub-link-publish" onClick={() => void publishUsefulLinks()} disabled={cloud.busy}><CloudUpload size={16} /> {cloud.busy ? 'Publishing…' : 'Publish links to Hub'}</button>
             </div>
-            <div className="companion-hub-links-status" role="status">{linksStatus || 'Changes save automatically. Publish when you want the public Hub page updated.'}</div>
+            <div className="companion-hub-links-status" role="status">{linksStatus || (automatic
+              ? 'Changes save automatically. Publish to update the public Hub page.'
+              : 'Use Save to keep your edits in this browser, or Publish to update the public Hub page.')}</div>
           </div>
         </div>
       </section>
 
-      <div className="companion-setup-footnote"><Globe2 size={16} /><span>Edits are saved locally immediately. Cloud autosync is push-only; Pull Cloud → Web is always explicit and never overwrites Web changes silently.</span></div>
+      <div className="companion-setup-footnote"><Globe2 size={16} /><span>{automatic
+        ? 'Edits save locally and are pushed to private Cloud when safe. Use SYNC to pull Cloud changes.'
+        : 'Use Save to keep edits in this browser, or SYNC to save and reconcile them with private Cloud.'}</span></div>
     </div>
   );
 };

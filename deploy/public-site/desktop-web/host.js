@@ -25,6 +25,8 @@
   }
   window.cpDesktopWebAllowed = allowed;
   window.cpDesktopWebAuthMode = isCookieMode ? 'cookie' : 'none';
+  window.cpWebAutoSaveSyncScope = allowed ? `cpstudio.organizer:${encodeURIComponent(session.user.organizerId)}:` : '';
+  window.cpWebAutoSaveSyncEnabled = () => window.cpAutoSaveSync?.isEnabled(window.cpWebAutoSaveSyncScope) !== false;
 
   const namespace = allowed ? `cp-desktop-web:${session.scope}:` : '';
   window.cpWebStorage = allowed ? {

@@ -30,6 +30,13 @@ html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
 #cpWebCloudSaveStatus.cp-cloud-status-warn { background: rgba(251, 191, 36, 0.28); color: #fef3c7; }
 #cpWebCloudSaveStatus.cp-cloud-status-expired { background: rgba(248, 113, 113, 0.3); color: #fee2e2; cursor: pointer; }
 #cpWebCloudSaveStatus[data-cp-cloud-state="conflict"] { cursor: pointer; }
+#cpWebCloudSaveStatus[data-cp-cloud-state="paused"] { background: rgba(148, 163, 184, 0.24); }
+.autosave-switch input:focus-visible + .autosave-slider { outline: 2px solid #2563eb; outline-offset: 3px; }
+@media (max-width: 700px) {
+  .autosave-switch { min-height: 34px; }
+  .autosave-switch .autosave-text { font-size: 9px; }
+  #cpWebCloudSaveStatus[data-cp-cloud-state="paused"] { display: none; }
+}
 .cp-header-sync-btn {
   height: 22px;
   padding: 0 8px;

@@ -16,6 +16,8 @@ The organizer Companion shows registered players as touch-friendly cards at widt
 
 The public Web registration can resolve an exact FIDE ID through the online directory when the browser's monthly rating list has no matching row. An exact local match still supplies the ratings first. The unified search remains in control when the imported-list hooks retry on startup. The Companion ranks exact IDs ahead of prefixes, can reach the directory when a cached prefix is the only match, and ignores earlier responses after the search text changes.
 
+Web and organizer Companion share a default-on AutoSave & Sync switch per organizer in the same browser. With the switch off, routine local saves and background uploads pause. Explicit Save and SYNC remain available. Re-enabling uses the existing save and Cloud queues to reconcile pending work. The shared preference is stored by the browser across the two ChessPublisher hosts.
+
 The `/app/` source uses the same export dialog for Pairings TXT and PDF, Standings TXT and PDF, and Starting List PDF. The fixed-width TXT previews feed the file download and print actions. Standings uses its existing ranking report and fixed-width text builders. The mobile menu grows when its controls wrap so Sign out stays above the workspace tabs (Issue #93).
 
 Pairings → SYNC in the public workspace waits for Cloud autosave before synchronizing. The browser regression exercises a new-round upload while the automatic save is in progress.

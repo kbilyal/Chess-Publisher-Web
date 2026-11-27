@@ -10,6 +10,8 @@ Keep the guest touch result-entry checks for phone and tablet layouts, legible b
 
 Keep the organizer Companion mobile browser coverage for setup section shortcuts, FIDE and manual registration, roster action sizes, and a scrollable player editor on short screens.
 
+Keep browser tests for the shared AutoSave & Sync switch across the two hosts, account-specific preferences, local Save with automatic uploads paused, and resumed Cloud scheduling.
+
 Keep the `/app/` browser checks for mobile menu clearance and exports when updating the pinned workspace. Pairings and Standings TXT previews must match the download and print output. Standings PDF must print the ranking shown in the shared preview.
 
 Keep the Pairings browser smoke when updating the pinned workspace, including new-round synchronization during an in-flight Cloud autosave. It verifies the shared log styling, live readiness and result updates, and the resort action on the Pairings toolbar.

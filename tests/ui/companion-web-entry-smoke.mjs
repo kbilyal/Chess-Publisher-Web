@@ -23,7 +23,7 @@ const fidePlayer = {
 };
 const portalSource = 'deploy/public-site/desktop-web';
 const snapshot = { data: { currentTournament: tournament.name, tournaments: {
-  [tournament.name]: createInitialEmptyTournament(tournament.name)
+  [tournament.name]: { ...createInitialEmptyTournament(tournament.name), cloud: { internalId: tournament.localKey } }
 } } };
 
 async function configure(context, googleClientId = Promise.resolve('fixture')) {
@@ -32,6 +32,7 @@ async function configure(context, googleClientId = Promise.resolve('fixture')) {
   let latestArbiterRound = 0;
   const arbiterResults = new Map();
   const arbiterRoundSizes = new Map();
+  const savedTournaments = new Map();
   const calls = [];
   await context.route('**/*', route => route.abort());
   await context.route(`${web}/**`, route => {
@@ -42,9 +43,12 @@ async function configure(context, googleClientId = Promise.resolve('fixture')) {
     // This fixture uses the real sign-in page and workspace host. The desktop
     // tournament shell is exercised separately by the public-site browser smoke.
     if (path === '/app/workspace.html') return route.fulfill({ contentType: 'text/html', body:
-      '<script src="./host.js"></script><nav id="classicMenuBar"></nav><output id="workspace-status"></output>' +
+      '<script src="./auto-save-sync.js"></script><script src="./host.js"></script>' +
+      '<nav id="classicMenuBar"></nav><output id="workspace-status"></output>' +
+      '<label><input type="checkbox" role="switch" id="autosaveToggle">AutoSave &amp; Sync</label><script src="./autosave.js"></script>' +
       '<script>function setStatus(message) { document.querySelector("#workspace-status").textContent = message; }</script>' });
-    const files = { '/app/': 'login.html', '/app/login.mjs': 'login.mjs', '/app/login.css': 'login.css', '/app/host.js': 'host.js' };
+    if (path === '/app/auto-save-sync.js') return route.fulfill({ path: 'src/cloud/autoSaveSyncStore.js' });
+    const files = { '/app/': 'login.html', '/app/login.mjs': 'login.mjs', '/app/login.css': 'login.css', '/app/host.js': 'host.js', '/app/autosave.js': 'autosave.js' };
     return files[path] ? route.fulfill({ path: resolve(portalSource, files[path]) }) : route.abort();
   });
   await context.route(`${companion}/**`, route => {
@@ -83,8 +87,8 @@ async function configure(context, googleClientId = Promise.resolve('fixture')) {
     const headers = {
       'access-control-allow-origin': origin || web,
       'access-control-allow-credentials': 'true',
-      'access-control-allow-methods': 'GET, OPTIONS, POST',
-      'access-control-allow-headers': 'Authorization, Content-Type, X-Expected-Organizer'
+      'access-control-allow-methods': 'GET, OPTIONS, POST, PUT',
+      'access-control-allow-headers': 'Authorization, Content-Type, X-Expected-Organizer, X-Expected-Revision'
     };
     const reply = (json, status = 200) => route.fulfill({ headers, json, status });
     if (request.method() === 'OPTIONS') return route.fulfill({ headers, status: 204 });
@@ -142,14 +146,25 @@ async function configure(context, googleClientId = Promise.resolve('fixture')) {
     }
     if (!googleSession && bearer !== `Bearer ${token}`) return reply({ error: 'unauthorized' }, 401);
     const organizer = googleSession || user;
-    const owned = organizer === secondUser ? secondTournament : tournament;
+    const initial = organizer === secondUser ? secondTournament : tournament;
+    const record = savedTournaments.get(initial.id) || { tournament: initial, snapshot };
+    const owned = record.tournament;
     if (path.endsWith('/workspace')) return reply({ ok: true, organizer: { id: organizer.organizerId, displayName: organizer.name } });
     if (path.endsWith('/archived')) return reply({ ok: true, tournaments: [] });
     if (path.endsWith('/tournaments')) return reply({ ok: true, tournaments: [owned] });
     if (path.startsWith('/api/v1/cloud/tournaments/') && !path.split('/').includes(owned.id)) {
       return reply({ ok: false, error: 'not_found' }, 404);
     }
-    if (path.endsWith('/snapshot')) return reply({ ok: true, tournament: owned, snapshot });
+    if (path.endsWith('/snapshot')) {
+      if (request.method() === 'PUT') {
+        const update = request.postDataJSON();
+        if (update.baseRevision !== owned.revision) return reply({ ok: false, error: 'cloud_revision_conflict' }, 409);
+        const revised = { ...owned, revision: owned.revision + 1 };
+        savedTournaments.set(owned.id, { tournament: revised, snapshot: update.snapshot });
+        return reply({ ok: true, tournament: revised, revision: revised.revision });
+      }
+      return reply({ ok: true, ...record });
+    }
     return reply({ ok: true, tournament: owned });
   });
   return {
@@ -468,6 +483,39 @@ try {
   const signOut = page.getByRole('button', { name: 'Sign Out', exact: true });
 
   await page.waitForURL(activeWorkspace);
+  const webAuto = page.getByRole('switch', { name: 'AutoSave & Sync' });
+  const companionAuto = googleCompanion.getByRole('switch', { name: 'AutoSave & Sync' });
+  assert.equal(await companionAuto.isChecked(), true);
+  await webAuto.uncheck();
+  await googleCompanion.waitForFunction(() => !document.querySelector('.companion-auto-save-switch input').checked);
+  const localCity = () => googleCompanion.evaluate(key => JSON.parse(localStorage.getItem(key)).settings.city, draftKey);
+  const beforePause = await localCity();
+  const snapshotUploads = () => googleCalls.filter(call => call.method === 'PUT' && call.path.endsWith('/snapshot')).length;
+  await googleCompanion.getByLabel('City').fill('Paused Companion edit');
+  await googleCompanion.getByRole('status').filter({ hasText: 'Unsaved changes' }).waitFor();
+  assert.equal(await localCity(), beforePause);
+  await googleCompanion.getByRole('button', { name: 'Save', exact: true }).tap();
+  assert.equal(await localCity(), 'Paused Companion edit');
+  // Let both the storage observer and Cloud debounce run after the local save.
+  await googleCompanion.waitForFunction(() => document.querySelector('.companion-sidebar-status')?.textContent.includes('Cloud sync pending'), null, { timeout: 5000 });
+  const beforeResume = snapshotUploads();
+  await googleCompanion.waitForTimeout(1400);
+  assert.equal(snapshotUploads(), beforeResume, 'Manual Save must not upload while the shared switch is off.');
+  const successfulUpload = response => response.ok() && response.request().method() === 'PUT' && new URL(response.url()).pathname.endsWith('/snapshot');
+  const resumedUpload = googleCompanion.waitForResponse(successfulUpload);
+  await googleCompanion.locator('.companion-auto-save-switch').tap();
+  assert.equal(await companionAuto.isChecked(), true);
+  await page.waitForFunction(() => document.querySelector('#autosaveToggle').checked);
+  await resumedUpload;
+  await webAuto.uncheck();
+  await googleCompanion.waitForFunction(() => !document.querySelector('.companion-auto-save-switch input').checked);
+  await googleCompanion.getByLabel('City').fill('Companion manual SYNC');
+  assert.equal(await localCity(), 'Paused Companion edit');
+  const manualUpload = googleCompanion.waitForResponse(successfulUpload);
+  await googleCompanion.locator('.companion-topbar [data-unified-sync]').tap();
+  await manualUpload;
+  await googleCompanion.getByText('↕ SYNC complete: Web-only change pushed to Cloud.').waitFor();
+  assert.equal(await localCity(), 'Companion manual SYNC');
   const workspaceSession = await readSession();
   assert.equal(JSON.parse(workspaceSession).authMode, 'cookie');
   failNextLogout({ ok: false, error: 'unavailable' }, 503);
@@ -488,6 +536,7 @@ try {
   await page.goto(accountUrl);
   await page.getByRole('button', { name: 'Google fixture sign-in' }).click();
   await page.waitForURL(`${web}/app/workspace.html`);
+  await page.waitForFunction(() => !document.querySelector('#autosaveToggle').checked);
   await page.goto(accountUrl);
   await signOut.waitFor();
   const accountSession = await readSession();
@@ -510,6 +559,7 @@ try {
   await page.goto(accountUrl);
   await page.getByRole('button', { name: 'Second Google fixture account' }).click();
   await page.waitForURL(`${web}/app/workspace.html`);
+  assert.equal(await webAuto.isChecked(), true, 'A different organizer starts with its own default setting.');
   await page.goto(accountUrl);
   await page.getByText(secondUser.name, { exact: true }).waitFor();
   assert.equal(await page.locator('#google-auth-section').isVisible(), false);
@@ -610,4 +660,4 @@ try {
   await browser.close();
 }
 
-console.log('PASS guest invitation, touch result entry, batch SYNC and corrections, new-round refresh, Web organizer entry, mobile registration and Setup editing, Google sign-out and retry, account switching and Cloud isolation, legacy Companion handoff and navigation.');
+console.log('PASS guest invitation, touch result entry, batch SYNC and corrections, new-round refresh, Web organizer entry, mobile registration and Setup editing, shared AutoSave & Sync, Google sign-out and retry, account switching and Cloud isolation, legacy Companion handoff and navigation.');
