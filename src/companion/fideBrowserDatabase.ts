@@ -29,6 +29,8 @@ let databasePromise: Promise<Database> | null = null;
 let manifestPromise: Promise<BrowserFideManifest | null> | null = null;
 const remoteSearchCache = new Map<string, Promise<FidePlayerRecord[]>>();
 
+export const isCompleteFideId = (query: string) => /^\d{5,15}$/.test(query);
+
 async function latestManifest(): Promise<BrowserFideManifest | null> {
   if (!manifestPromise) {
     manifestPromise = (async () => {
@@ -298,6 +300,9 @@ async function searchFidePublicMirror(query: string, limit: number): Promise<Fid
   })();
 
   remoteSearchCache.set(cacheKey, pending);
+  void pending.then(players => {
+    if (numeric && !players.length && remoteSearchCache.get(cacheKey) === pending) remoteSearchCache.delete(cacheKey);
+  });
   if (remoteSearchCache.size > 100) {
     const oldestKey = remoteSearchCache.keys().next().value;
     if (oldestKey) remoteSearchCache.delete(oldestKey);
@@ -350,7 +355,8 @@ export async function searchFideBrowserDatabase(query: string, tournamentType: '
         : tournamentType === 'Blitz'
           ? 'rating_blitz DESC, rating_standard DESC, name ASC'
           : 'rating_standard DESC, name ASC';
-      const sql = `SELECT fide_id, name, federation, title, gender, birth, rating_standard, rating_rapid, rating_blitz, flag FROM fide_players WHERE ${conditions.join(' AND ')} ORDER BY ${order} LIMIT :limit;`;
+      const exactFirst = numeric ? '(fide_id = :exact_id) DESC, ' : '';
+      const sql = `SELECT fide_id, name, federation, title, gender, birth, rating_standard, rating_rapid, rating_blitz, flag FROM fide_players WHERE ${conditions.join(' AND ')} ORDER BY ${exactFirst}${order} LIMIT :limit;`;
       const statement = db.prepare(sql);
       statement.bind(bindings);
       try {
@@ -377,7 +383,8 @@ export async function searchFideBrowserDatabase(query: string, tournamentType: '
     // A missing/corrupt packaged database must not disable player lookup.
   }
 
-  if (trustedLocal && localResults.length > 0) {
+  const needsExactLookup = isCompleteFideId(q) && !localResults.some(player => String(player.fideId) === q);
+  if (trustedLocal && localResults.length > 0 && !needsExactLookup) {
     return rankFideSearchResults(q, localResults, tournamentType, safeLimit);
   }
 

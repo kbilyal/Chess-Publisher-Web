@@ -12,7 +12,7 @@ import {
   isStartingRankLocked
 } from '../transactions/playerWorkflow';
 import { downloadPlayersXml } from '../importers/playersXml';
-import { getFideBrowserDatabaseInfo, searchFideBrowserDatabase } from './fideBrowserDatabase';
+import { getFideBrowserDatabaseInfo, isCompleteFideId, rankFideSearchResults, searchFideBrowserDatabase } from './fideBrowserDatabase';
 import { federationFlag } from './federationFlag';
 import { getPlayerPublicationOrder } from '../publication/playerPublicationOrder';
 
@@ -31,19 +31,24 @@ const ratingFor = (record: FidePlayerRecord, type: 'Standard' | 'Rapid' | 'Blitz
   type === 'Rapid' ? Number(record.ratingRapid || 0) : type === 'Blitz' ? Number(record.ratingBlitz || 0) : Number(record.ratingStandard || 0);
 
 async function searchFidePlayers(query: string, ratingType: 'Standard' | 'Rapid' | 'Blitz') {
+  let servicePlayers: FidePlayerRecord[] = [];
   try {
     const response = await fetch(`/api/fide/search?limit=20&tournamentType=${encodeURIComponent(ratingType)}&filterRating=all&q=${encodeURIComponent(query)}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const payload = await response.json();
     if (Array.isArray(payload?.players) && payload.players.length > 0) {
-      return { players: payload.players as FidePlayerRecord[], source: 'service' as const };
+      servicePlayers = payload.players;
+      if (!isCompleteFideId(query) || servicePlayers.some(player => String(player.fideId) === query)) {
+        return { players: servicePlayers, source: 'service' as const };
+      }
     }
   } catch {
     // Static production intentionally falls through to the packaged FIDE database
     // and its public FIDE-data fallback.
   }
-  const players = await searchFideBrowserDatabase(query, ratingType, 20);
-  return { players, source: 'static-db' as const };
+  const browserPlayers = await searchFideBrowserDatabase(query, ratingType, 20);
+  const merged = new Map([...browserPlayers, ...servicePlayers].map(player => [player.fideId, player]));
+  return { players: rankFideSearchResults(query, [...merged.values()], ratingType, 20), source: 'browser' as const };
 }
 
 async function lookupFidePlayerById(fideId: number, ratingType: 'Standard' | 'Rapid' | 'Blitz'): Promise<FidePlayerRecord | null> {
@@ -103,7 +108,6 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
   const [manual, setManual] = useState({ firstName: '', lastName: '', fideId: '', fed: 'BUL', rating: '', birth: '', title: '' as FideTitle, gender: 'm' as Gender });
   const [editingPlayer, setEditingPlayer] = useState<import('../types').Player | null>(null);
   const [editDraft, setEditDraft] = useState({ name: '', fideId: '', fed: 'BUL', rating: '', birth: '', title: '' as FideTitle, gender: 'm' as Gender });
-  const debounceRef = useRef<number | null>(null);
   const editDialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -156,28 +160,30 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
 
   useEffect(() => {
     const q = query.trim();
-    if (debounceRef.current) window.clearTimeout(debounceRef.current);
+    setResults([]);
     if (q.length < 2) {
-      setResults([]);
       setSearching(false);
       return;
     }
+    let current = true;
+    setNotice(null);
     setSearching(true);
-    debounceRef.current = window.setTimeout(async () => {
+    const timer = window.setTimeout(async () => {
       try {
         const result = await searchFidePlayers(q, ratingType);
+        if (!current) return;
         setResults(result.players);
         if (!result.players.length) setNotice({ kind: 'warn', text: 'No FIDE players found. You can add the player manually.' });
-        else if (result.source === 'static-db') setNotice({ kind: 'ok', text: 'FIDE search is using the locally cached official rating database.' });
+        else if (result.source === 'browser') setNotice({ kind: 'ok', text: 'FIDE search used the browser database or online directory.' });
       } catch {
-        setResults([]);
-        setNotice({ kind: 'warn', text: 'FIDE search is unavailable. Manual registration remains available.' });
+        if (current) setNotice({ kind: 'warn', text: 'FIDE search is unavailable. Manual registration remains available.' });
       } finally {
-        setSearching(false);
+        if (current) setSearching(false);
       }
     }, 220);
     return () => {
-      if (debounceRef.current) window.clearTimeout(debounceRef.current);
+      current = false;
+      window.clearTimeout(timer);
     };
   }, [query, ratingType]);
 

@@ -209,9 +209,25 @@ async function checkTouchOrganizerEditing(page, draftKey) {
   await page.getByLabel('URL', { exact: true }).last().fill('https://example.com/map');
   await nav.getByRole('button', { name: 'Players' }).tap();
   const search = page.getByRole('textbox', { name: 'Name or FIDE ID' });
+  const prefix = String(fidePlayer.fideId).slice(0, -1);
+  const delayedSearch = url => url.origin === companion && url.pathname === '/api/fide/search' && url.searchParams.get('q') === prefix;
+  const { promise: prefixReady, resolve: markPrefixReady } = Promise.withResolvers();
+  const { promise: prefixReply, resolve: releasePrefix } = Promise.withResolvers();
+  await page.route(delayedSearch, async route => {
+    markPrefixReady();
+    await prefixReply;
+    await route.fulfill({ json: { players: [{ ...fidePlayer, fideId: Number(prefix), name: 'Older prefix response' }] } });
+  });
+  await search.fill(prefix);
+  await prefixReady;
   await search.fill(String(fidePlayer.fideId));
   const add = page.getByRole('button', { name: 'Add', exact: true });
   await add.waitFor();
+  const oldResponse = page.waitForResponse(response => delayedSearch(new URL(response.url())));
+  releasePrefix();
+  await (await oldResponse).finished();
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  assert.equal(await page.getByText('Older prefix response').count(), 0);
   await checkTarget(add);
   await add.tap();
   await page.getByRole('status').filter({ hasText: `${fidePlayer.name} registered` }).waitFor();

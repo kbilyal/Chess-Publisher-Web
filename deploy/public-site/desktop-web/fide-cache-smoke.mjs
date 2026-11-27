@@ -39,16 +39,45 @@ try {
   };
   await page.route('https://api.chess-publisher.org/**', handleApiRoute);
   await page.route('https://chess-publisher-hub-api-beta.kyamranbilyal.workers.dev/**', handleApiRoute);
+  const directoryRequests = [];
+  await page.route('https://lichess.org/api/fide/player/*', route => {
+    const id = new URL(route.request().url()).pathname.split('/').at(-1);
+    directoryRequests.push(id);
+    return route.fulfill({
+      headers: { 'access-control-allow-origin': '*' },
+      json: { id: 1503014, name: 'Carlsen, Magnus', federation: 'NOR', gender: 'M', year: 1990, title: 'GM', standard: 2819, rapid: 2801, blitz: 2860 },
+    });
+  });
   await page.goto(new URL('workspace.html', url).href);
-  await page.waitForFunction(() => Boolean(window.cpBeta98R7 && window.cpWebFideCache));
+  const name = page.getByRole('textbox', { name: 'Tournament name', exact: true });
+  await name.fill('FIDE lookup test');
+  await name.press('Enter');
+  await page.locator('#createScreen').waitFor({ state: 'hidden' });
+  await page.locator('#tabRegistration').click();
+  assert.equal(await page.evaluate(() => {
+    cpBeta98.installSearchIntegration();
+    return window.queueFideSearch === cpBeta98R7.queueUnifiedSearch;
+  }), true, 'The startup retry must leave the unified renderer in charge.');
 
   async function type(query) {
-    await page.locator(search).evaluate((input, value) => {
-      input.value = value;
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-    }, query);
+    await page.locator(search).fill(query);
   }
 
+  await type('Carlsen');
+  await page.locator(results).filter({ hasText: 'No player found' }).waitFor({ state: 'attached' });
+
+  assert.deepEqual(await page.evaluate(async () => {
+    const config = cpBeta98R7.readConfig();
+    cpBeta98R7.saveConfig({ ...config, directory: false });
+    try { return await cpBeta98R7.unifiedSearch('1503014'); }
+    finally { cpBeta98R7.saveConfig(config); }
+  }), [], 'Respect the setting that excludes the online directory.');
+  assert.deepEqual(directoryRequests, []);
+
+  await type('1503014');
+  await page.locator(results).filter({ hasText: 'FIDE Standard: 2819' }).waitFor({ state: 'attached' });
+  assert.deepEqual(directoryRequests, ['1503014']);
+  assert.deepEqual(await page.evaluate(() => cpBeta98R7.unifiedSearch('123456789')), [], 'The directory must return the requested ID.');
   await type('Carlsen');
   await page.locator(results).filter({ hasText: 'No player found' }).waitFor({ state: 'attached' });
 
@@ -66,6 +95,7 @@ try {
   await page.locator(results).filter({ hasText: 'Carlsen, Magnus' }).waitFor({ state: 'attached' });
   await type('1503014');
   await page.locator(results).filter({ hasText: 'FIDE Standard: 2823' }).waitFor({ state: 'attached' });
+  assert.deepEqual(directoryRequests, ['1503014', '123456789'], 'Use the active monthly list when it has the exact ID.');
 
   const saved = await page.evaluate(async () => {
     const db = await openFideCacheDb();
@@ -108,6 +138,7 @@ try {
   assert.deepEqual(saved.legacy, { generationId: 'legacy-test', rows: [{ fideId: '1503014' }] });
 
   await page.reload();
+  await page.locator('#tabRegistration').click();
   await type('Magnus Carlsen');
   await page.locator(results).filter({ hasText: 'Carlsen, Magnus' }).waitFor({ state: 'attached' });
   console.log('Web FIDE search, complete activation, rollback and browser cache restore passed.');
