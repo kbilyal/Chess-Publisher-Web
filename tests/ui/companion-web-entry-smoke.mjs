@@ -17,6 +17,10 @@ const user = { id: 'user-1', organizerId: 'organizer-1', name: 'Test organizer' 
 const tournament = { id: 'cloud.example', name: 'Spring Open', localKey: 'test-local', revision: 1 };
 const secondUser = { id: 'user-2', organizerId: 'organizer-2', name: 'Second organizer' };
 const secondTournament = { id: 'cloud.second', name: 'Autumn Open', localKey: 'test-local', revision: 1 };
+const fidePlayer = {
+  fideId: 29998888, name: 'Longlastnamewithmanyletters, Alexandra', federation: 'BUL',
+  ratingStandard: 1900, ratingRapid: 1800, ratingBlitz: 1700
+};
 const portalSource = 'deploy/public-site/desktop-web';
 const snapshot = { data: { currentTournament: tournament.name, tournaments: {
   [tournament.name]: createInitialEmptyTournament(tournament.name)
@@ -44,8 +48,13 @@ async function configure(context, googleClientId = Promise.resolve('fixture')) {
     return files[path] ? route.fulfill({ path: resolve(portalSource, files[path]) }) : route.abort();
   });
   await context.route(`${companion}/**`, route => {
-    const path = new URL(route.request().url()).pathname;
+    const url = new URL(route.request().url());
+    const path = url.pathname;
     if (path === '/') return route.fulfill({ path: 'dist/index.html' });
+    if (path === '/api/fide/status') return route.fulfill({ json: { listVersion: 'fixture', recordCount: 160000 } });
+    if (path === '/api/fide/search' && url.searchParams.get('q') === String(fidePlayer.fideId)) {
+      return route.fulfill({ json: { players: [fidePlayer] } });
+    }
     if (/^\/(assets|icons)\/[\w.-]+$/.test(path) || path === '/hub-useful-links-organizer.js') {
       return route.fulfill({ path: resolve('dist', path.slice(1)) });
     }
@@ -166,6 +175,97 @@ ${calls.map(call => [call.path, call.origin]).join('\n')}`, { cause: error });
 
 async function checkWidth(page) {
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth));
+}
+
+async function checkTouchOrganizerEditing(page, draftKey) {
+  const nav = page.getByRole('navigation', { name: 'Mobile tournament navigation' });
+  const jump = page.getByRole('navigation', { name: 'Tournament setup sections' });
+  const checkTarget = async locator => {
+    const bounds = await locator.boundingBox();
+    assert.ok(bounds?.height >= 44 && bounds.width >= 44, `Small touch target: ${await locator.getAttribute('class')} ${JSON.stringify(bounds)}`);
+  };
+  await page.setViewportSize({ width: 320, height: 480 });
+  await checkWidth(page);
+  await checkTarget(jump.getByRole('link', { name: 'Place & dates' }));
+  await jump.getByRole('link', { name: 'Place & dates' }).tap();
+  const location = page.locator('#companion-setup-dates');
+  await page.waitForFunction(() => {
+    const section = document.querySelector('#companion-setup-dates').getBoundingClientRect();
+    return section.top >= document.querySelector('.companion-topbar').getBoundingClientRect().bottom && section.top < 130;
+  });
+  await checkTarget(location.getByLabel('City'));
+  assert.equal(await location.getByLabel('City').evaluate(el => getComputedStyle(el).fontSize), '16px');
+  await location.getByLabel('City').fill('Krumovgrad');
+  await nav.getByRole('button', { name: 'Setup' }).tap();
+  await jump.getByRole('link', { name: 'Officials & contact' }).tap();
+  await page.getByLabel('Chief arbiter').fill('Test Arbiter');
+  await nav.getByRole('button', { name: 'Setup' }).tap();
+  await jump.getByRole('link', { name: 'Public information' }).tap();
+  await page.getByRole('button', { name: '+ Add link' }).tap();
+  await page.getByLabel('Link name').last().fill('Venue map');
+  await page.getByLabel('URL', { exact: true }).last().fill('https://example.com/map');
+  await nav.getByRole('button', { name: 'Players' }).tap();
+  const search = page.getByRole('textbox', { name: 'Name or FIDE ID' });
+  await search.fill(String(fidePlayer.fideId));
+  const add = page.getByRole('button', { name: 'Add', exact: true });
+  await add.waitFor();
+  await checkTarget(add);
+  await add.tap();
+  await page.getByRole('status').filter({ hasText: `${fidePlayer.name} registered` }).waitFor();
+  const manual = page.getByRole('button', { name: 'Manual player' });
+  await checkTarget(manual);
+  await manual.tap();
+  await page.getByLabel('First name').fill('Iva');
+  await page.getByLabel('Last name').fill('Test');
+  const register = page.getByRole('button', { name: 'Register player' });
+  await checkTarget(register);
+  await register.tap();
+  await page.getByRole('status').filter({ hasText: 'Test, Iva registered' }).waitFor();
+
+  const fideRow = page.locator('.companion-roster-row').filter({ hasText: fidePlayer.name });
+  const edit = fideRow.getByRole('button', { name: `Edit ${fidePlayer.name}` });
+  const remove = fideRow.getByRole('button', { name: `Remove ${fidePlayer.name}` });
+  for (const width of [320, 390, 640, 768, 820]) {
+    await page.setViewportSize({ width, height: 480 });
+    await checkWidth(page);
+    assert.ok(await page.locator('.companion-roster-list').evaluate(el => el.scrollWidth <= el.clientWidth));
+    await checkTarget(edit);
+    await checkTarget(remove);
+  }
+  await page.setViewportSize({ width: 320, height: 340 });
+  page.once('dialog', confirmation => confirmation.dismiss());
+  await remove.tap();
+  assert.ok(await edit.isVisible());
+  await edit.tap();
+  const dialog = page.getByRole('dialog', { name: 'Edit registered player' });
+  await dialog.waitFor();
+  assert.ok(await dialog.evaluate(el => el.matches(':modal') && el.scrollHeight > el.clientHeight));
+  assert.equal(await dialog.getByLabel('FIDE ID').inputValue(), String(fidePlayer.fideId));
+  await dialog.getByLabel('Federation').fill('B');
+  const save = dialog.getByRole('button', { name: 'Save changes' });
+  await checkTarget(save);
+  await save.tap();
+  await dialog.getByRole('alert').filter({ hasText: 'Federation must be a valid 3-letter FIDE code.' }).waitFor();
+  await dialog.getByLabel('Federation').fill('BUL');
+  await dialog.getByLabel('Name').fill('Edited FIDE player');
+  await save.tap();
+  await dialog.waitFor({ state: 'hidden' });
+  const edited = page.getByRole('button', { name: 'Edit Edited FIDE player' });
+  assert.ok(await edited.evaluate(el => el === document.activeElement));
+  await edited.tap();
+  await dialog.getByLabel('Name').fill('Canceled edit');
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).tap();
+  await dialog.waitFor({ state: 'hidden' });
+  assert.ok(await edited.isVisible());
+  await nav.getByRole('button', { name: 'Setup' }).tap();
+  assert.equal(await page.getByLabel('City').inputValue(), 'Krumovgrad');
+  assert.equal(await page.getByLabel('Chief arbiter').inputValue(), 'Test Arbiter');
+  const saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), draftKey);
+  assert.equal(saved.settings.city, 'Krumovgrad');
+  assert.equal(saved.settings.chiefArbiter, 'Test Arbiter');
+  assert.deepEqual(saved.regulations.usefulLinks.at(-1), { label: 'Venue map', url: 'https://example.com/map' });
+  assert.equal(saved.players.find(player => player.fideId === String(fidePlayer.fideId))?.name, 'Edited FIDE player');
+  assert.equal(saved.players.some(player => player.name === 'Test, Iva'), true);
 }
 
 async function checkTouchResultEntry() {
@@ -306,7 +406,7 @@ try {
 
   await checkTouchResultEntry();
 
-  const mobile = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
+  const mobile = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
   const { calls: googleCalls, failNextLogout } = await configure(mobile);
   const page = await mobile.newPage();
   await page.goto(web);
@@ -332,6 +432,7 @@ try {
   assert.ok(googleCalls.some(call => call.path.endsWith('/snapshot') && call.expectedOrganizer === user.organizerId));
   const draftKey = `cpstudio.organizer:${user.organizerId}:fide_tournament_manager_v2`;
   assert.ok(await googleCompanion.evaluate(key => localStorage.getItem(key), draftKey));
+  await checkTouchOrganizerEditing(googleCompanion, draftKey);
 
   const readSession = () => page.evaluate(() => sessionStorage.getItem('cp.desktop-web.session'));
   const activeWorkspace = `${web}/app/workspace.html?cloudTournamentId=${tournament.id}`;
@@ -483,4 +584,4 @@ try {
   await browser.close();
 }
 
-console.log('PASS guest invitation, touch result entry, batch SYNC and corrections, new-round refresh, Web organizer entry, Google sign-out and retry, account switching and Cloud isolation, legacy Companion handoff and navigation.');
+console.log('PASS guest invitation, touch result entry, batch SYNC and corrections, new-round refresh, Web organizer entry, mobile registration and Setup editing, Google sign-out and retry, account switching and Cloud isolation, legacy Companion handoff and navigation.');

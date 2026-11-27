@@ -115,7 +115,7 @@
   }
 
   .companion-shell .companion-top-actions .primary {
-    min-height: 40px !important;
+    min-height: 44px !important;
     padding: 0 13px !important;
     font-size: 13px !important;
     border-radius: 10px !important;
@@ -180,6 +180,59 @@
   /* Setup readable typography */
   .companion-shell .companion-setup-summary h2 {
     font-size: 17px !important;
+    overflow-wrap: anywhere;
+  }
+
+  .companion-shell .companion-setup-summary > div:first-child {
+    min-width: 0;
+  }
+
+  .companion-setup-jump {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 6px;
+  }
+
+  .companion-setup-jump a {
+    display: grid;
+    min-height: 44px;
+    padding: 6px;
+    place-items: center;
+    border: 1px solid #cbd8e6;
+    border-radius: 8px;
+    background: #fff;
+    color: #0f3d91;
+    font-size: 13px;
+    font-weight: 750;
+    text-align: center;
+    touch-action: manipulation;
+  }
+
+  .companion-setup-card[id] {
+    scroll-margin-top: calc(66px + env(safe-area-inset-top));
+  }
+
+  .companion-shell :is(.companion-setup-grid, .companion-manual-grid) :is(input, textarea, select) {
+    min-height: 48px !important;
+    font-size: 16px !important;
+  }
+
+  .companion-setup-grid :is(input, textarea, select) {
+    scroll-margin-block: calc(66px + env(safe-area-inset-top)) calc(88px + env(safe-area-inset-bottom));
+  }
+
+  .companion-shell .companion-setup-grid textarea {
+    min-height: 96px !important;
+  }
+
+  .companion-hub-link-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) auto;
+  }
+
+  .companion-hub-link-row button,
+  .companion-hub-links-actions button {
+    min-height: 48px;
+    font-size: 13px;
   }
 
   .companion-shell .companion-setup-summary p,
@@ -395,10 +448,8 @@
   }
 }
 
-/* ==========================================================================
-   2. PLAYERS / ROSTER & MY TOURNAMENTS ON PHONES (<= 640px)
-   ========================================================================== */
-@media screen and (max-width: 640px) {
+/* Organizer registration and editing on phones and tablets. */
+@media screen and (max-width: 820px) {
   .companion-shell .companion-registration-heading h2 {
     font-size: 16.5px !important;
   }
@@ -412,9 +463,42 @@
     font-size: 11px !important;
   }
 
+  .companion-shell .companion-searchbox input,
+  .companion-shell .companion-sort-control select {
+    font-size: 16px !important;
+  }
+
+  .companion-shell .companion-sort-control select {
+    min-height: 44px !important;
+    min-width: 0;
+  }
+
+  .companion-shell .companion-registration .companion-button {
+    min-height: 46px !important;
+    font-size: 13px;
+    white-space: normal;
+    line-height: 1.2;
+  }
+
+  .companion-manual-grid label > span {
+    font-size: 11.5px;
+  }
+
+  .companion-edit-dialog {
+    inset-block: calc(var(--companion-edit-visible-top, 0px) + max(8px, env(safe-area-inset-top))) auto;
+    max-height: calc(var(--companion-edit-visible-height, 100dvh) - max(8px, env(safe-area-inset-top)) - max(8px, env(safe-area-inset-bottom)));
+    scroll-padding-block: 12px;
+  }
+
+  .companion-registration-notice {
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+
   .companion-shell .companion-fide-row .companion-player-main strong {
     font-size: 14px !important;
     white-space: normal;
+    overflow-wrap: anywhere;
   }
 
   .companion-shell .companion-fide-row .companion-player-main span,
@@ -423,22 +507,35 @@
   }
 
   .companion-shell .companion-fide-row .companion-button {
-    min-height: 42px !important;
     padding: 0 12px !important;
-    font-size: 13px !important;
   }
 
-  /* Clean 2-row player roster card with full-width name and 40px touch buttons */
+  .companion-shell .companion-roster-list {
+    display: grid;
+    gap: 8px;
+    overflow: visible;
+    border: 0;
+    background: transparent;
+  }
+
   .companion-shell .companion-roster-row {
     min-width: 0;
     min-height: 0;
     padding: 10px;
-    grid-template-columns: 34px minmax(0, 1fr) auto 40px 40px;
+    grid-template-columns: auto minmax(0, 1fr) 46px 46px;
     grid-template-areas:
-      "rank main rating rating rating"
-      "status status status edit remove";
+      "rank main main main"
+      "rating rating edit remove";
     column-gap: 8px;
     row-gap: 8px;
+    border: 1px solid #d8dee6;
+    border-radius: 10px;
+  }
+
+  .companion-shell .companion-roster-row .companion-player-rank {
+    grid-area: rank;
+    align-self: center;
+    padding: 5px 0;
   }
 
   .companion-shell .companion-roster-row .companion-player-rank::before {
@@ -449,17 +546,23 @@
     font-size: 14px !important;
     white-space: normal;
     line-height: 1.25;
+    overflow-wrap: anywhere;
   }
 
-  .companion-shell .companion-roster-row .companion-player-main span {
+  .companion-shell .companion-roster-row .companion-player-main { grid-area: main; }
+
+  .companion-shell .companion-roster-row .companion-player-main > span {
     font-size: 11.5px !important;
     white-space: normal;
+    overflow-wrap: anywhere;
   }
 
   .companion-shell .companion-roster-row .companion-player-rating {
+    grid-area: rating;
+    align-self: center;
     min-width: 64px;
     width: auto;
-    justify-self: end;
+    justify-self: start;
     padding: 4px 8px;
   }
 
@@ -471,17 +574,36 @@
     font-size: 10px !important;
   }
 
-  .companion-shell .companion-roster-row .companion-attendance {
-    min-height: 40px !important;
-    font-size: 13.5px !important;
-  }
-
   .companion-shell .companion-roster-row .companion-icon-edit,
   .companion-shell .companion-roster-row .companion-icon-danger {
-    width: 40px !important;
-    height: 40px !important;
+    width: 46px !important;
+    height: 46px !important;
     border-radius: 9px !important;
+    touch-action: manipulation;
   }
+
+  .companion-roster-row .companion-icon-edit { grid-area: edit; }
+  .companion-roster-row .companion-icon-danger { grid-area: remove; }
+}
+
+@media screen and (min-width: 641px) and (max-width: 820px) {
+  .companion-shell .companion-roster-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+  }
+
+  .companion-empty-roster { grid-column: 1 / -1; }
+}
+
+@media screen and (max-width: 640px) {
+  .companion-hub-link-row { grid-template-columns: minmax(0, 1fr); }
+
+  .companion-roster-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .companion-shell .companion-roster-actions .companion-button { padding: 4px 6px !important; }
 
   /* Hide Elo columns on phone Read-Only Pairings sheet so Board/White/Result/Black fit cleanly */
   .organizer-pairings-panel.is-open .organizer-pairings-table th:nth-child(3),

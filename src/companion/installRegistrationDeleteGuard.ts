@@ -16,9 +16,6 @@ function ensureRosterStyle(): void {
   style.id = STYLE_ID;
   style.textContent = `
     ${STATUS_SELECTOR}{display:none!important}
-    .companion-registration .companion-roster-row{
-      grid-template-columns:52px minmax(290px,1fr) 86px 32px!important;
-    }
     .companion-registration .companion-icon-danger[${LOCK_ATTR}="true"]{
       border-color:#d8dee8!important;
       background:#f3f5f8!important;
@@ -27,28 +24,6 @@ function ensureRosterStyle(): void {
       cursor:not-allowed!important;
       pointer-events:none!important;
       box-shadow:none!important;
-    }
-    @media(max-width:900px){
-      .companion-registration .companion-roster-row{
-        min-width:0!important;
-        grid-template-columns:46px minmax(0,1fr) 76px 30px!important;
-      }
-    }
-    @media(max-width:640px){
-      .companion-registration .companion-roster-list{overflow-x:visible!important}
-      .companion-registration .companion-roster-row{
-        min-width:0!important;
-        min-height:58px!important;
-        padding:7px 6px!important;
-        grid-template-columns:38px minmax(0,1fr) 66px 30px!important;
-        grid-template-areas:"rank main rating remove"!important;
-        column-gap:7px!important;
-        row-gap:0!important;
-      }
-      .companion-registration .companion-roster-row .companion-player-rank{grid-area:rank!important;align-self:center!important}
-      .companion-registration .companion-roster-row .companion-player-main{grid-area:main!important;align-self:center!important}
-      .companion-registration .companion-roster-row .companion-player-rating{grid-area:rating!important;align-self:center!important}
-      .companion-registration .companion-roster-row .companion-icon-danger{grid-area:remove!important;align-self:center!important}
     }
   `;
   document.head.appendChild(style);

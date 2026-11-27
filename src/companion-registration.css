@@ -82,8 +82,7 @@
 }
 .companion-fide-row:hover { border-color: #d3dfec; background: #fbfdff; }
 
-/* Registered-player roster intentionally uses a dense, fixed-column log view.
-   It mirrors the scanability of Chess-Results instead of rendering players as cards. */
+/* Fixed columns for the desktop roster. */
 .companion-roster-list {
   margin-top: 10px;
   display: block;
@@ -98,7 +97,7 @@
   min-height: 40px;
   padding: 0 8px;
   display: grid;
-  grid-template-columns: 52px minmax(290px,1fr) 86px 116px 32px 32px;
+  grid-template-columns: 52px minmax(290px,1fr) 86px 32px 32px;
   align-items: center;
   gap: 8px;
   border-bottom: 1px solid #e5e9ee;
@@ -228,6 +227,25 @@
 }
 .companion-manual-actions { margin-top: 11px; display: flex; justify-content: flex-end; gap: 7px; }
 
+.companion-edit-dialog {
+  position: fixed;
+  inset: 0;
+  width: min(512px, calc(100% - 24px));
+  max-height: calc(100dvh - 24px);
+  margin: auto;
+  padding: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 0;
+  border-radius: 15px;
+  background: #fff;
+  box-shadow: 0 16px 48px rgba(15,23,42,.24);
+}
+.companion-edit-dialog::backdrop { background: rgba(15,23,42,.55); }
+.companion-edit-form .companion-registration-notice { margin-top: 11px; }
+
+.companion-roster-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+
 .companion-roster-count {
   min-width: 68px;
   height: 38px;
@@ -247,7 +265,7 @@
   .companion-registration { padding: 12px; }
   .companion-manual-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .companion-fide-row { grid-template-columns: 46px minmax(0,1fr) 74px auto; }
-  .companion-roster-row { min-width: 660px; grid-template-columns: 48px minmax(270px,1fr) 78px 108px 30px; }
+  .companion-roster-row { min-width: 0; grid-template-columns: 46px minmax(0,1fr) 76px 30px 30px; }
 }
 
 @media (max-width: 640px) {
@@ -293,23 +311,6 @@
   .companion-fide-row .companion-player-rating span { margin-top: 0; }
   .companion-fide-row .companion-button { grid-area: add; min-width: 68px; min-height: 42px; }
 
-  /* Keep the roster as one stable log/table on phones instead of changing the
-     meaning or order of fields. Horizontal scroll preserves every column. */
-  .companion-roster-list { border-radius: 7px; }
-  .companion-roster-row {
-    min-width: 640px;
-    min-height: 42px;
-    padding: 0 7px;
-    grid-template-columns: 46px minmax(260px,1fr) 76px 104px 30px;
-    gap: 7px;
-  }
-  .companion-roster-row .companion-player-rank { height: auto; }
-  .companion-roster-row .companion-player-rating { display: block; text-align: right; }
-  .companion-roster-row .companion-player-rating span { margin-top: 2px; }
-  .companion-roster-row .companion-attendance { min-height: 30px; font-size: 9px; }
-  .companion-roster-row .companion-icon-danger { width: 28px; height: 28px; }
-  .companion-player-main strong { font-size: 10.5px; }
-  .companion-player-main span { font-size: 8px; }
   .companion-roster-count { display: none; }
 }
 
@@ -342,46 +343,4 @@
   margin-top: 2px;
   color: #6f83a0;
   font-size: 7px;
-}
-
-@media (max-width: 640px) {
-  /* On phones the row must fit the viewport: number, name, rating and remove
-     stay on the first line; attendance sits directly below the name/rating. */
-  .companion-roster-list { overflow-x: visible; }
-  .companion-roster-row {
-    min-width: 0;
-    min-height: 64px;
-    padding: 7px 6px;
-    grid-template-columns: 38px minmax(0, 1fr) 60px 28px 28px;
-    grid-template-areas:
-      "rank main rating edit remove"
-      "rank status status edit remove";
-    column-gap: 6px;
-    row-gap: 5px;
-  }
-  .companion-roster-row .companion-player-rank {
-    grid-area: rank;
-    align-self: center;
-    place-items: center end;
-  }
-  .companion-roster-row .companion-player-main { grid-area: main; }
-  .companion-roster-row .companion-player-rating {
-    grid-area: rating;
-    min-width: 0;
-    width: 100%;
-    justify-self: stretch;
-    align-self: start;
-  }
-  .companion-roster-row .companion-attendance {
-    grid-area: status;
-    width: 100%;
-    min-height: 28px;
-  }
-  .companion-roster-row .companion-icon-edit { grid-area: edit; align-self: center; }
-  .companion-roster-row .companion-icon-danger {
-    grid-area: remove;
-    align-self: center;
-  }
-  .companion-roster-row .companion-player-main strong { font-size: 11px; }
-  .companion-roster-row .companion-player-main span { font-size: 8px; }
 }
