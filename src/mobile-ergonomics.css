@@ -178,6 +178,10 @@
   }
 
   /* Setup readable typography */
+  .companion-shell .companion-setup-summary {
+    align-items: center;
+  }
+
   .companion-shell .companion-setup-summary h2 {
     font-size: 17px !important;
     overflow-wrap: anywhere;
@@ -235,7 +239,8 @@
     font-size: 13px;
   }
 
-  .companion-shell .companion-setup-summary p,
+  .companion-shell .companion-setup-summary p { display: none; }
+
   .companion-shell .companion-setup-footnote {
     font-size: 12.5px !important;
   }

@@ -186,6 +186,9 @@ async function checkTouchOrganizerEditing(page, draftKey) {
   };
   await page.setViewportSize({ width: 320, height: 480 });
   await checkWidth(page);
+  const jumpBounds = await jump.boundingBox();
+  const navBounds = await nav.boundingBox();
+  assert.ok(jumpBounds.y + jumpBounds.height < navBounds.y, 'Setup shortcuts should fit above mobile navigation.');
   await checkTarget(jump.getByRole('link', { name: 'Place & dates' }));
   await jump.getByRole('link', { name: 'Place & dates' }).tap();
   const location = page.locator('#companion-setup-dates');
