@@ -126,7 +126,7 @@ export function CompanionEntryScreen({
         </div>
         <div className="companion-login-copy">
           <h1 id="companion-entry-title">Arbiter Companion</h1>
-          <p>Sign in with your Google account to open your synchronized tournaments, or open ChessPublisher Web.</p>
+          <p>Sign in with your Google account to open your synchronized tournaments. Sign in through ChessPublisher Web is also supported.</p>
         </div>
         {!busy && googleClientId && onGoogleCredential && (
           <div className="companion-google-auth">
