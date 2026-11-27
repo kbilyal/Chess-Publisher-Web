@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import worker from './ownership-worker.js';
 import { createHmac } from 'node:crypto';
-import { ChessResultsTnrJournal } from './tnr-journal.js';
+import { mock } from 'node:test';
+import { ChessResultsTnrJournal, FIRST_AUTOMATIC_CREATOR_ID } from './tnr-journal.js';
 
 const originalFetch = globalThis.fetch;
 const calls = [];
@@ -10,6 +11,8 @@ const hubCalls = [];
 function organizerIdFor(auth) {
   if (auth === 'Bearer organizer-A') return 'org_A';
   if (auth === 'Bearer organizer-B') return 'org_B';
+  if (auth === 'Bearer organizer-C') return 'org_C';
+  if (auth === 'Bearer organizer-D') return 'org_D';
   return '';
 }
 
@@ -100,6 +103,10 @@ env.CHESS_RESULTS_JOURNAL = {
 let getKeyResponse = 'OK';
 let nextKey = 7654321;
 
+function proofCreator(result) {
+  return JSON.parse(Buffer.from(result.ownershipProof.split('.')[0], 'base64url')).creatorId;
+}
+
 function request(operation, body = {}, token = 'organizer-A', origin = env.WEB_ORIGIN) {
   return new Request(`https://web.chess-publisher.org/api/chess-results/${operation}`, {
     method: 'POST',
@@ -125,12 +132,16 @@ globalThis.fetch = async (url, init = {}) => {
   if (href.includes('key1=GETKEY')) {
     const form = new URLSearchParams(String(init.body || ''));
     const posted = form.get('xml') || '';
-    assert.match(posted, /creatorID="424[23]"/);
+    const creatorId = Number(/creatorID="(\d+)"/.exec(posted)?.[1]);
+    assert.ok(creatorId === 4242 || creatorId === 4243 || creatorId >= FIRST_AUTOMATIC_CREATOR_ID);
     assert.match(posted, /source="21"/);
     assert.match(posted, /federation="XXX"/);
     if (getKeyResponse === 'timeout') throw new Error('transport interrupted');
     if (getKeyResponse === 'ERROR') return new Response('<chessresults><result status="ERROR"/></chessresults>');
     return new Response('<chessresults><result key="' + nextKey++ + '" status="OK"/></chessresults>');
+  }
+  if (href === env.CHESS_RESULTS_UPLOAD_XML_URL) {
+    return new Response('<chessresults><result status="OK"/></chessresults>');
   }
 
   throw new Error(`Unexpected mock fetch: ${href}`);
@@ -241,6 +252,73 @@ try {
   assert.equal(snapshotCalls.length, 1, 'Only an explicitly enrolled Desktop TNR is checked against its synced snapshot.');
   assert.ok(authCalls.every(call => call.url === 'https://hub.internal/api/v1/organizer/me'));
   console.log('Chess-Results durable TNR lifecycle, verified Desktop recovery and organizer isolation: PASS');
+
+  const journalCount = journals.size;
+  const invalidToken = await worker.fetch(request('create', createBody, 'arbiter-invitation'), env);
+  assert.equal(invalidToken.status, 401);
+  const anonymousRequest = request('create', createBody);
+  anonymousRequest.headers.delete('Authorization');
+  assert.equal((await worker.fetch(anonymousRequest, env)).status, 401);
+  assert.equal(journals.size, journalCount, 'Unverified credentials must not reach the CreatorID registry.');
+
+  const ids = [23, 23, 46];
+  const random = mock.method(crypto, 'getRandomValues', buffer => {
+    assert.ok(ids.length, 'Unexpected CreatorID candidate request.');
+    buffer[0] = ids.shift();
+    return buffer;
+  });
+  let automaticResponses;
+  try {
+    automaticResponses = await Promise.all([
+      worker.fetch(request('create', createBody, 'organizer-C'), env),
+      worker.fetch(request('create', createBody, 'organizer-C', env.DESKTOP_WEB_ORIGIN), env),
+      worker.fetch(request('create', createBody, 'organizer-D'), env),
+    ]);
+  } finally {
+    random.mock.restore();
+  }
+  assert.deepEqual(automaticResponses.map(res => res.status), [200, 200, 200]);
+  const [createdC, retriedC, createdD] = await Promise.all(automaticResponses.map(res => res.json()));
+  const creatorC = proofCreator(createdC);
+  const creatorD = proofCreator(createdD);
+  assert.ok(creatorC >= FIRST_AUTOMATIC_CREATOR_ID && creatorC <= 2147483647);
+  assert.ok(creatorD >= FIRST_AUTOMATIC_CREATOR_ID && creatorD <= 2147483647);
+  assert.deepEqual(new Set([creatorC, creatorD]), new Set([23, 46].map(bits => FIRST_AUTOMATIC_CREATOR_ID + bits)));
+  assert.notEqual(createdC.key, createdD.key);
+  assert.equal(retriedC.key, createdC.key);
+  assert.equal(proofCreator(retriedC), creatorC);
+
+  response = await worker.fetch(request('create', { ...createBody, clientId: 'another-tournament' }, 'organizer-C'), env);
+  assert.equal(response.status, 200);
+  assert.equal(proofCreator(await response.json()), creatorC);
+
+  response = await worker.fetch(request('claim', { key: createdC.key }, 'organizer-C'), env);
+  assert.equal(response.status, 200);
+  assert.equal(proofCreator(await response.json()), creatorC);
+
+  response = await worker.fetch(request('admin-link', createdC, 'organizer-C'), env);
+  assert.equal(response.status, 200);
+  const xml = `<?xml version="1.0"?><chessresults><tournament key="${createdC.key}" federation="BUL" creator="9999" /><security><securitydata /></security></chessresults>`;
+  response = await worker.fetch(request('publish', { ...createdC, xml }, 'organizer-C'), env);
+  assert.equal(response.status, 200);
+  assert.match(new URLSearchParams(calls.at(-1).init.body).get('xml'), new RegExp(`creator="${creatorC}"`));
+  const upstreamCallsBeforeDenied = calls.length;
+  for (const operation of ['publish', 'admin-link', 'delete-authorize', 'unlink']) {
+    response = await worker.fetch(request(operation, createdC, 'organizer-D'), env);
+    assert.equal(response.status, 403);
+    assert.equal((await response.json()).code, 'TNR_OWNERSHIP_MISMATCH');
+  }
+  response = await worker.fetch(request('claim', { key: createdC.key }, 'organizer-D'), env);
+  assert.equal(response.status, 403);
+  assert.equal(calls.length, upstreamCallsBeforeDenied, 'Cross-organizer requests must not reach Chess-Results.');
+
+  response = await worker.fetch(request('create', createBody, 'organizer-D'), {
+    ...env,
+    CHESS_RESULTS_CREATOR_MAP: JSON.stringify({ org_A: 4242, org_B: 4243, org_D: creatorC }),
+  });
+  assert.equal(response.status, 500);
+  assert.equal((await response.json()).code, 'CREATOR_MAP_INVALID');
+  console.log('Chess-Results automatic CreatorIDs, stable retries and account isolation: PASS');
 } finally {
   globalThis.fetch = originalFetch;
 }

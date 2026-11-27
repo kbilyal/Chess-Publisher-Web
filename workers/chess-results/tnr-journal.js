@@ -1,4 +1,6 @@
-import { BridgeError, getKey } from './worker.js';
+import { BridgeError, configuredCreatorMap, configuredLegacyRegistrations, getKey } from './worker.js';
+
+export const FIRST_AUTOMATIC_CREATOR_ID = 0x40000000;
 
 export class ChessResultsTnrJournal {
   constructor(state, env) {
@@ -15,12 +17,12 @@ export class ChessResultsTnrJournal {
         const record = await storage.get('tnr:' + body.key);
         return Response.json({ record: record || null });
       }
-      if (operation !== '/allocate') return new Response(null, { status: 404 });
+      if (operation !== '/allocate' && operation !== '/creator-id') return new Response(null, { status: 404 });
 
-      // Serialize GETKEY for this organizer across browser sessions. The two
-      // indexes are committed together before the assigned key is returned.
+      // Serialize registrations in the registry and GETKEY within each organizer.
       return await this.state.blockConcurrencyWhile(async () => {
         try {
+          if (operation === '/creator-id') return await this.registerCreator(body, storage);
           return await this.allocate(body, storage);
         } catch (error) {
           return journalError(error);
@@ -29,6 +31,38 @@ export class ChessResultsTnrJournal {
     } catch (error) {
       return journalError(error);
     }
+  }
+
+  async registerCreator({ organizerId, configuredId }, storage) {
+    const organizerKey = 'creator:organizer:' + organizerId;
+    const registeredId = await storage.get(organizerKey);
+    if (registeredId !== undefined && (configuredId === null || registeredId === configuredId)) {
+      return Response.json({ creatorId: registeredId });
+    }
+
+    if (configuredId !== null) {
+      const creatorKey = 'creator:id:' + configuredId;
+      const owner = await storage.get(creatorKey);
+      if (registeredId !== undefined || (owner !== undefined && owner !== organizerId)) {
+        throw new BridgeError(500, 'CREATOR_MAP_INVALID', 'The configured CreatorID conflicts with a registered assignment.');
+      }
+      await storage.put({ [organizerKey]: configuredId, [creatorKey]: organizerId });
+      return Response.json({ creatorId: configuredId });
+    }
+
+    const configured = Object.values(configuredCreatorMap(this.env));
+    const legacy = Object.values(configuredLegacyRegistrations(this.env) || {})
+      .flatMap(registrations => Object.values(registrations || {}).map(entry => entry?.creatorId));
+    const reserved = new Set([...configured, ...legacy].map(Number));
+    for (let attempt = 0; attempt < 16; attempt++) {
+      const randomBits = crypto.getRandomValues(new Uint32Array(1))[0];
+      const creatorId = FIRST_AUTOMATIC_CREATOR_ID + (randomBits & (FIRST_AUTOMATIC_CREATOR_ID - 1));
+      const creatorKey = 'creator:id:' + creatorId;
+      if (reserved.has(creatorId) || await storage.get(creatorKey) !== undefined) continue;
+      await storage.put({ [organizerKey]: creatorId, [creatorKey]: organizerId });
+      return Response.json({ creatorId });
+    }
+    throw new BridgeError(503, 'CREATOR_ID_UNAVAILABLE', 'Chess-Results CreatorID allocation is temporarily unavailable. Retry publication.');
   }
 
   async allocate(body, storage) {

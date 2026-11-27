@@ -62,7 +62,7 @@ async function hubOrganizer(request, env) {
   const token = bearerToken(request);
   const preauthenticated = env?.[AUTHENTICATED_ORGANIZER];
   const preauthenticatedOrganizerId = text(preauthenticated?.organizerId);
-  if (preauthenticatedOrganizerId) return { organizerId: preauthenticatedOrganizerId };
+  if (preauthenticatedOrganizerId) return preauthenticated;
 
   const hubBase = text(env.HUB_API_BASE) || DEFAULT_HUB_API_BASE;
   let response;
@@ -89,7 +89,7 @@ async function hubOrganizer(request, env) {
   return { organizerId };
 }
 
-export function creatorMapping(env, organizerId) {
+export function configuredCreatorMap(env) {
   let mapping;
   try {
     mapping = JSON.parse(text(env.CHESS_RESULTS_CREATOR_MAP) || '{}');
@@ -99,7 +99,13 @@ export function creatorMapping(env, organizerId) {
   if (!mapping || typeof mapping !== 'object' || Array.isArray(mapping)) {
     throw new BridgeError(500, 'CREATOR_MAP_INVALID', 'Chess-Results creator mapping is not valid.');
   }
-  const creatorId = Object.hasOwn(mapping, organizerId) ? Number(mapping[organizerId]) : NaN;
+  return mapping;
+}
+
+export function creatorMapping(env, organizerId) {
+  const mapping = configuredCreatorMap(env);
+  if (!Object.hasOwn(mapping, organizerId)) return null;
+  const creatorId = Number(mapping[organizerId]);
   if (!Number.isInteger(creatorId) || creatorId <= 0 || creatorId > 2147483647) {
     throw new BridgeError(403, 'CREATOR_ID_NOT_ASSIGNED', 'This Organizer Token has no Chess-Results CreatorID assignment.');
   }
@@ -109,10 +115,13 @@ export function creatorMapping(env, organizerId) {
   return creatorId;
 }
 
-export function legacyRegistration(env, organizerId, key, creatorId) {
-  let mapping;
-  try { mapping = JSON.parse(text(env.CHESS_RESULTS_LEGACY_TNRS) || '{}'); }
+export function configuredLegacyRegistrations(env) {
+  try { return JSON.parse(text(env.CHESS_RESULTS_LEGACY_TNRS) || '{}'); }
   catch { throw new BridgeError(500, 'LEGACY_TNRS_INVALID', 'Legacy Chess-Results registrations are not valid JSON.'); }
+}
+
+export function legacyRegistration(env, organizerId, key, creatorId) {
+  const mapping = configuredLegacyRegistrations(env);
   const registrations = mapping && Object.hasOwn(mapping, organizerId) ? mapping[organizerId] : null;
   const entry = registrations && Object.hasOwn(registrations, key) ? registrations[key] : null;
   if (!entry) return null;
@@ -457,9 +466,10 @@ async function parseBody(request) {
 }
 
 async function handleOperation(operation, request, env) {
-  const { organizerId } = await hubOrganizer(request, env);
-  const creatorId = creatorMapping(env, organizerId);
+  const { organizerId, resolveCreatorId } = await hubOrganizer(request, env);
   const body = await parseBody(request);
+  const creatorId = resolveCreatorId ? await resolveCreatorId() : creatorMapping(env, organizerId);
+  if (creatorId === null) throw new BridgeError(403, 'CREATOR_ID_NOT_ASSIGNED', 'This Organizer Token has no Chess-Results CreatorID assignment.');
 
   if (operation === 'test') {
     const sid = await getSid(env);
