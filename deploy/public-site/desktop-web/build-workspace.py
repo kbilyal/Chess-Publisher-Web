@@ -288,6 +288,37 @@ html = replace_once(
     "finally{directorySearchInFlight.delete(key);}",
     "finally{if(directorySearchInFlight.get(key)===task)directorySearchInFlight.delete(key);}",
 )
+# The installed app has a LocalEngine directory. For an ID missing from the
+# browser's monthly list, the web workspace can resolve the same exact ID online.
+html = replace_once(
+    html,
+    "    const monthly=fideMainDb.get(id);if(monthly)return [cloneRow(monthly)];\n",
+    """    const monthly=fideMainDb.get(id);if(monthly)return [cloneRow(monthly)];
+    if(window.cpDesktopWebAllowed){
+      try{
+        const response=await fetch(`https://lichess.org/api/fide/player/${encodeURIComponent(id)}`,{
+          headers:{Accept:'application/json'},signal:AbortSignal.timeout(6000),referrerPolicy:'no-referrer'
+        });
+        if(!response.ok)return [];
+        const player=await response.json();
+        if(String(player?.id)!==id||typeof player.name!=='string'||!player.name.trim())return [];
+        return [mergeDirectoryWithMonthly({
+          fideId:id,name:player.name.trim(),fed:player.federation,gender:normalizePlayerGender(player.gender),
+          birth:String(player.year??''),title:player.title,std:Number(player.standard)||0,
+          rapid:Number(player.rapid)||0,blitz:Number(player.blitz)||0
+        })];
+      }catch(_){return [];}
+    }
+""",
+)
+# The unified search already merges imported lists. The older integration
+# retries installation at startup and its second renderer can erase an exact hit.
+html = replace_once(
+    html,
+    "if(typeof window.queueFideSearch==='function'&&!window.queueFideSearch.__cpQ117R2Wrapped){",
+    "if(typeof window.queueFideSearch==='function'&&!window.queueFideSearch.__cpQ117R2Wrapped"
+    "&&window.queueFideSearch!==window.cpBeta98R7?.queueUnifiedSearch){",
+)
 html = replace_once(
     html,
     "function configFingerprint(c=readConfig())",

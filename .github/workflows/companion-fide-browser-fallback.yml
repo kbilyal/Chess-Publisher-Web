@@ -38,7 +38,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p public/fide public/vendor
-          cp data/fide/fide_ratings.sqlite public/fide/fide_ratings.sqlite
+          cp data/fide/{fide_ratings.sqlite,fide_latest_manifest.json} public/fide/
           cp node_modules/sql.js/dist/sql-wasm.wasm public/vendor/sql-wasm.wasm
           cat > preview-fide.html <<'EOF'
           <!doctype html>
@@ -93,9 +93,21 @@ jobs:
             const count = await page.locator('.companion-fide-row').count();
             if (count < 1) throw new Error(`No static FIDE results at ${viewport.width}px.`);
             const notice = page.locator('.companion-registration-notice');
-            await notice.getByText(/locally cached official rating database/i).waitFor({ state: 'visible', timeout: 5000 });
+            await notice.getByText(/browser database or online directory/i).waitFor({ state: 'visible', timeout: 5000 });
             const firstText = await page.locator('.companion-fide-row').first().innerText();
             if (!/Carlsen/i.test(firstText)) throw new Error(`Unexpected FIDE fallback result: ${firstText}`);
+            const directoryRequests = [];
+            await page.route('https://lichess.org/api/fide/player/*', route => {
+              const id = new URL(route.request().url()).pathname.split('/').at(-1);
+              directoryRequests.push(id);
+              return route.fulfill({ json: { id: 100000, name: 'Exact directory fixture', federation: 'FID' } });
+            });
+            const search = page.getByPlaceholder('Name or FIDE ID');
+            await search.fill('1503014');
+            await page.locator('.companion-fide-row').first().getByText('Carlsen, Magnus').waitFor();
+            await search.fill('100000');
+            await page.locator('.companion-fide-row').first().getByText('Exact directory fixture').waitFor();
+            if (directoryRequests.join(',') !== '100000') throw new Error(`Unexpected directory lookups: ${directoryRequests}`);
             const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
             if (overflow > 1) throw new Error(`FIDE fallback UI overflow ${overflow}px at ${viewport.width}px.`);
             if (pageErrors.length) throw new Error(pageErrors.join('\n'));
