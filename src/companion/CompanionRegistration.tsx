@@ -12,7 +12,7 @@ import {
   isStartingRankLocked
 } from '../transactions/playerWorkflow';
 import { downloadPlayersXml } from '../importers/playersXml';
-import { getFideBrowserDatabaseInfo, isCompleteFideId, rankFideSearchResults, searchFideBrowserDatabase } from './fideBrowserDatabase';
+import { getFideBrowserDatabaseInfo, isCompleteFideId, rankFideSearchResults, searchFideBrowserDatabase, searchFideBrowserDatabaseWithMeta } from './fideBrowserDatabase';
 import { federationFlag } from './federationFlag';
 import { getPlayerPublicationOrder } from '../publication/playerPublicationOrder';
 
@@ -30,40 +30,58 @@ const RATING_FIELDS = ['ratingStandard', 'ratingRapid', 'ratingBlitz'] as const;
 const ratingFor = (record: FidePlayerRecord, type: 'Standard' | 'Rapid' | 'Blitz') =>
   type === 'Rapid' ? Number(record.ratingRapid || 0) : type === 'Blitz' ? Number(record.ratingBlitz || 0) : Number(record.ratingStandard || 0);
 
-async function searchFidePlayers(query: string, ratingType: 'Standard' | 'Rapid' | 'Blitz') {
+const hasLocalFideBackend = () =>
+  typeof window !== 'undefined' && /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname || '');
+
+async function searchFidePlayers(query: string, ratingType: 'Standard' | 'Rapid' | 'Blitz', signal?: AbortSignal) {
   let servicePlayers: FidePlayerRecord[] = [];
-  try {
-    const response = await fetch(`/api/fide/search?limit=20&tournamentType=${encodeURIComponent(ratingType)}&filterRating=all&q=${encodeURIComponent(query)}`);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const payload = await response.json();
-    if (Array.isArray(payload?.players) && payload.players.length > 0) {
-      servicePlayers = payload.players;
-      if (!isCompleteFideId(query) || servicePlayers.some(player => String(player.fideId) === query)) {
-        return { players: servicePlayers, source: 'service' as const };
+  if (hasLocalFideBackend()) {
+    try {
+      const timeoutSignal = typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+        ? AbortSignal.timeout(3000)
+        : undefined;
+      const reqSignal = signal && timeoutSignal && typeof AbortSignal.any === 'function'
+        ? AbortSignal.any([signal, timeoutSignal])
+        : (signal || timeoutSignal);
+      const response = await fetch(`/api/fide/search?limit=20&tournamentType=${encodeURIComponent(ratingType)}&filterRating=all&q=${encodeURIComponent(query)}`, {
+        ...(reqSignal ? { signal: reqSignal } : {})
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const payload = await response.json();
+      if (Array.isArray(payload?.players) && payload.players.length > 0) {
+        servicePlayers = payload.players;
+        if (!isCompleteFideId(query) || servicePlayers.some(player => String(player.fideId) === query)) {
+          return { players: servicePlayers, source: 'service' as const, remoteFailed: false };
+        }
       }
+    } catch {
+      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     }
-  } catch {
-    // Static production intentionally falls through to the packaged FIDE database
-    // and its public FIDE-data fallback.
   }
-  const browserPlayers = await searchFideBrowserDatabase(query, ratingType, 20);
+  const { players: browserPlayers, remoteFailed } = await searchFideBrowserDatabaseWithMeta(query, ratingType, 20, { signal });
   const merged = new Map([...browserPlayers, ...servicePlayers].map(player => [player.fideId, player]));
-  return { players: rankFideSearchResults(query, [...merged.values()], ratingType, 20), source: 'browser' as const };
+  return {
+    players: rankFideSearchResults(query, [...merged.values()], ratingType, 20),
+    source: 'browser' as const,
+    remoteFailed
+  };
 }
 
 async function lookupFidePlayerById(fideId: number, ratingType: 'Standard' | 'Rapid' | 'Blitz'): Promise<FidePlayerRecord | null> {
   const query = String(fideId);
-  try {
-    const response = await fetch(`/api/fide/search?limit=10&tournamentType=${encodeURIComponent(ratingType)}&filterRating=all&q=${encodeURIComponent(query)}`);
-    if (response.ok) {
-      const payload = await response.json();
-      if (Array.isArray(payload?.players)) {
-        const exact = (payload.players as FidePlayerRecord[]).find(player => Number(player.fideId) === fideId);
-        if (exact) return exact;
+  if (hasLocalFideBackend()) {
+    try {
+      const response = await fetch(`/api/fide/search?limit=10&tournamentType=${encodeURIComponent(ratingType)}&filterRating=all&q=${encodeURIComponent(query)}`);
+      if (response.ok) {
+        const payload = await response.json();
+        if (Array.isArray(payload?.players)) {
+          const exact = (payload.players as FidePlayerRecord[]).find(player => Number(player.fideId) === fideId);
+          if (exact) return exact;
+        }
       }
+    } catch {
+      // Continue to browser database / live fallback.
     }
-  } catch {
-    // Continue to browser database / live fallback.
   }
 
   const browserPlayers = await searchFideBrowserDatabase(query, ratingType, 10);
@@ -71,18 +89,20 @@ async function lookupFidePlayerById(fideId: number, ratingType: 'Standard' | 'Ra
 }
 
 async function loadFideListInfo(): Promise<FideListInfo> {
-  try {
-    const response = await fetch('/api/fide/status', { cache: 'no-store' });
-    if (response.ok) {
-      const status = await response.json();
-      const version = String(status?.listVersion || '').trim();
-      const recordCount = Number(status?.recordCount || 0);
-      if (version && version.toLowerCase() !== 'bootstrap' && recordCount >= 100000) {
-        return { listVersion: version, label: version, recordCount, source: 'service' };
+  if (hasLocalFideBackend()) {
+    try {
+      const response = await fetch('/api/fide/status', { cache: 'no-store' });
+      if (response.ok) {
+        const status = await response.json();
+        const version = String(status?.listVersion || '').trim();
+        const recordCount = Number(status?.recordCount || 0);
+        if (version && version.toLowerCase() !== 'bootstrap' && recordCount >= 100000) {
+          return { listVersion: version, label: version, recordCount, source: 'service' };
+        }
       }
+    } catch {
+      // Static production uses the manifest below.
     }
-  } catch {
-    // Static production uses the manifest below.
   }
 
   const manifest = await getFideBrowserDatabaseInfo();
@@ -99,6 +119,9 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<FidePlayerRecord[]>([]);
   const [searching, setSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [searchError, setSearchError] = useState('');
+  const [searchRetryTick, setSearchRetryTick] = useState(0);
   const [listQuery, setListQuery] = useState('');
   const sortMode: RosterSortMode = getPlayerPublicationOrder(tournament);
   const [notice, setNotice] = useState<Notice>(null);
@@ -161,31 +184,45 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
   useEffect(() => {
     const q = query.trim();
     setResults([]);
+    setSearchError('');
+    setHasSearched(false);
     if (q.length < 2) {
       setSearching(false);
       return;
     }
     let current = true;
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
     setNotice(null);
     setSearching(true);
+    const delay = isCompleteFideId(q) ? 100 : 200;
     const timer = window.setTimeout(async () => {
       try {
-        const result = await searchFidePlayers(q, ratingType);
+        const result = await searchFidePlayers(q, ratingType, controller?.signal);
         if (!current) return;
         setResults(result.players);
-        if (!result.players.length) setNotice({ kind: 'warn', text: 'No FIDE players found. You can add the player manually.' });
-        else if (result.source === 'browser') setNotice({ kind: 'ok', text: 'FIDE search used the browser database or online directory.' });
-      } catch {
-        if (current) setNotice({ kind: 'warn', text: 'FIDE search is unavailable. Manual registration remains available.' });
+        setHasSearched(true);
+        if (result.remoteFailed && !result.players.length) {
+          setSearchError('Could not reach FIDE online directory. Check connection and retry.');
+        } else if (!result.players.length) {
+          setNotice({ kind: 'warn', text: 'No FIDE players found (rated or unrated). You can add the player manually.' });
+        } else if (result.source === 'browser') {
+          setNotice({ kind: 'ok', text: 'FIDE search used the browser database and online directory.' });
+        }
+      } catch (err: any) {
+        if (err?.name === 'AbortError' || !current) return;
+        setHasSearched(true);
+        setSearchError('FIDE search is temporarily unavailable. Retry or use Manual player.');
+        setNotice({ kind: 'warn', text: 'FIDE search is unavailable. Manual registration remains available.' });
       } finally {
         if (current) setSearching(false);
       }
-    }, 220);
+    }, delay);
     return () => {
       current = false;
       window.clearTimeout(timer);
+      controller?.abort();
     };
-  }, [query, ratingType]);
+  }, [query, ratingType, searchRetryTick]);
 
   const filteredPlayers = useMemo(() => {
     const q = listQuery.trim().toLowerCase();
@@ -541,6 +578,21 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
           <Search size={18} />
           <input value={query} onChange={event => setQuery(event.target.value)} aria-label="Name or FIDE ID" placeholder="Name or FIDE ID" autoComplete="off" enterKeyHint="search" />
           {searching && <Loader2 size={17} className="spin" />}
+          {query && (
+            <button
+              type="button"
+              className="companion-search-clear"
+              aria-label="Clear FIDE search"
+              onClick={() => {
+                setQuery('');
+                setResults([]);
+                setSearchError('');
+                setHasSearched(false);
+              }}
+            >
+              <X size={16} />
+            </button>
+          )}
         </label>
 
         {manualOpen && (
@@ -561,16 +613,50 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
           </form>
         )}
 
+        {searching && !results.length && (
+          <div className="companion-fide-status" role="status">
+            <Loader2 size={15} className="spin" />
+            <span>Searching FIDE database…</span>
+          </div>
+        )}
+
+        {searchError && !searching && (
+          <div className="companion-fide-status is-error" role="alert">
+            <span>{searchError}</span>
+            <button type="button" className="companion-button secondary compact" onClick={() => setSearchRetryTick(value => value + 1)}>
+              <RefreshCw size={14} /> Retry
+            </button>
+          </div>
+        )}
+
+        {hasSearched && !searching && !searchError && query.trim().length >= 2 && results.length === 0 && (
+          <div className="companion-fide-status is-empty" role="status">
+            <span>No matching FIDE player found (rated or unrated). You can use Manual player.</span>
+          </div>
+        )}
+
         {results.length > 0 && (
           <div className="companion-fide-results">
             {results.map(record => {
               const alreadyAdded = players.some(player => player.fideId === String(record.fideId));
               const rating = ratingFor(record, ratingType);
+              const altRatingHint = !rating
+                ? (record.ratingStandard ? `Std ${record.ratingStandard}` : record.ratingRapid ? `Rpd ${record.ratingRapid}` : record.ratingBlitz ? `Blz ${record.ratingBlitz}` : ratingType)
+                : ratingType;
               return (
                 <div key={record.fideId} className="companion-fide-row">
                   <div className="companion-player-rank">{record.title || '—'}</div>
-                  <div className="companion-player-main"><strong>{record.name}</strong><span>{record.federation || 'FID'} · FIDE {record.fideId}</span></div>
-                  <div className="companion-player-rating"><strong>{rating || '—'}</strong><span>{ratingType}</span></div>
+                  <div className="companion-player-main">
+                    <strong>{record.name}</strong>
+                    <span>
+                      {record.federation || 'FID'} · FIDE {record.fideId}
+                      {record.birth ? ` · b. ${String(record.birth).slice(0, 4)}` : ''}
+                    </span>
+                  </div>
+                  <div className={`companion-player-rating${rating ? '' : ' is-unrated'}`}>
+                    <strong>{rating || 'Unrated'}</strong>
+                    <span>{altRatingHint}</span>
+                  </div>
                   <button type="button" className="companion-button primary compact" disabled={alreadyAdded || busyKey !== ''} onClick={() => void registerFide(record)}>
                     {busyKey === `fide:${record.fideId}` ? <Loader2 size={15} className="spin" /> : <UserPlus size={15} />}
                     {alreadyAdded ? 'Added' : 'Add'}

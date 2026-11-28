@@ -352,28 +352,113 @@ html = replace_once(
     "finally{directorySearchInFlight.delete(key);}",
     "finally{if(directorySearchInFlight.get(key)===task)directorySearchInFlight.delete(key);}",
 )
-# The installed app has a LocalEngine directory. For an ID missing from the
-# browser's monthly list, the web workspace can resolve the same exact ID online.
+# The installed app has a LocalEngine directory. For offline/unrated players or IDs missing
+# from the browser's monthly list, the web workspace resolves via Hub FIDE search with Lichess fallback.
+html = replace_once(
+    html,
+    "function searchCacheKey(query,limit){return `${String(fideCacheMeta?.generationId||'')}|${normalizeName(query)}|${Math.max(1,Math.min(60,Number(limit)||60))}`;}\n",
+    "function searchCacheKey(query,limit){const dir=window.cpBeta98R7?.readConfig()?.directory!==false?'D1':'D0';return `${String(fideCacheMeta?.generationId||'')}|${dir}|${normalizeName(query)}|${Math.max(1,Math.min(60,Number(limit)||60))}`;}\n",
+)
 html = replace_once(
     html,
     "    const monthly=fideMainDb.get(id);if(monthly)return [cloneRow(monthly)];\n",
     """    const monthly=fideMainDb.get(id);if(monthly)return [cloneRow(monthly)];
     if(window.cpDesktopWebAllowed&&window.cpBeta98R7?.readConfig()?.directory!==false){
-      try{
-        const response=await fetch(`https://lichess.org/api/fide/player/${encodeURIComponent(id)}`,{
-          headers:{Accept:'application/json'},signal:AbortSignal.timeout?.(6000),referrerPolicy:'no-referrer'
-        });
-        if(!response.ok)return [];
-        const player=await response.json();
-        if(String(player?.id)!==id||typeof player.name!=='string'||!player.name.trim())return [];
-        return [mergeDirectoryWithMonthly({
+      const direct=await fetchWebOnlineFideDirectory(id,limit);
+      return direct.rows;
+    }
+""",
+)
+html = replace_once(
+    html,
+    "async function searchDirectory(query,limit=60,{requestId=0,refresh=false}={}){\n",
+    """async function fetchWebOnlineFideDirectory(raw,limit){
+  if(!window.cpDesktopWebAllowed||window.cpBeta98R7?.readConfig()?.directory===false)return {ok:true,rows:[]};
+  const apiBase=String(window.CP_API_BASE||'https://api.chess-publisher.org').replace(/\\/+$/,'');
+  const maxRows=Math.max(1,Math.min(60,Number(limit)||60));
+  const id=exactFideId(raw);
+  try{
+    const res=await fetch(`${apiBase}/api/v1/fide/search?q=${encodeURIComponent(raw)}&limit=${maxRows}`,{
+      headers:{Accept:'application/json'},signal:AbortSignal.timeout?.(7000)
+    });
+    if(res.ok){
+      const payload=await res.json().catch(()=>null);
+      if(Array.isArray(payload?.players)){
+        return {
+          ok:true,
+          rows:payload.players.map(p=>mergeDirectoryWithMonthly({
+            fideId:String(p.fideId??p.id??''),name:String(p.name||'').trim(),fed:p.federation||p.fed,
+            gender:normalizePlayerGender(p.gender),birth:String(p.birth??p.year??''),title:p.title,
+            std:Number(p.ratingStandard??p.standard??p.std)||0,
+            rapid:Number(p.ratingRapid??p.rapid)||0,
+            blitz:Number(p.ratingBlitz??p.blitz)||0
+          }))
+        };
+      }
+      if(!id)return {ok:false,rows:[]};
+    }
+  }catch(_){ }
+  try{
+    if(id){
+      const response=await fetch(`https://lichess.org/api/fide/player/${encodeURIComponent(id)}`,{
+        headers:{Accept:'application/json'},signal:AbortSignal.timeout?.(6000),referrerPolicy:'no-referrer'
+      });
+      if(!response.ok)return {ok:response.status===404,rows:[]};
+      const player=await response.json();
+      if(String(player?.id)!==id||typeof player.name!=='string'||!player.name.trim())return {ok:true,rows:[]};
+      return {
+        ok:true,
+        rows:[mergeDirectoryWithMonthly({
           fideId:id,name:player.name.trim(),fed:player.federation,gender:normalizePlayerGender(player.gender),
           birth:String(player.year??''),title:player.title,std:Number(player.standard)||0,
           rapid:Number(player.rapid)||0,blitz:Number(player.blitz)||0
-        })];
-      }catch(_){return [];}
+        })]
+      };
     }
-""",
+    const response=await fetch(`https://lichess.org/api/fide/player?q=${encodeURIComponent(raw)}`,{
+      headers:{Accept:'application/json'},signal:AbortSignal.timeout?.(6000),referrerPolicy:'no-referrer'
+    });
+    if(!response.ok)return {ok:response.status===404,rows:[]};
+    const list=await response.json();
+    const arr=(Array.isArray(list)?list:[list]).filter(p=>p&&typeof p.name==='string'&&p.name.trim());
+    return {
+      ok:true,
+      rows:arr.map(player=>mergeDirectoryWithMonthly({
+        fideId:String(player.id||''),name:player.name.trim(),fed:player.federation,gender:normalizePlayerGender(player.gender),
+        birth:String(player.year??''),title:player.title,std:Number(player.standard)||0,
+        rapid:Number(player.rapid)||0,blitz:Number(player.blitz)||0
+      }))
+    };
+  }catch(_){return {ok:false,rows:[]};}
+}
+async function searchDirectory(query,limit=60,{requestId=0,refresh=false}={}){\n""",
+)
+html = replace_once(
+    html,
+    "    if(!rows.length)rows=await searchLocalAsync(raw,limit,requestId);\n    if(requestId&&requestId!==latestSearchRequest)return [];\n    const results=rows.slice(0,limit);\n    if(results.length&&directorySearchInFlight.get(key)===task)rememberDirectorySearch(key,results);\n    return results;",
+    """    let cacheable=true;
+    if(!rows.length){
+      const [localRows,online]=await Promise.all([
+        searchLocalAsync(raw,Math.max(240,limit*4),requestId),
+        fetchWebOnlineFideDirectory(raw,limit)
+      ]);
+      cacheable=online.ok;
+      const mergedMap=new Map();
+      for(const r of localRows){if(r?.fideId)mergedMap.set(String(r.fideId),r);}
+      for(const r of online.rows){if(r?.fideId&&!mergedMap.has(String(r.fideId)))mergedMap.set(String(r.fideId),r);}
+      rows=Array.from(mergedMap.values());
+    }
+    if(requestId&&requestId!==latestSearchRequest)return [];
+    const results=rows.slice(0,limit);
+    if(cacheable&&results.length&&directorySearchInFlight.get(key)===task)rememberDirectorySearch(key,results);
+    return results;""",
+)
+html = replace_once(
+    html,
+    "function norm(v){let s=txt(v).toLowerCase();try{s=s.normalize('NFKD').replace(/[\\u0300-\\u036f]/g,'');}catch(_){ }try{s=s.replace(/[^\\p{L}\\p{N}]+/gu,' ');}catch(_){s=s.replace(/[^a-z0-9]+/g,' ');}return s.replace(/\\s+/g,' ').trim();}",
+    """const CP_CYR_MAP={'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'yo','ж':'zh','з':'z','и':'i','й':'y','к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ф':'f','х':'h','ц':'ts','ч':'ch','ш':'sh','щ':'sht','ъ':'a','ы':'y','ь':'','э':'e','ю':'yu','я':'ya','і':'i','ї':'yi','є':'ye','ґ':'g'};
+function cpFoldCyr(v){let o='';for(const c of String(v||'')){o+=CP_CYR_MAP[c]??c;}return o;}
+function norm(v){let s=cpFoldCyr(txt(v).toLowerCase());try{s=s.normalize('NFKD').replace(/[\\u0300-\\u036f]/g,'');}catch(_){ }try{s=s.replace(/[^\\p{L}\\p{N}]+/gu,' ');}catch(_){s=s.replace(/[^a-z0-9]+/g,' ');}return s.replace(/\\s+/g,' ').trim();}""",
 )
 # The unified search already merges imported lists. The older integration
 # retries installation at startup and its second renderer can erase an exact hit.

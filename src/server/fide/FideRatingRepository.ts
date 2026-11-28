@@ -235,15 +235,20 @@ export class FideRatingRepository {
 
       sql += conditions.join(' AND ');
 
+      const candidateLimit = Math.max(limit * 10, 200);
+      const priority = isNumeric
+        ? '(fide_id = :exactId) DESC, '
+        : '';
+
       // Order based on tournament type if provided, prioritizing highest rated in that format
       if (params.tournamentType === 'Rapid') {
-        sql += " ORDER BY rating_rapid DESC, rating_standard DESC, name ASC LIMIT :limit;";
+        sql += ` ORDER BY ${priority}rating_rapid DESC, rating_standard DESC, name ASC LIMIT :limit;`;
       } else if (params.tournamentType === 'Blitz') {
-        sql += " ORDER BY rating_blitz DESC, rating_standard DESC, name ASC LIMIT :limit;";
+        sql += ` ORDER BY ${priority}rating_blitz DESC, rating_standard DESC, name ASC LIMIT :limit;`;
       } else {
-        sql += " ORDER BY rating_standard DESC, name ASC LIMIT :limit;";
+        sql += ` ORDER BY ${priority}rating_standard DESC, name ASC LIMIT :limit;`;
       }
-      bindParams[':limit'] = limit;
+      bindParams[':limit'] = candidateLimit;
 
       const stmt = this.db.prepare(sql);
       stmt.bind(bindParams);

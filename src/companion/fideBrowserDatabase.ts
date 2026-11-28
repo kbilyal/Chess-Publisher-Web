@@ -5,6 +5,7 @@ import { generateTransliterationVariants } from '../server/fide/transliteration'
 const DATABASE_URL = '/fide/fide_ratings.sqlite';
 const MANIFEST_URL = '/fide/fide_latest_manifest.json';
 const SQL_WASM_URL = '/vendor/sql-wasm.wasm';
+const FIDE_HUB_SEARCH_API = 'https://api.chess-publisher.org/api/v1/fide/search';
 const FIDE_PUBLIC_SEARCH_API = 'https://lichess.org/api/fide/player';
 const MIN_TRUSTED_LOCAL_RECORDS = 100000;
 const MAX_REMOTE_NAME_VARIANTS = 8;
@@ -25,21 +26,44 @@ export interface BrowserFideManifest {
   unratedCount?: number;
 }
 
+type RemoteSearchResult = { ok: boolean; players: FidePlayerRecord[] };
+
 let databasePromise: Promise<Database> | null = null;
 let manifestPromise: Promise<BrowserFideManifest | null> | null = null;
-const remoteSearchCache = new Map<string, Promise<FidePlayerRecord[]>>();
+const remoteSearchCache = new Map<string, Promise<RemoteSearchResult>>();
 
 export const isCompleteFideId = (query: string) => /^\d{5,15}$/.test(query);
+
+function buildRequestSignal(externalSignal?: AbortSignal, timeoutMs = 8000): AbortSignal | undefined {
+  const hasTimeout = typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function';
+  if (!hasTimeout) return externalSignal;
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  if (!externalSignal) return timeoutSignal;
+  if (typeof AbortSignal.any === 'function') return AbortSignal.any([externalSignal, timeoutSignal]);
+  return externalSignal;
+}
 
 async function latestManifest(): Promise<BrowserFideManifest | null> {
   if (!manifestPromise) {
     manifestPromise = (async () => {
       try {
-        const response = await fetch(MANIFEST_URL, { cache: 'no-store' });
-        if (!response.ok) return null;
+        const signal = buildRequestSignal(undefined, 8000);
+        const response = await fetch(MANIFEST_URL, {
+          cache: 'no-store',
+          ...(signal ? { signal } : {})
+        });
+        if (!response.ok) {
+          manifestPromise = null;
+          return null;
+        }
         const value = await response.json();
-        return value && typeof value === 'object' ? value as BrowserFideManifest : null;
+        if (!value || typeof value !== 'object') {
+          manifestPromise = null;
+          return null;
+        }
+        return value as BrowserFideManifest;
       } catch {
+        manifestPromise = null;
         return null;
       }
     })();
@@ -62,15 +86,27 @@ function isTrustedLocalManifest(manifest: BrowserFideManifest | null) {
 async function database() {
   if (!databasePromise) {
     databasePromise = (async () => {
-      const manifest = await latestManifest();
-      const databaseUrl = revisionedDatabaseUrl(manifest);
-      const [SQL, response] = await Promise.all([
-        initSqlJs({ locateFile: () => SQL_WASM_URL }),
-        fetch(databaseUrl, { cache: 'force-cache' })
-      ]);
-      if (!response.ok) throw new Error(`FIDE database HTTP ${response.status}`);
-      const bytes = new Uint8Array(await response.arrayBuffer());
-      return new SQL.Database(bytes);
+      try {
+        const manifest = await latestManifest();
+        const databaseUrl = revisionedDatabaseUrl(manifest);
+        const signal = buildRequestSignal(undefined, 25000);
+        const response = await fetch(databaseUrl, {
+          cache: 'force-cache',
+          ...(signal ? { signal } : {})
+        });
+        if (!response.ok) throw new Error(`FIDE database HTTP ${response.status}`);
+        const [SQL, buffer] = await Promise.all([
+          initSqlJs({
+            locateFile: file => (typeof window !== 'undefined' ? SQL_WASM_URL : file)
+          }),
+          response.arrayBuffer()
+        ]);
+        const bytes = new Uint8Array(buffer);
+        return new SQL.Database(bytes);
+      } catch (error) {
+        databasePromise = null;
+        throw error;
+      }
     })();
   }
   return databasePromise;
@@ -245,30 +281,69 @@ function normalizePublicFidePlayer(raw: any): FidePlayerRecord | null {
   };
 }
 
-async function fetchPublicFideQuery(query: string): Promise<FidePlayerRecord[]> {
+async function fetchHubFideSearch(query: string, limit: number, signal?: AbortSignal): Promise<RemoteSearchResult> {
+  try {
+    const reqSignal = buildRequestSignal(signal, 7000);
+    const url = `${FIDE_HUB_SEARCH_API}?q=${encodeURIComponent(query)}&limit=${Math.max(1, Math.min(60, limit))}`;
+    const response = await fetch(url, {
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+      ...(reqSignal ? { signal: reqSignal } : {})
+    });
+    if (!response.ok) return { ok: false, players: [] };
+    const payload = await response.json();
+    if (!payload || !Array.isArray(payload.players)) return { ok: false, players: [] };
+    return {
+      ok: true,
+      players: payload.players
+        .map(normalizePublicFidePlayer)
+        .filter((player): player is FidePlayerRecord => Boolean(player))
+    };
+  } catch {
+    return { ok: false, players: [] };
+  }
+}
+
+async function fetchPublicFideQuery(query: string, signal?: AbortSignal): Promise<RemoteSearchResult> {
   try {
     const numeric = /^\d+$/.test(query);
     const url = numeric
       ? `${FIDE_PUBLIC_SEARCH_API}/${encodeURIComponent(query)}`
       : `${FIDE_PUBLIC_SEARCH_API}?q=${encodeURIComponent(query)}`;
+    const reqSignal = buildRequestSignal(signal, 6000);
     const response = await fetch(url, {
       headers: { Accept: 'application/json' },
-      cache: 'no-store'
+      cache: 'no-store',
+      ...(reqSignal ? { signal: reqSignal } : {})
     });
-    if (!response.ok) return [];
+    if (response.status === 404) return { ok: true, players: [] };
+    if (!response.ok) return { ok: false, players: [] };
     const payload = await response.json();
     const rawPlayers = Array.isArray(payload) ? payload : [payload];
-    return rawPlayers
-      .map(normalizePublicFidePlayer)
-      .filter((player): player is FidePlayerRecord => Boolean(player));
+    return {
+      ok: true,
+      players: rawPlayers
+        .map(normalizePublicFidePlayer)
+        .filter((player): player is FidePlayerRecord => Boolean(player))
+    };
   } catch {
-    return [];
+    return { ok: false, players: [] };
   }
 }
 
-async function searchFidePublicMirror(query: string, limit: number): Promise<FidePlayerRecord[]> {
+function transliterateTokensToLatin(tokens: string[]): string[] {
+  return tokens.map(token => {
+    if (!/[\u0400-\u04FF]/.test(token)) return token;
+    const latin = generateTransliterationVariants(token).find(v => !/[\u0400-\u04FF]/.test(v));
+    return latin || token;
+  });
+}
+
+async function searchFidePublicMirror(query: string, limit: number, signal?: AbortSignal): Promise<RemoteSearchResult> {
   const q = String(query || '').trim();
-  if (q.length < 2) return [];
+  if (q.length < 2) return { ok: true, players: [] };
+  if (signal?.aborted) return { ok: false, players: [] };
+
   const numeric = /^\d+$/.test(q);
   const nameTokens = numeric ? [] : normalizedNameTokens(q).map(token => foldSearchToken(token));
   const cacheIdentity = numeric
@@ -278,31 +353,57 @@ async function searchFidePublicMirror(query: string, limit: number): Promise<Fid
   const cached = remoteSearchCache.get(cacheKey);
   if (cached) return cached;
 
-  const pending = (async () => {
+  const pending = (async (): Promise<RemoteSearchResult> => {
+    const hub = await fetchHubFideSearch(q, Math.max(limit, 30), signal);
+    if (hub.ok) {
+      if (numeric) {
+        return { ok: true, players: rankFideSearchResults(q, hub.players, 'Standard', limit) };
+      }
+      const filtered = hub.players.filter(player => scoreFideNameMatch(q, player.name) >= 0);
+      return { ok: true, players: filtered };
+    }
+
+    if (signal?.aborted) return { ok: false, players: [] };
+
     if (numeric) {
-      return rankFideSearchResults(q, await fetchPublicFideQuery(q), 'Standard', limit);
+      const lichess = await fetchPublicFideQuery(q, signal);
+      return { ok: lichess.ok, players: rankFideSearchResults(q, lichess.players, 'Standard', limit) };
     }
 
     const merged = new Map<number, FidePlayerRecord>();
-    const variants = buildFideNameQueryVariants(q);
+    const tokens = transliterateTokensToLatin(normalizedNameTokens(q));
+    const primaryQuery = tokens.join(' ') || q;
+    const primary = await fetchPublicFideQuery(primaryQuery, signal);
+    let anyOk = primary.ok;
+    primary.players.forEach(player => {
+      if (scoreFideNameMatch(q, player.name) >= 0) merged.set(player.fideId, player);
+    });
 
-    // Sequential by design. Lichess API guidance asks clients to make one
-    // request at a time. Every returned candidate is also locally validated
-    // against all typed name tokens before it can enter the result set.
-    for (const variant of variants) {
-      const players = await fetchPublicFideQuery(variant);
-      players.forEach(player => {
-        if (scoreFideNameMatch(q, player.name) >= 0) merged.set(player.fideId, player);
-      });
+    if (merged.size === 0 && tokens.length >= 2 && !signal?.aborted) {
+      const commaFallback = `${tokens[tokens.length - 1]}, ${tokens.slice(0, -1).join(' ')}`;
+      if (commaFallback !== primaryQuery) {
+        const secondary = await fetchPublicFideQuery(commaFallback, signal);
+        anyOk = anyOk || secondary.ok;
+        secondary.players.forEach(player => {
+          if (scoreFideNameMatch(q, player.name) >= 0) merged.set(player.fideId, player);
+        });
+      }
     }
 
-    return Array.from(merged.values());
+    return { ok: anyOk, players: Array.from(merged.values()) };
   })();
 
   remoteSearchCache.set(cacheKey, pending);
-  void pending.then(players => {
-    if (numeric && !players.length && remoteSearchCache.get(cacheKey) === pending) remoteSearchCache.delete(cacheKey);
-  });
+  void pending.then(
+    result => {
+      if ((!result.ok || result.players.length === 0) && remoteSearchCache.get(cacheKey) === pending) {
+        remoteSearchCache.delete(cacheKey);
+      }
+    },
+    () => {
+      if (remoteSearchCache.get(cacheKey) === pending) remoteSearchCache.delete(cacheKey);
+    }
+  );
   if (remoteSearchCache.size > 100) {
     const oldestKey = remoteSearchCache.keys().next().value;
     if (oldestKey) remoteSearchCache.delete(oldestKey);
@@ -314,19 +415,31 @@ export async function getFideBrowserDatabaseInfo(): Promise<BrowserFideManifest 
   return latestManifest();
 }
 
-export async function searchFideBrowserDatabase(query: string, tournamentType: 'Standard' | 'Rapid' | 'Blitz', limit = 20): Promise<FidePlayerRecord[]> {
+export type FideBrowserSearchOptions = {
+  signal?: AbortSignal;
+};
+
+export async function searchFideBrowserDatabaseWithMeta(
+  query: string,
+  tournamentType: 'Standard' | 'Rapid' | 'Blitz',
+  limit = 20,
+  options: FideBrowserSearchOptions = {}
+): Promise<{ players: FidePlayerRecord[]; remoteFailed: boolean }> {
   const q = String(query || '').trim();
-  if (q.length < 2) return [];
+  if (q.length < 2) return { players: [], remoteFailed: false };
   const safeLimit = Math.max(1, Math.min(50, Number(limit) || 20));
+  const candidateLimit = Math.max(safeLimit * 12, 240);
   const manifest = await latestManifest();
   const trustedLocal = isTrustedLocalManifest(manifest);
+  const localIncludesUnrated = Number(manifest?.unratedCount || 0) > 0;
   const localResults: FidePlayerRecord[] = [];
+  const numeric = /^\d+$/.test(q);
 
   try {
     const db = await database();
-    const numeric = /^\d+$/.test(q);
+    if (options.signal?.aborted) return { players: [], remoteFailed: false };
     const conditions: string[] = [];
-    const bindings: Record<string, string | number> = { ':limit': safeLimit };
+    const bindings: Record<string, string | number> = { ':limit': candidateLimit };
 
     if (numeric) {
       conditions.push('(fide_id = :exact_id OR CAST(fide_id AS TEXT) LIKE :prefix_id)');
@@ -347,6 +460,13 @@ export async function searchFideBrowserDatabase(query: string, tournamentType: '
         });
         conditions.push(`(${variantConditions.join(' OR ')})`);
       }
+      if (tokens.length > 0) {
+        const surnameGuess = transliterateTokensToLatin(tokens);
+        const prefixA = `${surnameGuess[0]}%`;
+        const prefixB = `${surnameGuess[surnameGuess.length - 1]}%`;
+        bindings[':prefix_a'] = prefixA;
+        bindings[':prefix_b'] = prefixB;
+      }
     }
 
     if (conditions.length) {
@@ -355,8 +475,12 @@ export async function searchFideBrowserDatabase(query: string, tournamentType: '
         : tournamentType === 'Blitz'
           ? 'rating_blitz DESC, rating_standard DESC, name ASC'
           : 'rating_standard DESC, name ASC';
-      const exactFirst = numeric ? '(fide_id = :exact_id) DESC, ' : '';
-      const sql = `SELECT fide_id, name, federation, title, gender, birth, rating_standard, rating_rapid, rating_blitz, flag FROM fide_players WHERE ${conditions.join(' AND ')} ORDER BY ${exactFirst}${order} LIMIT :limit;`;
+      const priority = numeric
+        ? '(fide_id = :exact_id) DESC, '
+        : bindings[':prefix_a']
+          ? '(CASE WHEN name LIKE :prefix_a OR name LIKE :prefix_b THEN 1 ELSE 0 END) DESC, '
+          : '';
+      const sql = `SELECT fide_id, name, federation, title, gender, birth, rating_standard, rating_rapid, rating_blitz, flag FROM fide_players WHERE ${conditions.join(' AND ')} ORDER BY ${priority}${order} LIMIT :limit;`;
       const statement = db.prepare(sql);
       statement.bind(bindings);
       try {
@@ -383,26 +507,54 @@ export async function searchFideBrowserDatabase(query: string, tournamentType: '
     // A missing/corrupt packaged database must not disable player lookup.
   }
 
+  if (options.signal?.aborted) return { players: [], remoteFailed: false };
+
   const needsExactLookup = isCompleteFideId(q) && !localResults.some(player => String(player.fideId) === q);
-  if (trustedLocal && localResults.length > 0 && !needsExactLookup) {
-    return rankFideSearchResults(q, localResults, tournamentType, safeLimit);
+  if (trustedLocal && localIncludesUnrated && localResults.length > 0 && !needsExactLookup) {
+    return { players: rankFideSearchResults(q, localResults, tournamentType, safeLimit), remoteFailed: false };
   }
 
-  const remoteResults = await searchFidePublicMirror(q, safeLimit);
-  if (!remoteResults.length) return rankFideSearchResults(q, localResults, tournamentType, safeLimit);
+  const remote = await searchFidePublicMirror(q, safeLimit, options.signal);
+  if (options.signal?.aborted) return { players: [], remoteFailed: false };
+  if (!remote.players.length) {
+    return {
+      players: rankFideSearchResults(q, localResults, tournamentType, safeLimit),
+      remoteFailed: !remote.ok && localResults.length === 0
+    };
+  }
 
   const merged = new Map<number, FidePlayerRecord>();
   if (trustedLocal) {
     localResults.forEach(player => merged.set(player.fideId, player));
-    remoteResults.forEach(player => {
-      if (!merged.has(player.fideId)) merged.set(player.fideId, player);
+    remote.players.forEach(player => {
+      if (!merged.has(player.fideId)) {
+        merged.set(player.fideId, player);
+      } else {
+        const existing = merged.get(player.fideId)!;
+        if (!existing.birth && player.birth) existing.birth = player.birth;
+        if (!existing.gender && player.gender) existing.gender = player.gender;
+        if (!existing.title && player.title) existing.title = player.title;
+      }
     });
   } else {
     localResults.forEach(player => merged.set(player.fideId, player));
-    remoteResults.forEach(player => merged.set(player.fideId, player));
+    remote.players.forEach(player => merged.set(player.fideId, player));
   }
 
-  return rankFideSearchResults(q, Array.from(merged.values()), tournamentType, safeLimit);
+  return {
+    players: rankFideSearchResults(q, Array.from(merged.values()), tournamentType, safeLimit),
+    remoteFailed: false
+  };
+}
+
+export async function searchFideBrowserDatabase(
+  query: string,
+  tournamentType: 'Standard' | 'Rapid' | 'Blitz',
+  limit = 20,
+  options: FideBrowserSearchOptions = {}
+): Promise<FidePlayerRecord[]> {
+  const { players } = await searchFideBrowserDatabaseWithMeta(query, tournamentType, limit, options);
+  return players;
 }
 
 export function resetFideBrowserDatabaseForTests() {

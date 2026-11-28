@@ -141,6 +141,34 @@ try {
   await page.locator('#tabRegistration').click();
   await type('Magnus Carlsen');
   await page.locator(results).filter({ hasText: 'Carlsen, Magnus' }).waitFor({ state: 'attached' });
+
+  // Verify Hub FIDE directory endpoint returns unrated players reliably alongside local monthly rated list
+  let mockFideSearchEnabled = true;
+  await page.route('https://api.chess-publisher.org/api/v1/fide/search*', route => {
+    if (!mockFideSearchEnabled) return route.fallback();
+    const u = new URL(route.request().url());
+    const q = (u.searchParams.get('q') || '').toLowerCase();
+    const all = [
+      { fideId: 2935236, name: 'Bilyal, Kyamran', federation: 'BUL', gender: 'm', birth: '1989', ratingStandard: 1743, ratingRapid: 1772, ratingBlitz: 1770 },
+      { fideId: 2939924, name: 'Chakar, Bilyal', federation: 'BUL', gender: 'm', birth: '2013', ratingStandard: 0, ratingRapid: 0, ratingBlitz: 0 }
+    ];
+    const players = q.includes('chakar') ? [all[1]] : q.includes('bilyal') ? all : [];
+    return route.fulfill({
+      status: 200,
+      headers: {
+        'access-control-allow-origin': origin,
+        'access-control-allow-credentials': 'true'
+      },
+      json: { ok: true, query: q, count: players.length, players }
+    });
+  });
+
+  await type('Bilyal Chakar');
+  await page.locator(results).filter({ hasText: 'Chakar, Bilyal' }).filter({ hasText: '2939924' }).waitFor({ state: 'attached' });
+  await type('Bilyal');
+  await page.locator(results).filter({ hasText: 'Chakar, Bilyal' }).filter({ hasText: 'Bilyal, Kyamran' }).waitFor({ state: 'attached' });
+  mockFideSearchEnabled = false;
+
   console.log('Web FIDE search, complete activation, rollback and browser cache restore passed.');
 } finally {
   await browser.close();

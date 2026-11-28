@@ -54,6 +54,42 @@
 .companion-searchbox:focus-within { border-color: #8ab9f3; box-shadow: 0 0 0 3px rgba(23,105,224,.08); background: #fff; }
 .companion-searchbox input { min-width: 0; flex: 1; height: 44px; border: 0; outline: 0; background: transparent; color: #152137; font-size: 12px; }
 .companion-searchbox input::placeholder { color: #9ba8b8; }
+.companion-search-clear {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+}
+.companion-search-clear:hover { background: #e8eef6; color: #1e293b; }
+.companion-fide-status {
+  margin-top: 10px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  border: 1px solid #d9e4f0;
+  border-radius: 10px;
+  background: #f8fbff;
+  color: #3d4f66;
+  font-size: 12px;
+  font-weight: 650;
+}
+.companion-fide-status.is-error { border-color: #efc8cf; background: #fff4f5; color: #9f2d42; }
+.companion-fide-status.is-empty { color: #5f6f83; }
+.companion-player-rating.is-unrated strong {
+  color: #64748b;
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 750;
+}
 .companion-searchbox.small { min-height: 40px; margin-bottom: 0; }
 .companion-searchbox.small input { height: 38px; font-size: 11px; }
 .companion-roster-toolbar { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 9px; align-items: center; margin-bottom: 5px; }

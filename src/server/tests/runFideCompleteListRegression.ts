@@ -2,7 +2,13 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import AdmZip from 'adm-zip';
-import { buildFideNameQueryVariants, rankFideSearchResults, scoreFideNameMatch } from '../../companion/fideBrowserDatabase';
+import {
+  buildFideNameQueryVariants,
+  rankFideSearchResults,
+  resetFideBrowserDatabaseForTests,
+  scoreFideNameMatch,
+  searchFideBrowserDatabase
+} from '../../companion/fideBrowserDatabase';
 import { FidePlayerRecord } from '../fide/types';
 import { FideRatingRepository } from '../fide/FideRatingRepository';
 import { FideRatingService } from '../fide/FideRatingService';
@@ -138,6 +144,60 @@ async function main() {
       browserSearchSource.includes('scoreFideNameMatch(q, player.name) >= 0'),
       'Public FIDE fallback candidates must be locally relevance-filtered before display.'
     );
+    assert(
+      browserSearchSource.includes('https://api.chess-publisher.org/api/v1/fide/search'),
+      'Web search must support the Hub FIDE directory endpoint so unrated players are returned alongside rated ones.'
+    );
+
+    // Unrated player regression & transient-error cache resilience test
+    resetFideBrowserDatabaseForTests();
+    const originalFetch = globalThis.fetch;
+    let transientAttempt = 0;
+    try {
+      (globalThis as any).fetch = async (url: string | URL) => {
+        const u = String(url);
+        if (u.includes('/fide/fide_latest_manifest.json')) {
+          return new Response(JSON.stringify({
+            listVersion: '2026-11',
+            archiveSha256: 'a'.repeat(64),
+            recordCount: 800160,
+            unratedCount: 0
+          }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (u.includes('api.chess-publisher.org/api/v1/fide/search')) {
+          const parsed = new URL(u);
+          const qParam = parsed.searchParams.get('q') || '';
+          if (qParam === 'RetryTest') {
+            transientAttempt += 1;
+            if (transientAttempt === 1) return new Response('temporary outage', { status: 502 });
+          }
+          return new Response(JSON.stringify({
+            ok: true,
+            players: [
+              { fideId: 2935236, name: 'Bilyal, Kyamran', federation: 'BUL', ratingStandard: 1743, ratingRapid: 1772, ratingBlitz: 1770 },
+              { fideId: 2939924, name: 'Chakar, Bilyal', federation: 'BUL', birth: '2013', ratingStandard: 0, ratingRapid: 0, ratingBlitz: 0 },
+              { fideId: 9988776, name: 'Retrytest, Unrated', federation: 'BUL', ratingStandard: 0, ratingRapid: 0, ratingBlitz: 0 }
+            ]
+          }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        throw new Error(`Unexpected URL in mock fetch: ${u}`);
+      };
+
+      const unratedOrderResults = await searchFideBrowserDatabase('Bilyal Chakar', 'Standard', 20);
+      assert(unratedOrderResults.length === 1 && unratedOrderResults[0].fideId === 2939924, 'Unrated player must be found via order-independent name search.');
+
+      const sharedSurnameResults = await searchFideBrowserDatabase('Bilyal', 'Standard', 20);
+      assert(sharedSurnameResults.some(p => p.fideId === 2939924 && p.ratingStandard === 0), 'Unrated player must be returned alongside rated players for shared surnames.');
+
+      // First attempt fails transiently; cache must NOT stay poisoned
+      const firstTry = await searchFideBrowserDatabase('RetryTest', 'Standard', 20);
+      assert(firstTry.length === 0, 'First failed search should return empty safely.');
+      const secondTry = await searchFideBrowserDatabase('RetryTest', 'Standard', 20);
+      assert(secondTry.length === 1 && secondTry[0].fideId === 9988776, 'Transient search failure must not poison cache for the next retry.');
+    } finally {
+      (globalThis as any).fetch = originalFetch;
+      resetFideBrowserDatabaseForTests();
+    }
 
     repository.close();
     console.log('PASS FIDE complete-list regression: complete list + rating fields + order/comma-independent relevance-filtered search preserved.');
