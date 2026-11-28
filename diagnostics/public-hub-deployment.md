@@ -1,9 +1,9 @@
 # Public tournament lifecycle deployment
 
-Checked at (UTC): 2026-11-27T17:03:23Z
+Checked at (UTC): 2026-11-28T10:15:46Z
 Production URL: https://chess-publisher.org/tournaments.js
 JavaScript HTTP response: 200
 HTML HTTP response: 200
 Calendar status correction on live site: PASS
-Deploy workflow conclusion: success
-Deploy workflow run: https://github.com/kbilyal/Chess-Publisher-Web/actions/runs/46038456072
+Deploy workflow conclusion: failure
+Deploy workflow run: https://github.com/kbilyal/Chess-Publisher-Web/actions/runs/46134241910
