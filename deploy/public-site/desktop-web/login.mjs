@@ -46,7 +46,17 @@ async function persistCookieSession(user) {
   }));
 }
 
+function rememberDesktopPreference() {
+  try {
+    const params = new URLSearchParams(typeof location !== 'undefined' ? (location.search || '') : '');
+    if (params.get('desktop') === '1') {
+      sessionStorage?.setItem?.('cp.desktop-web.preferDesktop', '1');
+    }
+  } catch {}
+}
+
 function workspaceTargetUrl(path = './workspace.html') {
+  rememberDesktopPreference();
   try {
     const raw = new URLSearchParams(typeof location !== 'undefined' ? (location.search || '') : '').get('cloudTournamentId');
     const safe = String(raw || '').trim();
@@ -200,6 +210,7 @@ async function resolveGoogleClientId() {
 async function initGoogleSignIn() {
   if (!googleBtnContainer) return;
 
+  rememberDesktopPreference();
   const isAccountView = typeof location !== 'undefined' && new URLSearchParams(location.search || '').get('account') === '1';
   try {
     const meRes = await fetch(`${apiBase}/api/auth/me?optional=1`, {

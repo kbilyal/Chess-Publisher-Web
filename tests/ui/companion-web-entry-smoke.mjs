@@ -93,6 +93,10 @@ async function configure(context, googleClientId = Promise.resolve('fixture')) {
     const reply = (json, status = 200) => route.fulfill({ headers, json, status });
     if (request.method() === 'OPTIONS') return route.fulfill({ headers, status: 204 });
     calls.push({ path, origin, bearer, expectedOrganizer, method: request.method(), body: request.postData() });
+    if (path === '/api/v1/fide/search') {
+      const q = new URL(request.url()).searchParams.get('q');
+      return reply({ ok: true, players: q === String(fidePlayer.fideId) ? [fidePlayer] : [] });
+    }
     if (expectedOrganizer && expectedOrganizer !== googleSession?.organizerId) {
       return reply({ ok: false, error: 'organizer_session_changed' }, 401);
     }
@@ -225,22 +229,31 @@ async function checkTouchOrganizerEditing(page, draftKey) {
   await nav.getByRole('button', { name: 'Players' }).tap();
   const search = page.getByRole('textbox', { name: 'Name or FIDE ID' });
   const prefix = String(fidePlayer.fideId).slice(0, -1);
-  const delayedSearch = url => url.origin === companion && url.pathname === '/api/fide/search' && url.searchParams.get('q') === prefix;
+  const delayedSearch = url =>
+    ((url.origin === companion && url.pathname === '/api/fide/search') ||
+      (url.origin === api && url.pathname === '/api/v1/fide/search')) &&
+    url.searchParams.get('q') === prefix;
   const { promise: prefixReady, resolve: markPrefixReady } = Promise.withResolvers();
   const { promise: prefixReply, resolve: releasePrefix } = Promise.withResolvers();
   await page.route(delayedSearch, async route => {
     markPrefixReady();
     await prefixReply;
-    await route.fulfill({ json: { players: [{ ...fidePlayer, fideId: Number(prefix), name: 'Older prefix response' }] } });
+    await route.fulfill({
+      headers: { 'access-control-allow-origin': companion, 'access-control-allow-credentials': 'true' },
+      json: { players: [{ ...fidePlayer, fideId: Number(prefix), name: 'Older prefix response' }] }
+    }).catch(() => {});
   });
   await search.fill(prefix);
   await prefixReady;
+  const oldSettled = Promise.race([
+    page.waitForResponse(response => delayedSearch(new URL(response.url()))).then(r => r.finished().catch(() => {})),
+    page.waitForEvent('requestfailed', req => delayedSearch(new URL(req.url()))).catch(() => {})
+  ]);
   await search.fill(String(fidePlayer.fideId));
   const add = page.getByRole('button', { name: 'Add', exact: true });
   await add.waitFor();
-  const oldResponse = page.waitForResponse(response => delayedSearch(new URL(response.url())));
   releasePrefix();
-  await (await oldResponse).finished();
+  await oldSettled;
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   assert.equal(await page.getByText('Older prefix response').count(), 0);
   await checkTarget(add);

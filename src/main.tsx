@@ -8,8 +8,9 @@ import './companion/installRegistrationDeleteGuard';
 import './companion/installTabScrollReset';
 import App from './App.tsx';
 import {OnlineCloudProvider} from './cloud/OnlineCloudProvider';
-import {ArbiterPortal} from './arbiter/ArbiterPortal';
+import { ArbiterPortal } from './arbiter/ArbiterPortal';
 import { prepareWebOrganizerSession } from './companion/webOrganizerHandoff';
+import { installMobilePhoneMode } from './companion/mobilePhoneMode';
 import './index.css';
 import './companion.css';
 import './companion-cloud.css';
@@ -29,6 +30,9 @@ import './arbiter/arbiter-ui-fixes.css';
 import './arbiter/arbiter-print-filter-fixes.css';
 import './arbiter/arbiter-desktop-dense.css';
 import './mobile-ergonomics.css';
+import './companion-mobile-phone.css';
+
+installMobilePhoneMode();
 
 const isArbiterAccess = new URLSearchParams(window.location.search).has('arbiter');
 

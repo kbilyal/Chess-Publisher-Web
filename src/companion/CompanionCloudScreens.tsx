@@ -115,6 +115,7 @@ export function CompanionEntryScreen({
 
   const webUrl = new URL('https://chess-publisher.org/app/');
   webUrl.searchParams.set('account', '1');
+  webUrl.searchParams.set('desktop', '1');
   if (tournamentHint) webUrl.searchParams.set('cloudTournamentId', tournamentHint);
 
   return (
@@ -242,7 +243,7 @@ export function CompanionTournamentSelectScreen(props: {
         <div className="companion-entry-brand compact"><img className="companion-entry-mark" src="/icons/chess-publisher-icon-192.png" alt="" /><div><strong>Arbiter Companion</strong><span>{showTrash ? 'Trash' : 'My tournaments'}</span></div></div>
         <div className="companion-select-actions">
           {showTrash && <button type="button" className="companion-icon-action" aria-label="Back to tournaments" onClick={() => { setShowTrash(false); setQuery(''); }}><ArrowLeft size={19} /><span>Back</span></button>}
-          <a className="companion-icon-action" href="https://chess-publisher.org/app/" aria-label="Open ChessPublisher Web"><ExternalLink size={17} /><span>ChessPublisher Web</span></a>
+          <a className="companion-icon-action companion-topbar-desktop-link" href="https://chess-publisher.org/app/?desktop=1" aria-label="Open Full Web Workspace"><ExternalLink size={17} /><span>ChessPublisher Web</span></a>
           <button type="button" className="companion-icon-action" onClick={onRefresh} disabled={busy} aria-label="Refresh tournaments"><RefreshCw size={18} className={busy ? 'spin' : ''} /><span>Refresh</span></button>
           <button type="button" className="companion-icon-action" onClick={onSignOut} aria-label="Sign out"><LogOut size={18} /><span>Sign out</span></button>
         </div>
@@ -260,6 +261,14 @@ export function CompanionTournamentSelectScreen(props: {
             <span><small>{authMode === 'google' ? (googleUser?.email || 'Google Cloud') : 'Organizer'}</small><strong>{organizerName}</strong></span>
           </div>
         </section>
+
+        <a className="companion-mobile-desktop-switch" href="https://chess-publisher.org/app/?desktop=1">
+          <span>
+            <strong>Full Web Workspace</strong>
+            <small>Pairings, standings, tie-breaks &amp; full desktop tools</small>
+          </span>
+          <ExternalLink size={17} aria-hidden="true" />
+        </a>
 
         {!showTrash && (
           <section className="companion-start-actions" aria-label="Tournament start actions">

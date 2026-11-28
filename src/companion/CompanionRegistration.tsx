@@ -562,6 +562,11 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
 
   return (
     <div className="companion-registration">
+      <nav className="companion-reg-phone-jump" aria-label="Player registration shortcuts">
+        <a href="#companion-fide-search-section">Find FIDE</a>
+        <a href="#companion-roster-section">Roster ({players.length})</a>
+      </nav>
+
       {notice && !editingPlayer && (
         <div className={`companion-registration-notice ${notice.kind}`} role="status">
           {notice.kind === 'ok' ? <Check size={16} /> : <X size={16} />}
@@ -569,7 +574,7 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
         </div>
       )}
 
-      <section className="companion-registration-card companion-registration-search">
+      <section id="companion-fide-search-section" className="companion-registration-card companion-registration-search">
         <div className="companion-registration-heading">
           <div><span className="companion-eyebrow">FAST REGISTRATION</span><h2>Find player in FIDE</h2><p>Search by name or FIDE ID, then add with one tap.</p></div>
           <button type="button" className="companion-button secondary" aria-expanded={manualOpen} aria-controls="companion-manual-player" onClick={() => setManualOpen(value => !value)}><UserPlus size={16} /> Manual player</button>
@@ -668,7 +673,7 @@ export const CompanionRegistration: React.FC<Props> = ({ tournament, onUpdateTou
         )}
       </section>
 
-      <section className="companion-registration-card">
+      <section id="companion-roster-section" className="companion-registration-card">
         <div className="companion-registration-heading">
           <div><span className="companion-eyebrow">TOURNAMENT ROSTER</span><h2>Registered players</h2><p>{rankLocked ? `Starting numbers are locked. New players join from round ${latestRound + 1}.` : 'Changes here use the same protected desktop player transactions.'}</p></div>
           <div className="companion-roster-actions">

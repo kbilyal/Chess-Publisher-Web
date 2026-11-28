@@ -764,6 +764,14 @@ export const ArbiterPortal: React.FC = () => {
                 <span className="arbiter-round-progress">{enteredCount}/{totalNormalGames} entered</span>
               )}
             </div>
+            {totalNormalGames > 0 && (
+              <div className="arbiter-round-progress-track" aria-hidden="true">
+                <div
+                  className="arbiter-round-progress-fill"
+                  style={{ width: `${Math.round((enteredCount / totalNormalGames) * 100)}%` }}
+                />
+              </div>
+            )}
             <span>{finalized ? `Round ${activeRound} is finalized and read-only.` : 'Choose results or Clear result, then press ↕ SYNC once. Existing results require confirmation before overwrite.'}</span>
           </div>
           <div className="arbiter-round-actions">

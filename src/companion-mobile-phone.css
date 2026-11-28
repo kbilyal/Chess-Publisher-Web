@@ -1,0 +1,477 @@
+/* Mobile phone companion UI enhancements (Android & iPhone phones; excludes tablets and desktop).
+ * Screen-only rules; print layout is owned by organizer-pairings-print.css.
+ */
+
+.companion-mobile-back,
+.companion-mobile-sync-meta,
+.companion-mobile-more-btn,
+.companion-mobile-desktop-switch,
+.companion-reg-phone-jump,
+.companion-mobile-nav-badge,
+.arbiter-round-progress-track {
+  display: none;
+}
+
+/* Mobile More Workspace Bottom Sheet */
+.companion-mobile-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(8, 24, 45, 0.48);
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
+}
+
+.companion-mobile-sheet {
+  width: min(520px, 100%);
+  padding: 10px 16px calc(18px + env(safe-area-inset-bottom));
+  border-radius: 22px 22px 0 0;
+  background: #ffffff;
+  box-shadow: 0 -14px 44px rgba(5, 17, 32, 0.24);
+  display: grid;
+  gap: 12px;
+  animation: cp-phone-sheet-up 0.18s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes cp-phone-sheet-up {
+  from { transform: translateY(16px); }
+  to { transform: none; }
+}
+
+.companion-mobile-sheet .companion-sheet-grabber {
+  display: block;
+  width: 38px;
+  height: 5px;
+  margin: 0 auto 2px;
+  border-radius: 999px;
+  background: #d5dee8;
+}
+
+.companion-mobile-sheet-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.companion-mobile-sheet-head h2 {
+  margin: 3px 0 0;
+  color: #101f35;
+  font-size: 17px;
+  font-weight: 850;
+  line-height: 1.2;
+}
+
+.companion-mobile-sheet-head button {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #d5e0ec;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #475569;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.companion-mobile-sheet-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid #dce6f1;
+  border-radius: 13px;
+  background: #f7faff;
+}
+
+.companion-mobile-sheet-status strong,
+.companion-mobile-sheet-status span {
+  display: block;
+}
+
+.companion-mobile-sheet-status strong {
+  color: #16263d;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.companion-mobile-sheet-status span {
+  margin-top: 2px;
+  color: #64748b;
+  font: 600 11.5px/1.3 "JetBrains Mono", monospace;
+}
+
+.companion-mobile-sheet-actions {
+  display: grid;
+  gap: 9px;
+}
+
+.companion-mobile-sheet-link {
+  width: 100%;
+  min-height: 54px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #d4e0ec;
+  border-radius: 14px;
+  background: #ffffff;
+  color: #1a2c44;
+  text-decoration: none;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.companion-mobile-sheet-link.primary {
+  border-color: #9dc2f1;
+  background: linear-gradient(135deg, #f0f7ff, #f8fbff);
+  color: #0f4ea8;
+}
+
+.companion-mobile-sheet-link span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.companion-mobile-sheet-link strong {
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.companion-mobile-sheet-link small {
+  color: #64748b;
+  font-size: 11.5px;
+  line-height: 1.3;
+}
+
+/* ==========================================================================
+   PHONE SHELL & WORKSPACE (Android / iPhone phones up to 820px when cpPhone=true,
+   plus <= 640px portrait phone media fallback)
+   ========================================================================== */
+@media screen and (max-width: 640px), screen and (max-width: 820px) {
+  :root[data-cp-phone="true"] .companion-mobile-back,
+  :root[data-cp-phone="true"] .companion-mobile-more-btn {
+    display: inline-grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    flex: 0 0 44px;
+    border: 1px solid #d5e0ec;
+    border-radius: 12px;
+    background: #ffffff;
+    color: #20324b;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  :root[data-cp-phone="true"] .companion-mobile-back:active,
+  :root[data-cp-phone="true"] .companion-mobile-more-btn:active {
+    transform: scale(0.95);
+    background: #f1f6fd;
+  }
+
+  :root[data-cp-phone="true"] .companion-shell .companion-topbar {
+    padding: env(safe-area-inset-top) 10px 0 8px !important;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 1px 0 rgba(15, 39, 68, 0.06);
+  }
+
+  :root[data-cp-phone="true"] .companion-shell .companion-title-block {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  :root[data-cp-phone="true"] .companion-shell .companion-title-block > span {
+    display: none;
+  }
+
+  :root[data-cp-phone="true"] .companion-shell .companion-title-block strong {
+    margin-top: 0;
+    max-width: 100% !important;
+    font-size: 15px !important;
+    line-height: 1.2;
+  }
+
+  :root[data-cp-phone="true"] .companion-mobile-sync-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 2px;
+    max-width: 100%;
+    color: #5b6d83;
+    font-size: 11px;
+    font-weight: 750;
+  }
+
+  :root[data-cp-phone="true"] .companion-mobile-sync-meta .companion-sync-dot {
+    width: 7px;
+    height: 7px;
+    flex: 0 0 7px;
+    margin-top: 0;
+    box-shadow: 0 0 0 3px rgba(67, 211, 141, 0.14);
+  }
+
+  :root[data-cp-phone="true"] .companion-shell .companion-top-actions {
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  :root[data-cp-phone="true"] .companion-shell .companion-top-actions .primary {
+    border-radius: 12px !important;
+    padding: 0 12px !important;
+  }
+
+  /* Sleek 52px docked Pairings + Arbiter Access bar on phones */
+  :root[data-cp-phone="true"] .organizer-pairings-panel:not(.is-open),
+  :root[data-cp-phone="true"] .organizer-arbiter-panel:not(.is-open) {
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+  }
+
+  :root[data-cp-phone="true"] .companion-shell .companion-main {
+    padding: calc(54px + 52px + env(safe-area-inset-top) + 8px) 10px calc(86px + env(safe-area-inset-bottom)) !important;
+  }
+
+  :root[data-cp-phone="true"] .companion-setup-card[id] {
+    scroll-margin-top: calc(108px + env(safe-area-inset-top)) !important;
+  }
+
+  :root[data-cp-phone="true"] #companion-fide-search-section[id],
+  :root[data-cp-phone="true"] #companion-roster-section[id] {
+    scroll-margin-top: calc(114px + env(safe-area-inset-top)) !important;
+  }
+
+  /* My Tournaments phone header + Full Web Workspace strip */
+  :root[data-cp-phone="true"] .companion-select-shell .companion-topbar-desktop-link {
+    display: none !important;
+  }
+
+  :root[data-cp-phone="true"] .companion-mobile-desktop-switch {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 10px;
+    padding: 11px 14px;
+    min-height: 48px;
+    border: 1px solid #c5daf5;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #f3f8ff, #ffffff);
+    color: #0f4ea8;
+    text-decoration: none;
+    box-shadow: 0 4px 14px rgba(15, 39, 68, 0.04);
+    touch-action: manipulation;
+  }
+
+  :root[data-cp-phone="true"] .companion-mobile-desktop-switch span {
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+  }
+
+  :root[data-cp-phone="true"] .companion-mobile-desktop-switch strong {
+    font-size: 13.5px;
+    font-weight: 850;
+  }
+
+  :root[data-cp-phone="true"] .companion-mobile-desktop-switch small {
+    color: #5b6d83;
+    font-size: 11px;
+    line-height: 1.3;
+  }
+
+  /* Bottom tab bar active badge + frosted highlight */
+  :root[data-cp-phone="true"] .companion-mobile-nav.companion-native-tabbar .companion-mobile-nav-icon {
+    position: relative;
+    overflow: visible !important;
+    border-radius: 0 !important;
+  }
+
+  :root[data-cp-phone="true"] .companion-mobile-nav-badge {
+    display: inline-grid;
+    place-items: center;
+    position: absolute;
+    top: -2px;
+    right: -8px;
+    min-width: 17px;
+    height: 17px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: #1769e0;
+    color: #ffffff;
+    font-style: normal;
+    font-size: 9.5px;
+    font-weight: 850;
+    line-height: 1;
+    box-shadow: 0 0 0 2px #ffffff;
+  }
+
+  /* Guest Arbiter round progress bar */
+  :root[data-cp-phone="true"] .arbiter-round-progress-track {
+    display: block;
+    width: 100%;
+    height: 6px;
+    margin-top: 6px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #e2eaf3;
+  }
+
+  :root[data-cp-phone="true"] .arbiter-round-progress-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #1769e0, #10b981);
+    transition: width 0.25s ease;
+  }
+}
+
+@media screen and (max-width: 640px) {
+  /* Sign-In screen phone polish */
+  .companion-entry-shell {
+    padding: calc(16px + env(safe-area-inset-top)) 14px calc(18px + env(safe-area-inset-bottom));
+    background: radial-gradient(circle at 50% 0, rgba(23, 105, 224, 0.08), transparent 24rem), #f3f6fa;
+  }
+
+  .companion-login-card {
+    padding: 22px 18px;
+    border-radius: 20px;
+    box-shadow: 0 14px 36px rgba(8, 24, 45, 0.08);
+  }
+
+  .companion-entry-mark {
+    width: 44px;
+    height: 44px;
+    flex-basis: 44px;
+    border-radius: 13px;
+  }
+
+  .companion-login-copy h1 {
+    font-size: 24px;
+  }
+
+  .companion-entry-primary {
+    min-height: 48px;
+    border-radius: 12px;
+  }
+
+  /* My Tournaments phone cards & above-the-fold polish */
+  .companion-select-shell .companion-hub-hero {
+    padding: 13px 14px;
+    border-radius: 16px;
+  }
+
+  .companion-select-shell .companion-hub-hero h1 {
+    font-size: 21px !important;
+  }
+
+  .companion-select-shell .companion-native-tile {
+    border-radius: 16px;
+    box-shadow: 0 6px 18px rgba(8, 24, 45, 0.045);
+  }
+
+  /* Compact AutoSave bar on phones */
+  .companion-shell .companion-auto-save {
+    border-radius: 12px;
+    padding: 2px 12px;
+    margin-bottom: 10px;
+  }
+
+  /* Setup quick-jump pills: keep >= 44px touch target & horizontal scroll */
+  .companion-setup-jump a {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    padding: 0 14px;
+    font-weight: 800;
+  }
+
+  .companion-shell .companion-setup-card {
+    border-radius: 15px !important;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.03) !important;
+  }
+
+  /* Players phone quick-jump bar (both FIDE Search & Roster remain visible) */
+  .companion-reg-phone-jump {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .companion-reg-phone-jump a {
+    min-height: 44px;
+    padding: 0 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #cbd8e6;
+    border-radius: 12px;
+    background: #ffffff;
+    color: #0f4ea8;
+    font-size: 13px;
+    font-weight: 800;
+    text-decoration: none;
+    touch-action: manipulation;
+  }
+
+  .companion-shell .companion-registration-frame .companion-section-head {
+    display: none;
+  }
+
+  .companion-shell .companion-registration {
+    padding: 10px !important;
+    gap: 10px;
+  }
+
+  .companion-shell .companion-fide-row {
+    border-radius: 13px;
+    padding: 10px;
+  }
+
+  .companion-shell .companion-roster-row {
+    border-radius: 13px;
+    padding: 11px;
+    background: #ffffff;
+    box-shadow: 0 3px 10px rgba(15, 23, 42, 0.03);
+  }
+
+  /* Publish phone cards */
+  .companion-shell .companion-publish-command {
+    min-height: 74px;
+    padding: 14px;
+    border-radius: 15px;
+  }
+
+  .companion-shell .companion-publish-command-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+  }
+
+  /* Pairings & Arbiter Access bottom-sheet grabber polish */
+  .organizer-pairings-panel.is-open .organizer-pairings-card::before,
+  .organizer-arbiter-panel.is-open .organizer-arbiter-card::before {
+    content: "";
+    display: block;
+    width: 38px;
+    height: 5px;
+    margin: 8px auto 2px;
+    border-radius: 999px;
+    background: #d5dee8;
+  }
+
+  .organizer-pairings-panel.is-open .organizer-pairings-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+}

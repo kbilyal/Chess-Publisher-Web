@@ -7,13 +7,15 @@ import {
   Cloud,
   ExternalLink,
   Globe2,
+  MoreHorizontal,
   RefreshCw,
   Send,
   Settings2,
   ShieldCheck,
   Smartphone,
   Users,
-  WifiOff
+  WifiOff,
+  X
 } from 'lucide-react';
 import { Tournament } from '../types';
 import { createInitialEmptyTournament } from '../data/initialData';
@@ -69,6 +71,7 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
   const [messageKind, setMessageKind] = useState<'ok' | 'warn' | 'error'>('ok');
   const [sourceMismatchTnr, setSourceMismatchTnr] = useState('');
   const [pendingConflictFields, setPendingConflictFields] = useState<string[]>([]);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const tournamentRef = useRef(tournament);
   const chessResultsPublishLockRef = useRef(false);
   const unsaved = tournament !== savedTournament;
@@ -91,6 +94,14 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
     window.addEventListener('beforeunload', confirmClose);
     return () => window.removeEventListener('beforeunload', confirmClose);
   }, [unsaved]);
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMobileMenuOpen(false);
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [mobileMenuOpen]);
 
   const updateTournament = (updater: (previous: Tournament) => Tournament) => {
     setTournament(previous => updater(previous));
@@ -540,8 +551,8 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
 
   const cloudId = String(cloud.activeCloud?.id || (tournament as any)?.cloud?.cloudTournamentId || '').trim();
   const webPortalHref = cloudId
-    ? `https://chess-publisher.org/app/?cloudTournamentId=${encodeURIComponent(cloudId)}`
-    : 'https://chess-publisher.org/app/';
+    ? `https://chess-publisher.org/app/?cloudTournamentId=${encodeURIComponent(cloudId)}&desktop=1`
+    : 'https://chess-publisher.org/app/?desktop=1';
 
   const publishBlocked = busy !== null || cloud.busy || cloud.conflict;
 
@@ -582,13 +593,29 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
       </aside>
 
       <header className="companion-topbar">
+        <button type="button" className="companion-mobile-back" onClick={leaveTournament} aria-label="Back to My tournaments">
+          <ArrowLeft size={20} aria-hidden="true" />
+        </button>
         <div className="companion-title-block">
           <span>{activeTab === 'setup' ? 'Tournament Setup' : activeTab === 'players' ? 'Player Registration' : 'Publish Tournament'}</span>
           <strong>{displayName}</strong>
+          <div className="companion-mobile-sync-meta">
+            <span className={`companion-sync-dot ${cloud.conflict ? 'is-warn' : cloud.statusKind === 'offline' ? 'is-offline' : 'is-ok'}`} aria-hidden="true" />
+            <span>r{cloudRevision || 0} · {cloud.conflict ? 'Conflict' : cloud.statusKind === 'offline' ? 'Offline' : (unsaved || cloud.cloudDirty) ? 'Unsynced' : 'Synced'}</span>
+          </div>
         </div>
         <div className="companion-top-actions">
           <button type="button" className="companion-button primary" data-unified-sync="true" onClick={unifiedSync} disabled={busy !== null || cloud.busy} title="Unified safe SYNC: no-op, pull Cloud-only, push Web-only, or stop on a true two-sided conflict.">
             <Cloud size={16} /> {busy === 'sync' ? '↕ SYNC…' : '↕ SYNC'}
+          </button>
+          <button
+            type="button"
+            className="companion-mobile-more-btn"
+            aria-label="More workspace options"
+            aria-expanded={mobileMenuOpen}
+            onClick={() => setMobileMenuOpen(open => !open)}
+          >
+            <MoreHorizontal size={20} aria-hidden="true" />
           </button>
         </div>
       </header>
@@ -796,10 +823,75 @@ export function CompanionWorkspace({ cloud }: { cloud: CompanionCloud }) {
         {nav.map(item => {
           const Icon = item.icon;
           const active = activeTab === item.id;
-          return <button key={item.id} type="button" className={active ? 'is-active' : ''} aria-current={active ? 'page' : undefined} onClick={() => setActiveTab(item.id)}><span className="companion-mobile-nav-icon"><Icon size={22} /></span><span>{item.label}</span></button>;
+          return (
+            <button key={item.id} type="button" className={active ? 'is-active' : ''} aria-current={active ? 'page' : undefined} onClick={() => setActiveTab(item.id)}>
+              <span className="companion-mobile-nav-icon">
+                <Icon size={22} />
+                {item.id === 'players' && tournament.players.length > 0 && (
+                  <em className="companion-mobile-nav-badge" aria-hidden="true">{tournament.players.length}</em>
+                )}
+              </span>
+              <span>{item.label}</span>
+            </button>
+          );
         })}
         <button type="button" className="companion-mobile-home-action" onClick={leaveTournament}><span className="companion-mobile-nav-icon"><ArrowLeft size={22} /></span><span>Tournaments</span></button>
       </nav>
+
+      {mobileMenuOpen && (
+        <div
+          className="companion-mobile-sheet-backdrop"
+          role="presentation"
+          onClick={event => {
+            if (event.currentTarget === event.target) setMobileMenuOpen(false);
+          }}
+        >
+          <section className="companion-mobile-sheet" role="dialog" aria-modal="true" aria-label="Workspace options">
+            <div className="companion-sheet-grabber" aria-hidden="true" />
+            <header className="companion-mobile-sheet-head">
+              <div>
+                <span className="companion-eyebrow">WORKSPACE OPTIONS</span>
+                <h2>{displayName}</h2>
+              </div>
+              <button type="button" aria-label="Close workspace options" onClick={() => setMobileMenuOpen(false)}>
+                <X size={19} aria-hidden="true" />
+              </button>
+            </header>
+
+            <div className="companion-mobile-sheet-status">
+              <span className={`companion-sync-dot ${cloud.conflict ? 'is-warn' : cloud.statusKind === 'offline' ? 'is-offline' : 'is-ok'}`} aria-hidden="true" />
+              <div>
+                <strong>{cloud.conflict ? 'Sync conflict' : cloud.status}</strong>
+                <span>Cloud revision r{cloudRevision || 0}</span>
+              </div>
+            </div>
+
+            <div className="companion-mobile-sheet-actions">
+              <a className="companion-mobile-sheet-link primary" href={webPortalHref} onClick={() => setMobileMenuOpen(false)}>
+                <span>
+                  <strong>Full Web Workspace</strong>
+                  <small>Pairings, standings, tie-breaks &amp; reports</small>
+                </span>
+                <ExternalLink size={18} aria-hidden="true" />
+              </a>
+              <button
+                type="button"
+                className="companion-mobile-sheet-link"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  void leaveTournament();
+                }}
+              >
+                <span>
+                  <strong>My tournaments</strong>
+                  <small>Switch or create a tournament</small>
+                </span>
+                <ArrowLeft size={18} aria-hidden="true" />
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
