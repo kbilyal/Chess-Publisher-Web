@@ -46,13 +46,48 @@ async function persistCookieSession(user) {
   }));
 }
 
-function rememberDesktopPreference() {
+const ARBITER_COMPANION_URL = 'https://web.chess-publisher.org/';
+
+function isMobilePhone() {
+  try {
+    if (typeof navigator === 'undefined') return false;
+    const ua = String(navigator.userAgent || '');
+    const isTablet = /\biPad\b|Tablet|PlayBook|Silk/i.test(ua) || (/\bAndroid\b/i.test(ua) && !/\bMobile\b/i.test(ua));
+    if (isTablet) return false;
+    return navigator.userAgentData?.mobile === true || /iPhone|iPod|Android.*Mobile|Windows Phone/i.test(ua);
+  } catch {
+    return false;
+  }
+}
+
+function prefersDesktopWorkspace() {
   try {
     const params = new URLSearchParams(typeof location !== 'undefined' ? (location.search || '') : '');
     if (params.get('desktop') === '1') {
       sessionStorage?.setItem?.('cp.desktop-web.preferDesktop', '1');
+      return true;
     }
+    if (params.get('mobile') === '1') {
+      sessionStorage?.removeItem?.('cp.desktop-web.preferDesktop');
+      return false;
+    }
+    return sessionStorage?.getItem?.('cp.desktop-web.preferDesktop') === '1';
+  } catch {
+    return false;
+  }
+}
+
+function shouldRouteToMobileCompanion() {
+  try {
+    const params = new URLSearchParams(typeof location !== 'undefined' ? (location.search || '') : '');
+    if (params.get('account') === '1') return false;
   } catch {}
+  if (prefersDesktopWorkspace()) return false;
+  return isMobilePhone();
+}
+
+function rememberDesktopPreference() {
+  prefersDesktopWorkspace();
 }
 
 function workspaceTargetUrl(path = './workspace.html') {
@@ -211,6 +246,10 @@ async function initGoogleSignIn() {
   if (!googleBtnContainer) return;
 
   rememberDesktopPreference();
+  if (shouldRouteToMobileCompanion()) {
+    location.replace(workspaceTargetUrl(ARBITER_COMPANION_URL));
+    return;
+  }
   const isAccountView = typeof location !== 'undefined' && new URLSearchParams(location.search || '').get('account') === '1';
   try {
     const meRes = await fetch(`${apiBase}/api/auth/me?optional=1`, {
