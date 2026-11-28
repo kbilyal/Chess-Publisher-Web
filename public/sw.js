@@ -1,8 +1,12 @@
-const CACHE = 'chess-publisher-pwa-v3';
+const CACHE = 'chess-publisher-pwa-v4';
 const SHELL = ['/', '/manifest.webmanifest', '/icons/chess-publisher-icon-192.png', '/icons/chess-publisher-icon-512.png', '/icons/chess-publisher-maskable-512.png'];
 
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));
+  event.waitUntil(
+    caches.open(CACHE)
+      .then(cache => Promise.all(SHELL.map(url => cache.add(new Request(url, { cache: 'no-store' })))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', event => {
